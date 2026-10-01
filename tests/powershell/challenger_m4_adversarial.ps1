@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Milestone 4 Adversarial Challenge & Stress-Test Harness (m4_challenger_1)
     Empirically validates:

@@ -103,6 +103,9 @@ class TestAgyAgentPipeline(unittest.TestCase):
             txt = cmd_file.read_text(encoding="utf-8")
             self.assertIn("[command]", txt)
             self.assertIn("name =", txt)
+            import tomllib
+            workflow = tomllib.loads(txt)["command"]["workflow"]
+            self.assertTrue((REPO_ROOT / workflow).is_file(), f"Unresolved command workflow: {workflow}")
 
         # Deduplication check: commands/agy must NOT exist as a redundant copy (T-1114)
         duplicate_dir = REPO_ROOT / "commands" / "agy"

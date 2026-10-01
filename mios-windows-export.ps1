@@ -1,4 +1,4 @@
-# AI-hint: A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.
+﻿# AI-hint: A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.
 # AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS

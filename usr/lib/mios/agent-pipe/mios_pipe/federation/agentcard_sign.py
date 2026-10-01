@@ -1,5 +1,5 @@
 # AI-hint: Pure A2A AgentCard JWS/JCS signing and verification module.
-# AI-related: mios_pipe/federation/a2a.py, test_mios_agentcard_sign.py
+# AI-related: mios_pipe/federation/a2a.py, test_mios_agent_call.py
 """Pure A2A v1.0 AgentCard JWS signature and RFC-8785 JCS canonicalization helpers."""
 
 from __future__ import annotations

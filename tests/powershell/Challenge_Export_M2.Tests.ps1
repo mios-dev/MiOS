@@ -1,4 +1,4 @@
-# Adversarial Challenge: Export Failure and Cleanup Harness
+﻿# Adversarial Challenge: Export Failure and Cleanup Harness
 # Tests:
 # 1. Partial file deletion on export failure
 # 2. Process termination and resource disposal

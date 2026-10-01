@@ -7,6 +7,7 @@ set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do
     if [ -r "$_mlog" ]; then
+        # shellcheck source=usr/lib/mios/log.sh
         . "$_mlog"
         break
     fi
@@ -17,7 +18,6 @@ command -v mios_ok &>/dev/null || mios_ok() { echo "[24-cpu-affinity] OK: $*"; }
 command -v mios_warn &>/dev/null || mios_warn() { echo "[24-cpu-affinity] WARN: $*"; }
 
 TARGET_ROOT="${MIOS_TARGET_ROOT:-}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mios_log "Starting CPU affinity and core scheduling configuration (T-858)"
 
@@ -120,7 +120,7 @@ mkdir -p "${SYSTEM_SLICE_D}" "${USER_SLICE_D}" "${SUBAGENT_SLICE_D}"
 # system.slice: High CPU priority for core system daemons
 cat > "${SYSTEM_SLICE_D}/20-cpu-affinity.conf" <<'EOF'
 # AI-hint: Prioritizes system infrastructure and critical background daemons over untrusted workloads (T-858).
-# AI-related: usr/lib/systemd/system/subagent.slice.d/20-cpu-affinity.conf, usr/libexec/mios/mios-core-sched
+# AI-related: automation/24-cpu-affinity.sh, usr/libexec/mios/mios-core-sched
 [Slice]
 CPUWeight=200
 CPUAccounting=yes
@@ -131,7 +131,7 @@ chmod 0644 "${SYSTEM_SLICE_D}/20-cpu-affinity.conf"
 # user.slice: Standard baseline CPU priority for interactive desktop applications
 cat > "${USER_SLICE_D}/20-cpu-affinity.conf" <<'EOF'
 # AI-hint: Interactive user session CPU weighting for responsive desktop rendering (T-858).
-# AI-related: usr/lib/systemd/system/system.slice.d/20-cpu-affinity.conf
+# AI-related: automation/24-cpu-affinity.sh
 [Slice]
 CPUWeight=100
 CPUAccounting=yes
@@ -157,7 +157,7 @@ SUBAGENT_SLICE="${TARGET_ROOT}/usr/lib/systemd/system/subagent.slice"
 if [ ! -f "${SUBAGENT_SLICE}" ]; then
     cat > "${SUBAGENT_SLICE}" <<'EOF'
 # AI-hint: MiOS Subagent Worker Slice with active ManagedOOMMemoryPressure=kill policy and CPU constraints (T-820, T-858).
-# AI-related: usr/lib/systemd/system/subagent.slice.d/20-cpu-affinity.conf, usr/libexec/mios/mios-core-sched
+# AI-related: automation/24-cpu-affinity.sh, usr/libexec/mios/mios-core-sched
 [Unit]
 Description=MiOS Subagent Worker Slice
 Documentation=man:systemd.slice(5)

@@ -415,5 +415,101 @@ class TestBoundStoreProjection(unittest.TestCase):
                     self.project()
 
 
+class TestMonitorRegistry(unittest.TestCase):
+    """Exercise monitor collectors without importing or launching the UI."""
+    def setUp(self):
+        import json
+        import platform
+        import socket
+        from unittest.mock import patch
+        self.patch = patch
+        library = os.path.join(_ROOT, "usr", "lib", "mios")
+        sys.path.insert(0, library)
+        self.addCleanup(lambda: sys.path.remove(library))
+        import mios_toml
+        path = os.path.join(_ROOT, "usr", "libexec", "mios", "mios-mon.py")
+        with open(path, encoding="utf-8") as source:
+            tree = ast.parse(source.read())
+        names = {"monitor_config", "monitor_sources_config", "check_port", "engine_online", "get_services", "load_ssot_colors", "running_wsl_distros"}
+        nodes = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name in names]
+        self.assertEqual(names, {node.name for node in nodes})
+        self.ns = {"os": os, "glob": __import__("glob"), "subprocess": subprocess, "json": json,
+                   "socket": socket, "platform": platform, "IS_WINDOWS": False, "__file__": path,
+                   "layer_paths": mios_toml.layer_paths, "load_merged": mios_toml.load_merged,
+                   "process_val": mios_toml.process_val, "mios_colors": mios_toml.colors,
+                   "running_wsl_distros": lambda: set()}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), path, "exec"), self.ns)
+
+    def test_registry_uses_layered_categories_and_shared_offset_rules(self):
+        import mios_toml
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [os.path.join(directory, name) for name in ("vendor.toml", "host.toml", "user.toml")]
+            for path, text in zip(paths, ('[ports]\nstack_id = 1\nllm_light = 1\nadguard_dns = 53\n[ports.categories.ai]\nbase = 32000\nstride = 10\nmembers = ["llm_light"]\n', '[ports.categories.ai]\nbase = 33000\n', '[ports.categories.ai]\nbase = 34000\n')):
+                with open(path, "w", encoding="utf-8") as output:
+                    output.write(text)
+            data = mios_toml.load_merged(layers=paths)
+        seen = []
+        self.ns.update(monitor_config=lambda: data, check_port=lambda host, port: seen.append(port) or port == 44000,
+                       engine_online=lambda: False)
+        services = {name: (port, state) for name, port, state in self.ns["get_services"]()}
+        self.assertEqual((44000, True), services["llm_light"])
+        self.assertEqual((53, False), services["adguard_dns"])
+        self.assertEqual([44000, 53], seen)
+        self.assertNotIn("categories", services)
+        self.assertFalse(services["podman-machine"][1])
+
+    def test_missing_ports_or_windows_host_do_not_fabricate_health(self):
+        self.ns.update(IS_WINDOWS=True, monitor_config=lambda: {}, engine_online=lambda: False, running_wsl_distros=lambda: set())
+        self.assertEqual([("wsl-engine", 0, False), ("podman-machine", 0, False)], self.ns["get_services"]())
+
+    def test_wsl_listing_requires_a_successful_response(self):
+        for code, output, expected in ((0, "MiOS\n".encode("utf-16-le"), {"MiOS"}),
+                                       (0, b"MiOS\n", {"MiOS"}), (1, b"ERROR: listing failed", set())):
+            with self.subTest(code=code, output=output), self.patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], code, output)):
+                self.assertEqual(expected, self.ns["running_wsl_distros"]())
+
+    def test_windows_fragments_preserve_vendor_host_user_precedence(self):
+        with tempfile.TemporaryDirectory() as root:
+            relative = ("usr/share/mios/mios.toml", "usr/lib/mios/mios.d/10-theme.toml",
+                        "etc/mios/mios.toml", "etc/mios/mios.d/10-theme.toml",
+                        "user/mios.toml", "user/mios.d/10-theme.toml")
+            for index, name in enumerate(relative):
+                path = os.path.join(root, name)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as output:
+                    output.write(f'[colors]\nbg = "#{index:06x}"\n')
+            self.ns.update(IS_WINDOWS=True, __file__=os.path.join(root, "usr/libexec/mios/mios-mon.py"),
+                           layer_paths=lambda: [os.path.join(root, relative[0]), "/etc/mios/mios.toml", os.path.join(root, relative[4])])
+            self.assertEqual("#000005", self.ns["monitor_config"]()["colors"]["bg"])
+
+    def test_engine_requires_successful_host_json(self):
+        for code, value, expected in ((0, '{"host":{"arch":"amd64"}}', True), (1, '{"host":{"arch":"amd64"}}', False),
+                                      (0, '{}', False), (0, '[]', False), (0, 'invalid', False)):
+            with self.subTest(code=code, value=value), self.patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], code, value)):
+                self.assertEqual(expected, self.ns["engine_online"]())
+        for error in (FileNotFoundError(), subprocess.TimeoutExpired("podman", 2)):
+            with self.patch.object(subprocess, "run", side_effect=error):
+                self.assertFalse(self.ns["engine_online"]())
+
+    def test_disabled_invalid_and_closed_ports_are_offline(self):
+        from unittest.mock import Mock
+        probe = Mock(side_effect=OSError("closed"))
+        with self.patch.object(self.ns["socket"], "create_connection", probe):
+            for port in (None, 0, -1, True, "42", 65536):
+                self.assertFalse(self.ns["check_port"]("127.0.0.1", port))
+            probe.assert_not_called()
+            self.assertFalse(self.ns["check_port"]("127.0.0.1", 44000))
+            self.assertEqual(2, probe.call_count)
+
+    def test_palette_and_transparency_read_the_same_overlay(self):
+        self.ns.update(IS_WINDOWS=True, monitor_config=lambda: {"colors":{"bg":"#102030", "surface":"#203040"}, "theme":{"acrylic":True, "opacity":75}})
+        palette, transparent = self.ns["load_ssot_colors"]()
+        self.assertEqual("#102030", palette["bg"])
+        self.assertEqual("#203040", palette["surface"])
+        self.assertTrue(transparent)
+        self.ns["IS_WINDOWS"] = False
+        self.assertFalse(self.ns["load_ssot_colors"]()[1])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

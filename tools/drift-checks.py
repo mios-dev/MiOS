@@ -717,6 +717,8 @@ def check_drift_projection() -> int:
 
         def execute(self, query, params=None):
             query_upper = " ".join(query.upper().split())
+            self.results = []
+            self.index = 0
             if "INSERT INTO SYSTEM_CONFIG" in query_upper:
                 pass
             elif "INSERT INTO PACKAGE_SET" in query_upper:
@@ -773,11 +775,11 @@ def check_drift_projection() -> int:
                 else:
                     self.results = []
                 self.index = 0
-            elif "SELECT SCOPE, KEY, VALUE FROM CONFIG_KV" in query_upper:
+            elif "SELECT SCOPE, KEY, VALUE::TEXT, LAYER FROM CONFIG_KV" in query_upper:
                 rows = []
                 for (scope, key, layer), item in sorted(self.db_store["config_kv"].items()):
-                    if layer == 0 and scope != 'verbs':
-                        rows.append((scope, key, item["value"]))
+                    if layer == 0:
+                        rows.append((scope, key, json.dumps(item["value"]), layer))
                 self.results = rows
                 self.index = 0
             elif "SELECT DOMAIN, DESCRIPTION, ARRAY_AGG(VERB_NAME" in query_upper or "SELECT DOMAIN, DESCRIPTION, ARRAY_AGG" in query_upper:
@@ -877,7 +879,9 @@ def check_drift_projection() -> int:
         mat_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": materialize_path}
 
         stdout_capture = io.StringIO()
+        original_argv = sys.argv
         try:
+            sys.argv = [materialize_path]
             with contextlib.redirect_stdout(stdout_capture):
                 with open(materialize_path, "r", encoding="utf-8") as f:
                     exec(f.read(), mat_globals)
@@ -885,6 +889,8 @@ def check_drift_projection() -> int:
             if e.code != 0:
                 print(f"Materialize script exited with code {e.code}")
                 sys.exit(1)
+        finally:
+            sys.argv = original_argv
 
         materialized_toml_str = stdout_capture.getvalue()
 

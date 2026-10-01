@@ -4404,7 +4404,7 @@ print(name.split("/")[1] if name.count("/") >= 1 else "")
 }
 
 check_ps_encoding_and_bom() {
-    echo "[98-drift-checks] PowerShell script files use UTF-8 encoding without byte-order marks"
+    echo "[98-drift-checks] PowerShell script encoding supports the declared interpreter contract"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-encoding-and-bom)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"

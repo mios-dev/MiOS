@@ -131,6 +131,13 @@ fn ssot_keys(text: &str, re: &Res) -> BTreeSet<String> {
             }
         }
     }
+    for c in re.value.captures_iter(text) {
+        if names.contains(c.get(1).map(|m| m.as_str()).unwrap_or("")) {
+            if let Some(key) = c.get(2) {
+                keys.insert(key.as_str().to_string());
+            }
+        }
+    }
     for line in text.lines() {
         if re.load.is_match(line) {
             for c in re.sub.captures_iter(line) {
@@ -153,6 +160,7 @@ struct Res {
     forin: Regex,
     def: Regex,
     sub: Regex,
+    value: Regex,
     ctx: Regex,
     test_path: Regex,
 }
@@ -174,6 +182,8 @@ fn build_res() -> Option<Res> {
         forin: Regex::new(r"(?m)^[^\S\n]*for[^\S\n]+([A-Za-z_]\w*)[^\S\n]+in[^\S\n]+(.*)$").ok()?,
         def: Regex::new(r"(?m)^[^\S\n]*def[^\S\n]+([A-Za-z_]\w*)[^\S\n]*\(").ok()?,
         sub: Regex::new(r#"([A-Za-z_]\w*)?\s*(?:\[\s*["'](\w+)["']\s*\]|\.get\(\s*["'](\w+)["'])"#)
+            .ok()?,
+        value: Regex::new(r#"\bconfig_value\(\s*&?([A-Za-z_]\w*)\s*,\s*"root"\s*,\s*"(\w+)"\s*\)"#)
             .ok()?,
         ctx: Regex::new(r"mios\.toml|mios_toml|_toml_section|load_merged|MIOS_TOML").ok()?,
         test_path: Regex::new(r"(^|/)tests?/|(^|/)test[-_]").ok()?,
@@ -492,6 +502,20 @@ mod tests {
             keys(src).contains("cockpit"),
             "a name bound from the parse must credit"
         );
+    }
+
+    #[test]
+    fn native_root_accessor_on_parsed_ssot_is_evidence() {
+        let src = "let doc: toml::Value = toml::from_str(ssot)?;\nlet config = config_value(&doc, \"root\", \"cockpit\")?;\n";
+        assert!(keys(src).contains("cockpit"));
+    }
+
+    #[test]
+    fn native_accessor_on_unrelated_or_nested_value_is_not_root_evidence() {
+        let unrelated = "let doc = unrelated_config();\nlet config = config_value(&doc, \"root\", \"cockpit\")?;\n";
+        let nested = "let doc: toml::Value = toml::from_str(ssot)?;\nlet config = config_value(&doc, \"identity\", \"cockpit\")?;\n";
+        assert!(!keys(unrelated).contains("cockpit"));
+        assert!(!keys(nested).contains("cockpit"));
     }
 
     /// One indirection through a loader helper must still credit.

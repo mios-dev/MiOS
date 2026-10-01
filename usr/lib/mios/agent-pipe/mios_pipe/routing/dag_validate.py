@@ -1,5 +1,5 @@
 # AI-hint: Pure pre-execution validator and Kahn topological classifier for runtime agent DAGs.
-# AI-related: mios_pipe/routing/dag_exec.py, test_mios_dag_validate.py
+# AI-related: mios_pipe/routing/dag_exec.py, test_mios_dag_exec.py
 """Pure pre-execution DAG validator using Kahn topological classification."""
 
 from __future__ import annotations

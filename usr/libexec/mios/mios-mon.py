@@ -22,6 +22,9 @@ import threading
 import xml.etree.ElementTree as ET
 from collections import deque
 
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "lib", "mios")))
+from mios_toml import colors as mios_colors, layer_paths, load_merged, process_val
+
 def _install_deps(pkgs=None):
     if pkgs is None:
         pkgs = ["rich", "textual", "psutil"]
@@ -89,32 +92,33 @@ _USB_INFO_CACHE = "Scanning USB..."
 _GIT_STATUS_CACHE = "[dim]Git state loading...[/]"
 PIPELINE_MODE = False
 
+def monitor_config():
+    """Use the shared resolver for vendor, host, user and fragment precedence."""
+    paths = layer_paths()
+    if IS_WINDOWS:
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        paths = [os.path.join(root, path.lstrip("/"))
+                 if path.startswith(("/usr/", "/etc/")) else path for path in paths]
+        expanded = []
+        for index, path in enumerate(paths):
+            expanded.append(path)
+            if index == 0 or os.path.basename(path) == "mios.toml":
+                fragments = (os.path.join(root, "usr", "lib", "mios", "mios.d")
+                             if index == 0 else os.path.join(os.path.dirname(path), "mios.d"))
+                expanded.extend(sorted(glob.glob(os.path.join(fragments, "*.toml")), key=os.path.basename))
+        paths = list(dict.fromkeys(expanded))
+    return load_merged(layers=paths)
+
 def monitor_sources_config():
     """Read collector cadence, history and Linux identities from the SSOT."""
-    settings = {"batch_size": 50, "flush_interval_s": 5,
-                "scrollback_rows": 9000, "distros": ("podman-MiOS-DEV", "MiOS")}
-    try:
-        import tomllib
-    except ImportError:
-        return settings
-    for path in (r"C:\MiOS\usr\share\mios\mios.toml",
-                 "/usr/share/mios/mios.toml", r"C:\mios-bootstrap\mios.toml"):
-        try:
-            with open(path, "rb") as source:
-                data = tomllib.load(source)
-            pipeline = data.get("logging", {}).get("pipeline", {})
-            terminal = data.get("terminal", {})
-            vm = data.get("bootstrap", {}).get("dev_vm", {})
-            settings["batch_size"] = max(1, int(pipeline.get("batch_size", 50)))
-            settings["flush_interval_s"] = max(1, int(pipeline.get("flush_interval_s", 5)))
-            settings["scrollback_rows"] = max(100, int(terminal.get("scrollback_rows", 9000)))
-            machine = vm.get("machine_name", "MiOS-DEV")
-            distro = vm.get("wsl_distro", "MiOS")
-            settings["distros"] = (f"podman-{machine}", distro)
-            break
-        except (OSError, ValueError, TypeError):
-            continue
-    return settings
+    data = monitor_config()
+    pipeline = data.get("logging", {}).get("pipeline", {})
+    terminal = data.get("terminal", {})
+    vm = data.get("bootstrap", {}).get("dev_vm", {})
+    return {"batch_size": max(1, int(pipeline.get("batch_size", 50))),
+            "flush_interval_s": max(1, int(pipeline.get("flush_interval_s", 5))),
+            "scrollback_rows": max(100, int(terminal.get("scrollback_rows", 9000))),
+            "distros": (f"podman-{vm.get('machine_name', 'MiOS-DEV')}", vm.get("wsl_distro", "MiOS"))}
 
 def parse_windows_events(output):
     """wevtutil emits adjacent Event XML records, without a wrapper element."""
@@ -142,6 +146,8 @@ def running_wsl_distros():
     try:
         proc = subprocess.run(["wsl.exe", "--list", "--running", "--quiet"],
                               capture_output=True, timeout=10)
+        if proc.returncode != 0:
+            return set()
         raw = proc.stdout
         decoded = raw.decode("utf-16-le", errors="replace") if b"\x00" in raw else raw.decode("utf-8", errors="replace")
         return {line.strip().strip("\ufeff") for line in decoded.splitlines() if line.strip()}
@@ -149,8 +155,8 @@ def running_wsl_distros():
         return set()
 
 def check_port(host, port):
-    if not port or port <= 0:
-        return True
+    if type(port) is not int or not 0 < port < 65536:
+        return False
     try:
         with socket.create_connection((host, int(port)), timeout=0.03):
             return True
@@ -161,36 +167,27 @@ def check_port(host, port):
         except Exception:
             return False
 
-def get_services():
-    svcs = []
-    ports = {}
+def engine_online():
+    """A successful Podman host response proves the selected engine is reachable."""
     try:
-        import tomllib
-    except ImportError:
-        try: import tomli as tomllib
-        except ImportError: tomllib = None
-    if tomllib:
-        for p in ["C:\\MiOS\\usr\\share\\mios\\mios.toml", "/usr/share/mios/mios.toml", "/etc/mios/mios.toml", "C:\\mios-bootstrap\\mios.toml"]:
-            if os.path.exists(p):
-                try:
-                    with open(p, "rb") as f:
-                        data = tomllib.load(f)
-                        if "ports" in data:
-                            ports.update(data["ports"])
-                except Exception: pass
+        probe = subprocess.run(["podman", "info", "--format", "json"],
+                               capture_output=True, text=True, timeout=2)
+        info = json.loads(probe.stdout) if probe.returncode == 0 else {}
+        return isinstance(info, dict) and isinstance(info.get("host"), dict) and bool(info["host"])
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return False
 
-    wsl_online = IS_WINDOWS or "WSL" in platform.release()
-    for svc_name, port in ports.items():
-        if isinstance(port, int) and svc_name != "stack_id":
-            offset = ports.get("stack_id", 0) * 10000
-            actual_port = port + offset
-            is_up = check_port("127.0.0.1", actual_port)
-            if not is_up and wsl_online and actual_port in [8222, 8300, 8301, 8091, 8642, 8119, 8443, 8080, 8444, 8389, 8450, 8053, 8633, 8442, 8641, 8650, 8645, 11437]:
-                is_up = check_port("127.0.0.1", actual_port)
-            svcs.append((svc_name, actual_port, is_up))
-
+def get_services():
+    ports = monitor_config().get("ports", {})
+    offset = int(ports.get("stack_id", 0)) * 10000
+    svcs = []
+    for name, port in ports.items():
+        if type(port) is int and name != "stack_id":
+            actual_port = process_val(f"ports.{name}", port, offset)
+            svcs.append((name, actual_port, check_port("127.0.0.1", actual_port)))
+    wsl_online = bool(running_wsl_distros()) if IS_WINDOWS else "microsoft" in platform.release().lower()
     svcs.append(("wsl-engine", 0, wsl_online))
-    svcs.append(("podman-machine", 0, True))
+    svcs.append(("podman-machine", 0, engine_online()))
     return svcs
 
 def get_sys_info():
@@ -471,39 +468,12 @@ def create_dash_layout():
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():
-        colors = {
-            "bg": "#282262",
-            "fg": "#E7DFD3",
-            "accent": "#1A407F",
-            "success": "#3E7765",
-            "warning": "#F35C15",
-            "error": "#DC271B",
-            "muted": "#948E8E",
-            "subtle": "#B7C9D7",
-            "surface": "#1E194D"
-        }
-        transparent_terminal = False
-        paths = ["C:\\MiOS\\usr\\share\\mios\\mios.toml", "/usr/share/mios/mios.toml", "/etc/mios/mios.toml", "C:\\mios-bootstrap\\mios.toml"]
-        for p in paths:
-            if os.path.exists(p):
-                try:
-                    import tomllib
-                except ImportError:
-                    try: import tomli as tomllib
-                    except ImportError: tomllib = None
-                if tomllib:
-                    try:
-                        with open(p, "rb") as f:
-                            data = tomllib.load(f)
-                            if "colors" in data:
-                                for k, v in data["colors"].items():
-                                    if k in colors and isinstance(v, str):
-                                        colors[k] = v
-                            theme = data.get("theme", {})
-                            transparent_terminal = (IS_WINDOWS and bool(theme.get("acrylic", False))
-                                                    and int(theme.get("opacity", 100)) < 100)
-                        break
-                    except Exception: pass
+        data = monitor_config()
+        colors = mios_colors(data=data)
+        colors["surface"] = data.get("colors", {}).get("surface", colors["bg"])
+        theme = data.get("theme", {})
+        transparent_terminal = (IS_WINDOWS and bool(theme.get("acrylic", False))
+                                and int(theme.get("opacity", 100)) < 100)
         return colors, transparent_terminal
 
     SSOT, TRANSPARENT_TERMINAL = load_ssot_colors()
@@ -660,7 +630,7 @@ if TEXTUAL_AVAILABLE:
                         with Vertical(id="build-stats-pane", classes="box"):
                             yield Static(id="build-stats", markup=True)
                         yield RichLog(id="build-log-box", classes="box", markup=True, wrap=True)
-                with TabPane("MiOS-Cat Flash", id="tab-flash"):
+                with TabPane("MiOS Field Flash", id="tab-flash"):
                     with Horizontal(id="flash-container"):
                         with Vertical(id="flash-stats-pane", classes="box"):
                             yield Static(id="flash-stats", markup=True)
@@ -723,7 +693,7 @@ if TEXTUAL_AVAILABLE:
             self.query_one("#svc-table", DataTable).border_title = "Core System Services"
             try:
                 self.query_one("#build-log-box").border_title = "MiOS Build / Install Pipeline (Live)"
-                self.query_one("#flash-log-box").border_title = "MiOS-Cat USB Flash Stream (Live)"
+                self.query_one("#flash-log-box").border_title = "MiOS Field USB Flash Stream (Live)"
                 self.query_one("#ai-log-box").border_title = "MiOS AI Forge & Container Stream (Live)"
             except Exception: pass
 
@@ -828,6 +798,8 @@ if TEXTUAL_AVAILABLE:
                 ]
                 for d in [r"C:\mios-bootstrap\installation", r"C:\MiOS\logs", r"M:\MiOS\logs"]:
                     if os.path.isdir(d):
+                        candidates.extend(glob.glob(os.path.join(d, "mios-field-*.log")))
+                        candidates.extend(glob.glob(os.path.join(d, "MiOS-Field*.log")))
                         candidates.extend(glob.glob(os.path.join(d, "mios-cat-*.log")))
                         candidates.extend(glob.glob(os.path.join(d, "flash-*.log")))
 
@@ -1064,8 +1036,8 @@ if TEXTUAL_AVAILABLE:
             try:
                 ai_lines = [
                     f"[{SSOT['success']} bold]AI Forge Status[/]",
-                    f"[{SSOT['subtle']}]Podman Engine:[/] {'[green]ONLINE[/]' if check_port('127.0.0.1', 8888) or check_port('127.0.0.1', 8080) or IS_WINDOWS else '[red]OFFLINE[/]'}",
-                    f"[{SSOT['subtle']}]LLM Inference:[/] {'[green]READY[/]' if check_port('127.0.0.1', 11450) or check_port('127.0.0.1', 11434) else '[dim]STANDBY[/]'}",
+                    f"[{SSOT['subtle']}]Podman Engine:[/] {'[green]ONLINE[/]' if getattr(self, 'service_status', {}).get('podman-machine', False) else '[red]OFFLINE[/]'}",
+                    f"[{SSOT['subtle']}]LLM Inference:[/] {'[green]READY[/]' if any(getattr(self, 'service_status', {}).get(lane, False) for lane in ('llm_light', 'cpu_node', 'vllm', 'sglang')) else '[dim]STANDBY[/]'}",
                     "",
                     f"[{SSOT['warning']}]System Memory:[/] {make_bar(psutil.virtual_memory().percent, 18)}",
                     f"[{SSOT['warning']}]System CPU:[/] {make_bar(float(cpu), 18)}"
@@ -1085,7 +1057,7 @@ if TEXTUAL_AVAILABLE:
                     status_str = f"[{SSOT['subtle']}]Waiting for log stream...[/]"
 
                 flash_lines = [
-                    f"[{SSOT['accent']} bold]MiOS-Cat USB Builder[/]",
+                    f"[{SSOT['accent']} bold]MiOS Field USB Builder[/]",
                     f"[{SSOT['subtle']}]Target Drive:[/] {get_usb_drive_info()}",
                     f"[{SSOT['subtle']}]Status:[/] {status_str}",
                     "",
@@ -1119,6 +1091,7 @@ if TEXTUAL_AVAILABLE:
 
         def update_services(self):
             svcs = get_services()
+            self.service_status = {name: online for name, _, online in svcs}
             try:
                 table = self.query_one("#svc-table", DataTable)
                 def apply_updates():

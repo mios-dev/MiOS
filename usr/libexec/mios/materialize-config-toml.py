@@ -138,11 +138,11 @@ def emit_toml(config_by_scope: dict, canonical_sections: list | None = None) -> 
 
 def materialize_from_db(conn, layer: int | None = None, merged: bool = True) -> dict:
     with conn.cursor() as cur:
-        # 1. Query config_kv
+        # Request JSON text so string scalars are decoded exactly once.
         if layer is not None:
             cur.execute(
                 """
-                SELECT scope, key, value, layer FROM config_kv
+                SELECT scope, key, value::text, layer FROM config_kv
                 WHERE layer = %s
                 ORDER BY scope, key;
                 """,
@@ -151,7 +151,7 @@ def materialize_from_db(conn, layer: int | None = None, merged: bool = True) -> 
         else:
             cur.execute(
                 """
-                SELECT scope, key, value, layer FROM config_kv
+                SELECT scope, key, value::text, layer FROM config_kv
                 ORDER BY layer ASC, scope ASC, key ASC;
                 """
             )

@@ -1,5 +1,5 @@
 # AI-hint: Pure deterministic quality gate producer for smartroute escalation decisions.
-# AI-related: mios_pipe/routing/smartroute.py, mios_pipe/routing/native_loop.py, mios_pipe/routing/lanes_resolver.py, test_mios_quality_gate.py
+# AI-related: mios_pipe/routing/smartroute.py, mios_pipe/routing/native_loop.py, mios_pipe/routing/lanes_resolver.py, test_mios_slo.py
 """Pure deterministic quality gate for local lane output evaluation."""
 
 from __future__ import annotations

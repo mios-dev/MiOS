@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS system and orchestration module providing seed-db-config capabilities.
-# AI-related: /usr/share/mios/mios.toml, automation/, mios-find, mios-bootstrap, mios-bootstrap/field/autounattend/mios-debloat.json, mios-bootstrap/field/autounattend/mios-xbox-features.txt
+# AI-related: /usr/share/mios/mios.toml, automation/, mios-find, mios-bootstrap, https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-debloat.json, https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-xbox-features.txt
 # AI-functions: get_seeded_sections, get_pg_config, main
 
 import os
@@ -269,7 +269,7 @@ def main():
                                 )
                 log.info("build_phase seeded.")
 
-                bootstrap_dir = os.path.abspath(os.path.join(repo_root, "..", "mios-bootstrap", "src", "autounattend"))
+                bootstrap_dir = os.path.abspath(os.path.join(repo_root, "..", "mios-bootstrap", "field", "autounattend"))
                 debloat_json_path = os.path.join(bootstrap_dir, "mios-debloat.json")
                 features_txt_path = os.path.join(bootstrap_dir, "mios-xbox-features.txt")
 

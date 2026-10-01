@@ -2,7 +2,7 @@
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3595,
   "total_metadata_entries": 2956,
-  "total_hints": 2943,
+  "total_hints": 2940,
   "total_functions_indexed": 1361,
   "total_related_links": 4647,
   "entries": [
@@ -1519,7 +1519,7 @@
       "related": [
         "automation/cicd/",
         ".agents/subagents.json",
-        ".agents/workflows/pipeline.md",
+        ".agents/skills/pipeline/SKILL.md",
         "usr/share/mios/mios.toml"
       ],
       "functions": [
@@ -2255,7 +2255,7 @@
     },
     {
       "path": "build-mios.ps1",
-      "hint": "PowerShell entry point for MiOS installation that configures the MiOS-DEV podman-machine, handles initial licensing, and manages the SSH handoff to the Linux-side build driver ...",
+      "hint": null,
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -2267,7 +2267,7 @@
       "hint": "Agents slash command definition for Antigravity CLI (AGY) session inspection and switching.",
       "related": [
         "commands/",
-        ".agents/workflows/agents.md",
+        ".agents/skills/agents/SKILL.md",
         ".agents/subagents.json"
       ],
       "functions": [],
@@ -2293,7 +2293,7 @@
       "hint": "Pipeline slash command definition for Antigravity CLI (AGY) automated CI/CD runs.",
       "related": [
         "commands/",
-        ".agents/workflows/pipeline.md",
+        ".agents/skills/pipeline/SKILL.md",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
@@ -4001,7 +4001,7 @@
     },
     {
       "path": "mios-windows-export.ps1",
-      "hint": "A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.",
+      "hint": null,
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -4010,7 +4010,7 @@
     },
     {
       "path": "powershell/profile.ps1",
-      "hint": "MiOS configuration and runtime asset for profile.ps1.",
+      "hint": null,
       "related": [
         "/usr/libexec/mios/mios-dashboard.sh",
         "/usr/libexec/mios/mios-ssh-dev-cmd",
@@ -8084,7 +8084,7 @@
       "related": [
         "usr/libexec/mios/deploy/usb_format.py",
         "usr/share/mios/mios.toml",
-        "field/MiOS-Cat.sh"
+        "https://github.com/mios-dev/mios-bootstrap/blob/main/field/MiOS-Field.sh"
       ],
       "functions": [],
       "doc": null,
@@ -12211,7 +12211,7 @@
       "hint": "Pure A2A AgentCard JWS/JCS signing and verification module.",
       "related": [
         "mios_pipe/federation/a2a.py",
-        "test_mios_agentcard_sign.py"
+        "test_mios_agent_call.py"
       ],
       "functions": [],
       "doc": null,
@@ -12660,7 +12660,7 @@
       "hint": "Pure pre-execution validator and Kahn topological classifier for runtime agent DAGs.",
       "related": [
         "mios_pipe/routing/dag_exec.py",
-        "test_mios_dag_validate.py"
+        "test_mios_dag_exec.py"
       ],
       "functions": [],
       "doc": null,
@@ -12847,7 +12847,7 @@
         "mios_pipe/routing/smartroute.py",
         "mios_pipe/routing/native_loop.py",
         "mios_pipe/routing/lanes_resolver.py",
-        "test_mios_quality_gate.py"
+        "test_mios_slo.py"
       ],
       "functions": [],
       "doc": null,
@@ -19238,7 +19238,7 @@
       "hint": "Synthetic training data pipeline generating Q&A pairs from local markdown documentation and architectural ADRs.",
       "related": [
         "usr/share/doc/mios/",
-        "field/ADR-*.md",
+        "usr/share/doc/mios/adr/",
         "/var/lib/mios/ai/dataset/"
       ],
       "functions": [],
@@ -19783,7 +19783,7 @@
       "related": [
         "tests/test-usb-format.py",
         "usr/share/mios/mios.toml",
-        "field/MiOS-Cat.sh"
+        "https://github.com/mios-dev/mios-bootstrap/blob/main/field/MiOS-Field.sh"
       ],
       "functions": [
         "UsbFormatEngine",
@@ -25243,8 +25243,8 @@
         "automation/",
         "mios-find",
         "mios-bootstrap",
-        "mios-bootstrap/field/autounattend/mios-debloat.json",
-        "mios-bootstrap/field/autounattend/mios-xbox-features.txt"
+        "https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-debloat.json",
+        "https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-xbox-features.txt"
       ],
       "functions": [
         "get_seeded_sections",
@@ -27765,9 +27765,9 @@
     },
     {
       "path": "usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md",
-      "hint": "Verified, source-cited research on building a DISM-native custom Windows 11 ISO that carries MiOS (the Windows-side layer + a WSL2 podman machine). Two synthesized 5-angle research passes: (A) per-MiOS-component -> DISM offline mechanism table + the must-be-first-logon list; (B) reference build patterns (tiny11/winutil DISM sequences), the definitive WSL2-offline verdict, the oscdimg dual-boot recipe, headless GitHub-Actions CI, and LabConfig hardware-bypass. Feeds ROADMAP Part 12 WS-WISO (T-137/T-138) + the mios-bootstrap/src/autounattend suite.",
+      "hint": "Verified, source-cited research on building a DISM-native custom Windows 11 ISO that carries MiOS (the Windows-side layer + a WSL2 podman machine). Two synthesized 5-angle research passes: (A) per-MiOS-component -> DISM offline mechanism table + the must-be-first-logon list; (B) reference build patterns (tiny11/winutil DISM sequences), the definitive WSL2-offline verdict, the oscdimg dual-boot recipe, headless GitHub-Actions CI, and LabConfig hardware-bypass. Feeds ROADMAP Part 12 WS-WISO (T-137/T-138) + the mios-bootstrap/field/autounattend suite.",
       "related": [
-        "mios-bootstrap src/autounattend",
+        "https://github.com/mios-dev/mios-bootstrap/tree/main/field/autounattend",
         "ROADMAP.md Part 12",
         "TASKS.jsonl"
       ],
@@ -30616,7 +30616,7 @@
       "related": [
         "field/loopback.cfg",
         "tools/install.sh",
-        "installation/MiOS-Cat.bat",
+        "https://github.com/mios-dev/mios-bootstrap/blob/main/installation/MiOS-Field.bat",
         "usr/libexec/mios/mios-stage-oci-archive",
         "usr/libexec/mios/mios-build-driver",
         "usr/share/mios/ventoy/ventoy.json",
@@ -30628,7 +30628,7 @@
         "config/artifacts/wsl2.toml",
         "Justfile",
         "automation/98-drift-checks.sh",
-        "usr/share/mios/mios.toml ([deployment] [deploy.artifacts] [cat])",
+        "usr/share/mios/mios.toml ([deployment] [deploy.artifacts] [field])",
         "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md",
         "automation/76-uki-render.sh"
       ],

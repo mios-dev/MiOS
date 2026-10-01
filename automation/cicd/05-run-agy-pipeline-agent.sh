@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Automated Antigravity CLI (AGY) agent runner for MiOS CI/CD pipeline cycles and artifact generation.
-# AI-related: automation/cicd/, .agents/subagents.json, .agents/workflows/pipeline.md, usr/share/mios/mios.toml
+# AI-related: automation/cicd/, .agents/subagents.json, .agents/skills/pipeline/SKILL.md, usr/share/mios/mios.toml
 # AI-functions: main, run_pipeline_agent
 
 set -euo pipefail

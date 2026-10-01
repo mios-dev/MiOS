@@ -131,7 +131,7 @@
 130	check_install_uninstall_symmetry	every [windows.owned_artifacts] entry has an uninstall step, and installers create no artifact the SSOT omits
 131	check_ps_port_fallback_ssot	PowerShell port fallback defaults equal mios.toml [ports] SSOT
 132	check_github_slug_casing	the MiOS org slug is lowercase in every ghcr.io / github.com / raw-content reference
-133	check_ps_encoding_and_bom	PowerShell script files use UTF-8 encoding without byte-order marks
+133	check_ps_encoding_and_bom	PowerShell script encoding supports the declared interpreter contract
 134	check_unit_dependency_closure	systemd units form complete dependency closure without missing targets
 135	check_docs_ratchet	documentation coverage count meets or exceeds established ratchet floor
 136	check_header_integrity	no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1

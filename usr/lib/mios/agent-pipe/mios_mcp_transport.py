@@ -2,7 +2,7 @@
 # AI-related: mios_mcp, mios_mcp_schema, /usr/libexec/mios/mcp-server-runner
 """MCP clients use the upstream SDK for protocol discovery, validation and transport.
 
-Both 2026-07-28 stateless peers and legacy handshake peers are negotiated by
+Both stateless peers and legacy handshake peers are negotiated by
 mcp.Client. MiOS only owns registry policy, sandbox policy and result mapping.
 """
 from __future__ import annotations

@@ -464,6 +464,27 @@ class TestDBSSOTMaterialize(unittest.TestCase):
         cfg = mat.materialize_from_db(conn, merged=True)
         self.assertEqual(cfg["ports"]["forge_http"], 9090)
 
+    def test_json_string_scalars_preserve_type_and_content(self):
+        values = ["1.0", "42", "true", "null", '{"nested":true}', "[1,2]", "", 'quoted "text"']
+        fixture = {"config_kv": [("a2a", f"value_{index}", json.dumps(value), 0)
+                                  for index, value in enumerate(values)]}
+        cursor = _MockCursor(fixture)
+        original_execute = cursor.execute
+        queries = []
+        def capture(query, params=None):
+            queries.append(query)
+            original_execute(query, params)
+        cursor.execute = capture
+        connection = _MockConnection(fixture)
+        connection.cursor = lambda: cursor
+        cfg = mat.materialize_from_db(connection, merged=True)
+        self.assertIn("value::text", queries[0])
+        parsed = tomllib.loads(mat.emit_toml(cfg))
+        for index, value in enumerate(values):
+            actual = parsed["a2a"][f"value_{index}"]
+            self.assertIsInstance(actual, str)
+            self.assertEqual(value, actual)
+
     def test_materialize_layer_specific(self):
         """Asserts layer-specific materialization with --layer 0 vs --layer 1."""
         conn = _MockConnection(self._sample_db_data())
