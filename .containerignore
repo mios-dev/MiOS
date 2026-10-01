@@ -4,6 +4,8 @@
 .vscode
 .agents
 .github
-target/
-__pycache__/
-*.pyc
+**/target
+**/target/**
+**/__pycache__
+**/__pycache__/**
+**/*.pyc
