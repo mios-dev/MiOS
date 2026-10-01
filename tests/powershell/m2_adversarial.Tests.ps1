@@ -7,6 +7,10 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
     Context "Suite 1: Pipe Deadlock Handling (Positive & Negative Controls)" {
         BeforeAll {
             $script:pyHarness = Join-Path $PSScriptRoot 'pipe_deadlock_generator.py'
+            $pythonCommand = Get-Command -Name python3, python -CommandType Application -ErrorAction SilentlyContinue |
+                Where-Object { $_.Source -notlike '*\WindowsApps\*' } | Select-Object -First 1
+            if (-not $pythonCommand) { throw 'Python 3 is required for the pipe controls.' }
+            $script:pythonExe = $pythonCommand.Source
             $script:testDir = Join-Path ([System.IO.Path]::GetTempPath()) ("pester_m2_" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
             New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
         }
@@ -19,7 +23,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
         It "Negative Control: Synchronous stdout read hangs on 256KB stderr (deadlock demonstrated)" {
             $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = 'python'
+            $psi.FileName = $script:pythonExe
             $psi.Arguments = "`"$script:pyHarness`" --stderr-bytes 262144 --stdout-bytes 262144 --mode stderr-first"
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError  = $true
@@ -46,7 +50,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
         It "Positive Control: ReadToEndAsync() drains 1MB stderr + 2MB stdout without deadlock" {
             $outFile = Join-Path $script:testDir 'pester_pos.bin'
             $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = 'python'
+            $psi.FileName = $script:pythonExe
             $psi.Arguments = "`"$script:pyHarness`" --stderr-bytes 1048576 --stdout-bytes 2097152 --mode stderr-first"
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError  = $true
@@ -78,7 +82,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
         It "Error Diagnostics: Exit code 127 captures 128KB stderr and removes partial file" {
             $failFile = Join-Path $script:testDir 'pester_fail.bin'
             $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = 'python'
+            $psi.FileName = $script:pythonExe
             $psi.Arguments = "`"$script:pyHarness`" --stderr-bytes 131072 --stdout-bytes 1024 --exit-code 127 --mode interleaved"
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError  = $true
