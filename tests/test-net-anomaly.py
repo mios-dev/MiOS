@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import subprocess
 import sys
 import unittest
+from unittest.mock import MagicMock, patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
@@ -49,8 +51,37 @@ class TestNetAnomaly(unittest.TestCase):
         self.assertTrue(data["is_anomaly"])
         self.assertGreater(data["divergence"], 0.35)
         self.assertIn("threat_event", data)
-        self.assertEqual(data["threat_event"]["emb_dim"], 768)
+        self.assertEqual(data["threat_event"]["emb_dim"], 0)
+        self.assertTrue(data["threat_event"]["embedding_pending"])
         self.assertEqual(data["threat_event"]["event_type"], "network_anomaly")
+
+    def test_persistence_queues_real_embeddings(self):
+        spec = importlib.util.spec_from_file_location("net_anomaly", _ANOMALY_BIN)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        driver = MagicMock()
+        connection = driver.connect.return_value.__enter__.return_value
+        cursor = connection.cursor.return_value.__enter__.return_value
+        summary = {"flows": [{"dst_port": 4444, "packets": 900}]}
+        with patch.dict(sys.modules, {"psycopg": driver}):
+            result = module.NetAnomalyDetector(pg_dsn="fixture").analyze_flow_window(summary)
+        event = result["threat_event"]
+        self.assertTrue(event["stored"])
+        self.assertTrue(event["embedding_pending"])
+        self.assertEqual(event["emb_dim"], 0)
+        sql, params = cursor.execute.call_args.args
+        columns = sql.split("(", 1)[1].split(")", 1)[0].split(",")
+        self.assertNotIn("emb", [column.strip() for column in columns])
+        self.assertIn("NULL", sql, "embedding version must remain unset until inference succeeds")
+        self.assertEqual(len(params), 5)
+        self.assertEqual(json.loads(params[3]), summary)
+        connection.commit.assert_called_once()
+        driver.connect.side_effect = RuntimeError("database unavailable")
+        with patch.dict(sys.modules, {"psycopg": driver}):
+            failed = module.NetAnomalyDetector(pg_dsn="fixture").analyze_flow_window(summary)
+        self.assertFalse(failed["threat_event"]["stored"])
+        self.assertEqual(failed["threat_event"]["emb_dim"], 0)
+        self.assertIn("storage_error", failed["threat_event"])
 
 
 def main() -> int:

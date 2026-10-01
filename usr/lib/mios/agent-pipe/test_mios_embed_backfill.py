@@ -107,6 +107,21 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.post.call_args.kwargs["json"]["input"], "search_document: Network flow anomaly")
         self.assertIsNone(eb.get_text_projection("threat_events", {"description": " "}))
 
+    @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
+    @patch("httpx.AsyncClient")
+    async def test_threat_event_inference_failure_leaves_pending(self, mock_client_cls, mock_execute):
+        client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = client
+        response = MagicMock()
+        response.status_code = 503
+        client.post.return_value = response
+        mock_execute.return_value = [{"id": 71, "description": "Network flow anomaly"}]
+        with patch.dict(eb.PK_MAP, {"threat_events": "id"}, clear=True), patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await eb.run_backfill("new-vector-version")
+        self.assertEqual(result, {"threat_events": 0})
+        self.assertEqual(client.post.await_count, 3)
+        self.assertEqual(mock_execute.await_count, 1, "failed inference must not write a vector or model stamp")
+
     def test_text_projections(self):
         s_row = {"name": "TestSkill", "description": "Doing cool things"}
         self.assertEqual(eb.get_text_projection("skill", s_row), "Skill: TestSkill\nDescription: Doing cool things")

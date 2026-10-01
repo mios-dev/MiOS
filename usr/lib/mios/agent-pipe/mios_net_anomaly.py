@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
 import os
@@ -42,18 +41,6 @@ def jensen_shannon_divergence(p: Dict[str, float], q: Dict[str, float]) -> float
 
     jsd = 0.5 * (kl_pm + kl_qm)
     return max(0.0, min(1.0, jsd))
-
-
-def generate_embedding(text: str, dim: int = 768) -> List[float]:
-    """Generates a deterministic 768-dimensional normalized embedding vector."""
-    seed = hashlib.sha256(text.encode("utf-8")).digest()
-    raw = []
-    for i in range(dim):
-        byte_val = seed[i % len(seed)]
-        val = math.sin((i + 1) * byte_val)
-        raw.append(val)
-    norm = math.sqrt(sum(x * x for x in raw)) or 1.0
-    return [round(x / norm, 6) for x in raw]
 
 
 class NetAnomalyDetector:
@@ -106,7 +93,6 @@ class NetAnomalyDetector:
                 f"Statistical network flow distribution anomaly detected: "
                 f"Jensen-Shannon divergence {jsd:.4f} > threshold {self.threshold:.2f}"
             )
-            emb = generate_embedding(desc)
 
             threat_event = {
                 "event_type": "network_anomaly",
@@ -114,11 +100,13 @@ class NetAnomalyDetector:
                 "description": desc,
                 "severity": severity,
                 "flow_summary": summary,
-                "emb_dim": len(emb),
+                "emb_dim": 0,
+                "embedding_pending": True,
                 "stored": False,
             }
 
-            # Attempt PostgreSQL insert if psycopg is available and DSN is configured
+            # Store the event immediately; the OpenAI embedding backfill supplies
+            # its vector and model/version stamp after successful inference.
             if self.pg_dsn:
                 try:
                     import psycopg
@@ -126,15 +114,14 @@ class NetAnomalyDetector:
                         with conn.cursor() as cur:
                             cur.execute(
                                 """
-                                INSERT INTO threat_events (event_type, divergence, description, flow_summary, emb, severity)
-                                VALUES (%s, %s, %s, %s, %s::vector, %s)
+                                INSERT INTO threat_events (event_type, divergence, description, flow_summary, emb_version, severity)
+                                VALUES (%s, %s, %s, %s, NULL, %s)
                                 """,
                                 (
                                     threat_event["event_type"],
                                     threat_event["divergence"],
                                     threat_event["description"],
                                     json.dumps(summary),
-                                    str(emb),
                                     threat_event["severity"],
                                 ),
                             )
