@@ -5312,10 +5312,12 @@ tests/test-code-server-bake.py	52	52	1	11	7d30c5c33d23	STAY	local-scoped		0				0
 tests/test-code-server-bake.py	66	66	1	9	e22f71c31bde	STAY	local-scoped		0				0
 tests/test-code-server-bake.py	100	101	2	19	6c7f7e496057	STAY	local-scoped		0				0
 tests/test-code-server-bake.py	224	224	1	17	e2c2e4924461	STAY	local-scoped		0				0
-tests/test-code-server-bake.py	327	327	1	16	1fc6a0dfd7b5	STAY	local-scoped		0				0
-tests/test-code-server-bake.py	362	362	1	17	73a5e886d5c5	STAY	local-scoped		0				0
-tests/test-code-server-bake.py	405	405	1	11	1ef0cb30a13b	STAY	local-scoped		0				0
-tests/test-code-server-bake.py	449	449	1	15	325312a4c685	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	345	345	1	18	f91b9f5ebd09	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	350	350	1	14	d5b06d2d2dc2	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	374	374	1	16	1fc6a0dfd7b5	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	409	409	1	17	73a5e886d5c5	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	452	452	1	11	1ef0cb30a13b	STAY	local-scoped		0				0
+tests/test-code-server-bake.py	496	496	1	15	325312a4c685	STAY	local-scoped		0				0
 tests/test-composefs-seal.sh	1	3	3	18	81898b29e712	STAY	ai-header		0				0
 tests/test-composefs-seal.sh	27	27	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-composefs-seal.sh	85	85	1	22	3dd244b84619	STAY	local-scoped		0				0
