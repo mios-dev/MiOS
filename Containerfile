@@ -7,7 +7,7 @@ COPY automation/           /ctx/automation/
 COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
 COPY VERSION               /ctx/VERSION
-COPY config/artifacts/     /ctx/bib-configs/
+COPY config/artifacts/     /ctx/config/artifacts/
 COPY tools/                /ctx/tools/
 COPY MiOS.md               /ctx/rootmd/MiOS.md
 COPY AGENTS.md             /ctx/rootmd/AGENTS.md
@@ -61,13 +61,15 @@ ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
 # ADR-0025 image profile ([profiles]); empty means [profiles].default.
 ARG MIOS_PROFILES_DEFAULT
 
+# Source drift checks need every tracked consumer, including tests and CI.
+# Restore omitted index entries after provisioning; retain copied edits and exclude caches.
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     --mount=type=cache,dst=/var/cache/dnf5,sharing=locked \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /ctx/Justfile /ctx/.dotfiles /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/config /ctx/tools /ctx/Justfile /ctx/.dotfiles /tmp/build/; \
     if [ -d /ctx/.git ]; then \
         cp -a /ctx/.git /tmp/build/.git 2>/dev/null && echo "[ctx] .git -> /tmp/build" \
             || echo "[ctx] WARN: .git copy failed"; \
@@ -93,6 +95,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     source /tmp/build/automation/lib/packages.sh; \
     ${DNF_BIN:-dnf5} clean metadata 2>/dev/null || ${DNF_BIN:-dnf} clean metadata 2>/dev/null || true; \
     install_packages_strict base; \
+    git -C /tmp/build ls-files --deleted -z | git -C /tmp/build checkout-index -z --stdin; \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \

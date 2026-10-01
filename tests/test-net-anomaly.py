@@ -32,6 +32,7 @@ class TestNetAnomaly(unittest.TestCase):
         self.assertIn("emb           vector(768)", sql)
         self.assertIn("CREATE INDEX IF NOT EXISTS threat_events_emb_hnsw", sql)
         self.assertIn("CREATE INDEX IF NOT EXISTS threat_events_divergence", sql)
+        self.assertIn("ALTER TABLE threat_events ADD COLUMN IF NOT EXISTS emb_model varchar(128)", sql)
 
     def test_mock_normal_traffic(self):
         res = subprocess.run([_ANOMALY_BIN, "--mock-normal", "--json"], capture_output=True, text=True)

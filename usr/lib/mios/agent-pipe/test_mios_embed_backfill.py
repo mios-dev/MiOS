@@ -84,6 +84,29 @@ import mios_pipe.memory.embed_backfill as eb
 
 class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
 
+    @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
+    @patch("httpx.AsyncClient")
+    async def test_threat_event_backfill(self, mock_client_cls, mock_execute):
+        row = {"id": 71, "description": "Network flow anomaly"}
+        client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = client
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {"data": [{"embedding": [0.1] * 768}]}
+        client.post.return_value = response
+        mock_execute.side_effect = lambda sql, params=None, **kwargs: [row] if kwargs.get("fetch") else True
+        with patch.dict(eb.PK_MAP, {"threat_events": "id"}, clear=True):
+            result = await eb.run_backfill("new-vector-version")
+        self.assertEqual(result, {"threat_events": 1})
+        self.assertIn("SELECT id, description FROM threat_events", mock_execute.call_args_list[0].args[0])
+        update = mock_execute.call_args_list[1]
+        self.assertIn("UPDATE threat_events", update.args[0])
+        self.assertIn("emb_model = %(model)s", update.args[0])
+        self.assertEqual(update.args[1]["id"], 71)
+        self.assertEqual(update.args[1]["ver"], "new-vector-version")
+        self.assertEqual(client.post.call_args.kwargs["json"]["input"], "search_document: Network flow anomaly")
+        self.assertIsNone(eb.get_text_projection("threat_events", {"description": " "}))
+
     def test_text_projections(self):
         s_row = {"name": "TestSkill", "description": "Doing cool things"}
         self.assertEqual(eb.get_text_projection("skill", s_row), "Skill: TestSkill\nDescription: Doing cool things")

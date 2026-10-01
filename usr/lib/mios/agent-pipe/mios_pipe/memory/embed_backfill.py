@@ -80,7 +80,8 @@ PK_MAP = {
     # T-1042. system_logs is embeddable (emb vector(768) + an HNSW index) and has
     # `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`. It was in neither list,
     # which check_backfill_coverage has been failing on at every bake.
-    "system_logs": "id"
+    "system_logs": "id",
+    "threat_events": "id"
 }
 
 _BACKFILL_EXEMPT = [
@@ -173,6 +174,8 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         name = row.get("name") or ""
         desc = row.get("description") or ""
         return f"Feature: {name}\nDescription: {desc}".strip() or None
+    elif table == "threat_events":
+        return (row.get("description") or "").strip() or None
     elif table == "system_logs":
         # Byte-identical to what usr/libexec/mios/log/mios-log-streamer embeds at
         # insert time: `f"[{unit}] {message}"`. A backfilled row and a streamed
@@ -228,7 +231,8 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "config_kv": "id, scope, key, description, value",
             "account_preference": "account_id, layer, key, value",
             "feature_set": "id, name, description",
-            "system_logs": "id, unit, message"
+            "system_logs": "id, unit, message",
+            "threat_events": "id, description"
         }
         # A bare cols_map[table] raised KeyError deep inside the loop the moment
         # system_logs joined PK_MAP, taking the whole backfill down. A table can

@@ -1480,6 +1480,7 @@ CREATE TABLE IF NOT EXISTS threat_events (
     ts            timestamptz DEFAULT now(),
     origin_node   text NOT NULL DEFAULT 'local'
 );
+ALTER TABLE threat_events ADD COLUMN IF NOT EXISTS emb_model varchar(128);
 CREATE INDEX IF NOT EXISTS threat_events_emb_hnsw
     ON threat_events USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 CREATE INDEX IF NOT EXISTS threat_events_divergence ON threat_events (divergence DESC);

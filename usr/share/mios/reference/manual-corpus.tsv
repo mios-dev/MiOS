@@ -7296,10 +7296,11 @@ tests/test-sec.py	3698	3698	1	9	8c36cc251cce	STAY	local-scoped		0				0
 tests/test-sec.py	3708	3708	1	4	8b6ed75df139	STAY	local-scoped		0				0
 tests/test-sec.py	3736	3736	1	12	1885585bdf22	STAY	local-scoped		0				0
 tests/test-sec.py	3759	3759	1	11	64f8f0ccbffe	STAY	local-scoped		0				0
-tests/test-self-replicate-build.py	1	2	2	15	2c5775882fec	STAY	ai-header		0				0
+tests/test-self-replicate-build.py	1	2	2	16	78a04c22975a	STAY	ai-header		0				0
 tests/test-self-replicate-build.py	4	4	1	11	762c4d1a54b2	STAY	local-scoped		0				0
-tests/test-self-replicate-build.py	11	11	1	10	becd49bf4a71	STAY	local-scoped		0				0
-tests/test-self-replicate-build.py	19	19	1	10	26bae54e00f4	STAY	local-scoped		0				0
+tests/test-self-replicate-build.py	13	13	1	10	becd49bf4a71	STAY	local-scoped		0				0
+tests/test-self-replicate-build.py	21	21	1	10	26bae54e00f4	STAY	local-scoped		0				0
+tests/test-self-replicate-build.py	32	32	1	10	c15837bf65b2	STAY	local-scoped		0				0
 tests/test-service-mesh-proxy.py	1	3	3	15	c791ca36362f	STAY	ai-header		0				0
 tests/test-session-migrate.py	1	3	3	17	e154762df253	STAY	ai-header		0				0
 tests/test-session-migrate.py	4	4	1	8	dc28625a8199	STAY	local-scoped		0				0
@@ -11351,8 +11352,8 @@ usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	37	38	2	23	644c7998a1
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	46	47	2	21	190a0d4d504c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	52	52	1	9	a2575a2fed97	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	80	82	3	34	ef8a94c31126	STAY	midsize-why		0				0
-usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	177	180	4	42	8aa1e71aec4b	STAY	midsize-why		0				0
-usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	233	236	4	43	b641d0463297	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	180	183	4	42	8aa1e71aec4b	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	237	240	4	43	b641d0463297	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	1	2	2	15	9afb5302331d	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	3	13	10	78	b382d8f44c00	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/memory.md	mios-src:b382d8f44c00	78	1
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	99	103	5	36	2e91b4a8f034	STAY	midsize-why		0				0
