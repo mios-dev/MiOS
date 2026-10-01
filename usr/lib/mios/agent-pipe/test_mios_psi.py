@@ -21,6 +21,7 @@ import os
 import sys
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
+from typing import get_type_hints
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mios_psi
@@ -142,7 +143,7 @@ class TestPsiFallbackAndMock(unittest.TestCase):
 
     def test_mock_provider_callback(self) -> None:
         """Positive control: custom mock_provider function provides metrics."""
-        def custom_provider(resource: str) -> Optional[PsiResourcePressure]:
+        def custom_provider(resource: str) -> PsiResourcePressure | None:
             if resource == "memory":
                 return PsiResourcePressure(
                     resource="memory",
@@ -150,6 +151,7 @@ class TestPsiFallbackAndMock(unittest.TestCase):
                 )
             return None
 
+        self.assertEqual(get_type_hints(custom_provider), {"resource": str, "return": PsiResourcePressure | None})
         sampler = PsiSampler(proc_dir="/nonexistent", mock_provider=custom_provider)
         rp = sampler.read_resource("memory")
         self.assertAlmostEqual(rp.some.avg10, 62.5)
@@ -157,9 +159,10 @@ class TestPsiFallbackAndMock(unittest.TestCase):
 
     def test_mock_provider_exception_handled(self) -> None:
         """Negative control: crashing mock provider degrades safely to fallback."""
-        def bad_provider(resource: str) -> Optional[PsiResourcePressure]:
+        def bad_provider(resource: str) -> PsiResourcePressure | None:
             raise RuntimeError("Simulated provider crash")
 
+        self.assertEqual(get_type_hints(bad_provider), {"resource": str, "return": PsiResourcePressure | None})
         sampler = PsiSampler(proc_dir="/nonexistent", mock_provider=bad_provider)
         rp = sampler.read_resource("io")
         self.assertEqual(rp.resource, "io")
