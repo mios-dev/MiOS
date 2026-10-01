@@ -54,6 +54,27 @@ pub fn resolve_merged(root_dir: Option<&Path>, db_overlay: bool) -> Result<Value
     Ok(merged)
 }
 
+/// The merge a user-tier write sits on: vendor through host.d, with [ports]
+/// derived the same way resolve_merged derives them, so a derived value the
+/// configurator echoes back is not frozen into the user tier.
+pub fn resolve_below_user(root_dir: Option<&Path>) -> Result<Value, ResolverError> {
+    let mut fig = figment::Figment::new();
+    for p in layers::resolve_layer_paths_below_user(root_dir) {
+        fig = fig.merge(<figment::providers::Toml as figment::providers::Format>::file(p));
+    }
+    let mut merged = fig
+        .extract::<Value>()
+        .map_err(|e| ResolverError::TypeShape { msg: e.to_string() })?;
+    ports::derive_ports(&mut merged);
+    Ok(merged)
+}
+
+/// The user tier file (MIOS_USER_TOML, else $XDG_CONFIG_HOME or
+/// $HOME/.config + /mios/mios.toml) -- where operator saves land.
+pub fn user_toml_path(root_dir: Option<&Path>) -> std::path::PathBuf {
+    layers::resolve_tier_dirs(root_dir).4
+}
+
 /// The resolved MIOS_* environment, ${MIOS_*} references expanded -- the same
 /// values `mios-resolver --emit=json` prints. Native programs read the SSOT
 /// through this at run time instead of carrying their own copies of it.

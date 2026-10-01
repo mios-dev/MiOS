@@ -152,6 +152,22 @@ pub fn resolve_layer_paths(root_dir: Option<&Path>) -> Vec<PathBuf> {
     paths
 }
 
+/// The vendor, vendor.d, host and host.d layers -- everything a user-tier
+/// write sits on top of.
+pub fn resolve_layer_paths_below_user(root_dir: Option<&Path>) -> Vec<PathBuf> {
+    let (vendor, vendor_d, host, host_d, _user, _user_d) = resolve_tier_dirs(root_dir);
+    let mut paths = Vec::new();
+    if vendor.exists() {
+        paths.push(vendor);
+    }
+    paths.extend(_frags(&vendor_d));
+    if host.exists() {
+        paths.push(host);
+    }
+    paths.extend(_frags(&host_d));
+    paths
+}
+
 pub fn create_figment(root_dir: Option<&Path>) -> Figment {
     let mut fig = Figment::new();
     for p in resolve_layer_paths(root_dir) {

@@ -1181,7 +1181,10 @@ async fn main() {
                 config.bind_addr
             );
             println!("[miosd] Serving mios.html from {:?}", config.html_path);
-            println!("[miosd] Writing profile saves to {:?}", config.profile_path);
+            println!(
+                "[miosd] Writing saves to the user tier {:?}",
+                config.user_toml_path
+            );
 
             let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
             tokio::spawn(async move {

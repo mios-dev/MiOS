@@ -1985,6 +1985,9 @@ secret        = ""
 
 discord_channel_default = ""
 discord_guild_default   = ""
+# Largest POST /portal/config body the configurator save accepts. The whole
+# layered config is posted back, so this must exceed its serialized size.
+config_max_body_bytes   = 2097152
 
 # ----------------------------------------------------------------------------
 # [locale] -- system-wide defaults applied via systemd-localed at first boot.

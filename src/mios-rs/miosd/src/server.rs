@@ -12,7 +12,10 @@ use tokio::net::{TcpListener, TcpStream};
 pub struct ConfigServerConfig {
     pub bind_addr: String,
     pub html_path: PathBuf,
-    pub profile_path: PathBuf,
+    /// The user tier operator saves land in (resolver's user path).
+    pub user_toml_path: PathBuf,
+    /// [portal].config_max_body_bytes.
+    pub max_body_bytes: usize,
     /// Root the six-tier SSOT resolves under; None is the installed FHS tiers
     /// (or the source tree's vendor file when MiOS is not installed).
     pub ssot_root: Option<PathBuf>,
@@ -50,22 +53,22 @@ impl ConfigServerConfig {
             PathBuf::from("usr/share/mios/configurator/mios.html")
         };
 
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        let profile_path = if let Ok(custom) = std::env::var("MIOS_PROFILE_TOML") {
-            PathBuf::from(custom)
-        } else {
-            Path::new(&home).join(".config/mios/profile.toml")
-        };
-
         let ssot_root = std::env::var("MIOS_ROOT")
             .ok()
             .filter(|r| !r.is_empty())
             .map(PathBuf::from);
+        let user_toml_path = mios_resolver::user_toml_path(ssot_root.as_deref());
+        let raw_max = mios_resolver::runtime::require("MIOS_PORTAL_CONFIG_MAX_BODY_BYTES")
+            .map_err(|e| e.to_string())?;
+        let max_body_bytes = raw_max.parse::<usize>().map_err(|_| {
+            format!("MIOS_PORTAL_CONFIG_MAX_BODY_BYTES={raw_max} is not a byte count")
+        })?;
 
         Ok(Self {
             bind_addr,
             html_path,
-            profile_path,
+            user_toml_path,
+            max_body_bytes,
             ssot_root,
         })
     }
@@ -208,20 +211,89 @@ pub fn parse_http_request(raw: &[u8]) -> Option<HttpRequest> {
 }
 
 /// The live configuration: the resolver's six-tier merge (vendor < vendor.d <
-/// host < host.d < user < user.d, [ports] derived), then the configurator's
-/// own profile save on top, serialized as one valid TOML document. Splicing
-/// the tier files' text together produced duplicate tables whenever a host
-/// override repeated a vendor table, which the configurator could not parse.
+/// host < host.d < user < user.d, [ports] derived), serialized as one valid
+/// TOML document. Splicing the tier files' text together produced duplicate
+/// tables whenever a host override repeated a vendor table.
 pub fn read_layered_toml(config: &ConfigServerConfig) -> Result<String, String> {
-    let mut merged = mios_resolver::resolve_merged(config.ssot_root.as_deref(), false)
+    let merged = mios_resolver::resolve_merged(config.ssot_root.as_deref(), false)
         .map_err(|e| format!("the layered mios.toml did not resolve: {e}"))?;
-    if let Ok(text) = fs::read_to_string(&config.profile_path) {
-        let profile = text
-            .parse::<toml::Value>()
-            .map_err(|e| format!("{} did not parse: {e}", config.profile_path.display()))?;
-        mios_resolver::merge::deep_merge(&mut merged, profile);
-    }
     toml::to_string(&merged).map_err(|e| format!("the merged config did not serialize: {e}"))
+}
+
+/// Sections whose loss bricks a deploy: a save may not drop one the live
+/// config has. Mirrors mios_pipe.kernel.config._VALIDATE_CRITICAL_SECTIONS.
+const CRITICAL_SECTIONS: [&str; 2] = ["identity", "ports"];
+
+/// The configurator-save safety net, the same rules agent-pipe's
+/// validate_config applies: parseable TOML, no dropped critical section, a
+/// non-empty [identity].mios_user when present, and every scalar [ports]
+/// value an integer in 1..=65535 (stack_id and nested values excepted).
+/// The size ceiling is enforced while the request is read.
+pub fn validate_portal_save(body: &str, config: &ConfigServerConfig) -> Vec<String> {
+    let posted = match body.parse::<toml::Value>() {
+        Ok(v) => v,
+        Err(e) => return vec![format!("Invalid TOML: {e}")],
+    };
+    let live = mios_resolver::resolve_merged(config.ssot_root.as_deref(), false).ok();
+    let mut errors = Vec::new();
+    for sec in CRITICAL_SECTIONS {
+        let live_has = live
+            .as_ref()
+            .and_then(|l| l.get(sec))
+            .and_then(toml::Value::as_table)
+            .is_some_and(|t| !t.is_empty());
+        let posted_has = posted
+            .get(sec)
+            .and_then(toml::Value::as_table)
+            .is_some_and(|t| !t.is_empty());
+        if live_has && !posted_has {
+            errors.push(format!(
+                "Refusing to drop critical [{sec}] section -- it is present in the live config and losing it bricks the deploy."
+            ));
+        }
+    }
+    if let Some(mu) = posted.get("identity").and_then(|i| i.get("mios_user")) {
+        if mu.as_str().is_none_or(|s| s.trim().is_empty()) {
+            errors.push("[identity].mios_user must be a non-empty string.".to_string());
+        }
+    }
+    if let Some(ports) = posted.get("ports").and_then(toml::Value::as_table) {
+        for (k, v) in ports {
+            if k == "stack_id" || v.is_table() || v.is_array() {
+                continue;
+            }
+            match v.as_integer() {
+                Some(p) if (1..=65535).contains(&p) => {}
+                Some(p) => errors.push(format!(
+                    "[ports].{k} = {p} is out of the valid 1-65535 range."
+                )),
+                None => errors.push(format!("[ports].{k} must be an integer 1-65535 (got {v}).")),
+            }
+        }
+    }
+    errors
+}
+
+/// Persist a configurator save into the user tier: only what differs from
+/// vendor..host.d (ports derived), written atomically -- the same contract as
+/// agent-pipe's write_user_config. Returns the path and bytes written.
+pub fn save_user_tier(config: &ConfigServerConfig, body: &str) -> Result<(PathBuf, usize), String> {
+    let posted = body
+        .parse::<toml::Value>()
+        .map_err(|e| format!("Invalid TOML: {e}"))?;
+    let base = mios_resolver::resolve_below_user(config.ssot_root.as_deref())
+        .map_err(|e| format!("the lower tiers did not resolve: {e}"))?;
+    let delta = mios_resolver::merge::diff_against(&posted, &base)
+        .unwrap_or_else(|| toml::Value::Table(toml::Table::new()));
+    let text = toml::to_string(&delta).map_err(|e| format!("the delta did not serialize: {e}"))?;
+    let dest = &config.user_toml_path;
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {e}"))?;
+    }
+    let tmp_path = dest.with_extension("toml.tmp");
+    fs::write(&tmp_path, &text).map_err(|e| format!("Failed to write temporary file: {e}"))?;
+    fs::rename(&tmp_path, dest).map_err(|e| format!("Failed to persist config: {e}"))?;
+    Ok((dest.clone(), text.len()))
 }
 
 pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpResponse {
@@ -284,54 +356,32 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
                 }
             };
 
-            let report = mios_config::MiosValidator::validate_str(body_str);
-            if !report.is_valid {
-                let err_msgs: Vec<String> =
-                    report.errors.into_iter().map(|e| e.to_string()).collect();
-                let json_body =
-                    match serde_json::to_string(&serde_json::json!({ "errors": err_msgs })) {
-                        Ok(j) => j,
-                        Err(_) => r#"{"errors":["Validation failed"]}"#.to_string(),
-                    };
-                return cors_resp(HttpResponse::json(422, "Unprocessable Entity", json_body));
-            }
-
-            if let Some(parent) = config.profile_path.parent() {
-                if let Err(e) = fs::create_dir_all(parent) {
-                    return cors_resp(HttpResponse::json(
-                        500,
-                        "Internal Server Error",
-                        format!(r#"{{"errors":["Failed to create config dir: {}"]}}"#, e),
-                    ));
-                }
-            }
-
-            let tmp_path = config.profile_path.with_extension("tmp");
-            if let Err(e) = fs::write(&tmp_path, body_str) {
+            let errors = validate_portal_save(body_str, config);
+            if !errors.is_empty() {
                 return cors_resp(HttpResponse::json(
-                    500,
-                    "Internal Server Error",
-                    format!(r#"{{"errors":["Failed to write temporary file: {}"]}}"#, e),
+                    422,
+                    "Unprocessable Entity",
+                    serde_json::json!({ "errors": errors }).to_string(),
                 ));
             }
 
-            if let Err(e) = fs::rename(&tmp_path, &config.profile_path) {
-                return cors_resp(HttpResponse::json(
+            match save_user_tier(config, body_str) {
+                Ok((path, bytes)) => cors_resp(HttpResponse::json(
+                    200,
+                    "OK",
+                    serde_json::json!({
+                        "status": "ok",
+                        "message": format!("Saved to {}", path.display()),
+                        "bytes": bytes,
+                    })
+                    .to_string(),
+                )),
+                Err(e) => cors_resp(HttpResponse::json(
                     500,
                     "Internal Server Error",
-                    format!(r#"{{"errors":["Failed to persist config: {}"]}}"#, e),
-                ));
+                    serde_json::json!({ "errors": [e] }).to_string(),
+                )),
             }
-
-            cors_resp(HttpResponse::json(
-                200,
-                "OK",
-                format!(
-                    r#"{{"status":"ok","message":"Saved to {}","bytes":{}}}"#,
-                    config.profile_path.display(),
-                    body_str.len()
-                ),
-            ))
         }
 
         ("GET", "/health") | ("HEAD", "/health") | ("GET", "/healthz") | ("HEAD", "/healthz") => {
@@ -354,17 +404,58 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
     resp
 }
 
+/// Read one whole request: headers, then Content-Length bytes of body. A
+/// single read() truncated any body past one TCP segment, so a configurator
+/// save of the full config arrived as invalid TOML. The body ceiling is
+/// [portal].config_max_body_bytes.
+async fn read_request(stream: &mut TcpStream, max_body: usize) -> std::io::Result<Option<Vec<u8>>> {
+    let mut raw = Vec::new();
+    let mut chunk = [0u8; 65536];
+    loop {
+        let n = stream.read(&mut chunk).await?;
+        if n == 0 {
+            return Ok((!raw.is_empty()).then_some(raw));
+        }
+        raw.extend_from_slice(&chunk[..n]);
+        let Some(end) = raw.windows(4).position(|w| w == b"\r\n\r\n") else {
+            if raw.len() > max_body {
+                return Ok(None);
+            }
+            continue;
+        };
+        let head = String::from_utf8_lossy(&raw[..end]).to_ascii_lowercase();
+        let want = head
+            .lines()
+            .find_map(|l| l.strip_prefix("content-length:"))
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        if want > max_body {
+            return Ok(None);
+        }
+        if raw.len() >= end + 4 + want {
+            return Ok(Some(raw));
+        }
+    }
+}
+
 pub async fn handle_stream(
     mut stream: TcpStream,
     config: Arc<ConfigServerConfig>,
 ) -> Result<(), std::io::Error> {
-    let mut buf = [0u8; 65536];
-    let n = stream.read(&mut buf).await?;
-    if n == 0 {
-        return Ok(());
-    }
+    let raw = match read_request(&mut stream, config.max_body_bytes).await? {
+        Some(raw) => raw,
+        None => {
+            let resp = HttpResponse::new(413, "Payload Too Large").with_body(
+                "text/plain",
+                b"Request exceeds [portal].config_max_body_bytes".to_vec(),
+            );
+            stream.write_all(&resp.to_bytes()).await?;
+            let _ = stream.shutdown().await;
+            return Ok(());
+        }
+    };
 
-    let resp = match parse_http_request(&buf[..n]) {
+    let resp = match parse_http_request(&raw) {
         Some(req) => handle_request(&req, &config),
         None => HttpResponse::new(400, "Bad Request")
             .with_body("text/plain", b"Malformed HTTP request".to_vec()),
@@ -480,7 +571,8 @@ mod tests {
         let config = ConfigServerConfig {
             bind_addr: String::new(),
             html_path: root.join("mios.html"),
-            profile_path: root.join("no-profile.toml"),
+            user_toml_path: root.join("home/.config/mios/mios.toml"),
+            max_body_bytes: 1 << 20,
             ssot_root: Some(root.to_path_buf()),
         };
         let req = HttpRequest {
@@ -495,6 +587,121 @@ mod tests {
         let parsed: toml::Value = body.parse().unwrap_or_else(|e| panic!("{e}: {body}"));
         assert_eq!(parsed["ai"]["endpoint"].as_str(), Some("host"));
         assert_eq!(parsed["ai"]["agent_model"].as_str(), Some("m"));
+    }
+
+    #[test]
+    fn test_post_config_saves_only_the_delta_to_the_user_tier() {
+        let tmp_dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{}", e));
+        let root = tmp_dir.path();
+        fs::create_dir_all(root.join("usr/share/mios")).unwrap_or_else(|e| panic!("{}", e));
+        fs::write(
+            root.join("usr/share/mios/mios.toml"),
+            "[ai]\nendpoint = \"vendor\"\nagent_model = \"m\"\n",
+        )
+        .unwrap_or_else(|e| panic!("{}", e));
+        let user = root.join("home/.config/mios/mios.toml");
+        let config = ConfigServerConfig {
+            bind_addr: String::new(),
+            html_path: root.join("mios.html"),
+            user_toml_path: user.clone(),
+            max_body_bytes: 1 << 20,
+            ssot_root: Some(root.to_path_buf()),
+        };
+        let (path, _) = save_user_tier(
+            &config,
+            "[ai]\nendpoint = \"operator\"\nagent_model = \"m\"\n",
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(path, user);
+        let saved: toml::Value = fs::read_to_string(&user)
+            .unwrap_or_else(|e| panic!("{e}"))
+            .parse()
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(saved["ai"]["endpoint"].as_str(), Some("operator"));
+        assert!(
+            saved["ai"].get("agent_model").is_none(),
+            "unchanged keys stay in lower tiers: {saved}"
+        );
+    }
+
+    async fn received(req: Vec<u8>, max_body: usize) -> Option<Vec<u8>> {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
+        let addr = listener.local_addr().unwrap_or_else(|e| panic!("{}", e));
+        let srv = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap_or_else(|e| panic!("{}", e));
+            read_request(&mut stream, max_body)
+                .await
+                .unwrap_or_else(|e| panic!("{}", e))
+        });
+        let mut client = TcpStream::connect(addr)
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
+        client
+            .write_all(&req)
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
+        srv.await.unwrap_or_else(|e| panic!("{}", e))
+    }
+
+    fn post(body_len: usize) -> Vec<u8> {
+        let body = "x".repeat(body_len);
+        format!(
+            "POST /portal/config HTTP/1.1\r\nHost: x\r\nContent-Length: {body_len}\r\n\r\n{body}"
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn test_portal_save_rules_match_agent_pipe() {
+        let tmp_dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{}", e));
+        let root = tmp_dir.path();
+        fs::create_dir_all(root.join("usr/share/mios")).unwrap_or_else(|e| panic!("{}", e));
+        fs::write(
+            root.join("usr/share/mios/mios.toml"),
+            "[identity]\nmios_user = \"u\"\n[ports]\na = 1\n",
+        )
+        .unwrap_or_else(|e| panic!("{}", e));
+        let config = ConfigServerConfig {
+            bind_addr: String::new(),
+            html_path: root.join("mios.html"),
+            user_toml_path: root.join("u.toml"),
+            max_body_bytes: 1 << 20,
+            ssot_root: Some(root.to_path_buf()),
+        };
+        let ok = "[identity]\nmios_user = \"u\"\n[ports]\nstack_id = 0\na = 9\nlist = [1]\n[ports.categories.x]\nbase = 0\n";
+        assert!(validate_portal_save(ok, &config).is_empty());
+        assert_eq!(
+            validate_portal_save("[ports]\na = 1\n", &config).len(),
+            1,
+            "dropped [identity]"
+        );
+        assert_eq!(
+            validate_portal_save("[identity]\nmios_user = \" \"\n[ports]\na = 1\n", &config).len(),
+            1
+        );
+        assert_eq!(
+            validate_portal_save(
+                "[identity]\nmios_user = \"u\"\n[ports]\na = 70000\nb = \"x\"\n",
+                &config
+            )
+            .len(),
+            2
+        );
+        assert_eq!(validate_portal_save("not = = toml", &config).len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_a_body_larger_than_one_read_arrives_whole() {
+        let req = post(200_000);
+        let got = received(req.clone(), 1 << 20).await;
+        assert_eq!(got.map(|r| r.len()), Some(req.len()));
+    }
+
+    #[tokio::test]
+    async fn test_a_body_over_the_ssot_ceiling_is_refused() {
+        assert_eq!(received(post(5_000), 4_096).await, None);
     }
 
     #[tokio::test]
@@ -512,7 +719,8 @@ mod tests {
         let config = ConfigServerConfig {
             bind_addr: local_addr.to_string(),
             html_path: html_file,
-            profile_path: tmp_dir.path().join("profile.toml"),
+            user_toml_path: tmp_dir.path().join("user.toml"),
+            max_body_bytes: 1 << 20,
             ssot_root: Some(tmp_dir.path().to_path_buf()),
         };
 

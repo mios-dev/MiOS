@@ -19,6 +19,33 @@ pub fn deep_merge(dst: &mut Value, src: Value) {
     }
 }
 
+/// The part of `new` a higher tier must carry to turn `base` into `new`:
+/// keys absent from `base` or holding a different value, recursing into
+/// tables and dropping empty ones. None when nothing differs. Mirrors
+/// mios_pipe.kernel.config.write_user_config's _dict_diff.
+pub fn diff_against(new: &Value, base: &Value) -> Option<Value> {
+    match (new, base) {
+        (Value::Table(n), Value::Table(b)) => {
+            let mut out = toml::Table::new();
+            for (k, v) in n {
+                match b.get(k) {
+                    None => {
+                        out.insert(k.clone(), v.clone());
+                    }
+                    Some(bv) => {
+                        if let Some(d) = diff_against(v, bv) {
+                            out.insert(k.clone(), d);
+                        }
+                    }
+                }
+            }
+            (!out.is_empty()).then_some(Value::Table(out))
+        }
+        (n, b) if n == b => None,
+        (n, _) => Some(n.clone()),
+    }
+}
+
 pub fn deep_merge_table(dst: &mut toml::Table, src: toml::Table) {
     for (k, v) in src {
         match dst.get_mut(&k) {
@@ -162,5 +189,29 @@ mod tests {
 
         assert_eq!(base["key"].as_str().unwrap(), "");
         assert_eq!(base["other"].as_str().unwrap(), "");
+    }
+}
+
+#[cfg(test)]
+mod diff_tests {
+    use super::diff_against;
+    use toml::Value;
+
+    fn t(s: &str) -> Value {
+        s.parse::<Value>().unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    #[test]
+    fn only_changed_and_new_keys_survive() {
+        let base = t("[ai]\nendpoint = \"a\"\nmodel = \"m\"\n[ports]\nx = 1\n");
+        let new = t("[ai]\nendpoint = \"b\"\nmodel = \"m\"\n[ports]\nx = 1\n[extra]\nk = true\n");
+        let d = diff_against(&new, &base).unwrap_or_else(|| panic!("diff expected"));
+        assert_eq!(d, t("[ai]\nendpoint = \"b\"\n[extra]\nk = true\n"));
+    }
+
+    #[test]
+    fn identical_documents_have_no_diff() {
+        let base = t("[ai]\nendpoint = \"a\"\nlist = [1, 2]\n");
+        assert_eq!(diff_against(&base, &base), None);
     }
 }

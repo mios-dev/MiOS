@@ -389,7 +389,17 @@ def to_toml(d: dict, prefix: list = None) -> str:
 
     return "\n".join(lines)
 
-_VALIDATE_MAX_BYTES = 2 * 1024 * 1024  # 2 MB payload cap
+def _validate_max_bytes() -> int:
+    """[portal].config_max_body_bytes from the layered mios.toml -- the same
+    ceiling miosd's config server enforces. Unresolvable raises (fail closed)."""
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    for d in ("/usr/lib/mios", os.path.normpath(os.path.join(here, "..", "..", ".."))):
+        if os.path.isfile(os.path.join(d, "mios_toml.py")) and d not in sys.path:
+            sys.path.insert(0, d)
+    import mios_toml
+    return int(mios_toml.get("portal", "config_max_body_bytes"))
+
 _VALIDATE_CRITICAL_SECTIONS = ("identity", "ports")
 
 def validate_config(toml_text: str, live_config: dict = None):
@@ -399,9 +409,13 @@ def validate_config(toml_text: str, live_config: dict = None):
         size = len(toml_text.encode("utf-8"))
     except Exception:
         size = len(toml_text or "")
-    if size > _VALIDATE_MAX_BYTES:
+    try:
+        max_bytes = _validate_max_bytes()
+    except Exception as e:  # noqa: BLE001 -- no ceiling resolved: refuse
+        return (False, [f"[portal].config_max_body_bytes did not resolve: {e}"])
+    if size > max_bytes:
         return (False, [f"Config too large: {size} bytes exceeds the "
-                        f"{_VALIDATE_MAX_BYTES}-byte (2 MB) safety cap."])
+                        f"{max_bytes}-byte safety cap ([portal].config_max_body_bytes)."])
 
     try:
         import tomllib as _toml
@@ -457,6 +471,10 @@ def write_user_config(cfg: dict, dest_path: str = None) -> None:
                  + [host] + mios_toml._frags(host_d))
         for p in paths:
             mios_toml.deep_merge(base_cfg, mios_toml._load_one(p))
+        # The posted config carries [ports] derived from [ports.categories]
+        # (GET serves load_merged); derive the base the same way so a derived
+        # value is not frozen into the user tier. miosd's save does the same.
+        mios_toml.derive_ports(base_cfg)
     except Exception:
         pass
 
