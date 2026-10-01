@@ -309,10 +309,12 @@ else
     _log "WARN: tools/lib/userenv.sh not found -- using vendor-default env"
 fi
 
-: "${MIOS_USER:=mios}"
-: "${MIOS_HOSTNAME:=mios}"
-: "${MIOS_AI_MODEL:=qwen2.5-coder:7b}"
-: "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
+# Identity and models come from the layered SSOT sourced above; a value it
+# does not resolve is a broken resolver, not a reason to bake a literal.
+for _v in MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; do
+    [[ -n "${!_v:-}" ]] || _fail "${_v} is not resolved by the layered mios.toml (userenv: ${USERENV_SH:-not found})"
+done
+unset _v
 : "${MIOS_PASSWORD_POLICY:=interactive}"
 export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL \
        MIOS_PASSWORD_POLICY

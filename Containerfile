@@ -1,6 +1,9 @@
 # AI-hint: Defines the multi-stage Docker build process for the MiOS image, incorporating system configurations, automation scripts, and AI model bake parameters into the final bootable container.
 # AI-related: /tmp/build/automation/lib/packages.sh, automation/45-coderun-sandbox-build.sh, /usr/share/mios/mios.toml, /usr/share/mios/flatpak-list, /usr/libexec/mios/copy-build-log.sh, mios-bootstrap, mios-dev, mios-sysext-pack, mios-coderun-sandbox, mios-additionalimagestores-perms
-ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
+# [image].base, resolved from the SSOT by every caller (Justfile, CI, build-mios);
+# no literal default, so a caller that forgets it fails at FROM instead of
+# silently building a base the SSOT does not name.
+ARG BASE_IMAGE
 
 FROM scratch AS ctx
 COPY automation/           /ctx/automation/
@@ -53,11 +56,13 @@ LABEL ostree.bootable="1"
 
 COPY --from=rust-builder /out/usr/ /usr/
 
-ARG MIOS_USER=mios
-ARG MIOS_HOSTNAME=mios
+# Explicit overrides only. Unset or empty, each resolves from the six-tier
+# SSOT inside the build ([identity].username/hostname, [ai].model/embed_model).
+ARG MIOS_USER
+ARG MIOS_HOSTNAME
 ARG MIOS_FLATPAKS=
-ARG MIOS_AI_MODEL=qwen2.5-coder:7b
-ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
+ARG MIOS_AI_MODEL
+ARG MIOS_AI_EMBED_MODEL
 # ADR-0025 image profile ([profiles]); empty means [profiles].default.
 ARG MIOS_PROFILES_DEFAULT
 
@@ -99,7 +104,15 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
-    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
+    _res="$(command -v mios-resolver || echo /usr/libexec/mios/mios-resolver)"; \
+    eval "$("$_res" --root /tmp/build --emit=shell \
+        | grep -E '^export MIOS_(USER|HOSTNAME|AI_MODEL|AI_EMBED_MODEL)=' | sed 's/^export /_ssot_/')"; \
+    for _v in MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; do \
+        _s="_ssot_${_v}"; \
+        [ -n "${!_v:-}" ] || { [ -n "${!_s:-}" ] || { echo "[build] ERROR: ${_v} is not resolved by the SSOT" >&2; exit 1; }; printf -v "$_v" '%s' "${!_s}"; }; \
+        echo "[build] ${_v}=${!_v}"; \
+    done; \
+    export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
