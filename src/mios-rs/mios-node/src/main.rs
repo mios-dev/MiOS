@@ -32,8 +32,9 @@ enum Commands {
         #[arg(short, long, default_value_t = 101)]
         node_id: u32,
 
-        #[arg(short, long, default_value_t = 8650)]
-        port: u16,
+        /// UDP port; defaults to MIOS_PORT_NODE ([ports].node, resolved at run time).
+        #[arg(short, long)]
+        port: Option<u16>,
 
         #[arg(short, long, default_value = "/var/lib/mios/state.json")]
         db_path: String,
@@ -83,6 +84,10 @@ async fn main() -> Result<()> {
             port,
             db_path,
         }) => {
+            let port = match port {
+                Some(p) => p,
+                None => mios_node::ssot::require_port("MIOS_PORT_NODE")?,
+            };
             println!("====================================================");
             println!("  MiOS ('My OS' / 'MyOS') Distributed Edge Runtime  ");
             println!(
@@ -166,10 +171,20 @@ async fn main() -> Result<()> {
             println!("====================================================");
             println!("  Node Binary Version : v0.3.0");
             println!("  Wire Protocol       : 16B Fixed Header + CRC32 Checksum");
-            println!("  Discovery Port      : 8650 (UDP / TCP)");
+            let show = |name: &str| {
+                mios_node::ssot::get(name).unwrap_or_else(|| format!("unresolved ({name})"))
+            };
+            println!(
+                "  Discovery Port      : {} (UDP / TCP)",
+                show("MIOS_PORT_NODE")
+            );
             println!("  Default State File  : /var/lib/mios/state.json");
-            println!("  AI Endpoint         : http://127.0.0.1:8640");
-            println!("  Inference Lanes     : mios-llm-light (:11450), mios-llm-heavy (:11441)");
+            println!("  AI Endpoint         : {}", show("MIOS_AI_ENDPOINT"));
+            println!(
+                "  Inference Lanes     : mios-llm-light (:{}), mios-llm-heavy (:{})",
+                show("MIOS_PORT_LLM_LIGHT"),
+                show("MIOS_PORT_VLLM")
+            );
             println!("  Registered Sub-Agent: mios-node (role: edge_execution)");
             println!("====================================================");
         }

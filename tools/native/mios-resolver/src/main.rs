@@ -6,10 +6,8 @@ use mios_resolver::emit_install_env::emit_install_env;
 use mios_resolver::emit_json::emit_json;
 use mios_resolver::emit_ps::emit_powershell;
 use mios_resolver::emit_shell::emit_shell;
-use mios_resolver::layers::create_figment;
 use mios_resolver::load_model;
 use std::path::PathBuf;
-use toml::Value;
 
 #[derive(Parser, Debug)]
 #[command(name = "mios-resolver")]
@@ -31,20 +29,6 @@ struct Args {
     db_overlay: bool,
 }
 
-/// stack_offset = [ports].stack_id * 10000 -- the multi-stack port shift the
-/// Python resolver applies in process_val(). Absent stack_id means no shift.
-fn stack_offset_of(merged: &Value) -> i64 {
-    merged
-        .get("ports")
-        .and_then(|p| p.get("stack_id"))
-        .and_then(|v| {
-            v.as_integer()
-                .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
-        })
-        .map(|id| id * 10000)
-        .unwrap_or(0)
-}
-
 fn main() -> Result<()> {
     let args = Args::parse();
     let root = args.root.as_deref();
@@ -64,8 +48,7 @@ fn main() -> Result<()> {
             }
         }
     } else if let Some(format) = args.emit {
-        let fig = create_figment(root);
-        let mut merged = match fig.extract::<Value>() {
+        let merged = match mios_resolver::resolve_merged(root, args.db_overlay) {
             Ok(val) => val,
             Err(e) => {
                 eprintln!(
@@ -76,14 +59,7 @@ fn main() -> Result<()> {
             }
         };
 
-        // Apply DB authoritative overlay if active or requested
-        mios_resolver::db_overlay::maybe_apply_db_overlay(&mut merged, args.db_overlay);
-
-        // Allocate [ports] from [ports.categories] after every layer has merged,
-        // so an OEM default or an operator override re-derives live.
-        mios_resolver::ports::derive_ports(&mut merged);
-
-        let stack_offset = stack_offset_of(&merged);
+        let stack_offset = mios_resolver::stack_offset_of(&merged);
 
         match format.as_str() {
             "shell" => {

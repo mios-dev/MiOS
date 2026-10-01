@@ -4,7 +4,7 @@
   "total_metadata_entries": 2960,
   "total_hints": 2945,
   "total_functions_indexed": 1363,
-  "total_related_links": 4647,
+  "total_related_links": 4648,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -4657,7 +4657,8 @@
       "hint": "Library entry point for the mios-node edge micro-node daemon.",
       "related": [
         "src/mios-rs/mios-node/src/main.rs",
-        "src/mios-rs/mios-node/src/node.rs"
+        "src/mios-rs/mios-node/src/node.rs",
+        "tools/native/mios-resolver/src/lib.rs"
       ],
       "functions": [],
       "doc": null,

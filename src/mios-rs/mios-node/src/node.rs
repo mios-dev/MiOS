@@ -61,6 +61,9 @@ impl MiOSNode {
 
         // 1. Spawn Heartbeat broadcast task
         let node_id = self.node_id;
+        // Peers listen on the port this node was started on, not on a literal.
+        let broadcast = format!("255.255.255.255:{}", self.port);
+        let broadcast_hb = broadcast.clone();
         let socket_hb = socket.clone();
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(3));
@@ -77,7 +80,7 @@ impl MiOSNode {
                 if let Ok(payload_bytes) = serde_json::to_vec(&payload) {
                     let frame = Frame::new(MessageType::Heartbeat, node_id, payload_bytes);
                     if let Ok(encoded) = frame.encode() {
-                        let _ = socket_hb.send_to(&encoded, "255.255.255.255:8650").await;
+                        let _ = socket_hb.send_to(&encoded, broadcast_hb.as_str()).await;
                     }
                 }
             }
@@ -103,9 +106,7 @@ impl MiOSNode {
                     if let Ok(payload_bytes) = serde_json::to_vec(&sync_payload) {
                         let frame = Frame::new(MessageType::StateSync, node_id, payload_bytes);
                         if let Ok(encoded) = frame.encode() {
-                            let _ = socket_gossip
-                                .send_to(&encoded, "255.255.255.255:8650")
-                                .await;
+                            let _ = socket_gossip.send_to(&encoded, broadcast.as_str()).await;
                         }
                     }
                 }
