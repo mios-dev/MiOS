@@ -27,6 +27,27 @@ ESP_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
 ROOT_X86_64_GUID = "4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
 MIN_CAPACITY_BYTES = 32 * 1024 * 1024 * 1024  # 32 GB minimum
 
+# bootc 1.16 `install to-disk --filesystem` accepts exactly these.
+BOOTC_FILESYSTEMS = ("xfs", "ext4", "btrfs")
+
+
+def ssot_image_ref() -> str:
+    """The MiOS image to install: [image].ref from the layered mios.toml.
+
+    The previous literal default named the *base* image (ucore-hci), so an
+    unattended install deployed uCore rather than MiOS.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    for d in ("/usr/lib/mios", os.path.normpath(os.path.join(here, "..", "..", "..", "lib", "mios"))):
+        if os.path.isfile(os.path.join(d, "mios_toml.py")) and d not in sys.path:
+            sys.path.insert(0, d)
+    import mios_toml
+
+    ref = mios_toml.get("image", "ref", "")
+    if not ref:
+        raise RuntimeError("[image].ref is unset in the layered mios.toml; pass --image-ref")
+    return ref
+
 @dataclass
 class DiskCandidate:
     """Discovered block storage device candidate for baremetal installation."""
@@ -48,7 +69,7 @@ class InstallPlan:
     """Baremetal installation execution plan and command synthesis."""
     target_disk: DiskCandidate
     image_ref: str
-    filesystem: str
+    filesystem: Optional[str]
     uefi_supported: bool
     esp_size_mb: int
     bootc_command: List[str]
@@ -219,8 +240,8 @@ class BareMetalInstaller:
         self,
         target_disk: Optional[str] = None,
         auto_select: bool = False,
-        image_ref: str = "ghcr.io/ublue-os/ucore-hci:latest",
-        filesystem: str = "btrfs",
+        image_ref: Optional[str] = None,
+        filesystem: Optional[str] = None,
         yes: bool = False,
         force: bool = False,
         dry_run: bool = False,
@@ -228,8 +249,10 @@ class BareMetalInstaller:
     ):
         self.target_disk_path = target_disk
         self.auto_select = auto_select
-        self.image_ref = image_ref
-        self.filesystem = filesystem.lower()
+        self.image_ref = image_ref or ssot_image_ref()
+        # None leaves the choice to the image's own bootc install config
+        # (usr/lib/bootc/install/*.toml root-fs-type).
+        self.filesystem = filesystem.lower() if filesystem else None
         self.yes = yes
         self.force = force
         self.dry_run = dry_run
@@ -296,18 +319,22 @@ class BareMetalInstaller:
                 "Pass --yes to confirm."
             )
 
-        # Build bootc install command
+        # Build bootc install command. --source-imgref pulls the image to
+        # install instead of introspecting a surrounding podman container;
+        # --target-imgref is what the installed host tracks for upgrades.
         bootc_cmd = [
             "bootc",
             "install",
             "to-disk",
-            "--generic-image-from",
+            "--source-imgref",
+            f"docker://{self.image_ref}",
+            "--target-imgref",
             self.image_ref,
-            "--filesystem",
-            self.filesystem,
             "--wipe",
-            selected.device_path,
         ]
+        if self.filesystem:
+            bootc_cmd += ["--filesystem", self.filesystem]
+        bootc_cmd.append(selected.device_path)
 
         pre_cmds = [
             f"wipefs -a {selected.device_path}",
@@ -367,8 +394,8 @@ def main() -> int:
     )
     parser.add_argument("--target-disk", help="Target disk path (e.g. /dev/nvme0n1)")
     parser.add_argument("--auto-select", action="store_true", help="Automatically select fastest eligible NVMe/SSD")
-    parser.add_argument("--image-ref", default="ghcr.io/ublue-os/ucore-hci:latest", help="Container image reference to deploy")
-    parser.add_argument("--filesystem", choices=["btrfs", "xfs"], default="btrfs", help="Root filesystem type")
+    parser.add_argument("--image-ref", help="Container image reference to deploy (default: [image].ref from mios.toml)")
+    parser.add_argument("--filesystem", choices=BOOTC_FILESYSTEMS, help="Root filesystem type (default: the image's bootc install config)")
     parser.add_argument("--yes", "--force", action="store_true", dest="yes", help="Confirm destructive installation")
     parser.add_argument("--dry-run", action="store_true", help="Simulate installation without executing disk writes")
     parser.add_argument("--mock", action="store_true", help="Run deterministic mock execution for CI testing")
@@ -395,7 +422,8 @@ def main() -> int:
             tgt = res["target"]
             print(f"[baremetal_install] SUCCESS: Deployed {res['image_ref']} to {tgt['device_path']}")
             print(f"  Drive: {tgt['model']} ({tgt['size_gb']} GB, S/N: {tgt['serial']}, Bus: {tgt['bus_type']})")
-            print(f"  Filesystem: {res['filesystem'].upper()}, UEFI: {res['uefi']}")
+            fs = (res["filesystem"] or "image default").upper()
+            print(f"  Filesystem: {fs}, UEFI: {res['uefi']}")
         return 0
     except Exception as e:
         err = {"status": "error", "error": str(e)}

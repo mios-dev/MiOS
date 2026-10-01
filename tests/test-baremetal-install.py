@@ -92,6 +92,34 @@ class TestBaremetalInstall(unittest.TestCase):
             exit_code = baremetal_install.main()
             self.assertEqual(exit_code, 0)
 
+    def test_default_image_is_mios_from_ssot_not_the_base(self):
+        import tomllib
+        with open(os.path.join(_ROOT, "usr", "share", "mios", "mios.toml"), "rb") as f:
+            image = tomllib.load(f)["image"]
+        installer = baremetal_install.BareMetalInstaller(auto_select=True, mock=True)
+        plan = installer.plan_install()
+        self.assertEqual(plan.image_ref, image["ref"])
+        self.assertNotEqual(plan.image_ref, image["base"])
+
+    def test_bootc_command_uses_only_real_bootc_flags(self):
+        # bootc 1.16 `install to-disk --help`: no --generic-image-from exists;
+        # the install source is --source-imgref, upgrades track --target-imgref.
+        installer = baremetal_install.BareMetalInstaller(
+            auto_select=True, image_ref="registry.example/os:1", mock=True
+        )
+        cmd = installer.plan_install().bootc_command
+        self.assertNotIn("--generic-image-from", cmd)
+        self.assertEqual(cmd[cmd.index("--source-imgref") + 1], "docker://registry.example/os:1")
+        self.assertEqual(cmd[cmd.index("--target-imgref") + 1], "registry.example/os:1")
+        self.assertEqual(cmd[-1], "/dev/nvme0n1")
+
+    def test_filesystem_defaults_to_the_image_install_config(self):
+        installer = baremetal_install.BareMetalInstaller(auto_select=True, mock=True)
+        plan = installer.plan_install()
+        self.assertIsNone(plan.filesystem)
+        self.assertNotIn("--filesystem", plan.bootc_command)
+
+
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBaremetalInstall)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
