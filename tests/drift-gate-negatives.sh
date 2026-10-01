@@ -1775,25 +1775,45 @@ test_verb_templates() {
     log "Test_verb_templates negative test passed"
 }
 
-test_pipe_boundaries() {
+test_bound_image_store() {
+    log "Testing check_bound_image_store"
+    _neg_gate check_bound_image_store || die "check_bound_image_store failed on the unmutated tree"
+    python3 - "$ROOT/tools/test_drift-checks.py" <<'PYEOF'
+import importlib.util, sys, unittest
+spec = importlib.util.spec_from_file_location('bound_store_controls', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+loader = unittest.TestLoader()
+suite = unittest.TestSuite(loader.loadTestsFromTestCase(cls) for cls in (
+    module.TestBoundImageStore, module.TestBoundStoreProjection))
+assert suite.countTestCases() >= 9, 'bound-image controls are missing'
+result = unittest.TextTestRunner(verbosity=2).run(suite)
+raise SystemExit(not result.wasSuccessful() or bool(result.skipped))
+PYEOF
+    _neg_gate check_bound_image_store || die "check_bound_image_store failed after isolated controls"
+    log "check_bound_image_store scoped store and binding controls passed"
+}
+
+test_pipe_boundaries() (
     log "Testing check_pipe_boundaries"
     local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
-    if [ -f "$manifest" ]; then
-        local orig_val
-        orig_val="$(cat "$manifest")"
-        rm -f "$manifest"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_boundaries >/dev/null 2>&1; then
-            echo "$orig_val" > "$manifest"
-            die "Check_pipe_boundaries passed despite missing manifest file"
-        fi
-
-        echo "$orig_val" > "$manifest"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_boundaries >/dev/null 2>&1 \
-            || die "Check_pipe_boundaries failed after restoration"
-    fi
-    log "Test_pipe_boundaries negative test passed"
-}
+    [[ -f "$manifest" ]] || die "Tracked boundary manifest is missing"
+    _neg_gate check_pipe_boundaries || die "check_pipe_boundaries failed on the unmutated tree"
+    local backup
+    backup="$(mktemp)"
+    cp "$manifest" "$backup"
+    trap 'cp "$backup" "$manifest"; rm -f "$backup"' EXIT
+    rm -f "$manifest"
+    _neg_gate check_pipe_boundaries && die "check_pipe_boundaries accepted a missing manifest"
+    [[ "$_NEG_GATE_OUT" == *"pipe-boundaries.manifest.json is missing"* ]] || die "Missing boundary manifest was not diagnosed"
+    cp "$backup" "$manifest"
+    printf '\n' >> "$manifest"
+    _neg_gate check_pipe_boundaries && die "check_pipe_boundaries accepted stale content"
+    [[ "$_NEG_GATE_OUT" == *"STALE:"* ]] || die "Stale boundary manifest was not diagnosed"
+    cp "$backup" "$manifest"
+    _neg_gate check_pipe_boundaries || die "check_pipe_boundaries failed after restoration"
+    log "check_pipe_boundaries missing and stale manifest controls passed"
+)
 
 test_vllm_name_canonical() {
     log "Testing check_vllm_name_canonical"
@@ -5274,6 +5294,7 @@ _run_test test_leaked_fixtures
     _run_test test_bake_unresolved_image
     _run_test test_containerfile_pinned_clones
     _run_test test_firstboot_tier
+    _run_test test_bound_image_store
     _run_test test_rechunk_budget
     _run_test test_bake_core_reconcile
     _run_test test_nested_podman_retry
@@ -5449,4 +5470,3 @@ _run_test test_leaked_fixtures
 }
 
 main "$@"
-

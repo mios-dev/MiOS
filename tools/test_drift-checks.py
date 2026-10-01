@@ -311,6 +311,10 @@ class TestBoundImageStore(unittest.TestCase):
                    f'# additionalimagestores = ["{self.STORE}"]\n')
         self.check(0)
 
+    def test_missing_ssot_fails(self):
+        os.unlink(os.path.join(self.root, "usr/share/mios/mios.toml"))
+        self.check(1, "SSOT or generated Quadlet directory is missing")
+
     def test_missing_unit_store_fails(self):
         self.write("usr/share/containers/systemd/core.container", self.container("example/core:stable"))
         self.check(1, "core.container: expected one additionalimagestore")

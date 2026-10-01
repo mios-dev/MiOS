@@ -1,3 +1,4 @@
+# AI-hint: Checks bootstrap parameter propagation and rejects unconditional switch overrides.
 # Adversarial Challenge: Dead-Code Parameter & Scoping Challenge
 # Tests: -BootstrapOnly, omission, override switches, variable scoping in child functions
 Set-StrictMode -Version Latest

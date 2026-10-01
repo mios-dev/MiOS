@@ -1,3 +1,4 @@
+# AI-hint: Challenges WSL configuration, elevation arguments and installer target selection.
 <#
 .SYNOPSIS
     Milestone 3 Adversarial Challenge & Stress-Test Harness (m3_challenger_2)

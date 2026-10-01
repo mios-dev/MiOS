@@ -1,3 +1,4 @@
+# AI-hint: Validates installer and exporter PowerShell AST structure and syntax.
 # Adversarial Challenge: AST Syntax and Parsing Ambiguity Stress Test
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

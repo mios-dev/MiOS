@@ -1,3 +1,4 @@
+# AI-hint: Tests installer deadlock, argument, configuration and missing-tool failure controls.
 <#
 .SYNOPSIS
     Milestone 4 Challenger 2 Empirical Adversarial Verification Suite (m4_challenger_2)

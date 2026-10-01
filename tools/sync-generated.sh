@@ -133,6 +133,9 @@ main() {
     "$PY" tools/generate-adr-index.py >/dev/null
     "$PY" tools/roadmap-index.py >/dev/null
 
+    step "4b1/6 agent module boundaries"
+    "$PY" tools/gen-pipe-boundary-manifest.py >/dev/null
+
     # Declares itself generated but was invoked nowhere, so its member list
     # drifted two crates behind the tree with no gate to say so.
     step "4b2/6 native workspace manifest (members = the crate dirs on disk)"

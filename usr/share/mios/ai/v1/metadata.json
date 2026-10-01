@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3595,
-  "total_metadata_entries": 2956,
-  "total_hints": 2940,
+  "total_metadata_entries": 2960,
+  "total_hints": 2945,
   "total_functions_indexed": 1361,
   "total_related_links": 4647,
   "entries": [
@@ -5469,6 +5469,24 @@
       "has_shebang": true
     },
     {
+      "path": "tests/powershell/Challenge_AST_M2.Tests.ps1",
+      "hint": "Validates installer and exporter PowerShell AST structure and syntax.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/Challenge_DeadCode_M2.Tests.ps1",
+      "hint": "Checks bootstrap parameter propagation and rejects unconditional switch overrides.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/GlobalsProjection.Tests.ps1",
       "hint": "Pester characterization test for automation/lib/globals.ps1 constants.",
       "related": [],
@@ -5555,6 +5573,24 @@
     {
       "path": "tests/powershell/m2_challenger_2_adversarial.ps1",
       "hint": "Milestone 2 Empirical Adversarial Stress Test Suite (m2_challenger_2)",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/m3_challenger_2_adversarial.ps1",
+      "hint": "Challenges WSL configuration, elevation arguments and installer target selection.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/m4_challenger_2_adversarial.ps1",
+      "hint": "Tests installer deadlock, argument, configuration and missing-tool failure controls.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -30245,7 +30281,7 @@
     },
     {
       "path": "usr/share/doc/mios/manual/offline-upgrade.md",
-      "hint": null,
+      "hint": "Explains signed offline OCI upgrades and persistent host state.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/offline-upgrade.md",

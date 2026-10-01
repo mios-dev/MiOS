@@ -415,6 +415,7 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/net.md` | Manual pages distilled from the source comments of net, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/node.md` | Manual pages distilled from the source comments of node, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/observability.md` | Manual pages distilled from the source comments of observability, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/offline-upgrade.md` | Explains signed offline OCI upgrades and persistent host state. |
 | `usr/share/doc/mios/manual/opencode-gateway.md` | Manual pages distilled from the source comments of opencode-gateway, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/owui.md` | Manual pages distilled from the source comments of owui, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/powershell.md` | Manual pages distilled from the source comments of powershell, sanitized, each passage anchored to the comment it came from. |
@@ -445,5 +446,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 202 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 203 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

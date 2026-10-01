@@ -1,4 +1,4 @@
-<!-- MiOS Manual: Comprehensive manual for MiOS Offline Atomic OCI Upgrade Path. Details air-gapped USB media staging, skopeo/bootc transport pipelines, kernel vs userspace differentiation, and fast systemctl soft-reboot application without BIOS/UEFI power cycling. -->
+<!-- AI-hint: Explains signed offline OCI upgrades and persistent host state. -->
 <!-- AI-doc: usr/share/doc/mios/manual/offline-upgrade.md -->
 
 # MiOS Manual: Offline Atomic OCI Upgrade Path
