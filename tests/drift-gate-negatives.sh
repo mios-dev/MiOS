@@ -4544,11 +4544,13 @@ test_signature_policy() {
 
 test_projection_coverage() {
     log "Testing check_projection_coverage"
+    _neg_gate check_projection_coverage || die "check_projection_coverage failed on the unmutated tree"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
     local planted="${ROOT}/tools/generate-negtest-surface.py"
+    local short_name="${ROOT}/tools/gen-negtest-surface.py"
     _pc_fail() {
-        cp "$bak" "$toml"; rm -f "$bak" "$planted"
+        cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name"
         unset -f _pc_fail
         die "$1"
     }
@@ -4559,6 +4561,11 @@ test_projection_coverage() {
     # so before this check the plant below passed the whole gate.
     printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$planted"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with an unregistered generator on disk"
+
+    cp "$planted" "$short_name"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage ignored an unregistered gen-prefix generator"
+    [[ "$_NEG_GATE_OUT" == *"tools/gen-negtest-surface.py"* ]] || _pc_fail "check_projection_coverage did not name the gen-prefix generator"
+    rm -f "$short_name"
 
     # Raising the exemption ceiling must not absorb the plant: the generator is
     # still on neither list, so the ceiling buys nothing.

@@ -2340,7 +2340,7 @@ surfaces = [
 # `check_projection_registry` (forward only) never asked. Single `*`, final
 # path segment only; a pattern the matcher cannot express is a hard error, not
 # a silent widening.
-generator_globs = ["tools/generate-*.py", "tools/render-*.py"]
+generator_globs = ["tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py"]
 
 # Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
 # then with the reason spelled out -- a bare name would make this a count.
