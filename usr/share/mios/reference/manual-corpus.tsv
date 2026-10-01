@@ -9313,7 +9313,10 @@ tools/native/mios-resolver/src/expand.rs	284	284	1	9	1070c38a1054	STAY	local-sco
 tools/native/mios-resolver/src/expand.rs	292	294	3	30	54a7305cc8f6	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/expand.rs	321	323	3	24	7611480eb7ad	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/layers.rs	1	2	2	22	63c2a6499bf9	STAY	ai-header		0				0
-tools/native/mios-resolver/src/layers.rs	75	76	2	22	10bd0ff6ea0c	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	53	56	4	47	ccb3a8dc6da9	STAY	midsize-why		0				0
+tools/native/mios-resolver/src/layers.rs	94	95	2	22	10bd0ff6ea0c	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	171	171	1	10	664e6d75d18d	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	176	177	2	22	90dd7d73d3c5	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/lib.rs	1	2	2	19	3563417530a8	STAY	ai-header		0				0
 tools/native/mios-resolver/src/main.rs	1	2	2	22	6335f27798db	STAY	ai-header		0				0
 tools/native/mios-resolver/src/main.rs	34	35	2	19	7d3cb73b5815	STAY	local-scoped		0				0

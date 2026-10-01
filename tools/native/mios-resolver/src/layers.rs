@@ -46,6 +46,23 @@ fn _frags(dirpath: &Path) -> Vec<PathBuf> {
     entries
 }
 
+const FHS_VENDOR: &str = "/usr/share/mios/mios.toml";
+const FHS_HOST: &str = "/etc/mios/mios.toml";
+const FHS_VENDOR_D: &str = "/usr/lib/mios/mios.d";
+
+/// (vendor, host, vendor_d) when no root is given, matching mios_toml.py:
+/// the installed FHS tiers, and the source-tree vendor file only when MiOS
+/// is not installed. Paths relative to the caller's cwd made every unrooted
+/// call on a deployed host silently drop the vendor and host tiers.
+fn unrooted_defaults(fhs_vendor_installed: bool) -> (String, String, String) {
+    let vendor = if fhs_vendor_installed {
+        FHS_VENDOR.to_string()
+    } else {
+        "usr/share/mios/mios.toml".to_string()
+    };
+    (vendor, FHS_HOST.to_string(), FHS_VENDOR_D.to_string())
+}
+
 pub fn resolve_tier_dirs(
     root_dir: Option<&Path>,
 ) -> (PathBuf, PathBuf, PathBuf, PathBuf, PathBuf, PathBuf) {
@@ -53,6 +70,8 @@ pub fn resolve_tier_dirs(
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|| env::var("MIOS_TOML_ROOT").unwrap_or_default());
     let root = normalize_path_str(&root_str);
+    let (unrooted_vendor, unrooted_host, unrooted_vendor_d) =
+        unrooted_defaults(Path::new(FHS_VENDOR).is_file());
 
     let vendor = if !root.is_empty() {
         env::var("MIOS_VENDOR_TOML")
@@ -60,14 +79,14 @@ pub fn resolve_tier_dirs(
     } else {
         env::var("MIOS_VENDOR_TOML")
             .or_else(|_| env::var("MIOS_TOML"))
-            .unwrap_or_else(|_| "usr/share/mios/mios.toml".to_string())
+            .unwrap_or(unrooted_vendor)
     };
 
     let host = env::var("MIOS_HOST_TOML").unwrap_or_else(|_| {
         if !root.is_empty() {
             format!("{}/etc/mios/mios.toml", root)
         } else {
-            "etc/mios/mios.toml".to_string()
+            unrooted_host
         }
     });
 
@@ -87,7 +106,7 @@ pub fn resolve_tier_dirs(
         if !root.is_empty() {
             format!("{}/usr/lib/mios/mios.d", root)
         } else {
-            "usr/lib/mios/mios.d".to_string()
+            unrooted_vendor_d
         }
     });
 
@@ -146,6 +165,20 @@ mod tests {
     use super::*;
     use std::fs::{self, File};
     use tempfile::tempdir;
+
+    #[test]
+    fn test_unrooted_defaults_are_fhs_tiers() {
+        // A deployed host: every tier is absolute, whatever the cwd.
+        let (vendor, host, vendor_d) = unrooted_defaults(true);
+        assert_eq!(vendor, "/usr/share/mios/mios.toml");
+        assert_eq!(host, "/etc/mios/mios.toml");
+        assert_eq!(vendor_d, "/usr/lib/mios/mios.d");
+        // A source checkout without MiOS installed reads the tree's vendor file,
+        // but the host and drop-in tiers stay absolute (mios_toml.py parity).
+        let (vendor, host, vendor_d) = unrooted_defaults(false);
+        assert_eq!(vendor, "usr/share/mios/mios.toml");
+        assert!(Path::new(&host).is_absolute() && Path::new(&vendor_d).is_absolute());
+    }
 
     #[test]
     fn test_path_normalization() {
