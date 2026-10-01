@@ -316,11 +316,58 @@ class TestDevImageWiring(unittest.TestCase):
         self.assertNotIn("install --all || true", sh)
         self.assertIn("custom-css extension install failed (exit", sh)
 
+    def test_containerfile_provisions_native_toolchain(self):
+        cf = _read(os.path.join(ROOT, ".devcontainer/Containerfile"))
+        self.assertEqual(rust_toolchain_violations(cf), [])
+
+    def test_toolchain_check_rejects_each_defect(self):
+        cf = _read(os.path.join(ROOT, ".devcontainer/Containerfile"))
+        run = next(r for r in _runs(cf) if "rustup-init" in r)
+        mutants = {
+            "no rustup step": cf.replace(run, "RUN true"),
+            "literal target": cf.replace('"$(get build.native.linux.targets "$(uname -m)")"',
+                                         '"x86_64-unknown-linux-musl"'),
+            "unverified std": cf.replace("libstd-*.rlib", "libcore-*.rlib"),
+            "after staging removed": cf.replace(run + "\n", "") + "\n" + run + "\n",
+        }
+        for name, text in mutants.items():
+            with self.subTest(name):
+                self.assertNotEqual(rust_toolchain_violations(text), [], name)
+
     def test_post_start_binds_loopback_from_ports(self):
         sh = _read(os.path.join(ROOT, ".devcontainer/boot-mios-systems.sh"))
         self.assertIn("ports code_server", sh)
         self.assertIn("127.0.0.1", sh)
         self.assertIsNone(re.search(r"\b8900\b|\b8080\b", sh), "a code-server port literal in boot-mios-systems.sh")
+
+
+def _runs(text):
+    # A chunk ends at its blank line, so the next step's comment is not part of it.
+    return [r.split("\n\n", 1)[0] for r in re.split(r"\n(?=[A-Z]+ )", text) if r.startswith("RUN")]
+
+
+def rust_toolchain_violations(text):
+    """Every way the dev image fails to provision the SSOT native toolchain 55-native-build.sh needs."""
+    errs = []
+    runs = [r for r in _runs(text) if "rustup-init" in r]
+    if len(runs) != 1:
+        return [f"dev Containerfile: {len(runs)} RUN steps call rustup-init, expected 1"]
+    run = runs[0]
+    for key in ("build.toolchain channel", "build.toolchain components",
+                'build.native.linux.targets "$(uname -m)"', "build.native.linux linker"):
+        if key not in run:
+            errs.append(f"dev Containerfile: rustup step does not read {key} from the SSOT")
+    if re.search(r"\b(x86_64|aarch64)-unknown-linux-\w+\b|\b1\.\d+\.\d+\b", run):
+        errs.append("dev Containerfile: rustup step names a target or version literal")
+    if "libstd-*.rlib" not in run or "/bin/${linker}" not in run:
+        errs.append("dev Containerfile: rustup step does not verify the target std and linker")
+    for var in ("RUSTUP_HOME=", "CARGO_HOME=", "PATH=/usr/local/cargo/bin:"):
+        if var not in text:
+            errs.append(f"dev Containerfile: ENV {var} missing")
+    staged_gone = text.find("rm -rf /usr/src/mios-ssot")
+    if staged_gone != -1 and text.find(run) > staged_gone:
+        errs.append("dev Containerfile: rustup step runs after the staged SSOT is removed")
+    return errs
 
 
 def containerfile_violations(text):
