@@ -18,12 +18,13 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "usr", "lib", "mios"))
+from mios_comments import tracked_file_modes
 
 AI_HINT_RE = re.compile(r"^[#/<!;\-*\s]*AI-hint:\s*(.+?)(?:\s*-->)?\s*$", re.I)
 AI_RELATED_RE = re.compile(r"^[#/<!;\-*\s]*AI-related:\s*(.+?)(?:\s*-->)?\s*$", re.I)
@@ -93,31 +94,22 @@ def extract_ai_header_metadata(content: str, rel_path: str) -> Optional[Dict[str
 
 
 def get_tracked_files(root: str) -> List[str]:
-    try:
-        out = subprocess.run(
-            ["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
-            cwd=root,
-            capture_output=True,
-            check=True,
-        )
-        return [p for p in out.stdout.decode("utf-8", errors="replace").split("\0") if p]
-    except Exception:
-        files: List[str] = []
-        for dp, _, fns in os.walk(root):
-            for fn in fns:
-                files.append(os.path.relpath(os.path.join(dp, fn), root))
-        return files
+    return list(tracked_file_modes(root))
 
 
 def build_metadata_catalog(root: str) -> Dict[str, Any]:
-    tracked = get_tracked_files(root)
+    tracked = tracked_file_modes(root)
     entries: List[Dict[str, Any]] = []
     total_hints = 0
     total_funcs = 0
     total_related = 0
 
     for rel in sorted(tracked):
+        if tracked[rel] not in ("100644", "100755"):
+            continue
         full = os.path.join(root, rel)
+        if os.path.islink(full):
+            continue
         if not os.path.isfile(full):
             continue
         try:

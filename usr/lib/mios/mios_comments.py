@@ -9,13 +9,14 @@ import io
 import os
 import sys
 import re
+import subprocess
 import tokenize
 from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from typing import Iterable
 
 __all__ = ["Block", "Verdict", "Policy", "RefIndex", "lex", "classify", "load_ai_tag",
-           "SCAN_EXT", "iter_source_files"]
+           "SCAN_EXT", "iter_source_files", "tracked_file_modes"]
 
 # Extensions the corpus covers. One definition, so the gate and the CLI cannot
 # disagree about what was counted.
@@ -33,32 +34,49 @@ def _is_libexec_verb(root: str, rel: str) -> bool:
     except OSError:
         return False
 
-def _get_tracked_files(root: str) -> list[str]:
-    import subprocess
+def tracked_file_modes(root: str) -> dict[str, str]:
+    """Read index modes so link placeholders and real links have one census."""
     try:
-        out = subprocess.run(["git", "-c", "core.ignorecase=false", "ls-files", "-z"], cwd=root, capture_output=True, check=True)
-        files = [p for p in out.stdout.decode("utf-8", errors="replace").split("\0") if p]
-        if files:
-            return files
-    except Exception:
-        pass
-    rels = []
+        out = subprocess.run(
+            ["git", "-c", "core.ignorecase=false", "ls-files", "--stage", "-z"],
+            cwd=root, capture_output=True, check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        if os.path.lexists(os.path.join(root, ".git")):
+            raise RuntimeError("cannot read the tracked source index") from None
+    else:
+        modes = {}
+        for record in out.stdout.decode("utf-8").split("\0"):
+            if not record:
+                continue
+            metadata, rel = record.split("\t", 1)
+            mode, _, stage = metadata.split()
+            if stage != "0":
+                raise RuntimeError(f"unmerged source index entry: {rel}")
+            modes[rel] = mode
+        return modes
+    # Standalone source fixtures have no Git index. Never follow their links.
+    modes = {}
     for dp, dn, fns in os.walk(root):
         dn[:] = [d for d in dn if d not in _SKIP_DIRS and not d.startswith(".")]
         for fn in fns:
-            rels.append(os.path.relpath(os.path.join(dp, fn), root).replace(os.sep, "/"))
-    return rels
+            full = os.path.join(dp, fn)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            modes[rel] = "120000" if os.path.islink(full) else "100644"
+    return modes
 
 def iter_source_files(root: str):
-    rels = _get_tracked_files(root)
-    for rel in sorted(rels):
+    modes = tracked_file_modes(root)
+    for rel in sorted(modes):
+        if modes[rel] not in ("100644", "100755"):
+            continue
         parts = set(rel.split("/"))
         if parts & _SKIP_DIRS:
             continue
         if not (rel.endswith(SCAN_EXT) or _is_libexec_verb(root, rel)):
             continue
         full = os.path.join(root, rel.replace("/", os.sep))
-        if os.path.isfile(full):
+        if os.path.isfile(full) and not os.path.islink(full):
             yield rel, full
 
 _HERE = os.path.dirname(os.path.abspath(__file__))

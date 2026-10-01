@@ -257,6 +257,18 @@ Rustup component downloads use a separate build cache so an interrupted fetch
 can resume on the next build. Rustup still verifies the component checksum;
 the cache is not copied into the final image.
 
+## Projection preparation
+
+Stage the intended source changes before running `tools/sync-generated.sh`.
+ROADMAP language metrics and the tracked-size ceiling measure Git index blobs,
+so unstaged edits are intentionally excluded. Stage the resulting projections
+and rerun synchronization until it makes no further changes before committing.
+
+AI metadata and the manual corpus read Git index file modes. Compatibility
+symlinks remain tracked, but their target content is indexed only under its
+canonical source path. Linux links and Windows link placeholders therefore
+produce the same content census.
+
 ## Build requirements
 
 | Resource | Minimum | Recommended |

@@ -9,6 +9,9 @@ import tempfile
 import unittest
 import os
 import sys
+import subprocess
+from pathlib import Path
+from unittest.mock import patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
@@ -20,6 +23,62 @@ spec.loader.exec_module(mios_ai_metadata)
 
 
 class TestAIMetadata(unittest.TestCase):
+    def _git(self, root, *args, input=None):
+        return subprocess.run(
+            ["git", *args], cwd=root, input=input, text=True,
+            check=True, capture_output=True,
+        ).stdout.strip()
+
+    def _source_index(self, root):
+        self._git(root, "init", "-q")
+        Path(root, "canonical.conf").write_text("# AI-hint: Canonical source.\n", encoding="utf-8")
+        Path(root, "alias.conf").write_text("# AI-hint: Alias must not be indexed.\n", encoding="utf-8")
+        self._git(root, "add", "canonical.conf")
+        oid = self._git(root, "hash-object", "-w", "--stdin", input="canonical.conf")
+        self._git(root, "update-index", "--add", "--cacheinfo", f"120000,{oid},alias.conf")
+        return oid
+
+    def test_index_modes_exclude_link_placeholders_from_both_censuses(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._source_index(root)
+            catalog = mios_ai_metadata.build_metadata_catalog(root)
+            self.assertEqual(catalog["total_files_scanned"], 2)
+            self.assertEqual([entry["path"] for entry in catalog["entries"]], ["canonical.conf"])
+            from mios_comments import iter_source_files
+            self.assertEqual([rel for rel, _ in iter_source_files(root)], ["canonical.conf"])
+            Path(root, "untracked.conf").write_text("# AI-hint: Private untracked source.\n", encoding="utf-8")
+            self.assertEqual(mios_ai_metadata.build_metadata_catalog(root), catalog)
+
+    @unittest.skipIf(os.name == "nt", "real link control runs on the Linux builder")
+    def test_real_link_and_placeholder_generate_identical_catalogs(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._source_index(root)
+            before = mios_ai_metadata.build_metadata_catalog(root)
+            Path(root, "alias.conf").unlink()
+            Path(root, "alias.conf").symlink_to("canonical.conf")
+            self.assertEqual(mios_ai_metadata.build_metadata_catalog(root), before)
+            from mios_comments import iter_source_files
+            self.assertEqual([rel for rel, _ in iter_source_files(root)], ["canonical.conf"])
+
+    def test_unmerged_index_is_rejected(self):
+        with tempfile.TemporaryDirectory() as root:
+            oid = self._source_index(root)
+            self._git(root, "update-index", "-z", "--index-info", input=f"0 {'0' * 40}\talias.conf\0" f"120000 {oid} 1\talias.conf\0")
+            with self.assertRaisesRegex(RuntimeError, "unmerged source index entry: alias.conf"):
+                mios_ai_metadata.build_metadata_catalog(root)
+
+    def test_unreadable_git_checkout_does_not_scan_untracked_content(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._source_index(root)
+            with patch("mios_comments.subprocess.run", side_effect=OSError("git unavailable")):
+                with self.assertRaisesRegex(RuntimeError, "cannot read the tracked source index"):
+                    mios_ai_metadata.build_metadata_catalog(root)
+
+    def test_standalone_source_fixture_is_supported(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "canonical.conf").write_text("# AI-hint: Standalone source.\n", encoding="utf-8")
+            self.assertEqual(mios_ai_metadata.build_metadata_catalog(root)["total_metadata_entries"], 1)
+
     def test_extract_python_metadata(self):
         content = """#!/usr/bin/env python3
 # AI-hint: Test python module purpose.

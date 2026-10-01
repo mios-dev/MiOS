@@ -25529,7 +25529,7 @@
         "TestAIMetadata",
         "main"
       ],
-      "doc": "usr/share/doc/mios/manual/tests.md",
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
