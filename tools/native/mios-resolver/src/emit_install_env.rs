@@ -12,24 +12,6 @@ pub fn emit_install_env(
 ) -> String {
     let mut exports = build_exports_map(merged, stack_offset);
 
-    if let Some(env_table) = merged.get("env").and_then(|v| v.as_table()) {
-        for (k, v) in env_table {
-            let val_str = match v {
-                Value::String(s) => s.clone(),
-                Value::Boolean(b) => {
-                    if *b {
-                        "true".into()
-                    } else {
-                        "false".into()
-                    }
-                }
-                Value::Integer(i) => i.to_string(),
-                _ => v.to_string(),
-            };
-            exports.insert(k.clone(), val_str);
-        }
-    }
-
     // After the [env] merge, so an [env] value can both reference an
     // exported key and be referenced by one. Unresolved values still carry
     // `$` and are dropped by the bare-safe filter below (Law 10) -- which is

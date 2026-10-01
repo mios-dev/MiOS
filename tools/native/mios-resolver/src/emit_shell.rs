@@ -22,25 +22,6 @@ pub fn shlex_quote(s: &str) -> String {
 pub fn emit_shell(merged: &Value, stack_offset: i64, ref_names_path: Option<&Path>) -> String {
     let mut exports = build_exports_map(merged, stack_offset);
 
-    // Merge [env] table verbatim sorted
-    if let Some(env_table) = merged.get("env").and_then(|v| v.as_table()) {
-        for (k, v) in env_table {
-            let val_str = match v {
-                Value::String(s) => s.clone(),
-                Value::Boolean(b) => {
-                    if *b {
-                        "true".into()
-                    } else {
-                        "false".into()
-                    }
-                }
-                Value::Integer(i) => i.to_string(),
-                _ => v.to_string(),
-            };
-            exports.insert(k.clone(), val_str);
-        }
-    }
-
     if !exports.contains_key("MIOS_PG_BIND_ADDR") {
         let is_loopback = exports
             .get("MIOS_PGVECTOR_LISTEN_LOOPBACK")

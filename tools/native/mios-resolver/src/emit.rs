@@ -94,6 +94,17 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
         exports.entry(sanitize(&key)).or_insert(value);
     }
 
+    // [env] verbatim, last, so it wins -- mios_toml.emit_exports' env_tbl
+    // merge (empty values skipped). Every emitter and runtime::get see it.
+    if let Some(env_table) = merged.get("env").and_then(|v| v.as_table()) {
+        for (k, v) in env_table {
+            let val = process_val(&format!("env.{k}"), v, stack_offset);
+            if !val.is_empty() {
+                exports.insert(sanitize(k), val);
+            }
+        }
+    }
+
     exports
 }
 
