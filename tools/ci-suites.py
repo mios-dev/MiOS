@@ -5,6 +5,7 @@ import fnmatch
 import os
 import re
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mios_tracked import tracked, GitUnavailable  # noqa: E402
@@ -40,6 +41,54 @@ def _load(root: str) -> dict:
 def _load_packages(root: str) -> dict:
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh).get("packages") or {}
+
+def _tokens(value, name: str) -> list:
+    if not isinstance(value, list) or any(
+            not isinstance(v, str) or not v or v.startswith("-")
+            or any(c.isspace() for c in v) for v in value):
+        raise ValueError(f"{name} must be a list of non-empty argument tokens")
+    return value
+
+
+def fedora_arguments(root: str, ci: dict, option: str) -> list:
+    """Resolve CI provisioning from the vendor package dependency closure."""
+    fed = ci.get("fedora")
+    if not isinstance(fed, dict):
+        raise ValueError("mios.toml has no [ci.fedora] table")
+    if option == "--fedora-image":
+        image = fed.get("image")
+        return _tokens([image], "[ci.fedora].image")
+    if option == "--dnf-repos":
+        return list(dict.fromkeys(_tokens(fed.get("repos"), "[ci.fedora].repos")))
+    packages = _load_packages(root)
+    result, visited = [], set()
+
+    def visit(name: str, trail: tuple = ()) -> None:
+        if name in trail:
+            raise ValueError("cyclic package section dependency: " + " -> ".join((*trail, name)))
+        if name in visited:
+            return
+        section = packages.get(name)
+        if not isinstance(section, dict):
+            raise ValueError(f"[ci.fedora] names missing [packages.{name}]")
+        if section.get("enable", True) is not True:
+            raise ValueError(f"[ci.fedora] requires disabled [packages.{name}]")
+        pkgs = _tokens(section.get("pkgs"), f"[packages.{name}].pkgs")
+        if not pkgs:
+            raise ValueError(f"[packages.{name}].pkgs is empty")
+        for dep in _tokens(section.get("requires_sections", []),
+                           f"[packages.{name}].requires_sections"):
+            visit(dep, (*trail, name))
+        result.extend(pkgs)
+        visited.add(name)
+
+    for name in _tokens(fed.get("package_sets"), "[ci.fedora].package_sets"):
+        visit(name)
+    result.extend(_tokens(fed.get("packages"), "[ci.fedora].packages"))
+    if not result:
+        raise ValueError("[ci.fedora] resolves no DNF packages")
+    return list(dict.fromkeys(result))
+
 
 def _tracked(root: str) -> list:
     """git-tracked, not os.walk: a runner executes what the repository ships.
@@ -176,8 +225,7 @@ def cmd_check(root: str, ci: dict) -> int:
         full = os.path.join(root, path)
         if not os.path.isfile(full):
             viol.append(f"[ci].runners lists {path}, which does not exist")
-        elif "ci-suites.py" not in open(
-                full, encoding="utf-8", errors="replace").read():
+        elif "ci-suites.py" not in Path(full).read_text(encoding="utf-8", errors="replace"):
             viol.append(f"[ci].runners {path} never reads the suite registry, so"
                         " it is not a harness -- a suite listed here runs nowhere"
                         " and never touches [ci].max_exempt_suites")
@@ -204,7 +252,7 @@ def cmd_check(root: str, ci: dict) -> int:
         if not os.path.isfile(full):
             viol.append(f"{wf} is missing -- both publishers must run the tiers")
             continue
-        body = open(full, encoding="utf-8", errors="replace").read()
+        body = Path(full).read_text(encoding="utf-8", errors="replace")
         cmds = _live_run_commands(body)
         if not cmds:
             viol.append(f"{wf} has no live 'run:' step at all -- parity is read"
@@ -222,6 +270,29 @@ def cmd_check(root: str, ci: dict) -> int:
             viol.append(f"[ci.tool_skips] {path} names no missing tool")
     if len(skips) > int(ci.get("max_tool_skips") or 0):
         viol.append(f"tool-skipping suites {len(skips)} > ceiling {ci.get('max_tool_skips') or 0}")
+
+    # Restore the provisioning and image contracts alongside suite coverage.
+    # A registered tier cannot run when the runner's dependency exporter broke.
+    for option in ("--dnf-repos", "--dnf-packages", "--fedora-image"):
+        try:
+            fedora_arguments(root, ci, option)
+        except (OSError, ValueError, TypeError) as exc:
+            viol.append(f"{option}: {exc}")
+    fedora = ci.get("fedora")
+    want = fedora.get("image") if isinstance(fedora, dict) else None
+    if want:
+        wf = os.path.join(root, ".github/workflows/mios-ci.yml")
+        body = Path(wf).read_text(encoding="utf-8") if os.path.isfile(wf) else ""
+        job = re.search(r"^  drift-gate:\n(.*?)(?=^  \S|\Z)", body, re.M | re.S)
+        got = re.search(r"^    container:\s*\n\s+image:\s*(\S+)",
+                        job.group(1), re.M) if job else None
+        if not got or got.group(1).strip("'\"") != want:
+            viol.append("drift-gate container differs from [ci.fedora].image")
+        dev = os.path.join(root, ".devcontainer/Containerfile")
+        body = Path(dev).read_text(encoding="utf-8") if os.path.isfile(dev) else ""
+        frm = re.search(r"^FROM\s+(\S+)", body, re.M)
+        if not frm or frm.group(1) != want:
+            viol.append("devcontainer FROM differs from [ci.fedora].image")
 
     ceiling = ci.get("max_exempt_suites")
     if ceiling is None:
@@ -241,8 +312,8 @@ def main(argv: list) -> int:
     root = _root()
     try:
         ci = _load(root)
-    except OSError as exc:
-        print(f"mios.toml unreadable: {exc}")
+    except (OSError, ValueError) as exc:
+        print(f"mios.toml unreadable: {exc}", file=sys.stderr)
         return 1
     if not ci:
         print("mios.toml has no [ci] table -- the suite registry is the only"
@@ -258,6 +329,15 @@ def main(argv: list) -> int:
         args += list(py.get("packages") or ())
         print(" ".join(args))
         return 0
+    for option in ("--dnf-repos", "--dnf-packages", "--fedora-image"):
+        if option in argv:
+            try:
+                args = fedora_arguments(root, ci, option)
+            except (OSError, ValueError, TypeError) as exc:
+                print(f"{option}: {exc}", file=sys.stderr)
+                return 1
+            print(" ".join(args))
+            return 0
     if "--tool-skips" in argv:
         print("\n".join(sorted(ci.get("tool_skips") or {})))
         return 0
@@ -266,7 +346,7 @@ def main(argv: list) -> int:
             return cmd_list(root, ci, argv[i + 1])
         if a.startswith("--tier="):
             return cmd_list(root, ci, a.split("=", 1)[1])
-    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --tool-skips",
+    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-repos | --dnf-packages | --fedora-image | --tool-skips",
           file=sys.stderr)
     return 2
 

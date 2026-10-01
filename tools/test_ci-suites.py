@@ -11,8 +11,11 @@ import importlib.util
 import io
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
@@ -112,6 +115,124 @@ class TestRegistryReader(unittest.TestCase):
         for path, tier in MOD._registered(_ROOT, ci).items():
             self.assertTrue(os.path.isfile(os.path.join(_ROOT, path)),
                             "%s (tier %s)" % (path, tier))
+
+class TestFedoraProvisioning(unittest.TestCase):
+    def _args(self, option, fedora=None, packages=None):
+        fedora = fedora if fedora is not None else {
+            "image": "registry.example/fedora:test", "repos": [],
+            "package_sets": ["dev"], "packages": ["extra", "shared"]}
+        packages = packages if packages is not None else {
+            "dev": {"pkgs": ["dev-tool", "shared"], "requires_sections": ["build"]},
+            "build": {"pkgs": ["compiler", "shared"], "enable": True}}
+        with mock.patch.object(MOD, "_load_packages", return_value=packages):
+            return MOD.fedora_arguments(_ROOT, {"fedora": fedora}, option)
+
+    def test_package_closure_is_dependency_first_and_deduplicated(self):
+        self.assertEqual(["compiler", "shared", "dev-tool", "extra"],
+                         self._args("--dnf-packages"))
+
+    def test_all_exporter_entrypoints_work_with_the_shipped_ssot(self):
+        for option in ("--dnf-repos", "--dnf-packages", "--fedora-image"):
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(0, MOD.main([option]), option)
+            self.assertTrue(out.getvalue().strip(), option)
+        pkgs = MOD.fedora_arguments(_ROOT, MOD._load(_ROOT), "--dnf-packages")
+        self.assertEqual(len(pkgs), len(set(pkgs)))
+        closure = MOD._load_packages(_ROOT)
+        for section in ("devcontainer", "self-build", "build-toolchain"):
+            self.assertTrue(set(closure[section]["pkgs"]).issubset(pkgs), section)
+
+    def test_missing_disabled_and_cyclic_sections_fail(self):
+        bad = [
+            {},
+            {"dev": {"pkgs": ["x"], "enable": False}},
+            {"dev": {"pkgs": ["x"], "requires_sections": ["missing"]}},
+            {"dev": {"pkgs": ["x"], "requires_sections": ["other"]},
+             "other": {"pkgs": ["y"], "requires_sections": ["dev"]}},
+            {"dev": {"pkgs": []}},
+        ]
+        for packages in bad:
+            with self.assertRaises(ValueError):
+                self._args("--dnf-packages", packages=packages)
+
+    def test_invalid_tokens_and_table_types_fail(self):
+        for token in ("", "two packages", "line\nbreak", "--nogpgcheck", 42):
+            with self.assertRaises(ValueError):
+                self._args("--dnf-packages", packages={"dev": {"pkgs": [token]}})
+        for fedora in ({}, {"fedora": "wrong type"}):
+            with self.assertRaises(ValueError):
+                MOD.fedora_arguments(_ROOT, fedora, "--dnf-repos")
+
+    def test_empty_repo_list_is_allowed_but_empty_packages_fail(self):
+        self.assertEqual([], self._args("--dnf-repos"))
+        with self.assertRaises(ValueError):
+            self._args("--dnf-packages", fedora={"repos": [], "package_sets": [], "packages": []})
+
+    def test_invalid_export_has_no_partial_stdout(self):
+        for option in ("--dnf-repos", "--dnf-packages", "--fedora-image"):
+            with mock.patch.object(MOD, "_load", return_value={"fedora": {}}), \
+                    contextlib.redirect_stdout(io.StringIO()) as out, \
+                    contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertNotEqual(0, MOD.main([option]))
+            self.assertEqual("", out.getvalue())
+            self.assertIn(option, err.getvalue())
+
+    def test_fedora_image_drift_is_rejected(self):
+        ci = MOD._load(_ROOT)
+        ci["fedora"]["image"] = "registry.example/fedora:wrong"
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertNotEqual(0, MOD.cmd_check(_ROOT, ci))
+        self.assertIn("drift-gate container differs", out.getvalue())
+        self.assertIn("devcontainer FROM differs", out.getvalue())
+
+    @unittest.skipIf(os.name == "nt", "POSIX provisioning shell control")
+    def test_empty_repos_skip_repo_install_and_packages_still_install(self):
+        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
+        block = workflow.split("      - name: Provision the analysis toolchain\n", 1)[1]
+        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
+        script = "\n".join(line[10:] for line in block.splitlines())
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, "dnf-arguments")
+            py = Path(d, "python3")
+            py.write_text("#!/bin/sh\n"
+                          'case "$*" in\n'
+                          '*--dnf-repos) exit 0;;\n'
+                          '*--dnf-packages) echo compiler;;\n'
+                          '*--python-packages) echo pyflakes;;\n'
+                          '*"-m pip install"*) exit 0;;\n'
+                          '*) exit 2;;\nesac\n')
+            dnf = Path(d, "dnf")
+            dnf.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROVISION_MARKER"\n')
+            py.chmod(0o755)
+            dnf.chmod(0o755)
+            env = dict(os.environ, PATH=d + os.pathsep + os.environ["PATH"],
+                       PROVISION_MARKER=marker)
+            result = subprocess.run(["bash", "-c", script], env=env,
+                                    capture_output=True, text=True, cwd=_ROOT)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["install -y --setopt=install_weak_deps=False compiler"],
+                             Path(marker).read_text().splitlines())
+
+    @unittest.skipIf(os.name == "nt", "POSIX provisioning shell control")
+    def test_failed_export_stops_before_dnf(self):
+        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
+        block = workflow.split("      - name: Provision the analysis toolchain\n", 1)[1]
+        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
+        script = "\n".join(line[10:] for line in block.splitlines())
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, "dnf-was-called")
+            for name, body in (("python3", 'echo "exporter refused" >&2; exit 2'),
+                               ("dnf", 'touch "$PROVISION_MARKER"; exit 0')):
+                p = Path(d, name)
+                p.write_text("#!/bin/sh\n" + body + "\n")
+                p.chmod(0o755)
+            env = dict(os.environ, PATH=d + os.pathsep + os.environ["PATH"],
+                       PROVISION_MARKER=marker)
+            result = subprocess.run(["bash", "-c", script], env=env,
+                                    capture_output=True, text=True, cwd=_ROOT)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("exporter refused", result.stderr)
+            self.assertFalse(os.path.exists(marker))
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

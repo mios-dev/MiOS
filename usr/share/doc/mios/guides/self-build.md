@@ -253,6 +253,9 @@ fetches every platform, including the Windows GUI dependencies. The shared
 installer provisions the SSOT musl target and builds its selected Linux catalog.
 The current release focuses on x86_64; ARM64 runtime and image validation remain
 roadmapped under T-1149.
+Rustup component downloads use a separate build cache so an interrupted fetch
+can resume on the next build. Rustup still verifies the component checksum;
+the cache is not copied into the final image.
 
 ## Build requirements
 

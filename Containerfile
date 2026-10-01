@@ -30,6 +30,7 @@ COPY automation/55-native-build.sh /build/automation/55-native-build.sh
 # shared native installer selects Linux binaries and FHS paths from the SSOT;
 # Windows-only artifacts belong to the MiOS-DEV cross-build lane.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=mios-rustup-downloads,target=/usr/local/rustup/downloads \
     --mount=type=cache,target=/build/tools/native/target \
     cargo fetch --locked --target host-tuple --manifest-path /build/src/mios-rs/Cargo.toml && \
     cargo fetch --locked --target host-tuple --manifest-path /build/tools/native/Cargo.toml && \
