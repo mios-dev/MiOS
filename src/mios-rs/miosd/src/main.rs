@@ -19,6 +19,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Resolve the SSOT native Linux target, linker and static runtime flags
+    NativeBuildSettings {
+        #[arg(long, default_value = ".")]
+        root: String,
+        #[arg(long, default_value = std::env::consts::ARCH)]
+        arch: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Reject malformed, foreign or dynamically linked Linux executables
+    NativeArtifactCheck {
+        path: String,
+        #[arg(long, default_value = std::env::consts::ARCH)]
+        arch: String,
+    },
     /// List SSOT-categorized native executables using both Cargo workspaces
     NativeTargets {
         #[arg(long, default_value = ".")]
@@ -800,6 +815,40 @@ async fn main() {
         } => {
             if let Err(e) = run_scaffold(template_type, name) {
                 eprintln!("[miosd] Scaffold error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::NativeBuildSettings { root, arch, json } => {
+            match mios_build::native_linux_target(std::path::Path::new(root), arch) {
+                Ok(settings) => {
+                    if *json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&settings)
+                                .expect("native settings serialization")
+                        );
+                    } else {
+                        println!(
+                            "{}\t{}\t{}\t{}",
+                            settings.target,
+                            settings.linker,
+                            settings.rustflags.join(" "),
+                            settings.jobs
+                        );
+                    }
+                }
+                Err(error) => {
+                    eprintln!("[miosd] Native build policy: {error}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::NativeArtifactCheck { path, arch } => {
+            let result = std::fs::read(path)
+                .map_err(|e| format!("cannot read artifact: {e}"))
+                .and_then(|data| mios_build::verify_static_elf(&data, arch));
+            if let Err(error) = result {
+                eprintln!("[miosd] Artifact {path}: {error}");
                 std::process::exit(1);
             }
         }

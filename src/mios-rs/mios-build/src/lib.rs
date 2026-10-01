@@ -32,7 +32,154 @@ struct NativeCategory {
 struct NativeConfig {
     workspaces: Vec<String>,
     windows_only: Vec<String>,
+    linux: NativeLinux,
     categories: std::collections::BTreeMap<String, NativeCategory>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeLinux {
+    jobs: u32,
+    targets: std::collections::BTreeMap<String, String>,
+    linker: String,
+    rustflags: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NativeLinuxTarget {
+    pub jobs: u32,
+    pub target: String,
+    pub linker: String,
+    pub rustflags: Vec<String>,
+}
+
+/// Resolve build policy from the same catalog used for executable discovery.
+pub fn native_linux_target(
+    root: &std::path::Path,
+    arch: &str,
+) -> Result<NativeLinuxTarget, String> {
+    let ssot = std::fs::read_to_string(root.join("usr/share/mios/mios.toml"))
+        .map_err(|e| format!("cannot read native SSOT: {e}"))?;
+    linux_target(&native_config(&ssot)?, arch)
+}
+
+fn linux_target(config: &NativeConfig, arch: &str) -> Result<NativeLinuxTarget, String> {
+    let target = config
+        .linux
+        .targets
+        .get(arch)
+        .ok_or_else(|| format!("SSOT has no native Linux target for {arch}"))?;
+    Ok(NativeLinuxTarget {
+        jobs: config.linux.jobs,
+        target: target.clone(),
+        linker: config.linux.linker.clone(),
+        rustflags: config.linux.rustflags.clone(),
+    })
+}
+
+/// Inspect ELF rather than trusting its filename, executable bit or Cargo exit.
+/// Static PIE may have relocation tables; it must not need a loader or DSOs.
+pub fn verify_static_elf(data: &[u8], arch: &str) -> Result<(), String> {
+    fn word(data: &[u8], offset: usize, width: usize) -> Result<u64, String> {
+        let end = offset.checked_add(width).ok_or("ELF offset overflow")?;
+        let bytes = data.get(offset..end).ok_or("truncated ELF table")?;
+        Ok(bytes
+            .iter()
+            .enumerate()
+            .fold(0, |n, (i, byte)| n | ((*byte as u64) << (i * 8))))
+    }
+    if data.len() < 64
+        || data.get(..4) != Some(b"\x7fELF")
+        || data[4] != 2
+        || data[5] != 1
+        || data[6] != 1
+    {
+        return Err("expected a complete little-endian ELF64 executable".into());
+    }
+    let machine = match arch {
+        "x86_64" => 62,
+        "aarch64" => 183,
+        _ => return Err(format!("unsupported ELF architecture {arch}")),
+    };
+    if word(data, 18, 2)? != machine || !matches!(word(data, 16, 2)?, 2 | 3) {
+        return Err("ELF architecture or executable type does not match selected target".into());
+    }
+    let offset = usize::try_from(word(data, 32, 8)?).map_err(|_| "ELF program offset overflow")?;
+    let size = word(data, 54, 2)? as usize;
+    let count = word(data, 56, 2)? as usize;
+    if offset < 64
+        || word(data, 52, 2)? != 64
+        || word(data, 20, 4)? != 1
+        || size != 56
+        || count == 0
+        || count == 0xffff
+    {
+        return Err("invalid ELF program header dimensions".into());
+    }
+    let entry_point = word(data, 24, 8)?;
+    let mut executable_entry = false;
+    for index in 0..count {
+        let base = index
+            .checked_mul(size)
+            .and_then(|n| offset.checked_add(n))
+            .ok_or("ELF table overflow")?;
+        let end = base.checked_add(size).ok_or("ELF table overflow")?;
+        data.get(base..end).ok_or("truncated ELF program header")?;
+        match word(data, base, 4)? {
+            1 => {
+                let start = usize::try_from(word(data, base + 8, 8)?)
+                    .map_err(|_| "ELF load offset overflow")?;
+                let length = usize::try_from(word(data, base + 32, 8)?)
+                    .map_err(|_| "ELF load length overflow")?;
+                let stop = start
+                    .checked_add(length)
+                    .ok_or("ELF load segment overflow")?;
+                let address = word(data, base + 16, 8)?;
+                let memory = word(data, base + 40, 8)?;
+                let memory_end = address
+                    .checked_add(memory)
+                    .ok_or("ELF virtual address overflow")?;
+                if data.get(start..stop).is_none() || length as u64 > memory {
+                    return Err("truncated ELF load segment".into());
+                }
+                if word(data, base + 4, 4)? & 1 != 0
+                    && entry_point >= address
+                    && entry_point < memory_end
+                {
+                    executable_entry = true;
+                }
+            }
+            3 => return Err("static policy rejects ELF interpreter (PT_INTERP)".into()),
+            2 => {
+                let start = usize::try_from(word(data, base + 8, 8)?)
+                    .map_err(|_| "ELF dynamic offset overflow")?;
+                let length = usize::try_from(word(data, base + 32, 8)?)
+                    .map_err(|_| "ELF dynamic length overflow")?;
+                let stop = start
+                    .checked_add(length)
+                    .ok_or("ELF dynamic table overflow")?;
+                if length % 16 != 0 || data.get(start..stop).is_none() {
+                    return Err("truncated ELF dynamic table".into());
+                }
+                for entry in (start..stop).step_by(16) {
+                    match word(data, entry, 8)? {
+                        0 => break,
+                        1 => {
+                            return Err(
+                                "static policy rejects dynamic dependency (DT_NEEDED)".into()
+                            )
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if !executable_entry {
+        return Err("ELF has no executable load segment containing its entry point".into());
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +211,22 @@ fn native_config(ssot: &str) -> Result<NativeConfig, String> {
         .try_into()
         .map_err(|e| format!("[build.native]: {e}"))?;
     let required = ["cli", "apps", "services", "daemons"];
+    if config.linux.jobs == 0
+        || config.linux.targets.is_empty()
+        || config.linux.targets.iter().any(|(arch, target)| {
+            !matches!(
+                (arch.as_str(), target.as_str()),
+                ("x86_64", "x86_64-unknown-linux-musl") | ("aarch64", "aarch64-unknown-linux-musl")
+            )
+        })
+    {
+        return Err("native Linux targets must declare supported architecture/musl pairs".into());
+    }
+    if config.linux.linker != "rust-lld"
+        || config.linux.rustflags != ["-C", "target-feature=+crt-static"]
+    {
+        return Err("native Linux policy requires rust-lld and a static C runtime".into());
+    }
     if config.categories.len() != required.len()
         || required
             .iter()
@@ -254,10 +417,86 @@ pub fn native_target_plan(
 #[cfg(test)]
 mod native_catalog_tests {
     use super::*;
+    fn elf(extra: u32) -> Vec<u8> {
+        let mut data = vec![0_u8; 256];
+        data[..7].copy_from_slice(b"\x7fELF\x02\x01\x01");
+        data[16..18].copy_from_slice(&2_u16.to_le_bytes());
+        data[18..20].copy_from_slice(&62_u16.to_le_bytes());
+        data[20..24].copy_from_slice(&1_u32.to_le_bytes());
+        data[24..32].copy_from_slice(&0x1080_u64.to_le_bytes());
+        data[32..40].copy_from_slice(&64_u64.to_le_bytes());
+        data[52..54].copy_from_slice(&64_u16.to_le_bytes());
+        data[54..56].copy_from_slice(&56_u16.to_le_bytes());
+        data[56..58].copy_from_slice(&2_u16.to_le_bytes());
+        data[64..68].copy_from_slice(&1_u32.to_le_bytes());
+        data[68..72].copy_from_slice(&5_u32.to_le_bytes());
+        data[80..88].copy_from_slice(&0x1000_u64.to_le_bytes());
+        data[96..104].copy_from_slice(&256_u64.to_le_bytes());
+        data[104..112].copy_from_slice(&256_u64.to_le_bytes());
+        data[120..124].copy_from_slice(&extra.to_le_bytes());
+        if extra == 2 {
+            data[128..136].copy_from_slice(&224_u64.to_le_bytes());
+            data[152..160].copy_from_slice(&32_u64.to_le_bytes());
+        }
+        data
+    }
+    #[test]
+    fn static_policy_resolves_both_architectures_and_rejects_drift() {
+        let config = native_config(CATALOG).unwrap();
+        assert_eq!(
+            linux_target(&config, "x86_64").unwrap().target,
+            "x86_64-unknown-linux-musl"
+        );
+        assert_eq!(
+            linux_target(&config, "aarch64").unwrap().target,
+            "aarch64-unknown-linux-musl"
+        );
+        assert!(linux_target(&config, "unknown").is_err());
+        assert!(
+            native_config(&CATALOG.replace("unknown-linux-musl", "unknown-linux-gnu")).is_err()
+        );
+        assert!(native_config(&CATALOG.replace("+crt-static", "-crt-static")).is_err());
+    }
+    #[test]
+    fn static_elf_accepts_executables_and_static_pie_relocations() {
+        verify_static_elf(&elf(0), "x86_64").unwrap();
+        let mut pie = elf(2);
+        pie[16..18].copy_from_slice(&3_u16.to_le_bytes());
+        pie[224..232].copy_from_slice(&7_u64.to_le_bytes());
+        verify_static_elf(&pie, "x86_64").unwrap();
+    }
+    #[test]
+    fn static_elf_rejects_loader_and_dynamic_dependencies() {
+        assert!(verify_static_elf(&elf(3), "x86_64")
+            .unwrap_err()
+            .contains("PT_INTERP"));
+        let mut dynamic = elf(2);
+        dynamic[224..232].copy_from_slice(&1_u64.to_le_bytes());
+        assert!(verify_static_elf(&dynamic, "x86_64")
+            .unwrap_err()
+            .contains("DT_NEEDED"));
+    }
+    #[test]
+    fn static_elf_rejects_foreign_and_truncated_artifacts() {
+        assert!(verify_static_elf(b"MZ", "x86_64").is_err());
+        assert!(verify_static_elf(&elf(0), "aarch64").is_err());
+        assert!(verify_static_elf(&elf(0)[..100], "x86_64").is_err());
+        let mut invalid = elf(0);
+        invalid[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert!(verify_static_elf(&invalid, "x86_64").is_err());
+        let mut no_entry = elf(0);
+        no_entry[24..32].copy_from_slice(&0_u64.to_le_bytes());
+        assert!(verify_static_elf(&no_entry, "x86_64").is_err());
+    }
     const CATALOG: &str = r#"
 [build.native]
 workspaces = ["tools/native", "src/mios-rs"]
 windows_only = ["wallpaper"]
+[build.native.linux]
+jobs = 2
+targets = { x86_64 = "x86_64-unknown-linux-musl", aarch64 = "aarch64-unknown-linux-musl" }
+linker = "rust-lld"
+rustflags = ["-C", "target-feature=+crt-static"]
 [build.native.categories.cli]
 binaries = ["tool"]
 install_dir = "/usr/bin"

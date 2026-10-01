@@ -1870,6 +1870,12 @@ components = ["clippy", "rustfmt"]
 workspaces = ["tools/native", "src/mios-rs"]
 windows_only = ["mios-wallpaperd"]
 
+[build.native.linux]
+jobs = 2
+targets = { x86_64 = "x86_64-unknown-linux-musl", aarch64 = "aarch64-unknown-linux-musl" }
+linker = "rust-lld"
+rustflags = ["-C", "target-feature=+crt-static"]
+
 [build.native.categories.cli]
 binaries = [
   "generate-names-registry", "mios-ai-config", "mios-aiplane-lint", "mios-bake-plan",

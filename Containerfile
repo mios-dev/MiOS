@@ -25,13 +25,14 @@ COPY src/mios-rs /build/src/mios-rs
 COPY tools/native /build/tools/native
 COPY usr/share/mios/mios.toml /build/usr/share/mios/mios.toml
 COPY automation/55-native-build.sh /build/automation/55-native-build.sh
-# Fetch the locked dependency graphs before offline metadata inspection. The
+# Fetch locked host-platform graphs before offline metadata inspection; Windows
+# dependencies belong to the separate cross-build lane. The
 # shared native installer selects Linux binaries and FHS paths from the SSOT;
 # Windows-only artifacts belong to the MiOS-DEV cross-build lane.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/tools/native/target \
-    cargo fetch --locked --manifest-path /build/src/mios-rs/Cargo.toml && \
-    cargo fetch --locked --manifest-path /build/tools/native/Cargo.toml && \
+    cargo fetch --locked --target host-tuple --manifest-path /build/src/mios-rs/Cargo.toml && \
+    cargo fetch --locked --target host-tuple --manifest-path /build/tools/native/Cargo.toml && \
     MIOS_NATIVE_INSTALL_ROOT=/out bash /build/automation/55-native-build.sh
 
 FROM ${BASE_IMAGE}

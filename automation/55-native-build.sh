@@ -32,18 +32,33 @@ if command -v cargo >/dev/null 2>&1; then
     TARGET_DIR="${ROOT_DIR}/tools/native/target"
     # Bootstrap the existing Rust management program, then let its shared build
     # library validate Cargo's executable inventory against the role catalog.
-    (cd "${ROOT_DIR}/src/mios-rs" && cargo build --release -p miosd --target-dir "$TARGET_DIR")
-    builder="${TARGET_DIR}/release/miosd"
+    host="$(rustc -vV | sed -n 's/^host: //p')"
+    [[ -n "$host" ]] || { echo "[55-native-build] FATAL: Rust host target unavailable" >&2; exit 1; }
+    (cd "${ROOT_DIR}/src/mios-rs" && RUSTFLAGS='' cargo build --release --locked -p miosd --target "$host" --target-dir "$TARGET_DIR")
+    builder="${TARGET_DIR}/${host}/release/miosd"
     [[ -x "$builder" ]] || { echo "[55-native-build] FATAL: native catalog builder missing" >&2; exit 1; }
+    arch="$(uname -m)"
+    settings="$("$builder" native-build-settings --root "$ROOT_DIR" --arch "$arch")"
+    IFS=$'\t' read -r target linker rust_flags jobs <<< "$settings"
+    [[ -n "$target" && -n "$linker" && -n "$rust_flags" && "$jobs" =~ ^[1-9][0-9]*$ ]] || { echo "[55-native-build] FATAL: incomplete native build policy" >&2; exit 1; }
+    export CARGO_BUILD_JOBS="$jobs"
+    libdir="$(rustc --print target-libdir --target "$target")"
+    if [[ ! -d "$libdir" ]] || ! compgen -G "$libdir/libstd-*.rlib" >/dev/null; then
+        if command -v rustup >/dev/null 2>&1; then rustup target add "$target"
+        else echo "[55-native-build] FATAL: missing Rust target standard library ${target}; provision the SSOT toolchain" >&2; exit 1; fi
+    fi
+    [[ -d "$libdir" ]] && compgen -G "$libdir/libstd-*.rlib" >/dev/null || { echo "[55-native-build] FATAL: missing target standard library ${target}" >&2; exit 1; }
+    linker_path="$(rustc --print sysroot)/lib/rustlib/${host}/bin/${linker}"
+    [[ -x "$linker_path" ]] || { echo "[55-native-build] FATAL: selected linker ${linker} unavailable" >&2; exit 1; }
+    export RUSTFLAGS="${rust_flags} -C linker=${linker_path}"
     plan="$("$builder" native-targets --root "$ROOT_DIR" --platform linux)"
     [[ -n "$plan" ]] || { echo "[55-native-build] FATAL: native catalog selected no executables" >&2; exit 1; }
     while IFS=$'\t' read -r workspace package bin category install_dir expose_bin compat_dirs; do
             echo "[55-native-build] Compiling ${category}: ${bin}..."
-            (cd "${ROOT_DIR}/${workspace}" && cargo build --release -p "$package" --bin "$bin" --target-dir "$TARGET_DIR")
-            SRC_BIN="${TARGET_DIR}/release/${bin}"
+            (cd "${ROOT_DIR}/${workspace}" && cargo build --release --locked -p "$package" --bin "$bin" --target "$target" --target-dir "$TARGET_DIR")
+            SRC_BIN="${TARGET_DIR}/${target}/release/${bin}"
             [[ -f "$SRC_BIN" && -x "$SRC_BIN" ]] || { echo "[55-native-build] FATAL: build did not produce ${SRC_BIN}" >&2; exit 1; }
-            magic="$(od -An -tx1 -N4 "$SRC_BIN" | tr -d ' \n')"
-            [[ "$magic" == 7f454c46 ]] || { echo "[55-native-build] FATAL: ${SRC_BIN} is not a Linux ELF executable" >&2; exit 1; }
+            "$builder" native-artifact-check "$SRC_BIN" --arch "$arch"
             prefix="${MIOS_NATIVE_INSTALL_ROOT:-}"
             [[ -n "$prefix" || "$EUID" -eq 0 ]] || prefix="$ROOT_DIR"
             if [[ -n "${MIOS_NATIVE_DEST_DIR:-}" ]]; then destination="$DEST_DIR"

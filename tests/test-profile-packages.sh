@@ -157,6 +157,24 @@ native_build_checks() {
     mkdir -p "$fixture/automation" "$fixture/tools/native" "$fixture/src/mios-rs" "$fixture/out"
     cp "$ROOT/automation/55-native-build.sh" "$fixture/automation/55-native-build.sh"
     printf '[workspace]\n' > "$fixture/src/mios-rs/Cargo.toml"
+    mkdir -p "$fixture/lib" "$fixture/toolchain/lib/rustlib/fixture-host/bin"
+    touch "$fixture/lib/libstd-fixture.rlib" "$fixture/toolchain/lib/rustlib/fixture-host/bin/rust-lld"
+    chmod +x "$fixture/toolchain/lib/rustlib/fixture-host/bin/rust-lld"
+    cat > "$TMP/bin/rustc" <<'EOF'
+#!/bin/bash
+case "$*" in
+    '-vV') echo 'host: fixture-host' ;;
+    '--print target-libdir'* )
+        if [[ "${MIOS_TEST_NATIVE_MODE:-}" == missing-std ]]; then echo "$MIOS_TEST_NATIVE_ROOT/missing-std";
+        else echo "$MIOS_TEST_NATIVE_ROOT/lib"; fi ;;
+    '--print sysroot')
+        if [[ "${MIOS_TEST_NATIVE_MODE:-}" == missing-linker ]]; then echo "$MIOS_TEST_NATIVE_ROOT/missing-linker";
+        else echo "$MIOS_TEST_NATIVE_ROOT/toolchain"; fi ;;
+    *) exit 1 ;;
+esac
+EOF
+    printf '#!/bin/sh\necho "missing Rust target standard library fixture" >&2\nexit 1\n' > "$TMP/bin/rustup"
+    chmod +x "$TMP/bin/rustc" "$TMP/bin/rustup"
     cat > "$TMP/bin/cargo" <<'EOF'
 #!/bin/bash
 set -euo pipefail
@@ -166,15 +184,27 @@ if [[ "$1" == build ]]; then
     while (( $# )); do
         case "$1" in
             --target-dir) out="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
             --bin) name="$2"; shift 2 ;;
             *) shift ;;
         esac
     done
+    out="$out/$target"
     mkdir -p "$out/release"
     if [[ "$name" == miosd ]]; then
         cat > "$out/release/miosd" <<'PLAN'
 #!/bin/bash
-[[ "$1" == native-targets ]] || exit 1
+case "$1" in
+native-build-settings) printf 'fixture-musl\trust-lld\t-C target-feature=+crt-static\t2\n'; exit 0 ;;
+native-artifact-check)
+    case "${MIOS_TEST_NATIVE_MODE:-}" in
+        foreign) echo 'expected a complete little-endian ELF64 executable' >&2; exit 1 ;;
+        dynamic) echo 'static policy rejects ELF interpreter (PT_INTERP)' >&2; exit 1 ;;
+    esac
+    exit 0 ;;
+native-targets) ;;
+*) exit 1 ;;
+esac
 if [[ "${MIOS_TEST_NATIVE_MODE:-}" == catalog ]]; then echo 'fixture category conflict' >&2; exit 1; fi
 printf 'tools/native\tfixture\tmios-test-native\tcli\t/usr/bin\tfalse\t/usr/libexec/mios\n'
 printf 'src/mios-rs\tfixture\tmios-test-system\tdaemons\t/usr/libexec/mios\ttrue\t-\n'
@@ -194,7 +224,7 @@ else exit 1; fi
 EOF
     chmod +x "$TMP/bin/cargo"
     run_native() (
-        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_DEST_DIR="$fixture/out" MIOS_TEST_CARGO_LOG="$TMP/cargo.log" CARGO_TARGET_DIR="$TMP/unrelated-output"
+        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_DEST_DIR="$fixture/out" MIOS_TEST_CARGO_LOG="$TMP/cargo.log" CARGO_TARGET_DIR="$TMP/unrelated-output" MIOS_TEST_NATIVE_ROOT="$fixture"
         bash "$fixture/automation/55-native-build.sh"
     )
     output="$(run_native)"
@@ -206,7 +236,7 @@ EOF
     elif grep -q 'fixture category conflict' "$TMP/native.log"; then pass "native build propagates Rust catalog rejection";
     else fail "catalog rejection lacked expected diagnostic"; fi
     (
-        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_INSTALL_ROOT="$fixture/stage" MIOS_TEST_CARGO_LOG="$TMP/cargo.log"
+        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_INSTALL_ROOT="$fixture/stage" MIOS_TEST_CARGO_LOG="$TMP/cargo.log" MIOS_TEST_NATIVE_ROOT="$fixture"
         unset MIOS_NATIVE_DEST_DIR
         mkdir -p "$fixture/stage/usr/bin" "$fixture/stage/usr/libexec/mios"
         printf 'old executable' > "$fixture/stage/usr/libexec/mios/mios-test-native"
@@ -218,10 +248,10 @@ EOF
        [[ "$(readlink "$fixture/stage/usr/bin/mios-test-system")" == /usr/libexec/mios/mios-test-system ]]; then
         pass "FHS staging replaces legacy symlinks and excludes staging prefixes from aliases"
     else fail "FHS staging created a cycle or leaked a staging path"; fi
-    for mode in foreign missing; do
-        rm -f "$fixture/tools/native/target/release/mios-test-native"
+    for mode in foreign missing dynamic missing-std missing-linker; do
+        rm -f "$fixture/tools/native/target/fixture-musl/release/mios-test-native"
         if MIOS_TEST_NATIVE_MODE="$mode" run_native > "$TMP/native.log" 2>&1; then fail "native build accepted $mode artifact";
-        elif grep -Eq 'not a Linux ELF|build did not produce' "$TMP/native.log"; then pass "native build rejects $mode artifact with named diagnostics";
+        elif grep -Eq 'ELF64 executable|build did not produce|PT_INTERP|missing Rust target standard library|linker.*unavailable' "$TMP/native.log"; then pass "native build rejects $mode artifact with named diagnostics";
         else fail "native $mode failure lacked expected diagnostics"; fi
     done
     mv "$fixture/src/mios-rs/Cargo.toml" "$fixture/src/mios-rs/Cargo.toml.saved"

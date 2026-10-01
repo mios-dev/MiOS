@@ -375,6 +375,12 @@ acceptance: |
 - **Accept:** one `cargo build --workspace` from `src/mios-rs/` produces every binary for every declared target with the network off; `tools/native/` holds no crate of its own; every legacy binary name still resolves through a shim; the image contains no cargo/rustc.
 - **Deps:** ADR-0021.
 
+### Native architecture validation order (→ T-1147, T-1148, T-1149)
+
+- **Current release:** x86_64 Linux static executables (`x86_64-unknown-linux-musl`) and the full OCI image build, verified inside MiOS-DEV. Keep CLI binaries, desktop applications, services and daemons as separate SSOT roles.
+- **Later ARM64 lane:** T-1149 retains `aarch64-unknown-linux-musl` in the SSOT target map. Complete the release catalog, artifact checks, ARM64 runtime smoke checks and bootc image validation before declaring ARM support. The preliminary cross-build was stopped; it does not establish completed support.
+- **Evidence boundary:** Cargo's `bin` target kind does not establish static linkage. Reject ELF interpreter and dynamic dependency entries, and check the declared machine architecture. Each architecture needs its own runtime and image evidence.
+
 ### LANG-03 — Make `mios-resolver` the ONE Rust reader of `mios.toml`  **[P1]**  (→ T-1008)
 - **What:** *(Rewritten after measuring — see ADR-0021 §Decision 5.)* The resolver crate ADR-0021 called for already exists: `tools/native/mios-resolver`, 1,841 lines, with `layers.rs` (tier-major vendor < vendor.d < host < host.d < user < user.d), `merge.rs`, `ports.rs` (the `[ports.categories]` derivation), `aliases.rs` and four emitters — already graded as the third Law-13 twin by `check_resolver_differential_parity`. The work is that **nothing else uses it**. Promote it to the library every crate depends on; retire `src/mios-rs/mios-config`'s parallel loader, whose `load_default()` reads only the vendor file plus `MIOS_*` env — one layer, no `/etc`, no `~/.config`, no `mios.d`, no port derivation — and route `miosd` through the resolver instead. Then ratchet: a shrink-only register of the Rust files still parsing `mios.toml` directly, so a new one fails the gate.
 - **Why:** Measured: **11 Rust files parse `mios.toml` without the resolver crate**, and one of them, `mios-config`, is a whole second cascade that silently disagrees with both other twins. Law 13 exists because two implementations drifted; this is a third and a fourth nobody is grading.

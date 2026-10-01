@@ -203,6 +203,7 @@ Inspect the inventory from a full checkout inside MiOS-DEV:
 ```bash
 miosd native-targets --root . --platform linux --json
 miosd native-targets --root . --platform windows --json
+miosd native-build-settings --root . --arch x86_64 --json
 ```
 
 Metadata inspection uses `--offline --locked` and requires prepared Cargo
@@ -230,6 +231,28 @@ The [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html)
 distinguishes executable crate types from C-runtime linkage and recommends
 inspecting the resulting binary. A musl target defaults to a static C runtime;
 foreign dependencies and explicit compiler flags still require artifact checks.
+
+`[build.native.linux]` now selects the musl target per architecture, the
+`rust-lld` linker, static C-runtime flags and the release Cargo job budget.
+The shared installer bootstraps the management executable for the compiler's
+host, provisions the selected target standard library through an available
+toolchain manager, then builds every catalog executable for that target.
+A missing standard library or linker fails before release installation.
+The host bootstrap executable is a build tool and is not copied into the image.
+
+`miosd native-artifact-check <file> --arch <architecture>` validates ELF64
+headers, target architecture, executable entry placement and segment bounds.
+It rejects `PT_INTERP` and `DT_NEEDED`, while permitting static PIE relocation
+tables. Installation uses this check for every selected release artifact;
+executable permissions and ELF magic alone do not certify static linkage.
+Both declared target architectures require their own build and runtime evidence.
+
+`Containerfile` prefetches both locked workspaces with `--target host-tuple`.
+[Cargo fetch](https://doc.rust-lang.org/cargo/commands/cargo-fetch.html) otherwise
+fetches every platform, including the Windows GUI dependencies. The shared
+installer provisions the SSOT musl target and builds its selected Linux catalog.
+The current release focuses on x86_64; ARM64 runtime and image validation remain
+roadmapped under T-1149.
 
 ## Build requirements
 
