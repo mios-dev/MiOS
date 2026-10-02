@@ -85,10 +85,20 @@ def t_deterministic_route():
           r._deterministic_action_route("open notepad and type hello") is None)
 
 def main():
-    _write_toml()
-    t_load_phrases()
-    t_load_domains()
-    t_deterministic_route()
+    # The folded route-parity suite runs next and imports server against the
+    # real mios.toml, so the fixture must not outlive these checks.
+    prev = os.environ.get("MIOS_TOML")
+    path = _write_toml()
+    try:
+        t_load_phrases()
+        t_load_domains()
+        t_deterministic_route()
+    finally:
+        os.unlink(path)
+        if prev is None:
+            os.environ.pop("MIOS_TOML", None)
+        else:
+            os.environ["MIOS_TOML"] = prev
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
