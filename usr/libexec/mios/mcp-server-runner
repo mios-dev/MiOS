@@ -3,18 +3,24 @@
 # AI-related: /srv/ai/mcp/server.sh, /usr/lib/mios/paths.sh, /usr/libexec/mios/mios-mcp-server, mios-mcp-server, mios-mcp, mios-mcp.service, localhost:8080
 # AI-functions: _log, _block_traversal, _validate_write_path, _sandbox_exec
 set -euo pipefail
-source /usr/lib/mios/paths.sh
+if [[ -f "/usr/lib/mios/paths.sh" ]]; then
+    source "/usr/lib/mios/paths.sh"
+elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/../../lib/mios/paths.sh" ]]; then
+    source "$(dirname "${BASH_SOURCE[0]}")/../../lib/mios/paths.sh"
+fi
 
 _log()  { logger -t mios-mcp "$*" 2>/dev/null || true; echo "[mcp] $*" >&2; }
 
 # Both come from the resolver-rendered /etc/mios/install.env (the unit's
 # EnvironmentFile=); an unresolved value is a named error, never a literal.
 : "${MIOS_AI_ENDPOINT:?MIOS_AI_ENDPOINT is unset -- /etc/mios/install.env is missing or stale}"
+: "${MIOS_PORT_MCP:=${MIOS_PORTS_MCP:-}}"
+: "${MIOS_PORTS_MCP:=${MIOS_PORT_MCP:-}}"
 : "${MIOS_MCP_PORT:=${MIOS_PORT_MCP:?MIOS_PORT_MCP is unset -- /etc/mios/install.env is missing or stale}}"
 : "${MIOS_MCP_LOG_DIR:=/var/log/mios/mcp}"
 : "${MIOS_WRITE_ALLOWED_PATHS:=/tmp/mios-mcp:/var/lib/mios/ai}"
 : "${MIOS_MCP_SANDBOX:=false}"
-export MIOS_AI_ENDPOINT MIOS_MCP_PORT MIOS_MCP_LOG_DIR
+export MIOS_AI_ENDPOINT MIOS_MCP_PORT MIOS_PORT_MCP MIOS_PORTS_MCP MIOS_MCP_LOG_DIR
 
 MCP_DIR="/srv/ai/mcp"
 mkdir -p "$MIOS_MCP_LOG_DIR"

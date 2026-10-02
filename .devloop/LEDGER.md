@@ -1678,3 +1678,16 @@ so long. Let a run finish.
 - next: Lane-b handoff to parent orchestrator.
 - blockers: -
 - unverified: -
+
+## 2026-10-02 19:50 · HEAD · lane-b T-1135 complete
+- objective: Define MIOS_PORTS_MCP for mcp-server-runner (resolve from SSOT [ports], Law 9) (T-1135)
+- done:
+  1. usr/libexec/mios/mcp-server-runner: added repo-relative fallback for paths.sh and implemented bidirectional alias resolution between MIOS_PORTS_MCP (SSOT generic name) and MIOS_PORT_MCP (Law 9 canonical port), exporting both along with MIOS_MCP_PORT, MIOS_AI_ENDPOINT, and MIOS_MCP_LOG_DIR under set -euo pipefail.
+  2. usr/lib/systemd/system/mios-mcp.service: added Environment=MIOS_PORTS_MCP=8770 under [Service] as unit-level fallback alongside EnvironmentFile=-/etc/mios/install.env.
+  3. usr/share/mios/mios.toml: mirrored Environment = "MIOS_PORTS_MCP=8770" under [units."mios-mcp.service".Service].
+  4. Executed two-sided verification: positive controls proved preamble resolves cleanly with either or both aliases set; negative control proved isolated scratch fixture with unset variables aborts naming the missing variable; tree integrity confirmed via sha256sum.
+  5. Standing gates verified: python tools/ci-suites.py --check (405 registered; 6/6 exempt), python tools/sync-bootstrap.py --check (13 files, 2 tables, 2 keys), bash tests/run-suites.sh lint (6/6), python tests/test-mcp.py (31/31), python tools/test_render_ports.py (20/20), tools/native/target/debug/mios-unit-gen --check (55 drifted match register).
+  6. Projection sync via bash tools/sync-generated.sh clean with 0 uncommitted diffs.
+- next: Task T-1139 (Grant ReadWritePaths to hardened units).
+- blockers: -
+- unverified: -
