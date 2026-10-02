@@ -19,6 +19,14 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     PODMAN_CMD="sudo podman"
 fi
 
+# The reproducible-builds date is a build input, never runtime state: an
+# empty SOURCE_DATE_EPOCH in the image env makes troff (and man) refuse to run.
+if ${PODMAN_CMD} image inspect "${IMAGE_REF}" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+        | grep -q '^SOURCE_DATE_EPOCH='; then
+    echo "ERROR: ${IMAGE_REF} carries SOURCE_DATE_EPOCH in its runtime env" >&2
+    exit 1
+fi
+
 _ssot_list() {
     python3 -c "
 import sys, tomllib

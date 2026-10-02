@@ -43,8 +43,9 @@ FROM ${BASE_IMAGE}
 
 # MIOS_VERSION: parameterized from the canonical repo-root VERSION file
 ARG MIOS_VERSION=0.3.0
+# ARG only: RUN steps see it when the build passes it and see it unset when not.
+# An ENV would bake an empty value into the image, and troff refuses one (man fails).
 ARG SOURCE_DATE_EPOCH
-ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"

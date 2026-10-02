@@ -11,7 +11,6 @@ import os
 import re
 import sys
 import time
-import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 # Linux NUMA memory policy constants
@@ -215,8 +214,11 @@ def main():
         return 0
 
     # Policy application
-    if args.interleave:
-        set_numa_interleave()
+    if args.interleave and not set_numa_interleave():
+        # A kernel without NUMA policy (no CONFIG_NUMA, or a sandbox that
+        # filters set_mempolicy) still runs the command, under the default policy.
+        sys.stderr.write("[mios-numa-alloc] Warning: MPOL_INTERLEAVE could not be applied; "
+                         "running under the default memory policy\n")
 
     if args.pin_node is not None:
         if args.pin_node in topo["nodes"]:
@@ -232,15 +234,9 @@ def main():
         return 0
 
     if args.command:
-        # Check if numactl is available for external wrap
-        if args.interleave and shutil.which("numactl"):
-            cmd = ["numactl", "--interleave=all"]
-            if args.pin_node is not None:
-                cmd.extend(["--cpunodebind", str(args.pin_node)])
-            cmd.extend(args.command)
-            os.execvp(cmd[0], cmd)
-        else:
-            os.execvp(args.command[0], args.command)
+        # The memory policy and CPU affinity set above survive execve
+        # (set_mempolicy(2), sched_setaffinity(2)), so the command runs directly.
+        os.execvp(args.command[0], args.command)
     else:
         if not (args.info or args.benchmark):
             parser.print_help()

@@ -266,7 +266,9 @@ class cfv_TestComposefsVerify(unittest.TestCase):
 
     def test_check_prepare_root_config_mock(self):
         verifier = composefs_verify.ComposefsVerifier(mock=True)
-        res = verifier.check_prepare_root_config("/usr/lib/ostree/prepare-root.conf")
+        # A path that cannot exist: an ostree host (machine-os CI) has a real
+        # prepare-root.conf at the default path, which mock mode rightly reads.
+        res = verifier.check_prepare_root_config(os.path.join(self.temp_dir.name, "absent.conf"))
         self.assertTrue(res["composefs_enabled"])
         self.assertEqual(res["composefs_mode"], "verity")
         self.assertTrue(res["strict_integrity"])
@@ -283,7 +285,8 @@ class cfv_TestComposefsVerify(unittest.TestCase):
 
     def test_verify_rootfs_integrity_mock(self):
         verifier = composefs_verify.ComposefsVerifier(mock=True)
-        res = verifier.verify_rootfs_integrity(image_path="/ostree/mock.img")
+        res = verifier.verify_rootfs_integrity(
+            image_path="/ostree/mock.img", conf_path=os.path.join(self.temp_dir.name, "absent.conf"))
         self.assertEqual(res["status"], "pass")
         self.assertTrue(res["header_valid"])
         self.assertTrue(res["signature_valid"])
