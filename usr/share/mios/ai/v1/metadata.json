@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3603,
-  "total_metadata_entries": 2968,
-  "total_hints": 2953,
+  "total_files_scanned": 3604,
+  "total_metadata_entries": 2969,
+  "total_hints": 2954,
   "total_functions_indexed": 1375,
-  "total_related_links": 4668,
+  "total_related_links": 4671,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -5423,6 +5423,19 @@
         "automation/75-kargs-render.sh",
         "usr/lib/bootc/kargs.d",
         "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/miosd/tests/resolver_inline_twin.rs",
+      "hint": "Pins that miosd's resolver renders arrays of inline tables byte-equal to mios_toml.py's _toml_inline when built in THIS workspace, whose toml crate lays inline tables out differently (resolver twin, Law 13).",
+      "related": [
+        "tools/native/mios-resolver/src/walk.rs",
+        "usr/lib/mios/mios_toml.py",
+        "tools/check-runtime.py"
       ],
       "functions": [],
       "doc": null,

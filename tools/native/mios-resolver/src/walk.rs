@@ -53,10 +53,49 @@ pub fn compute_stack_offset(root: &Value) -> i64 {
     0
 }
 
+/// A table or array as TOML inline syntax, byte-equal to mios_toml.py's
+/// _toml_inline: scalar and array keys sorted, then nested-table keys sorted;
+/// a string with a backslash (and no quote or newline) as a literal string.
+/// Rendered here rather than by the toml crate, whose inline layout changed
+/// between releases (0.8.23 no longer puts nested tables last), so the twin
+/// held only in a workspace that happened to lock an older toml.
+pub fn toml_inline(v: &Value) -> String {
+    match v {
+        Value::Boolean(b) => if *b { "true" } else { "false" }.to_string(),
+        Value::String(s) => {
+            if s.contains('\\') && !s.contains('\'') && !s.contains('\n') && !s.contains('\r') {
+                format!("'{s}'")
+            } else {
+                format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+            }
+        }
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(toml_inline).collect();
+            format!("[{}]", items.join(", "))
+        }
+        Value::Table(t) => {
+            let mut plain: Vec<(&String, &Value)> =
+                t.iter().filter(|(_, x)| !x.is_table()).collect();
+            let mut tables: Vec<(&String, &Value)> =
+                t.iter().filter(|(_, x)| x.is_table()).collect();
+            plain.sort_by(|a, b| a.0.cmp(b.0));
+            tables.sort_by(|a, b| a.0.cmp(b.0));
+            let parts: Vec<String> = plain
+                .into_iter()
+                .chain(tables)
+                .map(|(k, x)| format!("{k} = {}", toml_inline(x)))
+                .collect();
+            format!("{{ {} }}", parts.join(", "))
+        }
+        other => other.to_string(),
+    }
+}
+
 /// Transform a TOML value according to MiOS business rules:
 /// - Boolean -> "true" / "false"
 /// - `ports.*` (except `ports.stack_id`) -> `int(v) + stack_offset` (unless port == 53)
-/// - List/Array -> comma-separated string
+/// - List/Array -> comma-separated string; table or array elements as
+///   [`toml_inline`]
 /// - Scalar -> string representation
 pub fn process_val(dotted: &str, val: &Value, stack_offset: i64) -> String {
     match val {
@@ -67,6 +106,7 @@ pub fn process_val(dotted: &str, val: &Value, stack_offset: i64) -> String {
                 .map(|elem| match elem {
                     Value::String(s) => s.clone(),
                     Value::Boolean(b) => if *b { "true" } else { "false" }.to_string(),
+                    Value::Table(_) | Value::Array(_) => toml_inline(elem),
                     other => other.to_string(),
                 })
                 .collect();

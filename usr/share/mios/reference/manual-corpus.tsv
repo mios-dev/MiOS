@@ -4106,6 +4106,8 @@ src/mios-rs/miosd/tests/registry_integration.rs	32	35	4	39	d38f19f9ae1b	STAY	mid
 src/mios-rs/miosd/tests/render_kargs.rs	1	2	2	30	2ef1b3ed4d9b	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:2ef1b3ed4d9b	30	0
 src/mios-rs/miosd/tests/render_kargs.rs	53	59	7	68	9e4749c8da2b	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:9e4749c8da2b	68	0
 src/mios-rs/miosd/tests/render_kargs.rs	121	123	3	34	b0b69c68786f	STAY	midsize-why		0				0
+src/mios-rs/miosd/tests/resolver_inline_twin.rs	1	2	2	37	b893e3d9c901	STAY	ai-header		0				0
+src/mios-rs/miosd/tests/resolver_inline_twin.rs	7	8	2	24	0a0ca6763c4e	STAY	local-scoped		0				0
 tests/_agentpipe_path.py	1	2	2	24	3ca0671cab4b	STAY	ai-header		0				0
 tests/_agentpipe_path.py	3	15	12	104	0ab56d83257e	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:0ab56d83257e	104	0
 tests/_agentpipe_path.py	29	29	1	9	c55891e6d6a8	STAY	inline-scoped		0				0
@@ -8633,9 +8635,10 @@ tools/check-runtime.py	653	653	1	5	fdef5854a7d1	STAY	inline-scoped		0				0
 tools/check-runtime.py	654	654	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/check-runtime.py	656	657	2	24	f485ff923084	STAY	local-scoped		0				0
 tools/check-runtime.py	674	674	1	11	9dc57a3ab2d7	STAY	local-scoped		0				0
-tools/check-runtime.py	932	932	1	10	6ad077957853	STAY	local-scoped		0				0
-tools/check-runtime.py	939	939	1	7	bdea67827137	STAY	local-scoped		0				0
-tools/check-runtime.py	976	976	1	12	14b364d94a59	STAY	local-scoped		0				0
+tools/check-runtime.py	906	908	3	26	c050429b157e	STAY	midsize-why		0				0
+tools/check-runtime.py	939	942	4	47	7ba9e085d27b	STAY	midsize-why		0				0
+tools/check-runtime.py	981	982	2	24	cb4916021db5	STAY	local-scoped		0				0
+tools/check-runtime.py	1014	1014	1	12	14b364d94a59	STAY	local-scoped		0				0
 tools/check-ssot.py	1	3	3	39	35c17a4f275b	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tools.md	mios-src:35c17a4f275b	39	0
 tools/check-ssot.py	4	4	1	9	d50efddc0fd5	STAY	local-scoped		0				0
 tools/check-ssot.py	24	24	1	10	99851b339a52	STAY	local-scoped		0				0
@@ -9416,11 +9419,12 @@ tools/native/mios-resolver/src/ports.rs	108	108	1	6	69e1ea5d2954	STAY	local-scop
 tools/native/mios-resolver/src/walk.rs	1	1	1	14	06ed046e1d35	STAY	ai-header		0				0
 tools/native/mios-resolver/src/walk.rs	4	5	2	17	6ca62c4a714b	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/walk.rs	37	38	2	15	cce3545f2820	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/walk.rs	56	60	5	27	5aba529b80e3	STAY	midsize-why		0				0
-tools/native/mios-resolver/src/walk.rs	92	93	2	16	894ba563aacd	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/walk.rs	124	127	4	31	8964f725599e	STAY	midsize-why		0				0
-tools/native/mios-resolver/src/walk.rs	172	172	1	2	6f22bfeea3ba	STAY	inline-scoped		0				0
-tools/native/mios-resolver/src/walk.rs	173	173	1	2	9bf9d98fda0f	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	56	61	6	72	2eccd8a5544a	MIGRATE	narrative-history		0				0
+tools/native/mios-resolver/src/walk.rs	94	99	6	33	d2d9c71b4fb0	MIGRATE	narrative-rationale		0				0
+tools/native/mios-resolver/src/walk.rs	132	133	2	16	894ba563aacd	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	164	167	4	31	8964f725599e	STAY	midsize-why		0				0
+tools/native/mios-resolver/src/walk.rs	212	212	1	2	6f22bfeea3ba	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	213	213	1	2	9bf9d98fda0f	STAY	inline-scoped		0				0
 tools/native/mios-resolver/tests/cli.rs	1	2	2	12	dd5c0db7aeaa	STAY	ai-header		0				0
 tools/native/mios-resolver/tests/cli.rs	16	19	4	31	ffc4b049346d	STAY	midsize-why		0				0
 tools/native/mios-resolver/tests/differential.rs	1	2	2	19	664f4c5f1b5c	STAY	ai-header		0				0
@@ -14590,18 +14594,19 @@ usr/lib/mios/mios_toml.py	325	325	1	13	4aafdbedadd1	STAY	local-scoped		0				0
 usr/lib/mios/mios_toml.py	331	331	1	14	442a9dd78105	STAY	local-scoped		0				0
 usr/lib/mios/mios_toml.py	348	348	1	17	df7479bacacb	STAY	local-scoped		0				0
 usr/lib/mios/mios_toml.py	362	362	1	16	c374e8f1be5e	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	512	515	4	37	ef8cbfde2c4b	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	520	520	1	11	b617b7cff07d	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	522	523	2	21	4dd308b855a3	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	594	597	4	35	d1266b3bad8c	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	602	602	1	11	dd59ef542589	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	776	785	10	95	737153c244c1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:737153c244c1	95	0
-usr/lib/mios/mios_toml.py	793	798	6	48	d504ff19350f	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:d504ff19350f	48	0
-usr/lib/mios/mios_toml.py	802	806	5	51	ed9ca8c2eb42	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	822	824	3	33	fb5bcdb46f6f	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	839	839	1	15	ac678dfccd0e	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	866	876	11	100	133a719d6497	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:133a719d6497	100	0
-usr/lib/mios/mios_toml.py	898	919	22	158	0b6e10f68be6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:0b6e10f68be6	158	0
+usr/lib/mios/mios_toml.py	477	478	2	17	d566bc992614	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	514	517	4	37	ef8cbfde2c4b	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	522	522	1	11	b617b7cff07d	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	524	525	2	21	4dd308b855a3	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	596	599	4	35	d1266b3bad8c	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	604	604	1	11	dd59ef542589	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	778	787	10	95	737153c244c1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:737153c244c1	95	0
+usr/lib/mios/mios_toml.py	795	800	6	48	d504ff19350f	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:d504ff19350f	48	0
+usr/lib/mios/mios_toml.py	804	808	5	51	ed9ca8c2eb42	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	824	826	3	33	fb5bcdb46f6f	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	841	841	1	15	ac678dfccd0e	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	868	878	11	100	133a719d6497	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:133a719d6497	100	0
+usr/lib/mios/mios_toml.py	900	921	22	158	0b6e10f68be6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:0b6e10f68be6	158	0
 usr/lib/mios/paths.sh	1	3	3	29	3743f404b585	STAY	ai-header		0				0
 usr/lib/mios/test_mios_comments.py	1	3	3	29	53b9c66d2221	STAY	ai-header		0				0
 usr/lib/mios/test_mios_comments.py	4	13	9	68	54f42dee754a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:54f42dee754a	68	0

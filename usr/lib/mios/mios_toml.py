@@ -474,7 +474,9 @@ def get_aliases(dotted_path):
 
     elif dotted_path.startswith("build."):
         name = dotted_path[len("build."):].upper().replace(".", "_")
-        if name in {"LOCAL_TAG", "AI_RAM_FLOOR_GB", "RECHUNK_MAX_LAYERS"}:
+        # AI_RAM_FLOOR_GB is deliberately absent: [ai].ram_floor_gb owns that
+        # name already, with a different value (T-1020; aliases.rs twin).
+        if name in {"LOCAL_TAG", "RECHUNK_MAX_LAYERS"}:
             aliases.append(f"MIOS_{name}")
         else:
             aliases.append(f"MIOS_BUILD_{name}")

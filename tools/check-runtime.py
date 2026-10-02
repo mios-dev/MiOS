@@ -886,23 +886,30 @@ def rt_main():
 
     userenv_script = os.path.join(root, 'usr/lib/mios/userenv.sh').replace('\\', '/')
     py_exec = sys.executable.replace('\\', '/')
-    cmd = [
-        bash_exe, "-c",
-        f"source {shlex.quote(userenv_script)} && {shlex.quote(py_exec)} -c \"import os, json; print(json.dumps({{k: v for k, v in os.environ.items() if k.startswith('MIOS_')}}))\""
-    ]
-    try:
-        out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")
-        print(f"BASH OUTPUT: {out}", file=sys.stderr)
-        bash_vars = json.loads(out)
-        bash_vars.pop("MIOS_PYTHON_BIN", None)
-    except subprocess.CalledProcessError as e:
-        print("Error: userenv.sh execution failed:\n", e.output.decode("utf-8", errors="ignore"), file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse env JSON: {e}\nOutput was:\n{out}", file=sys.stderr)
-        sys.exit(1)
+    dump = f"source {shlex.quote(userenv_script)} && {shlex.quote(py_exec)} -c \"import os, json; print(json.dumps({{k: v for k, v in os.environ.items() if k.startswith('MIOS_')}}))\""
 
+    def bash_exports(tier_env):
+        cmd = [bash_exe, "-c", dump]
+        try:
+            out = subprocess.check_output(cmd, env=tier_env, stderr=subprocess.STDOUT).decode("utf-8")
+            print(f"BASH OUTPUT: {out}", file=sys.stderr)
+            got = json.loads(out)
+            got.pop("MIOS_PYTHON_BIN", None)
+            return got
+        except subprocess.CalledProcessError as e:
+            print("Error: userenv.sh execution failed:\n", e.output.decode("utf-8", errors="ignore"), file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Error: Failed to parse env JSON: {e}\nOutput was:\n{out}", file=sys.stderr)
+            sys.exit(1)
+
+    # The reference is pure Python: with mios-resolver on PATH, mios_toml loads
+    # its merged tree from the binary, and the gate would partly compare Rust
+    # with itself.
+    os.environ["MIOS_RESOLVER_NATIVE"] = "0"
+    mios_toml.clear_cache()
     exports_map = mios_toml.emit_exports()
+    pure_exports = dict(exports_map)
 
     ref_path = os.path.join(root, "usr/share/mios/referenced_names.txt")
     if os.path.isfile(ref_path):
@@ -929,44 +936,75 @@ def rt_main():
         "MIOS_TOML_ROOT", "MIOS_ROOT_LIB", "MIOS_CONFIG_DIR", "MIOS_ROOT"
     }
 
-    # AGY-1171: 3-way crate == python == bash assertion when mios-resolver binary exists
-    bin_path = os.path.join(root, "tools/native/target/debug/mios-resolver.exe" if os.name == "nt" else "tools/native/target/debug/mios-resolver")
-    crate_vars = {}
-    if os.path.isfile(bin_path):
-        try:
-            crate_out = subprocess.check_output([bin_path, "--emit=json"], env=env, stderr=subprocess.STDOUT).decode("utf-8")
-            crate_data = json.loads(crate_out)
-            # Flatten crate json to env vars format
-            for sec, tval in crate_data.items():
-                if isinstance(tval, dict):
-                    for k, v in tval.items():
-                        var_key = f"MIOS_{sec.upper()}_{k.upper().replace('-', '_')}"
-                        crate_vars[var_key] = str(v)
-        except Exception:
-            pass
+    # userenv.sh resolves through the first tier it finds: mios-resolver, then
+    # miosd, then mios_toml.py. Whatever this PATH offers is one run; each
+    # native resolver built in this tree is forced first in a run of its own,
+    # so CI (which has neither installed) still compares Rust with Python.
+    exe = ".exe" if os.name == "nt" else ""
+    tiers = [("default", env, None)]
+    for label, rel, skip_tier1 in (("mios-resolver", "tools/native/target/debug/mios-resolver", False),
+                                   ("miosd", "src/mios-rs/target/debug/miosd", True)):
+        binary = os.path.join(root, rel + exe)
+        if not os.path.isfile(binary):
+            continue
+        tier_env = dict(env)
+        if skip_tier1:
+            tier_env["MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL"] = "false"
+        tiers.append((label, tier_env, binary))
 
+    import tempfile
     mismatches = []
-    for k, expected in sorted(toml_vars.items()):
-        if k in ignore_vars:
-            continue
-        actual = bash_vars.get(k)
-        if actual != expected:
-            if expected == "" and (actual is None or actual == ""):
+    for label, tier_env, binary in tiers:
+        with tempfile.TemporaryDirectory(prefix="mios-twin-") as d:
+            if binary:
+                try:
+                    os.symlink(binary, os.path.join(d, os.path.basename(binary)))
+                except OSError as e:
+                    print(f"  [resolver-twin] {label}: cannot stage {binary} ({e}); tier not compared", file=sys.stderr)
+                    continue
+                tier_env = dict(tier_env, PATH=d + os.pathsep + tier_env.get("PATH", ""))
+            bash_vars = bash_exports(tier_env)
+        for k, expected in sorted(toml_vars.items()):
+            if k in ignore_vars:
                 continue
-            mismatches.append(f"Var {k}: Toml resolved {expected!r}, Bash resolved {actual!r}")
+            actual = bash_vars.get(k)
+            if actual != expected:
+                if expected == "" and (actual is None or actual == ""):
+                    continue
+                mismatches.append(f"[{label}] Var {k}: Toml resolved {expected!r}, Bash resolved {actual!r}")
+        for k, actual in sorted(bash_vars.items()):
+            if k in ignore_vars:
+                continue
+            if k not in toml_vars:
+                mismatches.append(f"[{label}] Unexpected Var {k}: Bash resolved {actual!r}, Toml has no entry")
 
-    for k, actual in sorted(bash_vars.items()):
-        if k in ignore_vars:
-            continue
-        if k not in toml_vars:
-            mismatches.append(f"Unexpected Var {k}: Bash resolved {actual!r}, Toml has no entry")
+    # mios_toml.py itself loads mios-resolver's merged tree when the binary is
+    # on PATH; its exports must not change with where the tree came from.
+    native = next((b for t, _, b in tiers if t == "mios-resolver"), None)
+    if native:
+        saved_path = os.environ.get("PATH", "")
+        with tempfile.TemporaryDirectory(prefix="mios-twin-") as d:
+            try:
+                os.symlink(native, os.path.join(d, os.path.basename(native)))
+                os.environ["PATH"] = d + os.pathsep + saved_path
+                os.environ.pop("MIOS_RESOLVER_NATIVE", None)
+                mios_toml.clear_cache()
+                on_native = mios_toml.emit_exports()
+            finally:
+                os.environ["PATH"] = saved_path
+                os.environ["MIOS_RESOLVER_NATIVE"] = "0"
+                mios_toml.clear_cache()
+        tiers.append(("mios_toml.py on mios-resolver's tree", None, native))
+        for k in sorted(set(pure_exports) | set(on_native)):
+            if k not in ignore_vars and pure_exports.get(k) != on_native.get(k):
+                mismatches.append(f"[mios_toml.py on mios-resolver's tree] Var {k}: pure Python {pure_exports.get(k)!r}, on the native tree {on_native.get(k)!r}")
 
     if mismatches:
         for m in mismatches:
             print(f"  [resolver-twin] {m}", file=sys.stderr)
         sys.exit(1)
 
-    print("SUCCESS: resolvers are equivalent!")
+    print(f"SUCCESS: resolvers are equivalent ({', '.join(t[0] for t in tiers)})!")
     sys.exit(0)
 
 _GATES = {"container-names": cn_main, "privileged-quadlets": pq_main, "service-urls": su_main, "daemon-governor": dg_main, "firstboot-degrade-open": fdo_main, "firstboot-provisioners": fp_main, "verify-images": vi_main, "resolver-twin": rt_main}
