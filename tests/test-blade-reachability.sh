@@ -15,29 +15,35 @@ command -v curl >/dev/null 2>&1 || { log "SKIP: curl absent"; exit 0; }
 # it), and an absent binary made this suite die at exit 127 before testing
 # anything. uname -n is in coreutils and answers the same question.
 HOST="$(hostname 2>/dev/null || uname -n)"
+PY="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)" \
+    || die "no python interpreter for the probe server"
+# Keep the host name only if it RESOLVES, else fall back to loopback. getent
+# answers that where it exists; without it the resolver is asked about the SAME
+# name, so the name is still verified rather than swapped for an unchecked one.
 if command -v getent >/dev/null 2>&1; then
     getent hosts "$HOST" >/dev/null 2>&1 || HOST="127.0.0.1"
 else
-    HOST="$(python3 -c 'import socket; print(socket.gethostbyname(socket.gethostname()))' 2>/dev/null || echo "127.0.0.1")"
+    "$PY" -c 'import socket, sys; socket.gethostbyname(sys.argv[1])' "$HOST" \
+        >/dev/null 2>&1 || HOST="127.0.0.1"
 fi
 
 FIXTURE="$(mktemp -d)"
 SRV_PID=""
-cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null || true; rm -rf "$FIXTURE"; }
+stop_server() {
+    if [ -n "$SRV_PID" ]; then
+        kill "$SRV_PID" 2>/dev/null || true
+        wait "$SRV_PID" 2>/dev/null || true
+    fi
+}
+cleanup() { stop_server; rm -rf "$FIXTURE"; }
 trap cleanup EXIT
-
-ORIG_PY="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
-mkdir -p "${FIXTURE}/bin"
-cat > "${FIXTURE}/bin/python3" <<SHIM
-#!/usr/bin/env bash
-"$ORIG_PY" "\$@" | tr -d '\r'
-SHIM
-chmod +x "${FIXTURE}/bin/python3"
-export PATH="${FIXTURE}/bin:${PATH}"
 
 # A REAL socket on an EPHEMERAL port: a fixed port lets a stale listener from a
 # previous run fake a pass, which is exactly what happened while writing this.
-python3 - "${FIXTURE}/port" <<'SRV' &
+# The interpreter is started DIRECTLY -- no PATH shim, no pipe -- so $! is the
+# server itself and cleanup's kill reaps it. Its stdout/stderr go to /dev/null
+# so a caller capturing this suite with $(...) never waits on an inherited fd.
+"$PY" - "${FIXTURE}/port" >/dev/null 2>&1 <<'SRV' &
 import http.server, socketserver, sys
 
 class Q(http.server.BaseHTTPRequestHandler):
@@ -57,7 +63,7 @@ SRV_PID=$!
 
 PORT=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-    [ -s "${FIXTURE}/port" ] && PORT="$(cat "${FIXTURE}/port")" && break
+    [ -s "${FIXTURE}/port" ] && PORT="$(tr -d '\r' <"${FIXTURE}/port")" && break
     sleep 0.3
 done
 [ -n "$PORT" ] || { log "SKIP: the probe server never reported a port"; exit 0; }
@@ -134,4 +140,13 @@ grep -q 'UNRESOLVED' <<<"$OUT_RAW" \
 $OUT_RAW"
 ok "an unexpanded placeholder is reported, not silently probed"
 
-log "PASS: ${PASS}/6 assertions"
+# The fixture must not outlive the suite: stop the server the way cleanup does
+# and prove the port is closed. A wrapper whose pid is not the server's leaves
+# an orphan listener on 0.0.0.0 that holds a capturing caller's pipe open.
+stop_server
+SRV_PID=""
+curl -sS -o /dev/null --max-time 1 "http://${HOST}:${PORT}/" 2>/dev/null \
+    && die "the probe server is still listening on ${PORT} after teardown -- it leaked"
+ok "the probe server is gone after teardown (no leaked listener)"
+
+log "PASS: ${PASS}/7 assertions"

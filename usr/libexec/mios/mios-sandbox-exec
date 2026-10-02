@@ -71,12 +71,9 @@ fi
 # fd 9 keeps the unlinked filter alive across the exec. Manual ch62.
 _seccomp_arm() {
     local gen f rc
-    gen="${MIOS_SECCOMP_FILTER_BIN:-}"
-    if [ -z "$gen" ]; then
-        gen="$(dirname "$0")/mios-seccomp-filter"
-        [ -x "$gen" ] || gen="/usr/libexec/mios/mios-seccomp-filter"
-        [ -x "$gen" ] || command -v mios-seccomp-filter >/dev/null 2>&1 &&         gen="${gen:-$(command -v mios-seccomp-filter)}"
-    fi
+    gen="$(dirname "$0")/mios-seccomp-filter"
+    [ -x "$gen" ] || gen="/usr/libexec/mios/mios-seccomp-filter"
+    [ -x "$gen" ] || command -v mios-seccomp-filter >/dev/null 2>&1 &&         gen="${gen:-$(command -v mios-seccomp-filter)}"
     if [ ! -x "$gen" ]; then
         echo "Mios-sandbox-exec: seccomp filter generator missing;" \
              "refusing to run with no syscall filter at level=$LEVEL" >&2

@@ -66,14 +66,30 @@ ok "the SSOT list extends the floor"
 
 log "refusal tier: no generator => enforce must REFUSE, never run unfiltered"
 stub="${TMP}/bin"; mkdir -p "$stub"
-cp "$EXEC" "${stub}/mios-sandbox-exec"
+# The wrapper looks for its generator beside itself, then at the installed
+# vendor path. On an installed host that vendor path EXISTS, so the copy has
+# that one literal pointed at a path inside $TMP that is never created -- the
+# refusal branch under test is otherwise byte-for-byte the shipped wrapper, and
+# no environment override is needed (or honoured) to reach it.
+VENDOR_GEN="/usr/libexec/mios/mios-seccomp-filter"
+ABSENT_GEN="${TMP}/absent/mios-seccomp-filter"
+n_vendor="$(grep -cF "\"${VENDOR_GEN}\"" "$EXEC" || true)"
+[[ "$n_vendor" -eq 1 ]] \
+    || die "expected exactly one vendor generator path in the wrapper, found ${n_vendor}"
+sed "s|\"${VENDOR_GEN}\"|\"${ABSENT_GEN}\"|" "$EXEC" > "${stub}/mios-sandbox-exec"
+[[ "$(diff "$EXEC" "${stub}/mios-sandbox-exec" | grep -c '^[<>]')" -eq 2 ]] \
+    || die "the stub wrapper differs from the shipped one by more than the vendor path"
+[[ ! -e "$ABSENT_GEN" ]] || die "the absent generator path exists"
 cat > "${stub}/bwrap" <<'BWRAP'
 #!/bin/sh
 exit 0
 BWRAP
 chmod +x "${stub}/bwrap"
+# The environment must not be able to name a different generator: a removed
+# override pointed at /bin/true (which "succeeds" and emits no filter) is set
+# here, so reintroducing such a knob turns this refusal into a pass-through.
 set +e
-MIOS_SECCOMP_FILTER_BIN="${TMP}/no-such-filter" PATH="${stub}:/usr/bin:/bin" bash "${stub}/mios-sandbox-exec" --level enforce \
+MIOS_SECCOMP_FILTER_BIN=/bin/true PATH="${stub}:/usr/bin:/bin" bash "${stub}/mios-sandbox-exec" --level enforce \
     --workspace "$TMP" -- /bin/true 2>"${TMP}/err"; rc=$?
 set -e
 [[ "$rc" -eq 126 ]] || die "expected refusal 126 with no generator beside the wrapper, got $rc"
