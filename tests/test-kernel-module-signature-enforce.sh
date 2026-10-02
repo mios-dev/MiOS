@@ -8,10 +8,13 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 passed=0
 failed=0
+skipped=0
 
 log()  { printf '[test-modsign] %s\n' "$*"; }
 ok()   { printf '[test-modsign]   [ PASS ] %s\n' "$*"; passed=$((passed + 1)); }
 fail() { printf '[test-modsign]   [ FAIL ] %s\n' "$*" >&2; failed=$((failed + 1)); }
+# A skip is reported and counted on its own -- it never increments `passed`.
+skip() { printf '[test-modsign]   [ SKIP ] %s\n' "$*"; skipped=$((skipped + 1)); }
 die()  { printf '[test-modsign] FATAL: %s\n' "$*" >&2; exit 1; }
 
 PYTHON_BIN="python3"
@@ -225,35 +228,37 @@ log "Test Group 3: Kernel Lockdown Mode & /dev/mem Access Lockdown (EPERM)"
 LOCKDOWN_PROBE="${ROOT}/usr/libexec/mios/sec/lockdown_probe.py"
 [[ -f "$LOCKDOWN_PROBE" ]] || die "lockdown_probe.py not found at ${LOCKDOWN_PROBE}"
 
-# 3.1 Direct /dev/mem open test
-"$PYTHON_BIN" - << 'PYEOF'
+# 3.1 /dev/mem lockdown probe. The probe takes its device and lockdown-interface
+# paths as arguments so the SAME code runs against the live host and against
+# fixtures. Exit codes: 0 = access refused under an active lockdown,
+# 2 = UNLOCKED_ACCESS_VIOLATION, 3 = SKIP (this host cannot answer), 1 = error.
+# A skip is an ENVIRONMENT fact (no /dev/mem, no lockdown LSM, lockdown=[none]):
+# it is reported as SKIP and never counted as a pass.
+DEVMEM_PROBE="${TMP_DIR}/devmem_probe.py"
+cat > "$DEVMEM_PROBE" << 'PYEOF'
 import os, sys, errno
 
-dev_mem = "/dev/mem"
+dev_mem, lockdown_path = sys.argv[1], sys.argv[2]
 if not os.path.exists(dev_mem):
     print("SKIP_NOT_PRESENT")
-    sys.exit(0)
-
-# On Linux, only assert lockdown violation if live host kernel lockdown is active
-lockdown_path = "/sys/kernel/security/lockdown"
+    sys.exit(3)
 if not os.path.exists(lockdown_path):
     print("SKIP_NO_LOCKDOWN_INTERFACE")
-    sys.exit(0)
-
+    sys.exit(3)
 try:
     with open(lockdown_path, "r") as f:
         lockdown_state = f.read()
-    if "[none]" in lockdown_state or ("[" not in lockdown_state):
-        print("SKIP_HOST_NOT_LOCKED_DOWN")
-        sys.exit(0)
 except OSError:
     print("SKIP_LOCKDOWN_UNREADABLE")
-    sys.exit(0)
+    sys.exit(3)
+if "[none]" in lockdown_state or "[" not in lockdown_state:
+    print("SKIP_HOST_NOT_LOCKED_DOWN")
+    sys.exit(3)
 
 try:
     fd = os.open(dev_mem, os.O_RDONLY)
     os.close(fd)
-    # If /dev/mem opened successfully under lockdown, that is a security violation!
+    # /dev/mem opened while the kernel claims lockdown: a security violation.
     print("UNLOCKED_ACCESS_VIOLATION")
     sys.exit(2)
 except OSError as exc:
@@ -261,22 +266,51 @@ except OSError as exc:
     if exc.errno == errno.EPERM:
         print("LOCKED_DOWN_EPERM")
         sys.exit(0)
-    elif exc.errno == errno.EACCES:
+    if exc.errno == errno.EACCES:
         print("LOCKED_DOWN_EACCES")
         sys.exit(0)
-    else:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    print(f"ERROR: {exc}")
+    sys.exit(1)
 PYEOF
-devmem_result=$?
 
-if [[ $devmem_result -eq 0 ]]; then
-    ok "/dev/mem access restricted under kernel lockdown (EPERM 1)"
-elif [[ $devmem_result -eq 2 ]]; then
-    fail "SECURITY BREACH: /dev/mem was accessible in user-space without lockdown protection"
+run_devmem_probe() {
+    set +e
+    devmem_out="$("$PYTHON_BIN" "$DEVMEM_PROBE" "$1" "$2" 2>&1)"
+    devmem_result=$?
+    set -e
+}
+
+# 3.1a Negative control (fixture): a readable "device" under a lockdown file
+# that claims [confidentiality] is the forced-unlocked case and MUST be flagged.
+FAKE_DEVMEM="${TMP_DIR}/fake-dev-mem"
+FAKE_LOCKDOWN="${TMP_DIR}/fake-lockdown"
+printf 'not-really-memory\n' > "$FAKE_DEVMEM"
+printf 'none integrity [confidentiality]\n' > "$FAKE_LOCKDOWN"
+run_devmem_probe "$FAKE_DEVMEM" "$FAKE_LOCKDOWN"
+if [[ $devmem_result -eq 2 ]] && grep -q 'UNLOCKED_ACCESS_VIOLATION' <<< "$devmem_out"; then
+    ok "Negative control: accessible /dev/mem under claimed lockdown is flagged UNLOCKED_ACCESS_VIOLATION (exit 2)"
 else
-    fail "Error testing /dev/mem access"
+    fail "Negative control failed: forced-unlocked /dev/mem fixture was not flagged (rc=$devmem_result): $devmem_out"
 fi
+
+# 3.1b Negative control (fixture): an unlocked kernel ([none]) is a SKIP, and a
+# skip must be distinguishable from a pass -- never exit 0.
+printf '[none] integrity confidentiality\n' > "$FAKE_LOCKDOWN"
+run_devmem_probe "$FAKE_DEVMEM" "$FAKE_LOCKDOWN"
+if [[ $devmem_result -eq 3 ]] && grep -q 'SKIP_HOST_NOT_LOCKED_DOWN' <<< "$devmem_out"; then
+    ok "Negative control: lockdown=[none] reports SKIP (exit 3), not a pass"
+else
+    fail "Negative control failed: lockdown=[none] fixture did not report SKIP (rc=$devmem_result): $devmem_out"
+fi
+
+# 3.1c Live host probe.
+run_devmem_probe /dev/mem /sys/kernel/security/lockdown
+case "$devmem_result" in
+    0) ok "/dev/mem access restricted under kernel lockdown ($devmem_out)" ;;
+    2) fail "SECURITY BREACH: /dev/mem was accessible in user-space under a claimed lockdown ($devmem_out)" ;;
+    3) skip "live /dev/mem lockdown check not applicable on this host ($devmem_out)" ;;
+    *) fail "Error testing /dev/mem access (rc=$devmem_result): $devmem_out" ;;
+esac
 
 # 3.2 Positive Control: lockdown_probe in mock mode with confidentiality
 set +e
@@ -329,7 +363,7 @@ fi
 # Final Summary
 # ==============================================================================
 log "------------------------------------------------------------"
-log "Results: ${passed} passed, ${failed} failed"
+log "Results: ${passed} passed, ${failed} failed, ${skipped} skipped"
 
 if [[ $failed -eq 0 ]]; then
     log "All module signature enforcement and lockdown tests PASSED."
