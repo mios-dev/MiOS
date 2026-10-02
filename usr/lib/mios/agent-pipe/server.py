@@ -4363,7 +4363,7 @@ _configure_auth(
 app.middleware("http")(_usage_completeness_mw)
 app.middleware("http")(_inbound_auth_mw)
 
-_PSI_THROTTLE_STATUS = int(os.environ.get("MIOS_PSI_THROTTLE_STATUS", "429"))
+_PSI_THROTTLE_STATUS = PSIMonitor.throttle_status()
 
 @app.middleware("http")
 async def _psi_shed_load_mw(request: Request, call_next):

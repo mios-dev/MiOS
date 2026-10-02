@@ -8987,6 +8987,18 @@ header_backup_dir               = "/var/lib/mios/luks-headers"
 key_length_bytes                = 64
 
 # ----------------------------------------------------------------------------
+# [psi] -- T-485: agent-pipe PSI sampler and load shedding (mios_psi.py)
+# ----------------------------------------------------------------------------
+[psi]
+enable                          = true
+sample_interval_ms              = 2000
+# some avg10 percentages; each level clears clear_margin_pct below where it trips.
+warning_threshold               = 40.0
+critical_threshold              = 70.0
+clear_margin_pct                = 10.0
+throttle_status                 = 429
+
+# ----------------------------------------------------------------------------
 # [memory.tmpfs_spill] -- T-410: Automated tmpfs spill-to-NVMe manager
 # ----------------------------------------------------------------------------
 [memory.tmpfs_spill]

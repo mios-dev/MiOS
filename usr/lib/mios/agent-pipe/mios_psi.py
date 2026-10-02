@@ -16,19 +16,46 @@ from __future__ import annotations
 import asyncio
 import collections
 import dataclasses
+import functools
 import logging
 import os
+import sys
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 log = logging.getLogger("mios-agent-pipe.psi")
 
-DEFAULT_PROC_DIR = os.environ.get("MIOS_PROC_PRESSURE_DIR", "/proc/pressure")
-DEFAULT_SAMPLE_INTERVAL_S = float(os.environ.get("MIOS_PSI_SAMPLE_INTERVAL_S", "2.0"))
-DEFAULT_WARNING_THRESHOLD = float(os.environ.get("MIOS_PSI_WARNING_THRESHOLD", "40.0"))
-DEFAULT_CRITICAL_THRESHOLD = float(os.environ.get("MIOS_PSI_CRITICAL_THRESHOLD", "70.0"))
-DEFAULT_HYSTERESIS_CLEAR_PCT = float(os.environ.get("MIOS_PSI_HYSTERESIS_CLEAR_PCT", "30.0"))
-DEFAULT_HYSTERESIS_CRIT_CLEAR_PCT = float(os.environ.get("MIOS_PSI_HYSTERESIS_CRIT_CLEAR_PCT", "60.0"))
+_LIB = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
+import mios_toml  # noqa: E402 -- the one layered mios.toml loader (Law 13)
+
+
+@functools.lru_cache(maxsize=1)
+def _psi_table() -> Dict[str, Any]:
+    data = mios_toml.load_merged(mios_toml.layer_paths())
+    return dict(data.get("psi") or {})
+
+
+def psi_setting(key: str) -> str:
+    """[psi].<key>: the unit's projected MIOS_PSI_* value, else the layered mios.toml.
+
+    Unresolved raises: a sampler with invented thresholds is worse than none."""
+    v = os.environ.get("MIOS_PSI_" + key.upper(), "")
+    if v:
+        return v
+    v = _psi_table().get(key)
+    if v is None:
+        raise KeyError(f"[psi].{key} is not set in mios.toml")
+    return str(v).lower() if isinstance(v, bool) else str(v)
+
+
+DEFAULT_PROC_DIR = "/proc/pressure"  # kernel ABI, not a tunable
+DEFAULT_SAMPLE_INTERVAL_S = float(psi_setting("sample_interval_ms")) / 1000.0
+DEFAULT_WARNING_THRESHOLD = float(psi_setting("warning_threshold"))
+DEFAULT_CRITICAL_THRESHOLD = float(psi_setting("critical_threshold"))
+DEFAULT_HYSTERESIS_CLEAR_PCT = DEFAULT_WARNING_THRESHOLD - float(psi_setting("clear_margin_pct"))
+DEFAULT_HYSTERESIS_CRIT_CLEAR_PCT = DEFAULT_CRITICAL_THRESHOLD - float(psi_setting("clear_margin_pct"))
 
 RESOURCES = ("cpu", "memory", "io")
 
@@ -249,6 +276,11 @@ class PsiSampler:
     Includes hysteresis to prevent alarm flapping.
     """
 
+    @staticmethod
+    def throttle_status() -> int:
+        """HTTP status for requests shed under critical pressure ([psi].throttle_status)."""
+        return int(psi_setting("throttle_status"))
+
     def __init__(
         self,
         proc_dir: str = DEFAULT_PROC_DIR,
@@ -268,7 +300,7 @@ class PsiSampler:
         self.hysteresis_crit_clear_pct = float(hysteresis_crit_clear_pct)
         self.mock_provider = mock_provider
         
-        env_enabled = os.environ.get("MIOS_PSI_ENABLE", "true").lower() not in ("false", "0", "no", "off")
+        env_enabled = psi_setting("enable").lower() not in ("false", "0", "no", "off")
         self.enabled = enabled if enabled is not None else env_enabled
 
         self._running: bool = False
