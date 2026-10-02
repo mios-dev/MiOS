@@ -35,8 +35,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # The installed host tracks [image].ref, not this archive (ADR-0014).
-MIOS_INSTALL="${MIOS_INSTALL_BIN:-$(command -v mios-install || true)}"
-if [[ -z "$MIOS_INSTALL" ]]; then
+installer="$(command -v mios-install || true)"
+if [[ -z "$installer" ]]; then
     echo "[!] mios-install is not installed on this live system" >&2
     exit 1
 fi
@@ -51,7 +51,7 @@ fi
 args=(disk --target-disk "$TARGET_DISK" --source "oci-archive:$OCI_ARCHIVE")
 
 if (( DRY_RUN )); then
-    exec "$MIOS_INSTALL" "${args[@]}" --dry-run
+    exec "$installer" "${args[@]}" --dry-run
 fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -71,5 +71,5 @@ if [[ "$CONFIRM" != "YES" ]]; then
     exit 0
 fi
 
-"$MIOS_INSTALL" "${args[@]}" --yes
+"$installer" "${args[@]}" --yes
 echo "[install.sh] Offline installation complete"

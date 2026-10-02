@@ -17,10 +17,10 @@ _SHIM = os.path.join(_HERE, "..", "usr", "libexec", "mios", "deploy", "baremetal
 
 
 def run_shim(args, fake):
-    env = {k: v for k, v in os.environ.items() if k != "MIOS_INSTALL_BIN"}
+    env = dict(os.environ)
     env["PATH"] = "/usr/bin:/bin"
     if fake:
-        env["MIOS_INSTALL_BIN"] = fake
+        env["PATH"] = os.path.dirname(fake) + os.pathsep + env["PATH"]
     return subprocess.run([sys.executable, _SHIM, *args], env=env,
                           capture_output=True, text=True, check=False)
 

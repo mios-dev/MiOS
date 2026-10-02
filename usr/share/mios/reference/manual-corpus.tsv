@@ -15881,7 +15881,7 @@ usr/libexec/mios/db/pg_vacuum_tuner.py	48	48	1	11	b4df0ccf55d9	STAY	local-scoped
 usr/libexec/mios/db/pg_vacuum_tuner.py	59	59	1	9	dbbbc34d8092	STAY	local-scoped		0				0
 usr/libexec/mios/deploy/baremetal_install.py	1	4	4	23	c8a82790606f	STAY	ai-header		0				0
 usr/libexec/mios/deploy/baremetal_install.py	5	9	4	30	2d0cc547a5fd	STAY	midsize-why		0				0
-usr/libexec/mios/deploy/baremetal_install.py	20	20	1	5	4788c3d74929	STAY	local-scoped		0				0
+usr/libexec/mios/deploy/baremetal_install.py	20	20	1	3	086846c0ecf0	STAY	local-scoped		0				0
 usr/libexec/mios/deploy/baremetal_install.py	25	29	5	33	bd8e3dfec622	MIGRATE	midsize-narrative		0				0
 usr/libexec/mios/deploy/diff_accrual.py	1	4	4	30	50b89e0378b3	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/deploy.md	mios-src:50b89e0378b3	30	0
 usr/libexec/mios/deploy/diff_accrual.py	5	10	5	39	315d70b58baa	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/deploy.md	mios-src:315d70b58baa	39	0

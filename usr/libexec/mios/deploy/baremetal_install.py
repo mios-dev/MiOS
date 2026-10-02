@@ -17,8 +17,8 @@ from typing import List, Optional
 
 
 def native_bin() -> Optional[str]:
-    """MIOS_INSTALL_BIN, else mios-install on PATH."""
-    return os.environ.get("MIOS_INSTALL_BIN") or shutil.which("mios-install")
+    """mios-install on PATH."""
+    return shutil.which("mios-install")
 
 
 def translate(argv: List[str]) -> List[str]:
