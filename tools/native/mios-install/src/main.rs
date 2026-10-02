@@ -1,26 +1,33 @@
-// AI-hint: Rust CLI entry point for mios-install -- `mios-install disk` installs [image].ref to a disk through the image's own bootc.
+// AI-hint: Rust CLI entry point for mios-install -- installs [image].ref to a disk or over the running root through the image's own bootc.
 // AI-related: tools/native/mios-install/src/lib.rs, usr/share/mios/mios.toml, usr/libexec/mios/deploy/baremetal_install.py
 // AI-functions: main, run, parse, ssot
 
 #![forbid(unsafe_code)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mios_install::{boot_disks, default_sys, mock_disks, plan, rank, scan, select, uefi};
+use mios_install::{
+    boot_disks, default_sys, mock_disks, plan, plan_existing_root, rank, scan, select, uefi,
+};
 use mios_resolver::runtime;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 const USAGE: &str = "usage: mios-install disk [--target-disk DEV | --auto-select] [--image-ref REF]
                          [--filesystem xfs|ext4|btrfs] [--yes] [--force] [--dry-run] [--mock] [--json]
+       mios-install existing-root [--image-ref REF] [--cleanup] [--yes] [--force] [--dry-run] [--json]
 
-Installs [image].ref from mios.toml onto DEV by running the image's own bootc
-(`bootc install to-disk --wipe`) in a privileged podman container. The disk is
-erased: a real install needs --yes. --force only skips the UEFI check; a disk
-backing the running system is always refused.
+Installs [image].ref from mios.toml by running the image's own bootc in a
+privileged podman container. `disk` erases DEV (`bootc install to-disk --wipe`);
+a disk backing the running system is always refused. `existing-root` installs
+over the running system (`bootc install to-existing-root`), which keeps running
+until reboot; --cleanup removes the previous install's files at first boot.
+A real install needs --yes. --force only skips the UEFI check.
 ";
 
 #[derive(Default)]
 struct Args {
+    verb: String,
+    cleanup: bool,
     target: Option<String>,
     auto: bool,
     image: Option<String>,
@@ -37,7 +44,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     let mut a = Args::default();
     let mut it = argv.iter();
     match it.next().map(String::as_str) {
-        Some("disk") => {}
+        Some(v @ ("disk" | "existing-root")) => a.verb = v.to_string(),
         Some("-h" | "--help") => return Err(String::new()),
         Some(other) => return Err(format!("unknown verb {other:?}")),
         None => return Err("a verb is required".into()),
@@ -63,6 +70,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             // Test hook: read a fixture tree instead of /sys.
             "--sysfs" => a.sys = Some(PathBuf::from(value("--sysfs")?)),
             "--auto-select" => a.auto = true,
+            "--cleanup" => a.cleanup = true,
             "--yes" => a.yes = true,
             "--force" => a.force = true,
             "--dry-run" => a.dry_run = true,
@@ -72,7 +80,31 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             other => return Err(format!("unknown option {other:?}")),
         }
     }
+    let disk_only = a.target.is_some() || a.auto || a.filesystem.is_some() || a.mock;
+    if a.verb == "existing-root" && disk_only {
+        return Err(
+            "--target-disk, --auto-select, --filesystem and --mock apply to `disk` only".into(),
+        );
+    }
+    if a.verb == "disk" && a.cleanup {
+        return Err("--cleanup applies to `existing-root` only".into());
+    }
     Ok(a)
+}
+
+/// Run the planned command; a real install needs --yes.
+fn execute(command: &[String], yes: bool, what: String) -> Result<(), String> {
+    if !yes {
+        return Err(format!("{what}; pass --yes to confirm"));
+    }
+    let status = Command::new(&command[0])
+        .args(&command[1..])
+        .status()
+        .map_err(|e| format!("could not run {}: {e}", command[0]))?;
+    if !status.success() {
+        return Err(format!("bootc install exited with {status}"));
+    }
+    Ok(())
 }
 
 /// A value from the environment or the layered mios.toml; never a literal.
@@ -97,6 +129,33 @@ fn run(a: &Args) -> Result<serde_json::Value, String> {
     let min_bytes = min_gb * 1024 * 1024 * 1024;
 
     let sys = a.sys.clone().unwrap_or_else(default_sys);
+    let run_it = !a.dry_run && !a.mock;
+    if a.verb == "existing-root" {
+        if !uefi(&sys) && !a.force {
+            return Err(
+                "MiOS requires UEFI firmware (/sys/firmware/efi is absent); --force skips this check"
+                    .into(),
+            );
+        }
+        let command = plan_existing_root(&image, &bound, a.cleanup);
+        if run_it {
+            execute(
+                &command,
+                a.yes,
+                format!("this replaces the running system with {image} at next boot"),
+            )?;
+        }
+        return Ok(serde_json::json!({
+            "status": "success",
+            "mode": "existing-root",
+            "image_ref": image,
+            "bound_images": bound,
+            "cleanup": a.cleanup,
+            "command": command,
+            "executed": run_it,
+            "dry_run": a.dry_run,
+        }));
+    }
     let (disks, boot, is_uefi) = if a.mock {
         let (d, b) = mock_disks();
         (d, b, true)
@@ -114,29 +173,24 @@ fn run(a: &Args) -> Result<serde_json::Value, String> {
     let target = select(&ranked, a.target.as_deref(), a.auto)?;
     let p = plan(&image, target, a.filesystem.as_deref(), &bound, is_uefi);
 
-    let execute = !a.dry_run && !a.mock;
-    if execute {
-        if !a.yes {
-            return Err(format!(
-                "this ERASES {} ({}, {} GB, serial {}); pass --yes to confirm",
+    if run_it {
+        execute(
+            &p.command,
+            a.yes,
+            format!(
+                "this ERASES {} ({}, {} GB, serial {})",
                 p.target.device_path,
                 p.target.model,
                 p.target.size_bytes / (1024 * 1024 * 1024),
                 p.target.serial
-            ));
-        }
-        let status = Command::new(&p.command[0])
-            .args(&p.command[1..])
-            .status()
-            .map_err(|e| format!("could not run {}: {e}", p.command[0]))?;
-        if !status.success() {
-            return Err(format!("bootc install exited with {status}"));
-        }
+            ),
+        )?;
     }
     let mut v = serde_json::to_value(&p).map_err(|e| e.to_string())?;
     if let Some(o) = v.as_object_mut() {
         o.insert("status".into(), "success".into());
-        o.insert("executed".into(), execute.into());
+        o.insert("mode".into(), "disk".into());
+        o.insert("executed".into(), run_it.into());
         o.insert("dry_run".into(), a.dry_run.into());
         o.insert("mock".into(), a.mock.into());
     }
@@ -169,7 +223,9 @@ fn main() -> ExitCode {
                 println!(
                     "[mios-install] {verb} {} on {}: {}",
                     v["image_ref"].as_str().unwrap_or_default(),
-                    v["target"]["device_path"].as_str().unwrap_or_default(),
+                    v["target"]["device_path"]
+                        .as_str()
+                        .unwrap_or("the running system"),
                     v["command"]
                         .as_array()
                         .map(|c| c

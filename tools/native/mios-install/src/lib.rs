@@ -226,30 +226,12 @@ pub fn plan(
     bound_images: &str,
     uefi: bool,
 ) -> Plan {
-    let mut command: Vec<String> = [
-        "podman",
-        "run",
-        "--rm",
-        "--privileged",
-        "--pid=host",
-        "--ipc=host",
-        "-v",
-        "/dev:/dev",
-        "-v",
-        "/var/lib/containers:/var/lib/containers",
-        "--security-opt",
-        "label=type:unconfined_t",
-        image_ref,
-        "bootc",
-        "install",
-        "to-disk",
-        "--wipe",
-        "--bound-images",
-        bound_images,
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect();
+    let mut command = podman_prefix(image_ref, &[]);
+    command.extend(
+        ["to-disk", "--wipe", "--bound-images", bound_images]
+            .iter()
+            .map(|s| s.to_string()),
+    );
     if let Some(fs) = filesystem {
         command.extend(["--filesystem".to_string(), fs.to_string()]);
     }
@@ -262,6 +244,64 @@ pub fn plan(
         uefi,
         command,
     }
+}
+
+/// `podman run` of the image with what bootc install needs from the host,
+/// up to and including `bootc install`.
+fn podman_prefix(image_ref: &str, extra_mounts: &[&str]) -> Vec<String> {
+    let mut c: Vec<String> = [
+        "podman",
+        "run",
+        "--rm",
+        "--privileged",
+        "--pid=host",
+        "--ipc=host",
+        "-v",
+        "/dev:/dev",
+        "-v",
+        "/var/lib/containers:/var/lib/containers",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    for m in extra_mounts {
+        c.extend(["-v".to_string(), m.to_string()]);
+    }
+    c.extend(
+        [
+            "--security-opt",
+            "label=type:unconfined_t",
+            image_ref,
+            "bootc",
+            "install",
+        ]
+        .iter()
+        .map(|s| s.to_string()),
+    );
+    c
+}
+
+/// `bootc install to-existing-root` from the image: the running system stays
+/// in place until reboot (bootc's default --replace=alongside) and the
+/// bootloader is pointed at the new deployment. The host root is mounted at
+/// /target, as bootc's install documentation still shows. --cleanup adds
+/// bootc's first-boot removal of the previous install's files.
+pub fn plan_existing_root(image_ref: &str, bound_images: &str, cleanup: bool) -> Vec<String> {
+    let mut command = podman_prefix(image_ref, &["/:/target"]);
+    command.extend(
+        [
+            "to-existing-root",
+            "--acknowledge-destructive",
+            "--bound-images",
+            bound_images,
+        ]
+        .iter()
+        .map(|s| s.to_string()),
+    );
+    if cleanup {
+        command.push("--cleanup".to_string());
+    }
+    command
 }
 
 /// A fixed three-disk machine for --mock: an NVMe and a SATA SSD that are
@@ -412,6 +452,16 @@ mod tests {
             .command
             .join(" ")
             .ends_with("--bound-images pull --filesystem btrfs /dev/nvme0n1"));
+    }
+
+    #[test]
+    fn existing_root_mounts_the_host_root_and_cleans_up_only_when_asked() {
+        let c = plan_existing_root("r/os:1", "pull", false).join(" ");
+        assert!(c.contains("-v /:/target --security-opt label=type:unconfined_t r/os:1 bootc install to-existing-root --acknowledge-destructive --bound-images pull"), "{c}");
+        assert!(!c.contains("--cleanup") && !c.contains("--wipe"), "{c}");
+        assert!(plan_existing_root("r/os:1", "stored", true)
+            .join(" ")
+            .ends_with("--bound-images stored --cleanup"));
     }
 
     #[test]

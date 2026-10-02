@@ -9233,7 +9233,7 @@
     },
     {
       "path": "tools/native/mios-install/src/main.rs",
-      "hint": "Rust CLI entry point for mios-install -- `mios-install disk` installs [image].ref to a disk through the image's own bootc.",
+      "hint": "Rust CLI entry point for mios-install -- installs [image].ref to a disk or over the running root through the image's own bootc.",
       "related": [
         "tools/native/mios-install/src/lib.rs",
         "usr/share/mios/mios.toml",

@@ -111,3 +111,38 @@ fn the_filesystem_flag_is_passed_only_when_given() {
         "{out}"
     );
 }
+
+#[test]
+fn existing_root_plans_over_the_running_system_and_needs_yes() {
+    let t = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    fixture(t.path(), true);
+    let sys = t.path().to_string_lossy().to_string();
+    let (code, out) = run(&[
+        "existing-root",
+        "--sysfs",
+        &sys,
+        "--dry-run",
+        "--cleanup",
+        "--json",
+    ]);
+    assert_eq!(code, 0, "{out}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"));
+    let cmd = v["command"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{out}"))
+        .iter()
+        .filter_map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(cmd.contains("-v /:/target"), "{cmd}");
+    assert!(cmd.ends_with("registry.example/mios:test bootc install to-existing-root --acknowledge-destructive --bound-images stored --cleanup"), "{cmd}");
+    let (code, out) = run(&["existing-root", "--sysfs", &sys]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("pass --yes to confirm"), "{out}");
+}
+
+#[test]
+fn disk_flags_are_refused_for_existing_root_and_vice_versa() {
+    assert_eq!(run(&["existing-root", "--target-disk", "/dev/sda"]).0, 2);
+    assert_eq!(run(&["disk", "--auto-select", "--mock", "--cleanup"]).0, 2);
+}
