@@ -7,6 +7,8 @@ import os
 import sys
 import re
 import shlex
+import shutil
+import tempfile
 
 try:
     import tomllib
@@ -257,11 +259,12 @@ def load_images(toml_path: str) -> dict:
         d = tomllib.load(f)
     return d.get("images") or d.get("image") or {}
 
-def apply_bound_image_store(containers: dict, toml_path: str) -> None:
+def apply_bound_image_store(containers: dict, toml_path: str, user_scope: frozenset = frozenset()) -> None:
     """Project the bootc store only onto containers that bootc binds.
 
     The same firstboot tokens drive overlay-bind-images. A firstboot image is
-    fetched into the normal Podman store and must never read bootc's store.
+    fetched into the normal Podman store and must never read bootc's store,
+    and neither may a user-scope unit: rootless Podman cannot read root's store.
     """
     with open(toml_path, "rb") as f:
         bake = (tomllib.load(f).get("build") or {}).get("bake") or {}
@@ -297,6 +300,10 @@ def apply_bound_image_store(containers: dict, toml_path: str) -> None:
             if existing:
                 raise ValueError(f"{name}: firstboot image cannot use bootc additional image store")
             continue
+        if name in user_scope:
+            if existing:
+                raise ValueError(f"{name}: user-scope unit cannot use bootc additional image store")
+            continue
         if existing and existing != [store]:
             raise ValueError(f"{name}: conflicting bootc additional image store {existing!r}")
         if not existing:
@@ -306,6 +313,13 @@ def load_enabled_quadlets(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("quadlets", {}).get("enable", {})
+
+def load_user_scope(toml_path: str) -> set[str]:
+    """[quadlets.scope].user: units written under users/, podman's user Quadlet
+    search path, so they run rootless under each login user's systemd."""
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return {str(n) for n in ((d.get("quadlets") or {}).get("scope") or {}).get("user") or []}
 
 def load_privileged_root(toml_path: str = TOML) -> set[str]:
     """Allowlist of containers permitted to run with User=0/root or Group=0/root.
@@ -500,10 +514,11 @@ def main(argv: "list[str]") -> int:
     _GRANDFATHERED_CREDS = load_grandfathered_credentials(TOML)
     _SECRET_KEYS = load_secret_keys(TOML)
     enabled_map = load_enabled_quadlets(TOML)
+    user_scope = load_user_scope(TOML)
     pods = load_pods(TOML)
     ports = load_ports(TOML)
     containers = load_containers(TOML)
-    apply_bound_image_store(containers, TOML)
+    apply_bound_image_store(containers, TOML, frozenset(user_scope))
     networks = load_networks(TOML)
     volumes = load_volumes(TOML)
     images = load_images(TOML)
@@ -589,8 +604,18 @@ def main(argv: "list[str]") -> int:
 
             text = render_nested_quadlet(name, spec, unit_type)
             out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
+            if name in user_scope:
+                # A system-dir copy of a user-scope unit is left unclaimed, so
+                # check mode reports it as an orphan; write mode removes it.
+                if not check and not list_mode and os.path.exists(out):
+                    os.remove(out)
+                    print(f"[pod-gen]   removed system-scope copy {out}")
+                out = os.path.join(OUT_DIR, "users", f"{name}.{unit_type}")
+                if not check and not list_mode:
+                    os.makedirs(os.path.dirname(out), exist_ok=True)
+            else:
+                generated_files.add(os.path.basename(out))
             active_units += 1
-            generated_files.add(os.path.basename(out))
             if check:
                 cur = ""
                 if os.path.exists(out):
@@ -809,6 +834,24 @@ def _selftest() -> int:
     # Positive Control 4: Secret reference via EnvironmentFile passes
     ref_out = render_nested_quadlet("mios-pgvector", {"Container": {"EnvironmentFile": "/etc/mios/secrets.env", "Image": "pgvector"}}, "container")
     ck("selftest: secret reference via EnvironmentFile passes", "EnvironmentFile=/etc/mios/secrets.env" in ref_out)
+
+    # User scope: rootless Podman cannot read bootc's root image store.
+    store_toml = os.path.join(tempfile.mkdtemp(prefix="pod-gen-selftest-"), "mios.toml")
+    with open(store_toml, "w", encoding="utf-8") as f:
+        f.write('[build.bake]\nadditional_image_store = "/usr/lib/bootc/storage"\nfirstboot_tokens = []\n')
+    sys_unit = {"Container": {"Image": "example/sys:1"}}
+    usr_unit = {"Container": {"Image": "example/usr:1"}}
+    apply_bound_image_store({"sys": sys_unit, "usr": usr_unit}, store_toml, frozenset({"usr"}))
+    ck("selftest: system unit gets the bootc store", "GlobalArgs" in sys_unit["Container"])
+    ck("selftest: user-scope unit gets no bootc store", "GlobalArgs" not in usr_unit["Container"])
+    try:
+        apply_bound_image_store({"usr": {"Container": {"Image": "example/usr:1",
+                                 "GlobalArgs": "--storage-opt=additionalimagestore=/usr/lib/bootc/storage"}}},
+                                store_toml, frozenset({"usr"}))
+        ck("selftest: user-scope unit declaring the bootc store is rejected", False)
+    except ValueError:
+        ck("selftest: user-scope unit declaring the bootc store is rejected", True)
+    shutil.rmtree(os.path.dirname(store_toml), ignore_errors=True)
 
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0

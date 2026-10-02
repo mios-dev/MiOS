@@ -8362,6 +8362,12 @@ delays_seconds      = [0, 5, 15, 30]   # 4 attempts: immediate, 5s, 15s, 30s
 http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
+[quadlets.scope]
+# Units tools/generate-pod-quadlets.py writes under users/ (podman's user Quadlet
+# search path) instead of the system directory: they run rootless under each
+# login user's systemd. Everything not listed is a system unit.
+user = ["mios-sunshine"]
+
 [quadlets.enable]
 mios-ceph             = true
 mios-k3s              = true
@@ -10196,17 +10202,18 @@ RestartSec = "5s"
 TimeoutStartSec = "300s"
 
 [containers.mios-sunshine.Unit]
-After = "network-online.target mios-cdi-detect.service"
-Description = "'MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode)"
+# A USER-scope unit (see [quadlets.scope]): it streams the logged-in user's own
+# desktop, so it runs rootless under that user's systemd, not as root (Law 6).
+# Capture goes through xdg-desktop-portal ScreenCast + PipeWire (capture=portal);
+# KMS capture would need host CAP_SYS_ADMIN, which a rootless unit cannot hold.
+After = "graphical-session.target"
+ConditionUser = "!@system"
+Description = "'MiOS' Sunshine Low-Latency Streaming Server (portal/PipeWire capture, HW encode)"
 Documentation = "https://docs.lizardbyte.dev/projects/sunshine"
-Wants = "network-online.target"
+PartOf = "graphical-session.target"
 
 [containers.mios-sunshine.Container]
-AddCapability = [
-  "CAP_SYS_ADMIN",
-  "CAP_NET_ADMIN",
-  "CAP_SYS_NICE"
-]
+AddCapability = ["CAP_SYS_NICE"]
 AddDevice = [
   "/dev/dri",
   "/dev/uinput",
@@ -10214,12 +10221,16 @@ AddDevice = [
 ]
 ContainerName = "mios-sunshine"
 Environment = [
-  "SUNSHINE_USER=mios",
-  "PULSE_SERVER=unix:/run/user/1000/pulse/native",
-  "XDG_RUNTIME_DIR=/run/user/1000",
-  "WAYLAND_DISPLAY=wayland-0"
+  "XDG_RUNTIME_DIR=%t",
+  "WAYLAND_DISPLAY=wayland-0",
+  "PULSE_SERVER=unix:%t/pulse/native",
+  "DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus",
+  "HOME=%h"
 ]
 EnvironmentFile = "/etc/mios/install.env"
+Exec = "capture=portal"
+Group = "%G"
+GroupAdd = "keep-groups"
 HealthCmd = "curl -fsS http://localhost:47990/ || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
@@ -10228,23 +10239,23 @@ HealthTimeout = "10s"
 Image = "docker.io/lizardbyte/sunshine:latest-ubuntu-26.10"
 Label = [
   "org.opencontainers.image.title=mios-sunshine",
-  'org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"'
+  'org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and portal/PipeWire capture"'
 ]
 Network = "host"
 SecurityLabelDisable = true
+User = "%U"
+UserNS = "keep-id"
 Volume = [
-  "/run/user/1000:/run/user/1000:ro",
-  "/etc/sunshine:/etc/sunshine:Z",
-  "/var/lib/mios/sunshine:/var/lib/mios/sunshine:Z",
-  "/dev/dri:/dev/dri:rslave",
-  "/dev/uinput:/dev/uinput:rslave"
+  "%t:%t:ro",
+  "%h/.config/sunshine:%h/.config/sunshine"
 ]
 
 [containers.mios-sunshine.Install]
-WantedBy = "multi-user.target default.target"
+WantedBy = "graphical-session.target"
 
 [containers.mios-sunshine.Service]
 Delegate = "yes"
+ExecStartPre = "/usr/bin/mkdir -p %h/.config/sunshine"
 Restart = "on-failure"
 RestartSec = "5s"
 TimeoutStartSec = "120s"

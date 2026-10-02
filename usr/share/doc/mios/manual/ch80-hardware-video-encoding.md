@@ -111,16 +111,22 @@ MiOS eliminates this overhead via kernel Direct Memory Access Buffers (DMA-BUF):
 
 > Path Reference: `/usr/share/doc/mios/manual.md#80_sunshine_streaming_container`
 
-The Sunshine streaming service is managed as an unprivileged, declarative Quadlet container unit:
-[`usr/share/containers/systemd/mios-sunshine.container`](file:///usr/share/containers/systemd/mios-sunshine.container).
+The Sunshine streaming service is a rootless, user-scope Quadlet that runs under
+the logged-in user's own systemd, because it streams that user's desktop:
+[`usr/share/containers/systemd/users/mios-sunshine.container`](file:///usr/share/containers/systemd/users/mios-sunshine.container),
+generated from `[containers.mios-sunshine]` and listed in `[quadlets.scope].user`
+in `usr/share/mios/mios.toml`. It starts with the graphical session
+(`WantedBy=graphical-session.target`) and never for system accounts
+(`ConditionUser=!@system`).
 
 #### Key Quadlet Configuration Directives:
-- **CDI Device Access**: `AddDevice=/dev/dri` and `AddDevice=nvidia.com/gpu=all` ensure access to both DRM render nodes and NVIDIA character devices.
-- **Input Injection**: `AddDevice=/dev/uinput` provides virtual mouse, keyboard, and gamepad simulation for remote Moonlight controllers.
-- **Linux Capabilities**:
-  - `CAP_SYS_ADMIN`: Required for zero-copy DMA-BUF memory descriptor import across namespaces.
-  - `CAP_NET_ADMIN`: Optimizes low-latency UDP socket buffering and pacing.
-  - `CAP_SYS_NICE`: Grants real-time process scheduling (`SCHED_RR` / `SCHED_FIFO`) for the video encoding thread.
+- **Identity**: `User=%U`, `Group=%G`, `UserNS=keep-id` -- the container runs as the session user (Law 6: no root, no allowlist entry); `GroupAdd=keep-groups` carries that user's `video`/`render`/`input` membership to the devices below.
+- **Capture**: `capture=portal` -- xdg-desktop-portal ScreenCast and PipeWire, reached through the user's runtime directory (`%t`, mounted read-only: Wayland, PipeWire, Pulse and the session bus). KMS capture is not used: it needs host `CAP_SYS_ADMIN`, which a rootless unit cannot hold.
+- **CDI Device Access**: `AddDevice=/dev/dri` and `AddDevice=nvidia.com/gpu=all` give the encoder the DRM render nodes and NVIDIA devices.
+- **Input Injection**: `AddDevice=/dev/uinput` provides virtual mouse, keyboard, and gamepad simulation for remote Moonlight controllers (the `input` group owns `/dev/uinput`, see `usr/lib/udev/rules.d/99-mios-uinput.rules`).
+- **Linux Capabilities**: `CAP_SYS_NICE` only, for real-time scheduling of the encoder thread.
+- **State**: `%h/.config/sunshine`, created before start, holds pairing and configuration per user.
+- **Image store**: the image is baked into the OS image (`[build.bake].core`), but a user-scope unit reads its own rootless store, not bootc's root store.
 - **Network Mode**: `Network=host` eliminates container bridge NAT latency and provides seamless Moonlight discovery over ports 47984-48010.
 
 ---

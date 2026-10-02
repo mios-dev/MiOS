@@ -1,6 +1,6 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3604,
+  "total_files_scanned": 3605,
   "total_metadata_entries": 2969,
   "total_hints": 2954,
   "total_functions_indexed": 1375,
@@ -27065,15 +27065,6 @@
       "has_shebang": false
     },
     {
-      "path": "usr/share/containers/systemd/mios-sunshine.container",
-      "hint": "MiOS mios-sunshine container. (WS-7 pods-as-SSOT).",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "usr/share/containers/systemd/mios-system.pod",
       "hint": "GENERATED Quadlet pod for the co-resident group 'mios-system' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-system] in mios.toml. Members (7): mios-adguard, mios-ceph, mios-pxe-hub, mios-k3s, mios-guacamole, mios-guacd, mios-radosgw.",
       "related": [
@@ -27172,6 +27163,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/users.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/containers/systemd/users/mios-sunshine.container",
+      "hint": "MiOS mios-sunshine container. (WS-7 pods-as-SSOT).",
+      "related": [],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

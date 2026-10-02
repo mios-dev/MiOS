@@ -3,25 +3,27 @@
 # /usr/share/containers/systemd/mios-sunshine.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service
-Description='MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode)
+After=graphical-session.target
+ConditionUser=!@system
+Description='MiOS' Sunshine Low-Latency Streaming Server (portal/PipeWire capture, HW encode)
 Documentation=https://docs.lizardbyte.dev/projects/sunshine
-Wants=network-online.target
+PartOf=graphical-session.target
 
 [Container]
-AddCapability=CAP_SYS_ADMIN
-AddCapability=CAP_NET_ADMIN
 AddCapability=CAP_SYS_NICE
 AddDevice=/dev/dri
 AddDevice=/dev/uinput
 AddDevice=nvidia.com/gpu=all
 ContainerName=mios-sunshine
-Environment=SUNSHINE_USER=mios
-Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=%t
 Environment=WAYLAND_DISPLAY=wayland-0
+Environment=PULSE_SERVER=unix:%t/pulse/native
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+Environment=HOME=%h
 EnvironmentFile=/etc/mios/install.env
-GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
+Exec=capture=portal
+Group=%G
+GroupAdd=keep-groups
 HealthCmd=curl -fsS http://localhost:47990/ || exit 1
 HealthInterval=30s
 HealthRetries=3
@@ -29,20 +31,20 @@ HealthStartPeriod=20s
 HealthTimeout=10s
 Image=docker.io/lizardbyte/sunshine:latest-ubuntu-26.10
 Label=org.opencontainers.image.title=mios-sunshine
-Label=org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"
+Label=org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and portal/PipeWire capture"
 Network=host
 SecurityLabelDisable=true
-Volume=/run/user/1000:/run/user/1000:ro
-Volume=/etc/sunshine:/etc/sunshine:Z
-Volume=/var/lib/mios/sunshine:/var/lib/mios/sunshine:Z
-Volume=/dev/dri:/dev/dri:rslave
-Volume=/dev/uinput:/dev/uinput:rslave
+User=%U
+UserNS=keep-id
+Volume=%t:%t:ro
+Volume=%h/.config/sunshine:%h/.config/sunshine
 
 [Install]
-WantedBy=multi-user.target default.target
+WantedBy=graphical-session.target
 
 [Service]
 Delegate=yes
+ExecStartPre=/usr/bin/mkdir -p %h/.config/sunshine
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=120s
