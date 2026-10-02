@@ -183,3 +183,29 @@ fn an_offline_install_loads_the_archive_and_tracks_the_registry_image() {
         2
     );
 }
+
+#[test]
+fn filesystem_refuses_the_running_root_and_unmounted_directories() {
+    let t = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    fixture(t.path(), true);
+    let sys = t.path().to_string_lossy().to_string();
+    let (code, out) = run(&["filesystem", "/", "--sysfs", &sys, "--dry-run"]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("existing-root"), "{out}");
+    let target = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    let root = target.path().to_string_lossy().to_string();
+    let (code, out) = run(&["filesystem", &root, "--sysfs", &sys, "--dry-run"]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("not a mount point"), "{out}");
+}
+
+#[test]
+fn filesystem_flags_are_checked_per_verb() {
+    assert_eq!(run(&["filesystem", "--dry-run"]).0, 2, "root path required");
+    assert_eq!(
+        run(&["disk", "--auto-select", "--mock", "--skip-finalize"]).0,
+        2
+    );
+    assert_eq!(run(&["filesystem", "/mnt/t", "--auto-select"]).0, 2);
+    assert_eq!(run(&["filesystem", "/mnt/t", "--cleanup"]).0, 2);
+}

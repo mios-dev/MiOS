@@ -20,8 +20,8 @@ superseded_by: []
 
 Accepted — 2026-10-02 (proposed 2026-07-28). The operator chose to install
 the MiOS image itself (`[image].ref`, which is built FROM the ucore-hci base)
-and to run bootc inside that image through podman. `disk` (including the offline `oci-archive:` source) and
-`existing-root` are implemented; `to-filesystem` is not yet.
+and to run bootc inside that image through podman. All three legs are implemented: `disk` and `filesystem` (both
+with the offline `oci-archive:` source) and `existing-root`.
 
 ## Context
 
@@ -53,8 +53,13 @@ installed; host-run `--source-imgref` installs are outside that envelope
    - `mios-install existing-root` → `to-existing-root
      --acknowledge-destructive --bound-images <policy> [--cleanup]`, with
      the host root at `/target`.
-   - `to-filesystem` (repart-partitioned disks, the only way to control
-     partition sizes with the shipped bootc) is the next leg.
+   - `mios-install filesystem ROOT` → `to-filesystem --bound-images <policy>
+     [--root-mount-spec S] [--boot-mount-spec S] [--skip-finalize] ROOT`,
+     with ROOT mounted into the container at the same path; ROOT must be a
+     mounted, empty filesystem other than `/`. This is the leg for
+     partitioning chosen ahead of time (the only way to control partition
+     sizes with the shipped bootc); driving `systemd-repart` from
+     mios-install is future work.
 4. **Configuration comes from mios.toml.** `[image].ref` is the image;
    `[bootc_install]` holds the root filesystem, the root-partition floor and
    padding, and the bound-images policy, and is projected into
@@ -103,7 +108,7 @@ installed; host-run `--source-imgref` installs are outside that envelope
 
 ## Implementation
 
-- `tools/native/mios-install` -- `disk`, `existing-root`.
+- `tools/native/mios-install` -- `disk`, `filesystem`, `existing-root`.
 - `usr/libexec/mios/deploy/baremetal_install.py` -- compatibility shim that
   forwards to `mios-install disk`.
 - `tools/install.sh` -- offline USB front end: `mios-install disk --source

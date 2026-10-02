@@ -384,6 +384,76 @@ pub fn plan_existing_root(image_ref: &str, bound_images: &str, cleanup: bool) ->
     command
 }
 
+/// Options for `bootc install to-filesystem`.
+#[derive(Clone, Debug, Default)]
+pub struct FsOpts {
+    pub root_mount_spec: Option<String>,
+    pub boot_mount_spec: Option<String>,
+    pub skip_finalize: bool,
+}
+
+/// A to-filesystem target must be a mounted, empty directory other than the
+/// running root (that is `existing-root`'s job). `mountinfo` is
+/// /proc/self/mountinfo; `entries` are the directory's names.
+pub fn check_target_root(root: &str, mountinfo: &str, entries: &[String]) -> Result<(), String> {
+    let root = root.trim_end_matches('/');
+    if root.is_empty() {
+        return Err(
+            "refusing /: that is the running system; use `mios-install existing-root`".into(),
+        );
+    }
+    let mounted = mountinfo
+        .lines()
+        .filter_map(|l| l.split_whitespace().nth(4))
+        .any(|m| m == root);
+    if !mounted {
+        return Err(format!(
+            "{root} is not a mount point; mount the target root filesystem there first"
+        ));
+    }
+    let content: Vec<&String> = entries.iter().filter(|e| *e != "lost+found").collect();
+    if !content.is_empty() {
+        return Err(format!(
+            "{root} is not empty ({} entries); bootc expects an empty root filesystem",
+            content.len()
+        ));
+    }
+    Ok(())
+}
+
+/// `bootc install to-filesystem ROOT` from the image, with ROOT mounted at
+/// the same path inside the container. `target_imgref` is set for offline
+/// sources so the host tracks the registry image.
+pub fn plan_filesystem(
+    run_ref: &str,
+    target_imgref: Option<&str>,
+    root: &str,
+    bound_images: &str,
+    opts: &FsOpts,
+) -> Vec<String> {
+    let mount = format!("{root}:{root}");
+    let mut c = podman_prefix(run_ref, &[mount.as_str()]);
+    c.extend(
+        ["to-filesystem", "--bound-images", bound_images]
+            .iter()
+            .map(|s| s.to_string()),
+    );
+    if let Some(s) = &opts.root_mount_spec {
+        c.extend(["--root-mount-spec".to_string(), s.clone()]);
+    }
+    if let Some(s) = &opts.boot_mount_spec {
+        c.extend(["--boot-mount-spec".to_string(), s.clone()]);
+    }
+    if opts.skip_finalize {
+        c.push("--skip-finalize".to_string());
+    }
+    if let Some(t) = target_imgref {
+        c.extend(["--target-imgref".to_string(), t.to_string()]);
+    }
+    c.push(root.to_string());
+    c
+}
+
 /// A fixed three-disk machine for --mock: an NVMe and a SATA SSD that are
 /// eligible, and the USB stick the system booted from.
 pub fn mock_disks() -> (Vec<Disk>, Vec<String>) {
@@ -588,6 +658,35 @@ mod tests {
             Some("localhost/a:1")
         );
         assert_eq!(loaded_ref("Error: nothing"), None);
+    }
+
+    #[test]
+    fn a_filesystem_target_must_be_a_mounted_empty_non_root_directory() {
+        let mi = "36 1 8:1 / /mnt/target rw - ext4 /dev/sda1 rw\n";
+        assert!(check_target_root("/", mi, &[])
+            .unwrap_err()
+            .contains("existing-root"));
+        assert!(check_target_root("/mnt/other", mi, &[])
+            .unwrap_err()
+            .contains("not a mount point"));
+        assert!(check_target_root("/mnt/target", mi, &["etc".into()])
+            .unwrap_err()
+            .contains("not empty"));
+        assert!(check_target_root("/mnt/target/", mi, &["lost+found".into()]).is_ok());
+    }
+
+    #[test]
+    fn to_filesystem_mounts_the_root_and_passes_only_given_options() {
+        let c =
+            plan_filesystem("r/os:1", None, "/mnt/target", "stored", &FsOpts::default()).join(" ");
+        assert!(c.contains("-v /mnt/target:/mnt/target --security-opt label=type:unconfined_t r/os:1 bootc install to-filesystem --bound-images stored /mnt/target"), "{c}");
+        let o = FsOpts {
+            root_mount_spec: Some("LABEL=root".into()),
+            boot_mount_spec: None,
+            skip_finalize: true,
+        };
+        let c = plan_filesystem("localhost/os", Some("ghcr/os:1"), "/mnt/t", "pull", &o).join(" ");
+        assert!(c.ends_with("--bound-images pull --root-mount-spec LABEL=root --skip-finalize --target-imgref ghcr/os:1 /mnt/t"), "{c}");
     }
 
     #[test]

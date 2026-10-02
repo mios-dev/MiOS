@@ -90,7 +90,7 @@ version is the one whose flags count.
 | Leg | What it does | MiOS entry point |
 | --- | --- | --- |
 | `to-disk DEV` | partitions and formats DEV (`--wipe` clears it first), deploys, installs the bootloader; `--via-loopback` targets a file | `mios-install disk` |
-| `to-filesystem PATH` | deploys into filesystems something else partitioned and mounted | not yet in `mios-install` |
+| `to-filesystem PATH` | deploys into filesystems something else partitioned and mounted (the root must be empty) | `mios-install filesystem ROOT` |
 | `to-existing-root` | installs over the running system; `--replace=alongside` (default) keeps it running until reboot, `--cleanup` removes the old files at first boot | `mios-install existing-root` |
 
 **Run it from the image.** The documented invocation runs bootc inside the
@@ -103,7 +103,8 @@ envelope; bootc discussion #1400 reports SELinux-policy and
 `prepare-root.conf` failures for it **[verified:
 <https://github.com/bootc-dev/bootc/discussions/1400>]**, and issues #433 and
 #879 remain open **[verified]**. `mios-install` also passes `--ipc=host`, as
-the docs' flag set does.
+the docs' flag set does. For `to-filesystem` the target root is mounted into
+the container at the same path (`-v ROOT:ROOT`).
 
 **`to-existing-root` and `-v /:/target`.** The docs still mount the host root
 at `/target`; the CLI help says the root path is "now not necessary to

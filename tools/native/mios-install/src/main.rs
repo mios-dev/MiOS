@@ -1,4 +1,4 @@
-// AI-hint: Rust CLI entry point for mios-install -- installs [image].ref to a disk or over the running root through the image's own bootc.
+// AI-hint: Rust CLI entry point for mios-install -- installs [image].ref to a disk, a mounted root, or over the running root through the image's own bootc.
 // AI-related: tools/native/mios-install/src/lib.rs, usr/share/mios/mios.toml, usr/libexec/mios/deploy/baremetal_install.py
 // AI-functions: main, run, parse, ssot
 
@@ -6,8 +6,8 @@
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use mios_install::{
-    boot_disks, default_sys, loaded_ref, mock_disks, plan, plan_existing_root, plan_offline, rank,
-    scan, select, uefi, Source,
+    boot_disks, check_target_root, default_sys, loaded_ref, mock_disks, plan, plan_existing_root,
+    plan_filesystem, plan_offline, rank, scan, select, uefi, FsOpts, Source,
 };
 use mios_resolver::runtime;
 use std::path::PathBuf;
@@ -16,11 +16,16 @@ use std::process::{Command, ExitCode};
 const USAGE: &str = "usage: mios-install disk [--target-disk DEV | --auto-select] [--image-ref REF]
                          [--source oci-archive:PATH] [--filesystem xfs|ext4|btrfs]
                          [--yes] [--force] [--dry-run] [--mock] [--json]
+       mios-install filesystem ROOT [--image-ref REF] [--source oci-archive:PATH]
+                         [--root-mount-spec SPEC] [--boot-mount-spec SPEC] [--skip-finalize]
+                         [--yes] [--force] [--dry-run] [--json]
        mios-install existing-root [--image-ref REF] [--cleanup] [--yes] [--force] [--dry-run] [--json]
 
 Installs [image].ref from mios.toml by running the image's own bootc in a
 privileged podman container. `disk` erases DEV (`bootc install to-disk --wipe`);
-a disk backing the running system is always refused. `existing-root` installs
+a disk backing the running system is always refused. `filesystem` deploys into
+an empty root filesystem mounted at ROOT (`bootc install to-filesystem`), for
+layouts partitioned beforehand. `existing-root` installs
 over the running system (`bootc install to-existing-root`), which keeps running
 until reboot; --cleanup removes the previous install's files at first boot.
 --source installs offline: the archive is loaded with podman, the loaded image
@@ -43,13 +48,15 @@ struct Args {
     mock: bool,
     json: bool,
     sys: Option<PathBuf>,
+    root: Option<String>,
+    fs_opts: FsOpts,
 }
 
 fn parse(argv: &[String]) -> Result<Args, String> {
     let mut a = Args::default();
     let mut it = argv.iter();
     match it.next().map(String::as_str) {
-        Some(v @ ("disk" | "existing-root")) => a.verb = v.to_string(),
+        Some(v @ ("disk" | "existing-root" | "filesystem")) => a.verb = v.to_string(),
         Some("-h" | "--help") => return Err(String::new()),
         Some(other) => return Err(format!("unknown verb {other:?}")),
         None => return Err("a verb is required".into()),
@@ -75,6 +82,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             }
             // Test hook: read a fixture tree instead of /sys.
             "--sysfs" => a.sys = Some(PathBuf::from(value("--sysfs")?)),
+            "--root-mount-spec" => a.fs_opts.root_mount_spec = Some(value("--root-mount-spec")?),
+            "--boot-mount-spec" => a.fs_opts.boot_mount_spec = Some(value("--boot-mount-spec")?),
+            "--skip-finalize" => a.fs_opts.skip_finalize = true,
             "--auto-select" => a.auto = true,
             "--cleanup" => a.cleanup = true,
             "--yes" => a.yes = true,
@@ -83,6 +93,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--mock" => a.mock = true,
             "--json" => a.json = true,
             "-h" | "--help" => return Err(String::new()),
+            root if a.verb == "filesystem" && a.root.is_none() && !root.starts_with('-') => {
+                a.root = Some(root.to_string())
+            }
             other => return Err(format!("unknown option {other:?}")),
         }
     }
@@ -94,8 +107,27 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 .into(),
         );
     }
-    if a.verb == "disk" && a.cleanup {
+    if a.verb != "existing-root" && a.cleanup {
         return Err("--cleanup applies to `existing-root` only".into());
+    }
+    let fs_only = a.fs_opts.root_mount_spec.is_some()
+        || a.fs_opts.boot_mount_spec.is_some()
+        || a.fs_opts.skip_finalize;
+    if a.verb != "filesystem" && fs_only {
+        return Err(
+            "--root-mount-spec, --boot-mount-spec and --skip-finalize apply to `filesystem` only"
+                .into(),
+        );
+    }
+    if a.verb == "filesystem" {
+        if a.root.is_none() {
+            return Err("`filesystem` needs the mounted target root, e.g. /mnt/target".into());
+        }
+        if a.target.is_some() || a.auto || a.filesystem.is_some() || a.mock {
+            return Err(
+                "--target-disk, --auto-select, --filesystem and --mock apply to `disk` only".into(),
+            );
+        }
     }
     Ok(a)
 }
@@ -111,6 +143,30 @@ fn execute(command: &[String], yes: bool, what: String) -> Result<(), String> {
         .map_err(|e| format!("could not run {}: {e}", command[0]))?;
     if !status.success() {
         return Err(format!("{} exited with {status}", command.join(" ")));
+    }
+    Ok(())
+}
+
+/// Load an offline archive (after --yes only) and rewrite the planned
+/// image to the one podman reports as loaded, not an assumed tag.
+fn apply_preload(preload: &[Vec<String>], command: &mut [String]) -> Result<(), String> {
+    let Some(load) = preload.first() else {
+        return Ok(());
+    };
+    let out = Command::new(&load[0])
+        .args(&load[1..])
+        .output()
+        .map_err(|e| format!("could not run {}: {e}", load[0]))?;
+    if !out.status.success() {
+        return Err(format!("{} exited with {}", load.join(" "), out.status));
+    }
+    let got = loaded_ref(&String::from_utf8_lossy(&out.stdout))
+        .ok_or_else(|| format!("{} reported no loaded image", load.join(" ")))?;
+    let planned = ssot("MIOS_LOCAL_TAG")?;
+    for part in command.iter_mut() {
+        if *part == planned {
+            *part = got.clone();
+        }
     }
     Ok(())
 }
@@ -164,6 +220,53 @@ fn run(a: &Args) -> Result<serde_json::Value, String> {
             "dry_run": a.dry_run,
         }));
     }
+    if a.verb == "filesystem" {
+        if !uefi(&sys) && !a.force {
+            return Err(
+                "MiOS requires UEFI firmware (/sys/firmware/efi is absent); --force skips this check"
+                    .into(),
+            );
+        }
+        let root = a.root.clone().unwrap_or_default();
+        let mountinfo = std::fs::read_to_string("/proc/self/mountinfo").unwrap_or_default();
+        let entries: Vec<String> = std::fs::read_dir(&root)
+            .map_err(|e| format!("cannot read {root}: {e}"))?
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        check_target_root(&root, &mountinfo, &entries)?;
+        let (run_ref, track, preload) = match &a.source {
+            Some(Source::OciArchive(path)) => (
+                ssot("MIOS_LOCAL_TAG")?,
+                Some(image.clone()),
+                vec![vec![
+                    "podman".to_string(),
+                    "load".into(),
+                    "-i".into(),
+                    path.clone(),
+                ]],
+            ),
+            None => (image.clone(), None, Vec::new()),
+        };
+        let mut command = plan_filesystem(&run_ref, track.as_deref(), &root, &bound, &a.fs_opts);
+        if run_it {
+            if a.yes {
+                apply_preload(&preload, &mut command)?;
+            }
+            execute(&command, a.yes, format!("this deploys {image} into {root}"))?;
+        }
+        return Ok(serde_json::json!({
+            "status": "success",
+            "mode": "filesystem",
+            "image_ref": image,
+            "root": root,
+            "bound_images": bound,
+            "preload": preload,
+            "command": command,
+            "executed": run_it,
+            "dry_run": a.dry_run,
+        }));
+    }
     let (disks, boot, is_uefi) = if a.mock {
         let (d, b) = mock_disks();
         (d, b, true)
@@ -194,27 +297,8 @@ fn run(a: &Args) -> Result<serde_json::Value, String> {
 
     if run_it {
         let mut command = p.command.clone();
-        // The archive is loaded only once the erase is confirmed, and the
-        // install runs the image podman reports, not an assumed tag.
         if a.yes {
-            if let Some(load) = p.preload.first() {
-                let out = Command::new(&load[0])
-                    .args(&load[1..])
-                    .output()
-                    .map_err(|e| format!("could not run {}: {e}", load[0]))?;
-                let text = String::from_utf8_lossy(&out.stdout).to_string();
-                if !out.status.success() {
-                    return Err(format!("{} exited with {}", load.join(" "), out.status));
-                }
-                let got = loaded_ref(&text)
-                    .ok_or_else(|| format!("{} reported no loaded image", load.join(" ")))?;
-                let planned = ssot("MIOS_LOCAL_TAG")?;
-                for part in command.iter_mut() {
-                    if *part == planned {
-                        *part = got.clone();
-                    }
-                }
-            }
+            apply_preload(&p.preload, &mut command)?;
         }
         execute(
             &command,
@@ -267,6 +351,7 @@ fn main() -> ExitCode {
                     v["image_ref"].as_str().unwrap_or_default(),
                     v["target"]["device_path"]
                         .as_str()
+                        .or_else(|| v["root"].as_str())
                         .unwrap_or("the running system"),
                     v["command"]
                         .as_array()
