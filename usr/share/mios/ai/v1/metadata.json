@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3600,
-  "total_metadata_entries": 2965,
-  "total_hints": 2950,
+  "total_files_scanned": 3599,
+  "total_metadata_entries": 2964,
+  "total_hints": 2949,
   "total_functions_indexed": 1374,
   "total_related_links": 4658,
   "entries": [
@@ -9976,15 +9976,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/run-agent-pipe-tests.sh",
-      "hint": "Shared clean-environment test harness for executing agent-pipe unit tests.",
-      "related": [],
-      "functions": [],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },

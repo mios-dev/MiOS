@@ -216,6 +216,12 @@ def cmd_check(root: str, ci: dict) -> int:
         if spec.get("skip") and not str(spec.get("skip_reason") or "").strip():
             viol.append(f"[ci.globs.{name}] skips {len(spec['skip'])} suite(s)"
                         " with no skip_reason -- a skip is an exemption")
+        for fn in spec.get("skip") or ():
+            if not (fnmatch.fnmatchcase(fn, pat)
+                    and os.path.isfile(os.path.join(root, d, fn))):
+                viol.append(f"[ci.globs.{name}] skip '{fn}' names no {d}/{pat}"
+                            " file -- a stale skip would silently exempt the"
+                            " next suite given that name")
 
     # A runner is exempt from the tiers because it EXECUTES them. One that never
     # reads the registry is not a harness, it is a suite parked out of reach of

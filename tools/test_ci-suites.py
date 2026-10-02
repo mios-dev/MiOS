@@ -58,6 +58,18 @@ class TestRegistryReader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertNotEqual(0, MOD.cmd_check(d, ci))
 
+    def test_a_skip_must_name_an_existing_glob_member(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "t").mkdir()
+            Path(d, "t", "test_live.py").write_text("")
+            for skip, stale in ((["test_live.py"], False), (["test_gone.py"], True)):
+                ci = self._ci(globs={"g": {"dir": "t", "glob": "test_*.py", "tier": "lint",
+                                           "skip": skip, "skip_reason": "needs a database"}})
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    MOD.cmd_check(d, ci)
+                self.assertEqual(stale, "stale skip" in out.getvalue(), out.getvalue())
+
     def test_a_suite_in_two_tiers_fails(self):
         ci = self._ci(tiers={"lint": ["automation/lint-json.sh"],
                              "gate": ["automation/lint-json.sh"]})

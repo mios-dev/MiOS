@@ -12524,14 +12524,7 @@ dir  = "usr/lib/mios/agent-pipe"
 glob = "test_mios_*.py"
 tier = "unit"
 skip = [
-    "test_mios_config_audit.py",
-    "test_mios_redact.py",
-    "test_mios_vector.py",
-    "test_mios_gateway_agent.py",
     "test_mios_gateway_queue.py",
-    "test_mios_admission.py",
-    "test_mios_mcp_pool.py",
-    "test_mios_bench_harness.py",
 ]
 skip_reason = "needs a live database or a heavy dependency; covered by the build job's virtualenv gate"
 
