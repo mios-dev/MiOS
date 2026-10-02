@@ -69,46 +69,46 @@ pub fn render_cockpit(ssot: &str) -> Result<String, UnitGenError> {
 }
 
 fn install_fs(install: &toml::Value) -> Result<&str, UnitGenError> {
-    let fs = config_value(install, "install", "root_fs_type")?
+    let fs = config_value(install, "bootc_install", "root_fs_type")?
         .as_str()
         .ok_or_else(|| {
-            UnitGenError::GoldenMaster("[install].root_fs_type must be a string".into())
+            UnitGenError::GoldenMaster("[bootc_install].root_fs_type must be a string".into())
         })?;
     if !matches!(fs, "xfs" | "ext4" | "btrfs") {
         return Err(UnitGenError::GoldenMaster(format!(
-            "[install].root_fs_type = {fs:?} is not one of bootc's xfs | ext4 | btrfs"
+            "[bootc_install].root_fs_type = {fs:?} is not one of bootc's xfs | ext4 | btrfs"
         )));
     }
     Ok(fs)
 }
 
 fn install_gb(install: &toml::Value, key: &str) -> Result<i64, UnitGenError> {
-    config_value(install, "install", key)?
+    config_value(install, "bootc_install", key)?
         .as_integer()
         .filter(|v| *v > 0)
         .ok_or_else(|| {
-            UnitGenError::GoldenMaster(format!("[install].{key} must be a positive integer"))
+            UnitGenError::GoldenMaster(format!("[bootc_install].{key} must be a positive integer"))
         })
 }
 
 /// bootc's install configuration ([install] in a usr/lib/bootc/install/*.toml
-/// drop-in), from mios.toml [install]. bootc parses that table with
+/// drop-in), from mios.toml [bootc_install]. bootc parses that table with
 /// deny_unknown_fields, so only keys bootc documents are emitted.
 pub fn render_bootc_install(ssot: &str) -> Result<String, UnitGenError> {
     let doc: toml::Value = toml::from_str(ssot)?;
-    let fs = install_fs(config_value(&doc, "root", "install")?)?;
-    Ok(format!("# AI-hint: bootc install configuration projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.\n[install]\nroot-fs-type = \"{fs}\"\n"))
+    let fs = install_fs(config_value(&doc, "root", "bootc_install")?)?;
+    Ok(format!("# AI-hint: bootc install configuration projected from mios.toml [bootc_install]; regenerate with mios-unit-gen bootc-install, never edit.\n[install]\nroot-fs-type = \"{fs}\"\n"))
 }
 
-/// The root partition for systemd-repart, from the same [install] table, so
+/// The root partition for systemd-repart, from the same [bootc_install] table, so
 /// the filesystem bootc formats and the one repart declares cannot disagree.
 pub fn render_repart_root(ssot: &str) -> Result<String, UnitGenError> {
     let doc: toml::Value = toml::from_str(ssot)?;
-    let install = config_value(&doc, "root", "install")?;
+    let install = config_value(&doc, "root", "bootc_install")?;
     let fs = install_fs(install)?;
     let min = install_gb(install, "root_min_gb")?;
     let pad = install_gb(install, "root_padding_gb")?;
-    Ok(format!("# AI-hint: Root partition for systemd-repart projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.\n[Partition]\nType=root\n# Grows to fill the disk: no SizeMaxBytes.\nSizeMinBytes={min}G\nPaddingMinBytes={pad}G\nFormat={fs}\n"))
+    Ok(format!("# AI-hint: Root partition for systemd-repart projected from mios.toml [bootc_install]; regenerate with mios-unit-gen bootc-install, never edit.\n[Partition]\nType=root\n# Grows to fill the disk: no SizeMaxBytes.\nSizeMinBytes={min}G\nPaddingMinBytes={pad}G\nFormat={fs}\n"))
 }
 
 /// The enrollment consumer sources this file in Bash. Escape double-quote

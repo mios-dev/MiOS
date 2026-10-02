@@ -1,129 +1,61 @@
 #!/usr/bin/env python3
-# AI-hint: Unit and integration tests for baremetal NVMe hardware discovery and bootc installer.
-# AI-related: usr/libexec/mios/deploy/baremetal_install.py, usr/share/mios/mios.toml, usr/libexec/mios/deploy/usb_format.py
-"""Unit and integration test suite for BareMetalInstaller, HardwareDiscoveryEngine, and CLI."""
+# AI-hint: Tests for the bare-metal install shim -- argument forwarding to the native mios-install and its failure when absent.
+# AI-related: usr/libexec/mios/deploy/baremetal_install.py, tools/native/mios-install/src/main.rs
+"""The shim's contract: forward to `mios-install disk`, map --force, fail loudly when missing."""
 
 from __future__ import annotations
 
-import importlib.util
-import json
 import os
+import stat
+import subprocess
 import sys
+import tempfile
 import unittest
-from unittest.mock import patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_TARGET_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "deploy", "baremetal_install.py")
-
-spec = importlib.util.spec_from_file_location("baremetal_install", _TARGET_PATH)
-if spec and spec.loader:
-    baremetal_install = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = baremetal_install
-    spec.loader.exec_module(baremetal_install)
-else:
-    raise ImportError(f"Could not load module from {_TARGET_PATH}")
-
-class TestBaremetalInstall(unittest.TestCase):
-    """Test suite for NVMe disk ranking, safety assertion, bootc command synthesis, and CLI."""
-
-    def test_discovery_scan_disks_ranking(self):
-        discovery = baremetal_install.HardwareDiscoveryEngine(mock=True)
-        disks = discovery.scan_disks()
-        self.assertGreaterEqual(len(disks), 3)
-
-        # Fastest eligible drive (NVMe) must rank first
-        self.assertEqual(disks[0].bus_type, "nvme")
-        self.assertEqual(disks[0].device_path, "/dev/nvme0n1")
-        self.assertEqual(disks[0].status, "eligible")
-        self.assertGreater(disks[0].score, disks[1].score)
-
-        # Boot USB disk must be ineligible
-        boot_usb = next(d for d in disks if d.device_path == "/dev/sdb")
-        self.assertEqual(boot_usb.status, "ineligible_current_boot")
-        self.assertEqual(boot_usb.score, 0)
-
-    def test_plan_install_auto_select(self):
-        installer = baremetal_install.BareMetalInstaller(
-            auto_select=True,
-            image_ref="ghcr.io/ublue-os/ucore-hci:latest",
-            filesystem="btrfs",
-            yes=True,
-            mock=True,
-        )
-        plan = installer.plan_install()
-        self.assertEqual(plan.target_disk.device_path, "/dev/nvme0n1")
-        self.assertTrue(plan.uefi_supported)
-        self.assertEqual(plan.filesystem, "btrfs")
-        self.assertIn("bootc", plan.bootc_command)
-        self.assertIn("install", plan.bootc_command)
-        self.assertIn("/dev/nvme0n1", plan.bootc_command)
-
-    def test_plan_install_current_boot_rejected(self):
-        installer = baremetal_install.BareMetalInstaller(
-            target_disk="/dev/sdb",  # Live boot device
-            yes=True,
-            force=False,
-            mock=True,
-        )
-        with self.assertRaises(ValueError) as ctx:
-            installer.plan_install()
-        self.assertIn("SAFETY VIOLATION", str(ctx.exception))
-
-    def test_execute_install_mock(self):
-        installer = baremetal_install.BareMetalInstaller(auto_select=True, yes=True, mock=True)
-        res = installer.run()
-        self.assertEqual(res["status"], "success")
-        self.assertEqual(res["target"]["device_path"], "/dev/nvme0n1")
-        self.assertTrue(res["uefi"])
-        self.assertGreaterEqual(len(res["commands_executed"]), 3)
-
-    def test_cli_execution_auto_select_mock_json(self):
-        test_args = [
-            "baremetal_install.py",
-            "--auto-select",
-            "--image-ref", "ghcr.io/ublue-os/ucore-hci:latest",
-            "--filesystem", "btrfs",
-            "--yes",
-            "--mock",
-            "--json",
-        ]
-        with patch.object(sys, "argv", test_args):
-            exit_code = baremetal_install.main()
-            self.assertEqual(exit_code, 0)
-
-    def test_default_image_is_mios_from_ssot_not_the_base(self):
-        import tomllib
-        with open(os.path.join(_ROOT, "usr", "share", "mios", "mios.toml"), "rb") as f:
-            image = tomllib.load(f)["image"]
-        installer = baremetal_install.BareMetalInstaller(auto_select=True, mock=True)
-        plan = installer.plan_install()
-        self.assertEqual(plan.image_ref, image["ref"])
-        self.assertNotEqual(plan.image_ref, image["base"])
-
-    def test_bootc_command_uses_only_real_bootc_flags(self):
-        # bootc 1.16 `install to-disk --help`: no --generic-image-from exists;
-        # the install source is --source-imgref, upgrades track --target-imgref.
-        installer = baremetal_install.BareMetalInstaller(
-            auto_select=True, image_ref="registry.example/os:1", mock=True
-        )
-        cmd = installer.plan_install().bootc_command
-        self.assertNotIn("--generic-image-from", cmd)
-        self.assertEqual(cmd[cmd.index("--source-imgref") + 1], "docker://registry.example/os:1")
-        self.assertEqual(cmd[cmd.index("--target-imgref") + 1], "registry.example/os:1")
-        self.assertEqual(cmd[-1], "/dev/nvme0n1")
-
-    def test_filesystem_defaults_to_the_image_install_config(self):
-        installer = baremetal_install.BareMetalInstaller(auto_select=True, mock=True)
-        plan = installer.plan_install()
-        self.assertIsNone(plan.filesystem)
-        self.assertNotIn("--filesystem", plan.bootc_command)
+_SHIM = os.path.join(_HERE, "..", "usr", "libexec", "mios", "deploy", "baremetal_install.py")
 
 
-def main() -> int:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestBaremetalInstall)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
+def run_shim(args, fake):
+    env = {k: v for k, v in os.environ.items() if k != "MIOS_INSTALL_BIN"}
+    env["PATH"] = "/usr/bin:/bin"
+    if fake:
+        env["MIOS_INSTALL_BIN"] = fake
+    return subprocess.run([sys.executable, _SHIM, *args], env=env,
+                          capture_output=True, text=True, check=False)
+
+
+class TestBaremetalInstallShim(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.record = os.path.join(self.dir.name, "argv")
+        self.fake = os.path.join(self.dir.name, "mios-install")
+        with open(self.fake, "w", encoding="utf-8") as fh:
+            fh.write('#!/bin/sh\nprintf "%%s\\n" "$@" > "%s"\n' % self.record)
+        os.chmod(self.fake, os.stat(self.fake).st_mode | stat.S_IEXEC)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def forwarded(self):
+        with open(self.record, encoding="utf-8") as fh:
+            return fh.read().split()
+
+    def test_arguments_reach_mios_install_disk_unchanged(self):
+        r = run_shim(["--target-disk", "/dev/nvme0n1", "--yes", "--json"], self.fake)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.forwarded(), ["disk", "--target-disk", "/dev/nvme0n1", "--yes", "--json"])
+
+    def test_force_still_confirms_and_now_only_skips_the_uefi_check(self):
+        r = run_shim(["--auto-select", "--force"], self.fake)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.forwarded(), ["disk", "--auto-select", "--yes", "--force"])
+
+    def test_a_missing_native_binary_is_a_named_failure(self):
+        r = run_shim(["--auto-select"], None)
+        self.assertEqual(r.returncode, 127)
+        self.assertIn("mios-install is not installed", r.stderr)
+
 
 if __name__ == "__main__":
-    sys.exit(main())
+    unittest.main(verbosity=2)

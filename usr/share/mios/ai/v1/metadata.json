@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3595,
-  "total_metadata_entries": 2960,
-  "total_hints": 2945,
-  "total_functions_indexed": 1363,
-  "total_related_links": 4648,
+  "total_files_scanned": 3599,
+  "total_metadata_entries": 2964,
+  "total_hints": 2949,
+  "total_functions_indexed": 1374,
+  "total_related_links": 4658,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -6104,11 +6104,10 @@
     },
     {
       "path": "tests/test-baremetal-install.py",
-      "hint": "Unit and integration tests for baremetal NVMe hardware discovery and bootc installer.",
+      "hint": "Tests for the bare-metal install shim -- argument forwarding to the native mios-install and its failure when absent.",
       "related": [
         "usr/libexec/mios/deploy/baremetal_install.py",
-        "usr/share/mios/mios.toml",
-        "usr/libexec/mios/deploy/usb_format.py"
+        "tools/native/mios-install/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9200,6 +9199,72 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-install/Cargo.toml",
+      "hint": "Cargo manifest for mios-install crate -- the native installer that puts [image].ref on a disk via the image's own bootc.",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml",
+        "usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-install/src/lib.rs",
+      "hint": "Rust library for mios-install -- sysfs disk discovery, boot-disk and size safety gates, and the podman+bootc install plan.",
+      "related": [
+        "tools/native/mios-install/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "usr/lib/bootc/install/00-mios.toml"
+      ],
+      "functions": [
+        "scan",
+        "boot_disks",
+        "rank",
+        "select",
+        "plan",
+        "mock_disks"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-install/src/main.rs",
+      "hint": "Rust CLI entry point for mios-install -- `mios-install disk` installs [image].ref to a disk through the image's own bootc.",
+      "related": [
+        "tools/native/mios-install/src/lib.rs",
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/deploy/baremetal_install.py"
+      ],
+      "functions": [
+        "main",
+        "run",
+        "parse",
+        "ssot"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-install/tests/cli.rs",
+      "hint": "Integration tests for the mios-install CLI -- plan shape, SSOT-sourced values, and every refusal path that must never reach podman.",
+      "related": [
+        "tools/native/mios-install/src/main.rs",
+        "tools/native/mios-install/src/lib.rs"
+      ],
+      "functions": [
+        "run",
+        "fixture"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-render-quadlets/Cargo.toml",
       "hint": "Cargo manifest for mios-render-quadlets -- the SSOT-driven replacement for stage 34's envsubst renderer.",
       "related": [
@@ -10559,7 +10624,7 @@
     },
     {
       "path": "usr/lib/bootc/install/00-mios.toml",
-      "hint": "bootc install configuration projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.",
+      "hint": "bootc install configuration projected from mios.toml [bootc_install]; regenerate with mios-unit-gen bootc-install, never edit.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -15768,7 +15833,7 @@
     },
     {
       "path": "usr/lib/repart.d/50-root.conf",
-      "hint": "Root partition for systemd-repart projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.",
+      "hint": "Root partition for systemd-repart projected from mios.toml [bootc_install]; regenerate with mios-unit-gen bootc-install, never edit.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -19639,17 +19704,16 @@
     },
     {
       "path": "usr/libexec/mios/deploy/baremetal_install.py",
-      "hint": "NVMe hardware discovery and automated bootc install to-disk baremetal deployer",
+      "hint": "Compatibility shim -- forwards the bare-metal install CLI to the native mios-install binary.",
       "related": [
         "tests/test-baremetal-install.py",
-        "usr/share/mios/mios.toml",
-        "usr/libexec/mios/deploy/usb_format.py"
+        "tools/native/mios-install/src/main.rs",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [
-        "BareMetalInstaller",
-        "DiskCandidate",
-        "HardwareDiscoveryEngine",
-        "install_to_disk"
+        "native_bin",
+        "translate",
+        "main"
       ],
       "doc": null,
       "comment_style": "hash",

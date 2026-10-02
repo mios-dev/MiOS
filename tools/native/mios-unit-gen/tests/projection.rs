@@ -550,12 +550,15 @@ fn sync_lookup_selects_the_host_suffix_when_both_artifacts_exist() {
 
 #[test]
 fn bootc_install_config_projects_install_and_rejects_unknown_filesystems() {
-    let ok = mios_unit_gen::render_bootc_install("[install]\nroot_fs_type = \"btrfs\"\n").unwrap();
+    let ok =
+        mios_unit_gen::render_bootc_install("[bootc_install]\nroot_fs_type = \"btrfs\"\n").unwrap();
     assert!(ok.contains("[install]\nroot-fs-type = \"btrfs\"\n"), "{ok}");
-    assert!(mios_unit_gen::render_bootc_install("[install]\nroot_fs_type = \"zfs\"\n").is_err());
+    assert!(
+        mios_unit_gen::render_bootc_install("[bootc_install]\nroot_fs_type = \"zfs\"\n").is_err()
+    );
     assert!(mios_unit_gen::render_bootc_install("[image]\nref = \"x\"\n").is_err());
     let repart = mios_unit_gen::render_repart_root(
-        "[install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 90\nroot_padding_gb = 2\n",
+        "[bootc_install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 90\nroot_padding_gb = 2\n",
     )
     .unwrap();
     assert!(
@@ -563,7 +566,7 @@ fn bootc_install_config_projects_install_and_rejects_unknown_filesystems() {
         "{repart}"
     );
     assert!(mios_unit_gen::render_repart_root(
-        "[install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 0\nroot_padding_gb = 2\n"
+        "[bootc_install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 0\nroot_padding_gb = 2\n"
     )
     .is_err());
 }

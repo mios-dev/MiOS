@@ -130,7 +130,7 @@ impl Check for BootcInstallProjectionCheck {
         "check_bootc_install_projection"
     }
     fn describe(&self) -> &'static str {
-        "Assert the bootc install config projection matches mios.toml [install]"
+        "Assert the bootc install config projection matches mios.toml [bootc_install]"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
         deployment_check(ctx, mios_unit_gen::DeploymentKind::BootcInstall)

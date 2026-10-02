@@ -8,6 +8,7 @@ members = [
     "mios-comment-lex",
     "mios-drift-runner",
     "mios-edge-status",
+    "mios-install",
     "mios-render-quadlets",
     "mios-resolver",
     "mios-size-ceiling",

@@ -1,0 +1,16 @@
+# AI-hint: Cargo manifest for mios-install crate -- the native installer that puts [image].ref on a disk via the image's own bootc.
+# AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml, usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md
+
+[package]
+name = "mios-install"
+version.workspace = true
+edition.workspace = true
+description = "Install the MiOS image to a disk by running its own bootc in a privileged podman container"
+
+[dependencies]
+mios-resolver = { path = "../mios-resolver" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile.workspace = true

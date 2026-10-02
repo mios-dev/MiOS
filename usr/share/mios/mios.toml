@@ -1890,6 +1890,7 @@ binaries = [
   "mios-resolver", "mios-size-ceiling", "mios-ssot-lint", "mios-task",
   "mios-template-compile", "mios-template-conform", "mios-toolchain-pin",
   "mios-unit-gen", "mios-version-check", "xtask", "mios-gate", "mios-probe", "miosd",
+  "mios-install",
 ]
 install_dir = "/usr/bin"
 expose_bin = false
@@ -6065,14 +6066,9 @@ local_tag      = "localhost/mios:latest"
 machine_os_repo = "quay.io/podman/machine-os"
 machine_os_tag  = "6.0"
 
-[install]
-# mios-install (tools/native/mios-install) puts [image].ref on a disk by
-# running the image's own bootc in a privileged podman container
-# (`bootc install to-disk`), the invocation bootc documents. ADR-0014.
-# Root filesystem the image installs to; projected into
-# usr/lib/bootc/install/00-mios.toml and usr/lib/repart.d/50-root.conf by
-# `mios-unit-gen bootc-install`.
-# One of bootc's xfs | ext4 | btrfs.
+[bootc_install]
+# Read by mios-install and `mios-unit-gen bootc-install` (ADR-0014).
+# Root filesystem, one of bootc's xfs | ext4 | btrfs.
 root_fs_type    = "ext4"
 # bootc --bound-images: "stored" copies the logically bound images from the
 # installing host's container storage (air-gapped media pre-seed them);
@@ -7224,7 +7220,7 @@ non_addressable = [
 # [generator] -- Quadlet & manifest generator configuration
 # ----------------------------------------------------------------------------
 [generator]
-placeholders             = ["FEDORA_VERSION", "MIOS_VERSION"]
+placeholders             = ["FEDORA_VERSION", "MIOS_VERSION", "MIOS_VERSION_FEDORA"]
 
 [versions]
 fedora                   = "44"
