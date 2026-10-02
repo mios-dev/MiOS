@@ -27,19 +27,23 @@ jobs:
   # are the same set .forgejo/workflows/build-mios.yml runs.
   drift-gate:
     runs-on: ubuntu-24.04
-    # The gate runs on Fedora, the distro the dev image and MiOS itself are
-    # built on, not on the runner's Ubuntu. A literal because container: is
+    # The gate runs on the podman machine OS (Fedora CoreOS) that MiOS-DEV boots
+    # and the dev image is built FROM, not on the runner's Ubuntu. A literal because container: is
     # resolved before any step can read the SSOT; tools/ci-suites.py --check
     # holds it equal to [ci.fedora].image and to .devcontainer/Containerfile.
     container:
-      image: registry.fedoraproject.org/fedora:44
+      image: quay.io/podman/machine-os:6.0
     permissions:
       contents: read
     steps:
       - name: Bootstrap git and python
         # Before checkout: without git in the container, actions/checkout falls
         # back to a tarball with no .git, and every git-backed check would fail.
-        run: dnf install -y --setopt=install_weak_deps=False git-core python3
+        # The ostree base's /var link targets come from its tmpfiles.d, as in the dev image.
+        run: |
+          systemd-tmpfiles --create --prefix=/var/home --prefix=/var/roothome --prefix=/var/opt \
+              --prefix=/var/srv --prefix=/var/mnt --prefix=/var/usrlocal
+          dnf install -y --setopt=install_weak_deps=False git-core python3
 
       - name: Checkout
         uses: actions/checkout@v4
