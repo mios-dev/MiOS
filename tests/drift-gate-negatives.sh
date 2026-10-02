@@ -1020,8 +1020,34 @@ User=root
 EOF
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 && die "Check_quadlet_privilege passed despite un-allowlisted User=root"
-
     rm -f "$temp_q"
+
+    # A unit with no User= at all runs as root: it must be refused by name.
+    local temp_mu="${q_dir}/fake-missing-user.container" out_mu
+    cat << 'EOF' > "$temp_mu"
+[Container]
+Image=docker.io/library/alpine:latest
+Delegate=yes
+EOF
+    if out_mu="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege 2>&1)"; then
+        rm -f "$temp_mu"
+        die "Check_quadlet_privilege passed despite missing User="
+    fi
+    rm -f "$temp_mu"
+    grep -qF "fake-missing-user.container: implicitly/explicitly root (User=) but NOT in [security.privileged_quadlets].root" <<<"$out_mu" \
+        || die "Check_quadlet_privilege failed the missing-User= plant without naming it"
+
+    # The generator refuses the same shape before it is ever written.
+    python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("podgen", sys.argv[1] + "/tools/generate-pod-quadlets.py")
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+try:
+    m.render_nested_quadlet("zz-planted", {"Container": {"Image": "alpine"}}, "container")
+except m.UnauthorizedPrivilegeError as exc:
+    print(exc); sys.exit(0 if "'"'"'zz-planted'"'"' declares no User=" in str(exc) else 1)
+sys.exit(1)
+' "$ROOT" >/dev/null || die "generate-pod-quadlets passed despite missing User="
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 \
         || die "Check_quadlet_privilege failed after restoration"
     log "Test_quadlet_privilege negative test passed"

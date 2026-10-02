@@ -440,6 +440,7 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str,
     )
 
     lines: list[str] = []
+    declares_user = False
     desc = str(spec.get("description") or f"MiOS {name} {unit_type}")
     lines.append(f"# AI-hint: {desc}. (WS-7 pods-as-SSOT).")
     lines.append(
@@ -481,6 +482,8 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str,
                             )
                     if k == "Environment" and unit_type == "container":
                         validate_environment_entry(name, unit_type, str(resolved_item), grandfathered_creds, secret_keys)
+                    if k == "User" and sec == "Container" and str(resolved_item).strip():
+                        declares_user = True
                     lines.append(f"{k}={resolved_item}")
             elif isinstance(val, bool):
                 lines.append(f"{k}={'true' if val else 'false'}")
@@ -498,7 +501,17 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str,
                         )
                 if k == "Environment" and unit_type == "container":
                     validate_environment_entry(name, unit_type, str(resolved_val), grandfathered_creds, secret_keys)
+                if k == "User" and sec == "Container":
+                    declares_user = True
                 lines.append(f"{k}={resolved_val}")
+
+    # A container with no User= runs as root, so it is held to the same
+    # allowlist as an explicit User=0 (Law 6).
+    if unit_type == "container" and not declares_user and not is_auth_root:
+        raise UnauthorizedPrivilegeError(
+            f"Container '{name}' declares no User=/Group= and is not listed in "
+            f"[security.privileged_quadlets].root (Law 6)"
+        )
 
     return "\n".join(lines).strip() + "\n"
 
@@ -700,6 +713,8 @@ def _selftest() -> int:
         "Container": {
             "Image": "docker.io/library/alpine:latest",
             "ContainerName": "test-alpine",
+            "User": "1000",
+            "Group": "1000",
             "Environment": ["A=1", "B=2"]
         }
     }
@@ -713,7 +728,8 @@ def _selftest() -> int:
     global _SIDECARS
     _SIDECARS = {"pgvector": "docker.io/pgvector/pgvector:0.8.3-pg17@sha256:deadbeef"}
     os.environ.pop("MIOS_PGVECTOR_IMAGE", None)
-    img_spec = {"Container": {"Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"}}
+    img_spec = {"Container": {"Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}",
+                              "User": "826", "Group": "826"}}
     ic = render_nested_quadlet("mios-pgvector", img_spec, "container")
     ck("selftest: bare-env resolves digest from [image.sidecars]", "@sha256:deadbeef" in ic)
 
@@ -738,7 +754,7 @@ def _selftest() -> int:
     _SSOT_EXPORTS = {"T_UTIL": "0.85", "T_VER": "latest", "MIOS_PORT_CHROME_CDP": "9222",
                      "MIOS_CRAWL_CDP_URL": "http://127.0.0.1:9222"}
     ssot_spec = {"Container": {
-        "Exec": "--util ${T_UTIL:-0.80}", "Image": "q.io/t:${T_VER}",
+        "Exec": "--util ${T_UTIL:-0.80}", "Image": "q.io/t:${T_VER}", "User": "1000", "Group": "1000",
         "Environment": "U=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}}"}}
     os.environ.update(T_UTIL="0.99", T_VER="planted")
     sc = render_nested_quadlet("mios-test-ssot", ssot_spec, "container")
@@ -809,10 +825,24 @@ def _selftest() -> int:
     unpriv_out = render_nested_quadlet("mios-adguard", {"Container": {"User": "825", "Group": "825", "Image": "adguard"}}, "container")
     ck("selftest: unprivileged container with User=825 passes", "User=825" in unpriv_out and "Group=825" in unpriv_out)
 
+    # Negative Control 4b: a container declaring no User= runs as root, so an
+    # un-allowlisted one is refused exactly like an explicit User=0.
+    try:
+        render_nested_quadlet("zz-planted", {"Container": {"Image": "alpine"}}, "container")
+        ck("selftest: un-allowlisted container without User= is rejected", False)
+    except UnauthorizedPrivilegeError as exc:
+        ck("selftest: un-allowlisted container without User= is rejected",
+           "'zz-planted' declares no User=" in str(exc) and "Law 6" in str(exc))
+
+    # Positive Control 2b: an allowlisted container may omit User= (implicit root).
+    implicit_out = render_nested_quadlet("mios-ceph", {"Container": {"Image": "ceph"}}, "container")
+    ck("selftest: allowlisted mios-ceph without User= is rendered",
+       "Image=ceph" in implicit_out and "User=" not in implicit_out)
+
     # --- Credential and Plaintext Secret Controls (Law 11) ---
     # Negative Control 5: Non-placeholder password literal in Environment is rejected
     try:
-        render_nested_quadlet("test-db", {"Container": {"Environment": ["POSTGRES_PASSWORD=my-super-secret-pw"], "Image": "postgres"}}, "container")
+        render_nested_quadlet("test-db", {"Container": {"Environment": ["POSTGRES_PASSWORD=my-super-secret-pw"], "Image": "postgres", "User": "826", "Group": "826"}}, "container")
         ck("selftest: non-placeholder password literal in Environment is rejected", False)
     except PlaintextSecretError:
         ck("selftest: non-placeholder password literal in Environment is rejected", True)
@@ -820,7 +850,7 @@ def _selftest() -> int:
     # Negative Control 6: Build-environment variable injected password literal is rejected
     os.environ["MIOS_INJECTED_PASS"] = "NOT-A-REAL-PASSWORD-negative-test"
     try:
-        render_nested_quadlet("test-db", {"Container": {"Environment": ["DB_PASSWORD=${MIOS_INJECTED_PASS:-placeholder}"], "Image": "postgres"}}, "container")
+        render_nested_quadlet("test-db", {"Container": {"Environment": ["DB_PASSWORD=${MIOS_INJECTED_PASS:-placeholder}"], "Image": "postgres", "User": "826", "Group": "826"}}, "container")
         ck("selftest: build-env injected password literal is rejected", False)
     except PlaintextSecretError:
         ck("selftest: build-env injected password literal is rejected", True)
@@ -828,11 +858,11 @@ def _selftest() -> int:
         os.environ.pop("MIOS_INJECTED_PASS", None)
 
     # Positive Control 3: Grandfathered placeholder password literal passes
-    gf_out = render_nested_quadlet("mios-pgvector", {"Container": {"Environment": ["POSTGRES_PASSWORD=mios"], "Image": "pgvector"}}, "container")
+    gf_out = render_nested_quadlet("mios-pgvector", {"Container": {"Environment": ["POSTGRES_PASSWORD=mios"], "Image": "pgvector", "User": "826", "Group": "826"}}, "container")
     ck("selftest: grandfathered placeholder password literal passes", "Environment=POSTGRES_PASSWORD=mios" in gf_out)
 
     # Positive Control 4: Secret reference via EnvironmentFile passes
-    ref_out = render_nested_quadlet("mios-pgvector", {"Container": {"EnvironmentFile": "/etc/mios/secrets.env", "Image": "pgvector"}}, "container")
+    ref_out = render_nested_quadlet("mios-pgvector", {"Container": {"EnvironmentFile": "/etc/mios/secrets.env", "Image": "pgvector", "User": "826", "Group": "826"}}, "container")
     ck("selftest: secret reference via EnvironmentFile passes", "EnvironmentFile=/etc/mios/secrets.env" in ref_out)
 
     # User scope: rootless Podman cannot read bootc's root image store.
