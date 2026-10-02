@@ -25,3 +25,34 @@ portable `.devcontainer/devcontainer.json` profile.
 Use the privileged `.devcontainer/artifact-builder/devcontainer.json` only on
 a trusted, self-managed builder host. Cloud Shell providers do not promise the
 privileges needed for `bootc-image-builder` disk artifacts.
+
+## Claude Code cloud environment
+
+A Claude Code cloud session runs on a fixed Ubuntu VM, so MiOS reaches it as
+the same dev image Codespaces builds: `claude-code-cloud.sh` builds
+`.devcontainer/Containerfile` (FROM the machine-os mirror every MiOS image
+shares) from MiOS `main` under rootful podman, runs the devcontainer
+lifecycle, and installs `mios-dev`, which enters that image with the session's
+checkouts mounted at the same paths. The generic projection and the dev-loop
+plugin come from the dev-loop toolkit; this file supplies only MiOS's values.
+
+In the environment's settings (environment menu, Edit):
+
+Setup script:
+
+```bash
+#!/bin/bash
+curl -fsSL https://raw.githubusercontent.com/mios-dev/MiOS/main/.devcontainer/cloud-shell/claude-code-cloud.sh -o /tmp/mios-claude-code-cloud.sh && bash /tmp/mios-claude-code-cloud.sh
+exit 0
+```
+
+Environment variables:
+
+```
+CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop
+```
+
+Every `FEDORA_*` value has a default in the script; set one in the environment
+variables only to override it. A cold first build can exceed the setup budget:
+past `FEDORA_SETUP_BUDGET_S` the lifecycle is deferred, `mios-dev` says so, and
+`bash /opt/dev-loop-fedora/cloud-fedora-setup.sh --lifecycle` applies it.

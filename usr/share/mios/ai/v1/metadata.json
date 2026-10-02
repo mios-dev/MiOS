@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3605,
-  "total_metadata_entries": 2969,
-  "total_hints": 2954,
-  "total_functions_indexed": 1375,
-  "total_related_links": 4671,
+  "total_metadata_entries": 2970,
+  "total_hints": 2955,
+  "total_functions_indexed": 1376,
+  "total_related_links": 4675,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -63,6 +63,22 @@
       "hint": "Installs a launcher for, and starts, the portable MiOS Dev Container from supported cloud shells (Google Cloud Shell, Oracle Cloud Shell).",
       "related": [],
       "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": ".devcontainer/cloud-shell/claude-code-cloud.sh",
+      "hint": "Setup script for a Claude Code cloud environment that develops MiOS: builds the MiOS dev image (the same .devcontainer Codespaces builds, FROM the machine-os mirror every MiOS image shares) under rootful podman from MiOS main, installs the mios-dev wrapper and the dev-loop plugin, and always exits 0.",
+      "related": [
+        "/usr/share/mios/templates/bash",
+        ".devcontainer/Containerfile",
+        ".devcontainer/devcontainer.json",
+        ".devcontainer/cloud-shell/README.md"
+      ],
+      "functions": [
+        "main"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
