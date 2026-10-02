@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**27 ADRs** (19 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**27 ADRs** (20 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -20,7 +20,7 @@
 | 0011 | [Unified languages & compiled file-patterns — language-per-domain + one-template-per-type](usr/share/doc/mios/adr/0011-unified-languages-and-file-patterns.md) | proposed | 2026-07-16 | 7, 8, 9 | -- |
 | 0012 | ["Float-latest: no hand-pinned versions across any artifact class"](usr/share/doc/mios/adr/0012-float-latest-no-hand-pinned-versions.md) | accepted | 2026-07-28 | 7, 8, 12 | `image.sidecars`, `build.bake`, `build.bake_groups`, `ai.bake_models` |
 | 0013 | ["Deploy-surface consolidation behind installation/mios-install"](usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md) | accepted | 2026-07-28 | 1, 7, 8, 9 | `install.target`, `cat.mode` |
-| 0014 | ["The bootc-install bare-metal leg: bootc install to-disk --transport oci"](usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md) | proposed | 2026-07-28 | 3, 4, 12 | `image.sidecars`, `build.bake` |
+| 0014 | ["The bootc-install bare-metal leg: the image's own bootc, run by mios-install"](usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md) | accepted | 2026-07-28 | 3, 4, 12, 14 | `image.ref`, `bootc_install` |
 | 0015 | ["Unified key library architecture & full de-duplication campaign"](usr/share/doc/mios/adr/0015-unified-key-library-architecture.md) | accepted | 2026-07-31 | 7, 8, 9, 13 | `build.bake`, `colors`, `ai`, `ports` |
 | 0016 | ["Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"](usr/share/doc/mios/adr/0016-blade-node-topology.md) | accepted | 2026-08-22 | 1, 3, 5, 7, 8, 9, 12 | `urls`, `ports`, `blade`, `blade.archetypes`, +16 |
 | 0017 | ["Blade workload mobility — placement ownership, degrade-not-refuse, local-first failover, and blade-only divergence"](usr/share/doc/mios/adr/0017-blade-workload-mobility.md) | accepted | 2026-08-22 | 3, 5, 7, 8, 12 | `blade`, `blade.archetypes`, `blade.requires`, `blade.discovery`, +5 |

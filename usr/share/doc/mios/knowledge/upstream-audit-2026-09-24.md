@@ -22,6 +22,12 @@ changelogs. Per the `/research` skill (primary sources first), do **not**
 bump `image-versions.yml` / `usr/share/mios/mios.toml` pins from this list
 alone — corroborate each against the vendor release notes before pinning.
 
+Corroborated since: the bootc claim is **not** supported. The v1.16.13 ..
+v1.16.14 history (15 commits, tag 2026-09-23) contains no composefs
+metadata signature-validation change **[verified: bootc git history at
+those tags, 2026-10-01; `.research/native-installer-bootc-prior-art-2026-10.md`
+§5.3]**. The other claims remain uncorroborated.
+
 ## Training-corpus provenance
 
 `dataset_info.json`: `mios-agent-tuning-corpus-2026-09-24`, HuggingFace TRL

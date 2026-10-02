@@ -1,71 +1,116 @@
-<!-- AI-hint: Architecture decision defining the three bootc install legs (to-existing-root, to-disk, to-filesystem) and offline OCI tar transport. -->
-<!-- AI-related: automation/build-mios.sh, installation/mios-install.sh, usr/share/mios/ventoy/mios-kickstart.cfg -->
+<!-- AI-hint: Architecture decision for installing MiOS onto hardware: the image's own bootc runs in podman via mios-install (to-disk, to-existing-root, to-filesystem). -->
+<!-- AI-related: tools/native/mios-install, tools/install.sh, usr/share/doc/mios/upstream/bootc.md -->
 ---
 adr: 0014
-title: "The bootc-install bare-metal leg: bootc install to-disk --transport oci"
-status: proposed
+title: "The bootc-install bare-metal leg: the image's own bootc, run by mios-install"
+status: accepted
 date: 2026-07-28
 deciders: [operator, ai-pair]
 tags: [bootc, bare-metal, installation, oci, offline]
-laws: [3, 4, 12]
-ssot_keys: [image.sidecars, build.bake]
+laws: [3, 4, 12, 14]
+ssot_keys: [image.ref, bootc_install]
 related_ws: [WS-CAT, WS-MDRIVE]
 supersedes: []
 superseded_by: []
 ---
 
-# ADR-0014: The bootc-install bare-metal leg: bootc install to-disk --transport oci
+# ADR-0014: The bootc-install bare-metal leg: the image's own bootc, run by mios-install
 
 ## Status
 
-Proposed — 2026-07-28. Implementation PLANNED to complete offline bare-metal installation capability across USB and Ventoy deployment surfaces.
+Accepted — 2026-10-02 (proposed 2026-07-28). The operator chose to install
+the MiOS image itself (`[image].ref`, which is built FROM the ucore-hci base)
+and to run bootc inside that image through podman. `disk` and
+`existing-root` are implemented; `to-filesystem` and the offline source are
+not yet.
 
 ## Context
 
-MiOS utilizes `bootc` for transactional OS updates and base system image management. While existing scripts (`automation/build-mios.sh`, `installation/mios-install.sh`) handle system conversion (`to-existing-root`) and updates (`mios-update`), they lack an offline bare-metal installer path for blank hardware.
-
-Installing directly onto blank disks without Internet connectivity requires sourcing the container image from a local OCI tarball rather than an online container registry.
+MiOS is updated with `bootc upgrade`/`switch`/`rollback`, but blank hardware
+needs an installer. bootc provides three install legs: `to-disk`,
+`to-filesystem` and `to-existing-root`. The earlier draft of this ADR planned
+`bootc install to-disk --transport oci`; bootc has no `--transport` flag. An
+offline source is named with `--source-imgref oci-archive:PATH`, and the image
+the installed host tracks is `--target-imgref` (`--target-transport` defaults
+to `registry`). Upstream documents running bootc inside the image being
+installed; host-run `--source-imgref` installs are outside that envelope
+(bootc discussion #1400). Evidence, with sources:
+`usr/share/doc/mios/upstream/bootc.md` §Installing a bootc image.
 
 ## Decision
 
-Formalize and implement the three bare-metal installation legs for `bootc`:
-
-1. **Three Installation Legs**:
-   - **`to-existing-root`** (Conversion): Replaces an existing running system's rootfs with the MiOS container image.
-   - **`to-disk`** (Blank Hardware): Installs the MiOS image directly onto an unpartitioned or blank target disk.
-   - **`to-filesystem`** (Kickstart / Custom Partitions): Sinks the container payload into pre-formatted target filesystems (used during Anaconda/Kickstart `%post`).
-
-2. **Offline OCI Transport Requirement**:
-   - Sources the target image via `--transport oci` / `oci-archive` from the local MiOS-Data OCI payload tarball on USB/Ventoy media.
-   - Guarantees fully offline deployment capability on blank hardware without external network egress.
+1. **One installer: `mios-install`** (`tools/native/mios-install`, a Rust
+   static-pie binary, Law 14). It owns disk discovery, the safety gates and
+   the plan, and execs bootc; it does not link bootc, which depends on
+   libostree, glib and OpenSSL.
+2. **bootc runs from the image being installed:**
+   `podman run --rm --privileged --pid=host --ipc=host -v /dev:/dev
+   -v /var/lib/containers:/var/lib/containers
+   --security-opt label=type:unconfined_t <[image].ref> bootc install …`.
+3. **Legs:**
+   - `mios-install disk` → `to-disk --wipe --bound-images <policy>
+     [--filesystem F] DEV`; a disk backing the running system is always
+     refused, as is one below `[bootc_install].root_min_gb`.
+   - `mios-install existing-root` → `to-existing-root
+     --acknowledge-destructive --bound-images <policy> [--cleanup]`, with
+     the host root at `/target`.
+   - `to-filesystem` (repart-partitioned disks, the only way to control
+     partition sizes with the shipped bootc) is the next leg.
+4. **Configuration comes from mios.toml.** `[image].ref` is the image;
+   `[bootc_install]` holds the root filesystem, the root-partition floor and
+   padding, and the bound-images policy, and is projected into
+   `usr/lib/bootc/install/00-mios.toml` and `usr/lib/repart.d/50-root.conf`.
+5. **Offline installs** (USB/Ventoy, Law 12) source the image from the staged
+   `oci-archive:` payload and must set `--target-imgref` to the registry
+   image, so `bootc upgrade` follows the published image after install.
 
 ## Rationale
 
-- Fills the architectural gap between online container updates and offline bare-metal provisioning.
-- Adheres to Law 12 (BAKE-NOT-FETCH) by embedding all required installation payload layers on local media.
-- Provides consistent partitioning and bootloader setup across physical hardware targets.
+- Running the image's own bootc makes the installer's bootc the version the
+  image was built and tested with, and is the configuration upstream
+  documents and tests.
+- A static binary that execs bootc keeps the native-tier rule (Law 14)
+  without linking C libraries that cannot be built statically.
+- One installer replaces the Python planner, which defaulted to the base
+  image and passed a flag bootc does not accept.
 
 ## Alternatives
 
-- **Online-Only Registry Installs**: Fails in air-gapped or low-connectivity environments.
-- **Traditional Anaconda ISO Only**: Increases build maintenance overhead by maintaining separate non-container installer payloads.
+- **Host bootc with `--source-imgref`**: no podman dependency, but the host's
+  bootc version decides the install and #1400 reports SELinux and
+  `prepare-root.conf` failures.
+- **Anaconda kickstart (`bootc`/`ostreecontainer`)**: cannot install
+  logically bound images, and adds a second installer to maintain.
+- **Linking bootc or ostree**: not possible as a static binary.
 
 ## Consequences
 
 ### Positive
-- Enables offline installation onto blank physical servers and workstations.
-- Standardizes bare-metal deployment on official upstream `bootc` commands.
+- Bare-metal and in-place installs from one tested binary, with every
+  tunable in mios.toml.
+- The installed host tracks `[image].ref` for upgrades.
 
 ### Negative
-- Requires larger USB/Ventoy image bundles containing the full OCI transport tar.
+- Requires podman on the installing host (present on MiOS and its live media).
+- With the shipped bootc (1.16.x), `to-disk` partitions with sfdisk, so
+  partition sizes need the `to-filesystem` leg.
+
+### Done when
+- `mios-install disk` and `existing-root` have installed MiOS on real
+  hardware and the result boots and upgrades (not yet verified).
+- The offline path sets `--target-imgref` and is exercised from USB media.
 
 ## Implementation
 
-- Will be integrated into `installation/mios-install.sh` under the `bootc` target.
-- Leverages Kickstart configuration in `usr/share/mios/ventoy/mios-kickstart.cfg`.
+- `tools/native/mios-install` -- `disk`, `existing-root`.
+- `usr/libexec/mios/deploy/baremetal_install.py` -- compatibility shim that
+  forwards to `mios-install disk`.
+- `tools/install.sh` -- offline USB installer; to be routed through
+  `mios-install` with an `oci-archive:` source and a registry target imgref.
 
 ## References
 
-- [ADR-0005: Sovereign run-off-M](file:///C:/MiOS/usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md)
-- [ADR-0008: MiOS-Cat unified entry point](file:///C:/MiOS/usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md)
-- [Architectural Laws 3, 4, 12](file:///C:/MiOS/usr/share/mios/mios.toml)
+- `usr/share/doc/mios/upstream/bootc.md` §Installing a bootc image
+- `.research/native-installer-bootc-prior-art-2026-10.md`
+- ADR-0005 (sovereign run-off-M), ADR-0008 (MiOS-Cat unified entry point)
+- Architectural Laws 3, 4, 12, 14 (`usr/share/mios/mios.toml` `[laws]`)

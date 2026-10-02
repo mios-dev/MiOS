@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3599,
-  "total_metadata_entries": 2964,
-  "total_hints": 2949,
+  "total_files_scanned": 3600,
+  "total_metadata_entries": 2965,
+  "total_hints": 2950,
   "total_functions_indexed": 1374,
   "total_related_links": 4658,
   "entries": [
@@ -326,6 +326,15 @@
     {
       "path": ".research/gemini-deep-research-foss-harness-secrets-2026-09.md",
       "hint": "Research prompt for an external deep-research run on MiOS secret transport and FOSS harness conformance; never supply real credentials to it.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": ".research/native-installer-bootc-prior-art-2026-10.md",
+      "hint": "Upstream prior-art research for a native Rust MiOS installer: bootc install legs, image builders, ostree/composefs/repart, Rust installers, atomic-distro peers.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -27348,11 +27357,11 @@
     },
     {
       "path": "usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md",
-      "hint": "Architecture decision defining the three bootc install legs (to-existing-root, to-disk, to-filesystem) and offline OCI tar transport.",
+      "hint": "Architecture decision for installing MiOS onto hardware: the image's own bootc runs in podman via mios-install (to-disk, to-existing-root, to-filesystem).",
       "related": [
-        "automation/build-mios.sh",
-        "installation/mios-install.sh",
-        "usr/share/mios/ventoy/mios-kickstart.cfg"
+        "tools/native/mios-install",
+        "tools/install.sh",
+        "usr/share/doc/mios/upstream/bootc.md"
       ],
       "functions": [],
       "doc": null,
