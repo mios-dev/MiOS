@@ -1654,3 +1654,10 @@ so long. Let a run finish.
 - next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
 - blockers: -
 - unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-10-02 14:28 · cb58b1ff · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
