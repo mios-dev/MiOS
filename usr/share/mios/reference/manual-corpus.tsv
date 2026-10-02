@@ -4654,15 +4654,16 @@ tests/powershell/run-pester.sh	70	73	4	47	6268c0fefade	STAY	midsize-why		0				0
 tests/powershell/run-pester.sh	88	90	3	31	207d9e5715f2	STAY	midsize-why		0				0
 tests/powershell/run-pester.sh	119	122	4	40	0bf8675da668	STAY	midsize-why		0				0
 tests/run-suites.sh	1	9	9	84	66212519c452	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:66212519c452	84	0
-tests/run-suites.sh	23	23	1	4	ee79de7a654f	STAY	inline-scoped		0				0
-tests/run-suites.sh	24	25	2	23	8d6c2e335216	STAY	local-scoped		0				0
-tests/run-suites.sh	30	30	1	15	8aad22995d32	STAY	local-scoped		0				0
-tests/run-suites.sh	33	33	1	3	f4a44b0245e7	STAY	inline-scoped		0				0
-tests/run-suites.sh	39	39	1	0	a47a5fa37173	DROP	banner		0				0
-tests/run-suites.sh	51	51	1	18	6cfe02b7fa35	STAY	local-scoped		0				0
-tests/run-suites.sh	66	66	1	4	6bc5f334d491	STAY	inline-scoped		0				0
-tests/run-suites.sh	67	67	1	9	61eece1d3ef0	STAY	inline-scoped		0				0
-tests/run-suites.sh	68	68	1	4	8eb99d4e9fe8	STAY	inline-scoped		0				0
+tests/run-suites.sh	49	49	1	9	66d858331167	STAY	local-scoped		0				0
+tests/run-suites.sh	69	69	1	4	ee79de7a654f	STAY	inline-scoped		0				0
+tests/run-suites.sh	70	71	2	23	8d6c2e335216	STAY	local-scoped		0				0
+tests/run-suites.sh	76	76	1	15	8aad22995d32	STAY	local-scoped		0				0
+tests/run-suites.sh	79	79	1	3	f4a44b0245e7	STAY	inline-scoped		0				0
+tests/run-suites.sh	87	87	1	0	a47a5fa37173	DROP	banner		0				0
+tests/run-suites.sh	103	103	1	18	6cfe02b7fa35	STAY	local-scoped		0				0
+tests/run-suites.sh	118	118	1	4	6bc5f334d491	STAY	inline-scoped		0				0
+tests/run-suites.sh	119	119	1	9	61eece1d3ef0	STAY	inline-scoped		0				0
+tests/run-suites.sh	120	120	1	4	8eb99d4e9fe8	STAY	inline-scoped		0				0
 tests/test-a2a.py	1	3	3	26	b975c7749819	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:b975c7749819	26	0
 tests/test-a2a.py	4	9	5	20	8a627e6e9812	STAY	midsize-why		0				0
 tests/test-a2a.py	51	54	4	10	1cb062e63b3b	STAY	midsize-why		0				0
@@ -5260,10 +5261,10 @@ tests/test-blade-enroll.sh	390	392	3	8	4b120b572449	DROP	banner		0				0
 tests/test-blade-enroll.sh	425	427	3	2	98536d045b64	DROP	banner		0				0
 tests/test-blade-reachability.sh	1	3	3	31	db58a4ca0222	STAY	ai-header		0				0
 tests/test-blade-reachability.sh	14	16	3	35	87d0a9b33aca	STAY	midsize-why		0				0
-tests/test-blade-reachability.sh	25	26	2	29	41f37b553559	STAY	midsize-why		0				0
-tests/test-blade-reachability.sh	58	59	2	25	cef573b64e87	STAY	local-scoped		0				0
-tests/test-blade-reachability.sh	102	102	1	10	881cb54caea5	STAY	local-scoped		0				0
-tests/test-blade-reachability.sh	113	113	1	12	86926aa971f9	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	38	39	2	29	41f37b553559	STAY	midsize-why		0				0
+tests/test-blade-reachability.sh	71	72	2	25	cef573b64e87	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	115	115	1	10	881cb54caea5	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	126	126	1	12	86926aa971f9	STAY	local-scoped		0				0
 tests/test-bootc-rollback-recovery.sh	1	3	3	22	800b36bada40	STAY	ai-header		0				0
 tests/test-bootc-rollback-recovery.sh	27	27	1	14	cf3c956bcf90	STAY	local-scoped		0				0
 tests/test-bootc-rollback-recovery.sh	34	34	1	20	8a73fb7e040c	STAY	local-scoped		0				0
@@ -6017,11 +6018,11 @@ tests/test-kernel-module-signature-enforce.sh	194	194	1	7	cac7d894a8e8	STAY	loca
 tests/test-kernel-module-signature-enforce.sh	210	210	1	13	2062a710f528	STAY	local-scoped		0				0
 tests/test-kernel-module-signature-enforce.sh	220	222	3	9	de7a0225daff	STAY	midsize-why		0				0
 tests/test-kernel-module-signature-enforce.sh	228	228	1	5	2ccaab4f0d55	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	265	265	1	9	52d69869ea91	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	277	277	1	11	225da92cf00e	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	289	289	1	11	0a1a6dcc9f30	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	301	301	1	7	0270bed67f3b	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	312	314	3	2	7d8d6654961d	DROP	banner		0				0
+tests/test-kernel-module-signature-enforce.sh	281	281	1	9	52d69869ea91	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	293	293	1	11	225da92cf00e	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	305	305	1	11	0a1a6dcc9f30	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	317	317	1	7	0270bed67f3b	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	328	330	3	2	7d8d6654961d	DROP	banner		0				0
 tests/test-knowledge-graph.py	1	3	3	17	3b215562b135	STAY	ai-header		0				0
 tests/test-knowledge-graph.py	4	8	4	33	7a7c73280cc5	STAY	midsize-why		0				0
 tests/test-knowledge-graph.py	31	31	1	11	0fa4150c6a53	STAY	local-scoped		0				0
@@ -7083,10 +7084,10 @@ tests/test-sample-tune.py	4	4	1	11	85e068c80b77	STAY	local-scoped		0				0
 tests/test-sample-tune.py	19	19	1	9	251dbc9f4bf8	STAY	local-scoped		0				0
 tests/test-sandbox-seccomp.sh	1	3	3	13	19fa05a290ea	STAY	ai-header		0				0
 tests/test-sandbox-seccomp.sh	22	22	1	2	98e90e436295	STAY	local-scoped		0				0
-tests/test-sandbox-seccomp.sh	38	39	2	16	9a3cffa28d33	STAY	local-scoped		0				0
-tests/test-sandbox-seccomp.sh	78	80	3	22	fe3c1e1663b4	STAY	midsize-why		0				0
-tests/test-sandbox-seccomp.sh	96	97	2	25	6a928abc41c5	STAY	local-scoped		0				0
-tests/test-sandbox-seccomp.sh	110	110	1	12	1ac126316010	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	39	40	2	16	9a3cffa28d33	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	84	86	3	22	fe3c1e1663b4	STAY	midsize-why		0				0
+tests/test-sandbox-seccomp.sh	102	103	2	25	6a928abc41c5	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	116	116	1	12	1ac126316010	STAY	local-scoped		0				0
 tests/test-sbom-export.py	1	3	3	20	a59bc9e27e7d	STAY	ai-header		0				0
 tests/test-sbom-export.py	20	20	1	7	df5eae341ee6	STAY	local-scoped		0				0
 tests/test-sbom-export.py	31	31	1	3	52715b5dfcbd	STAY	local-scoped		0				0
@@ -8029,9 +8030,8 @@ tests/test-uki-promote.py	1	3	3	20	af6fbbd75236	STAY	ai-header		0				0
 tests/test-uki-promote.py	19	19	1	5	e4e742b504b5	STAY	local-scoped		0				0
 tests/test-uki-promote.py	64	64	1	4	0df71d5f8e85	STAY	local-scoped		0				0
 tests/test-ukify-stage.py	1	3	3	18	06f9af04cd08	STAY	ai-header		0				0
-tests/test-ukify-stage.py	19	19	1	8	6060a9792922	STAY	local-scoped		0				0
-tests/test-ukify-stage.py	33	33	1	6	57c6b5a93981	STAY	inline-scoped		0				0
-tests/test-ukify-stage.py	81	81	1	9	113372ea887a	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	21	21	1	8	6060a9792922	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	35	35	1	6	57c6b5a93981	STAY	inline-scoped		0				0
 tests/test-unattend.py	1	3	3	26	2393c6c5493d	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:2393c6c5493d	26	0
 tests/test-unattend.py	4	9	5	26	366e395f2af1	STAY	midsize-why		0				0
 tests/test-unattend.py	26	26	1	4	26f930979b0e	STAY	local-scoped		0				0
@@ -14517,52 +14517,53 @@ usr/lib/mios/mios_comments.py	1	3	3	25	1ecb2a13efe1	STAY	ai-header		0				0
 usr/lib/mios/mios_comments.py	4	24	20	134	f6c3310f2a36	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/lib.md	mios-src:f6c3310f2a36	134	1
 usr/lib/mios/mios_comments.py	21	22	2	18	2429923fa687	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	38	38	1	12	5b27320f28eb	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	41	41	1	11	269bf1ff6739	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	49	57	9	70	4f4415e5d651	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:4f4415e5d651	70	1
-usr/lib/mios/mios_comments.py	58	58	1	11	269bf1ff6739	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	85	87	3	9	177d398afd15	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	51	51	1	17	7869709f5f9a	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	85	89	5	28	28a9e30776f6	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/lib.md	mios-src:28a9e30776f6	28	1
-usr/lib/mios/mios_comments.py	98	100	3	1	dbf74133569a	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	104	104	1	2	38b4d7780ee9	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	105	105	1	2	38b4d7780ee9	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	106	106	1	4	05eddf386304	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	107	107	1	0	4da388acc7cb	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	108	108	1	4	0203fba48878	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	109	109	1	4	8a505cb0c9ed	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	113	113	1	4	7ab1c2f76c57	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	114	114	1	5	efafe72edac5	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	119	119	1	5	f02a4a7d66bd	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	120	120	1	5	24335ea5f97d	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	122	122	1	3	d1b64b4ebe02	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	126	126	1	8	8661f96f2778	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	132	135	4	39	816af6e7d06c	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	148	149	2	22	a6a16fcd542f	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	152	156	5	34	a39bfc147091	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	206	208	3	10	4fa8bbb4c604	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:4fa8bbb4c604	10	0
-usr/lib/mios/mios_comments.py	210	213	4	21	360895826a3d	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:360895826a3d	21	0
+usr/lib/mios/mios_comments.py	88	90	3	9	177d398afd15	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	101	103	3	1	dbf74133569a	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	107	107	1	2	38b4d7780ee9	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	108	108	1	2	38b4d7780ee9	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	109	109	1	4	05eddf386304	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	110	110	1	0	4da388acc7cb	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	111	111	1	4	0203fba48878	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	112	112	1	4	8a505cb0c9ed	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	116	116	1	4	7ab1c2f76c57	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	117	117	1	5	efafe72edac5	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	122	122	1	5	f02a4a7d66bd	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	123	123	1	5	24335ea5f97d	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	125	125	1	3	d1b64b4ebe02	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	129	129	1	8	8661f96f2778	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	135	138	4	39	816af6e7d06c	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	151	152	2	22	a6a16fcd542f	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	155	159	5	34	a39bfc147091	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	209	211	3	10	4fa8bbb4c604	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:4fa8bbb4c604	10	0
 usr/lib/mios/mios_comments.py	212	218	7	52	6fc7fcbe217c	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:6fc7fcbe217c	52	1
-usr/lib/mios/mios_comments.py	234	238	5	22	1c386d6ea87e	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	254	256	3	30	51020272f944	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	258	260	3	26	6cc8ac9aaa3e	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	314	318	5	59	21b9b68bc9ad	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	213	216	4	21	360895826a3d	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:360895826a3d	21	0
+usr/lib/mios/mios_comments.py	237	241	5	22	1c386d6ea87e	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	257	259	3	30	51020272f944	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	261	263	3	26	6cc8ac9aaa3e	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	317	321	5	59	21b9b68bc9ad	STAY	midsize-why		0				0
 usr/lib/mios/mios_comments.py	323	329	7	54	4ed8af1db3c0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:4ed8af1db3c0	54	1
-usr/lib/mios/mios_comments.py	327	327	1	3	bf8be58f731f	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	351	351	1	6	557f12f1b9d7	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	355	355	1	5	015ac6d85bb1	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	330	330	1	3	bf8be58f731f	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	354	354	1	6	557f12f1b9d7	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	358	358	1	5	015ac6d85bb1	STAY	inline-scoped		0				0
 usr/lib/mios/mios_comments.py	363	371	9	88	89c739e01b60	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/lib.md	mios-src:89c739e01b60	88	1
-usr/lib/mios/mios_comments.py	403	406	4	40	dafb8ac5a8dd	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	441	441	1	12	227946e3ec70	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	406	409	4	40	dafb8ac5a8dd	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	444	444	1	12	227946e3ec70	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	458	463	6	59	be7e0f6ee742	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:be7e0f6ee742	59	1
-usr/lib/mios/mios_comments.py	467	471	5	27	59777b4abd6a	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	470	474	5	27	59777b4abd6a	STAY	midsize-why		0				0
 usr/lib/mios/mios_comments.py	486	492	7	57	2c1e4d0345bf	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/lib.md	mios-src:2c1e4d0345bf	57	1
-usr/lib/mios/mios_comments.py	494	496	3	8	8af49aed9ab4	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	506	506	1	12	8da47b8dc44d	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	511	511	1	11	3e57f606594f	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	514	514	1	9	937854dba39c	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	518	518	1	12	92c4d24a225e	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	522	522	1	2	cb3c888536b0	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	529	529	1	3	4fefbba9bc0d	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	552	553	2	25	df82d71fef33	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	557	557	1	6	0786321d45f1	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	497	499	3	8	8af49aed9ab4	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	509	509	1	12	8da47b8dc44d	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	514	514	1	11	3e57f606594f	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	517	517	1	9	937854dba39c	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	521	521	1	12	92c4d24a225e	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	525	525	1	2	cb3c888536b0	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	532	532	1	3	4fefbba9bc0d	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	555	556	2	25	df82d71fef33	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	560	560	1	6	0786321d45f1	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	578	583	6	32	1fe018524038	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:1fe018524038	32	1
 usr/lib/mios/mios_comments.py	793	799	7	68	91b1f37a187d	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:91b1f37a187d	68	1
 usr/lib/mios/mios_comments.py	811	819	9	81	f3e774fcaabb	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:f3e774fcaabb	81	1
@@ -18258,7 +18259,7 @@ usr/libexec/mios/mios-sandbox-exec	1	4	4	108	9348bd28570d	MIGRATE_HEADER	overlon
 usr/libexec/mios/mios-sandbox-exec	14	14	1	3	4b6c6b82c2e5	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-sandbox-exec	27	27	1	3	13a56d3f8ee9	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-sandbox-exec	71	71	1	12	6d4e4b06dc64	STAY	local-scoped		0				0
-usr/libexec/mios/mios-sandbox-exec	85	85	1	5	253137875962	STAY	inline-scoped		0				0
+usr/libexec/mios/mios-sandbox-exec	88	88	1	5	253137875962	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-scheduled-research	1	3	3	32	713e6495c472	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:713e6495c472	32	0
 usr/libexec/mios/mios-scheduled-research	4	13	9	68	ee1c7e723348	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:ee1c7e723348	68	0
 usr/libexec/mios/mios-scheduled-research	62	62	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
@@ -18659,9 +18660,9 @@ usr/libexec/mios/mios-ukify-stage	24	24	1	8	96099d8e2b1c	STAY	local-scoped		0			
 usr/libexec/mios/mios-ukify-stage	30	30	1	4	8bbd88dce613	STAY	local-scoped		0				0
 usr/libexec/mios/mios-ukify-stage	47	47	1	6	05cb16fc9b40	STAY	local-scoped		0				0
 usr/libexec/mios/mios-ukify-stage	89	89	1	12	92a2236fade8	STAY	local-scoped		0				0
-usr/libexec/mios/mios-ukify-stage	127	127	1	8	9e6c915ef9a4	STAY	local-scoped		0				0
-usr/libexec/mios/mios-ukify-stage	132	132	1	4	7a868ecb7a60	STAY	local-scoped		0				0
-usr/libexec/mios/mios-ukify-stage	141	141	1	8	631cf9856729	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ukify-stage	144	144	1	8	9e6c915ef9a4	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ukify-stage	149	149	1	4	7a868ecb7a60	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ukify-stage	158	158	1	8	631cf9856729	STAY	local-scoped		0				0
 usr/libexec/mios/mios-usbguard	1	3	3	15	1d9928dd0b18	STAY	ai-header		0				0
 usr/libexec/mios/mios-usbguard	33	33	1	7	21aeb947620d	STAY	local-scoped		0				0
 usr/libexec/mios/mios-usbguard	52	52	1	3	ac66a7b9864c	STAY	local-scoped		0				0

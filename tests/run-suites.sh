@@ -13,13 +13,59 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TIER="${1:-}"
 
+mios_resolve_python() {
+    if [[ -n "${MIOS_PYTHON_BIN:-}" && -x "${MIOS_PYTHON_BIN}" ]]; then
+        echo "${MIOS_PYTHON_BIN}"
+        return 0
+    fi
+    local venv_py="${MIOS_AI_AGENT_VENV:-/usr/lib/mios/agents/.venv}/bin/python3"
+    if [[ -x "$venv_py" ]]; then
+        echo "$venv_py"
+        return 0
+    fi
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        if [[ -x "${VIRTUAL_ENV}/bin/python3" ]]; then
+            echo "${VIRTUAL_ENV}/bin/python3"
+            return 0
+        elif [[ -x "${VIRTUAL_ENV}/bin/python" ]]; then
+            echo "${VIRTUAL_ENV}/bin/python"
+            return 0
+        elif [[ -x "${VIRTUAL_ENV}/Scripts/python.exe" ]]; then
+            echo "${VIRTUAL_ENV}/Scripts/python.exe"
+            return 0
+        fi
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        command -v python3
+        return 0
+    fi
+    if command -v python >/dev/null 2>&1; then
+        command -v python
+        return 0
+    fi
+    echo "python3"
+}
+
+# Scrub ambient MIOS_* environment variables to prevent host leakage
+mios_scrub_env() {
+    local preserve_regex='^(MIOS_DRIFT_ROOT|MIOS_DRIFT_CHECK_ROOT|MIOS_THEME_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_AI_AGENT_VENV|MIOS_PYTHON_BIN)$'
+    for var in $(compgen -v MIOS_); do
+        if [[ ! "$var" =~ $preserve_regex ]]; then
+            unset "$var"
+        fi
+    done
+}
+
+PYTHON_BIN="$(mios_resolve_python)"
+mios_scrub_env
+
 if [[ -z "$TIER" ]]; then
-    echo "usage: run-suites.sh <tier>   (tiers: $(python3 "${ROOT}/tools/ci-suites.py" --tier '' 2>&1 | sed -n 's/^unknown tier.*//p'))" >&2
+    echo "usage: run-suites.sh <tier>   (tiers: $("$PYTHON_BIN" "${ROOT}/tools/ci-suites.py" --tier '' 2>&1 | sed -n 's/^unknown tier.*//p'))" >&2
     echo "       registered tiers are the keys of [ci.tiers] in usr/share/mios/mios.toml" >&2
     exit 2
 fi
 
-mapfile -t SUITES < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --tier "$TIER")
+mapfile -t SUITES < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --tier "$TIER" | tr -d '\r')
 if [[ ${#SUITES[@]} -eq 0 ]]; then
     # An empty tier is a runner that reports success having done nothing, which
     # is the failure mode this whole registry exists to prevent.
@@ -28,16 +74,22 @@ if [[ ${#SUITES[@]} -eq 0 ]]; then
 fi
 
 # The registry, the skip reasons and the [ci].max_tool_skips ceiling are checked on every tier.
-(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --check >/dev/null) || { echo "[run-suites] tools/ci-suites.py --check failed" >&2; exit 1; }
-mapfile -t TOOL_SKIPS < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --tool-skips)
+(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --check >/dev/null) || { echo "[run-suites] tools/ci-suites.py --check failed" >&2; exit 1; }
+mapfile -t TOOL_SKIPS < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --tool-skips | tr -d '\r')
 echo "[run-suites] tier=${TIER} suites=${#SUITES[@]} root=${ROOT}"
 FAILED=()
 SKIPPED=()
 PASSED=0
 for entry in "${SUITES[@]}"; do
+    entry="${entry%$'\r'}"
     runner="${entry%%	*}"
+    runner="${runner%$'\r'}"
     path="${entry#*	}"
+    path="${path%$'\r'}"
     [[ -n "$path" ]] || continue
+    if [[ "$runner" == "python3" ]]; then
+        runner="$PYTHON_BIN"
+    fi
     start=$SECONDS
     if out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
               MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \

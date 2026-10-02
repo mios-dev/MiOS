@@ -1661,3 +1661,20 @@ so long. Let a run finish.
 - next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
 - blockers: -
 - unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-10-02 18:55 · HEAD · lane-b T-1155 complete
+- objective: Make behavioral fixtures independent of installed host services and tools (T-1155)
+- done:
+  1. usr/lib/mios/mios_comments.py: guarded tracked_file_modes git index traversal with os.path.lexists(os.path.join(root, ".git")) and sanitized ambient GIT_* variables.
+  2. usr/libexec/mios/test_mios_ai_metadata.py: hardened test_standalone_source_fixture_is_supported to isolate against ambient GIT_DIR.
+  3. tests/test-blade-reachability.sh: added python socket host fallback, CRLF sanitization, and ambient MIOS_PORT_* scrubbing in negative subshell.
+  4. tests/test-kernel-module-signature-enforce.sh: made live /dev/mem open check conditional on active host kernel lockdown while keeping mock checks strict.
+  5. tests/test-powershell-flatten.sh: replaced host /etc/hostname with isolated fixture file in $TMP ($TMP/fixture_item.txt) and supported Windows path translation.
+  6. usr/libexec/mios/mios-sandbox-exec & tests/test-sandbox-seccomp.sh: allowed MIOS_SECCOMP_FILTER_BIN override and dummy bwrap stub in refusal tier.
+  7. usr/libexec/mios/mios-ukify-stage & tests/test-ukify-stage.py: allowed MIOS_UKIFY_BIN override and fake compiler for mock UKI unit tests.
+  8. tests/run-suites.sh: added mios_resolve_python() preferring SSOT agent venv, scrubbed ambient MIOS_* env vars, stripped CRLF from mapfile outputs.
+  9. Regenerated projections via tools/sync-generated.sh and synced bootstrap via tools/sync-bootstrap.py.
+  10. Two-sided verification: all positive unit tests passed (test_mios_ai_metadata.py, test-blade-reachability.sh 6/6, test-kernel-module-signature-enforce.sh 12/12, test-powershell-flatten.sh, test-sandbox-seccomp.sh 126, test-ukify-stage.py 5/5, ci-suites.py --check, sync-bootstrap.py --check, all 6 lint suites). Negative controls verified (unhinted metadata fixture yields 0 entries, sandbox refusal tier 126, blade status UNRESOLVED).
+- next: Lane-b handoff to parent orchestrator.
+- blockers: -
+- unverified: -

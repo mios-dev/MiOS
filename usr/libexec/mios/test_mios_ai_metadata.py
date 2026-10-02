@@ -77,7 +77,8 @@ class TestAIMetadata(unittest.TestCase):
     def test_standalone_source_fixture_is_supported(self):
         with tempfile.TemporaryDirectory() as root:
             Path(root, "canonical.conf").write_text("# AI-hint: Standalone source.\n", encoding="utf-8")
-            self.assertEqual(mios_ai_metadata.build_metadata_catalog(root)["total_metadata_entries"], 1)
+            with patch.dict(os.environ, {"GIT_DIR": os.path.join(root, "nonexistent_git_dir")}):
+                self.assertEqual(mios_ai_metadata.build_metadata_catalog(root)["total_metadata_entries"], 1)
 
     def test_extract_python_metadata(self):
         content = """#!/usr/bin/env python3

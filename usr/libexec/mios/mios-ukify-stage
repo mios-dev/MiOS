@@ -103,19 +103,36 @@ def stage_uki(
         "oneshot_configured": False,
     }
 
-    ukify_bin = shutil.which("ukify")
+    ukify_env = os.environ.get("MIOS_UKIFY_BIN")
+    if ukify_env == "":
+        ukify_bin = None
+    elif ukify_env:
+        ukify_bin = ukify_env
+    else:
+        ukify_bin = shutil.which("ukify")
 
     if not dry_run:
         os.makedirs(os.path.dirname(output_efi), exist_ok=True)
         if ukify_bin and os.path.isfile(kernel) and os.path.isfile(initrd):
-            cmd = [
-                ukify_bin,
-                "build",
-                f"--linux={kernel}",
-                f"--initrd={initrd}",
-                f"--cmdline={baked_cmdline}",
-                f"--output={output_efi}",
-            ]
+            if ukify_bin.endswith(".py"):
+                cmd = [
+                    sys.executable,
+                    ukify_bin,
+                    "build",
+                    f"--linux={kernel}",
+                    f"--initrd={initrd}",
+                    f"--cmdline={baked_cmdline}",
+                    f"--output={output_efi}",
+                ]
+            else:
+                cmd = [
+                    ukify_bin,
+                    "build",
+                    f"--linux={kernel}",
+                    f"--initrd={initrd}",
+                    f"--cmdline={baked_cmdline}",
+                    f"--output={output_efi}",
+                ]
             try:
                 subprocess.run(cmd, check=True, capture_output=True)
                 result["ukify_executed"] = True

@@ -101,18 +101,24 @@ fi
 
 log "live tier: $REAL_PWSH"
 export MIOS_POWERSHELL_EXE="$REAL_PWSH"
-export MIOS_POWERSHELL_STAGE_DIR="$TMP/live"
+LIVE_STAGE="$(cygpath -m "$TMP/live" 2>/dev/null || echo "$TMP/live")"
+export MIOS_POWERSHELL_STAGE_DIR="$LIVE_STAGE"
 mkdir -p "$TMP/live"
+
+FIXTURE_ITEM="$TMP/fixture_item.txt"
+echo "fixture content" > "$FIXTURE_ITEM"
+ITEM_PATH="$(cygpath -m "$FIXTURE_ITEM" 2>/dev/null || echo "$FIXTURE_ITEM")"
+WORK_DIR="$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")"
 
 out="$TMP/out.txt"; err="$TMP/err.txt"
 
-bash "$BROKER" -c 'Get-Item /etc/hostname | Select-Object Name, Length' >"$out" 2>"$err" || true
+bash "$BROKER" -c "Get-Item '$ITEM_PATH' | Select-Object Name, Length" >"$out" 2>"$err" || true
 need "an object-returning cmdlet arrives as flat text" "$out" "Name"
-grep -q '^hostname' "$out" || die "the object's own row is missing: $(cat "$out")"
+grep -q '^fixture_item\.txt' "$out" || die "the object's own row is missing: $(cat "$out")"
 ok "the object's row survives the formatter"
 
 MIOS_POWERSHELL_FLATTEN=false bash "$BROKER" \
-    -c 'Get-Item /etc/hostname | Select-Object Name, Length' >"$TMP/raw.txt" 2>/dev/null || true
+    -c "Get-Item '$ITEM_PATH' | Select-Object Name, Length" >"$TMP/raw.txt" 2>/dev/null || true
 if grep -q '[^[:space:]]' "$TMP/raw.txt"; then
     log "NOTE: unflattened output was non-blank on this host -- the console is not width -1"
 else
@@ -136,7 +142,7 @@ Get-Item /no/such/path' >"$out" 2>"$err" || true
 grep -qE '\.ps1:3' "$err" || die "error record lost the caller's line number: $(cat "$err")"
 ok "an error record names the caller's own line (3)"
 
-bash "$BROKER" --work-dir /etc -c '"one"
+bash "$BROKER" --work-dir "$WORK_DIR" -c '"one"
 Get-Item /no/such/path' >"$out" 2>"$err" || true
 grep -qE '\.ps1:2' "$err" \
     || die "--work-dir shifted the reported line number: $(cat "$err")"
@@ -154,21 +160,21 @@ if grep -qE '[[:blank:]]+$' "$out"; then
 fi
 ok "no trailing column padding"
 
-bash "$BROKER" --json -c 'Get-Item /etc/hostname | Select-Object Name' >"$out" 2>/dev/null || true
+bash "$BROKER" --json -c "Get-Item '$ITEM_PATH' | Select-Object Name" >"$out" 2>/dev/null || true
 MIOS_TEST_JSON="$out" python3 - <<'PY' || die "the --json envelope is not usable"
 import json, os, sys
 d = json.load(open(os.environ["MIOS_TEST_JSON"], encoding="utf-8"))
 assert d["ok"] is True, d
 assert d["verb"] == "powershell_run", d
 assert d["exit_code"] == 0, d
-assert "hostname" in d["stdout"], d
+assert "fixture_item.txt" in d["stdout"], d
 PY
 ok "--json carries the flattened text"
 
 MIOS_POWERSHELL_STAGE_DIR=/proc/nope/stage bash "$BROKER" \
-    -c 'Get-Item /etc/hostname | Select-Object Name, Length
-"second line ok"' >"$out" 2>/dev/null || true
-need "the -EncodedCommand fallback still flattens" "$out" "hostname"
+    -c "Get-Item '$ITEM_PATH' | Select-Object Name, Length
+\"second line ok\"" >"$out" 2>/dev/null || true
+need "the -EncodedCommand fallback still flattens" "$out" "fixture_item.txt"
 need "the -EncodedCommand fallback parses multi-line scripts" "$out" "second line ok"
 
 log "PASS (stub + live tiers)"

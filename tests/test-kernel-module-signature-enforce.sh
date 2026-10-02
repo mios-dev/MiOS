@@ -234,6 +234,22 @@ if not os.path.exists(dev_mem):
     print("SKIP_NOT_PRESENT")
     sys.exit(0)
 
+# On Linux, only assert lockdown violation if live host kernel lockdown is active
+lockdown_path = "/sys/kernel/security/lockdown"
+if not os.path.exists(lockdown_path):
+    print("SKIP_NO_LOCKDOWN_INTERFACE")
+    sys.exit(0)
+
+try:
+    with open(lockdown_path, "r") as f:
+        lockdown_state = f.read()
+    if "[none]" in lockdown_state or ("[" not in lockdown_state):
+        print("SKIP_HOST_NOT_LOCKED_DOWN")
+        sys.exit(0)
+except OSError:
+    print("SKIP_LOCKDOWN_UNREADABLE")
+    sys.exit(0)
+
 try:
     fd = os.open(dev_mem, os.O_RDONLY)
     os.close(fd)

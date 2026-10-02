@@ -15,12 +15,25 @@ command -v curl >/dev/null 2>&1 || { log "SKIP: curl absent"; exit 0; }
 # it), and an absent binary made this suite die at exit 127 before testing
 # anything. uname -n is in coreutils and answers the same question.
 HOST="$(hostname 2>/dev/null || uname -n)"
-getent hosts "$HOST" >/dev/null 2>&1 || HOST="127.0.0.1"
+if command -v getent >/dev/null 2>&1; then
+    getent hosts "$HOST" >/dev/null 2>&1 || HOST="127.0.0.1"
+else
+    HOST="$(python3 -c 'import socket; print(socket.gethostbyname(socket.gethostname()))' 2>/dev/null || echo "127.0.0.1")"
+fi
 
 FIXTURE="$(mktemp -d)"
 SRV_PID=""
 cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null || true; rm -rf "$FIXTURE"; }
 trap cleanup EXIT
+
+ORIG_PY="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
+mkdir -p "${FIXTURE}/bin"
+cat > "${FIXTURE}/bin/python3" <<SHIM
+#!/usr/bin/env bash
+"$ORIG_PY" "\$@" | tr -d '\r'
+SHIM
+chmod +x "${FIXTURE}/bin/python3"
+export PATH="${FIXTURE}/bin:${PATH}"
 
 # A REAL socket on an EPHEMERAL port: a fixed port lets a stale listener from a
 # previous run fake a pass, which is exactly what happened while writing this.
@@ -111,7 +124,9 @@ $OUT_LOCAL"
 ok "with no overlay every target is local -- that is the seat/blade tell"
 
 # An unresolved placeholder must be VISIBLE, never probed as a literal URL.
-OUT_RAW="$(MIOS_USR_DIR="${ROOT}/usr/lib/mios" MIOS_ETC_DIR="$FIXTURE" \
+OUT_RAW="$(
+    for p in $(compgen -v MIOS_PORT_ 2>/dev/null || true); do unset "$p"; done
+    MIOS_USR_DIR="${ROOT}/usr/lib/mios" MIOS_ETC_DIR="$FIXTURE" \
     MIOS_HOST_TOML=/dev/null MIOS_USER_TOML=/dev/null MIOS_BLADE_PROBE_TIMEOUT=1 \
     bash "${ROOT}/usr/libexec/mios/mios-blade" status 2>&1)"
 grep -q 'UNRESOLVED' <<<"$OUT_RAW" \

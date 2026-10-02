@@ -36,33 +36,36 @@ def _is_libexec_verb(root: str, rel: str) -> bool:
 
 def tracked_file_modes(root: str) -> dict[str, str]:
     """Read index modes so link placeholders and real links have one census."""
+    git_entry = os.path.join(root, ".git")
+    if not os.path.lexists(git_entry):
+        # Standalone source fixtures have no Git index. Never follow their links.
+        modes = {}
+        for dp, dn, fns in os.walk(root):
+            dn[:] = [d for d in dn if d not in _SKIP_DIRS and not d.startswith(".")]
+            for fn in fns:
+                full = os.path.join(dp, fn)
+                rel = os.path.relpath(full, root).replace(os.sep, "/")
+                modes[rel] = "120000" if os.path.islink(full) else "100644"
+        return modes
+
+    # It has a .git entry, so it is a git checkout. Read its index with sanitized environment.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     try:
         out = subprocess.run(
             ["git", "-c", "core.ignorecase=false", "ls-files", "--stage", "-z"],
-            cwd=root, capture_output=True, check=True,
+            cwd=root, capture_output=True, check=True, env=env,
         )
     except (OSError, subprocess.CalledProcessError):
-        if os.path.lexists(os.path.join(root, ".git")):
-            raise RuntimeError("cannot read the tracked source index") from None
-    else:
-        modes = {}
-        for record in out.stdout.decode("utf-8").split("\0"):
-            if not record:
-                continue
-            metadata, rel = record.split("\t", 1)
-            mode, _, stage = metadata.split()
-            if stage != "0":
-                raise RuntimeError(f"unmerged source index entry: {rel}")
-            modes[rel] = mode
-        return modes
-    # Standalone source fixtures have no Git index. Never follow their links.
+        raise RuntimeError("cannot read the tracked source index") from None
     modes = {}
-    for dp, dn, fns in os.walk(root):
-        dn[:] = [d for d in dn if d not in _SKIP_DIRS and not d.startswith(".")]
-        for fn in fns:
-            full = os.path.join(dp, fn)
-            rel = os.path.relpath(full, root).replace(os.sep, "/")
-            modes[rel] = "120000" if os.path.islink(full) else "100644"
+    for record in out.stdout.decode("utf-8").split("\0"):
+        if not record:
+            continue
+        metadata, rel = record.split("\t", 1)
+        mode, _, stage = metadata.split()
+        if stage != "0":
+            raise RuntimeError(f"unmerged source index entry: {rel}")
+        modes[rel] = mode
     return modes
 
 def iter_source_files(root: str):

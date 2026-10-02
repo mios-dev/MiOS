@@ -21,7 +21,8 @@ export MIOS_SANDBOX_LOG="${TMP}/sandbox.log"
 
 # ------------------------------------------------------------ generator tier --
 log "generator tier"
-python3 "$GEN" --out "${TMP}/f.bpf" || die "the generator failed on this host"
+ARCH="$(python3 -c 'import platform; m = platform.machine(); print("x86_64" if m in ("AMD64", "x86_64") else m)')"
+python3 "$GEN" --arch "$ARCH" --out "${TMP}/f.bpf" || die "the generator failed on this host"
 size="$(wc -c <"${TMP}/f.bpf")"
 [[ "$size" -gt 0 && $((size % 8)) -eq 0 ]] \
     || die "the emitted program is not a whole number of sock_filters ($size bytes)"
@@ -37,16 +38,16 @@ ok "an unsupported architecture is refused, not silently unfiltered ($rc)"
 
 # Artifact assertions that need no bwrap, so the CI path stays a real gate.
 # Manual ch62.
-python3 - "$GEN" "${TMP}/f.bpf" <<'PYEOF' || die "the emitted program does not match its own denylist"
-import os, struct, subprocess, sys, platform
+python3 - "$GEN" "${TMP}/f.bpf" "$ARCH" <<'PYEOF' || die "the emitted program does not match its own denylist"
+import os, struct, subprocess, sys
 sys.path.insert(0, os.path.join(os.getcwd(), "usr/lib/mios/agent-pipe"))
 from mios_pipe.access import seccomp as S
-gen, blob_path = sys.argv[1], sys.argv[2]
+gen, blob_path, arch = sys.argv[1], sys.argv[2], sys.argv[3]
 blob = open(blob_path, "rb").read()
 ins = [struct.unpack("<HBBI", blob[i:i + 8]) for i in range(0, len(blob), 8)]
-want_arch = S.AUDIT_ARCH[platform.machine()]
+want_arch = S.AUDIT_ARCH[arch]
 assert ins[1][3] == want_arch, f"arch word {ins[1][3]:#x} != {want_arch:#x}"
-out = subprocess.run([sys.executable, gen, "--describe"], capture_output=True, text=True).stdout
+out = subprocess.run([sys.executable, gen, "--arch", arch, "--describe"], capture_output=True, text=True).stdout
 denied = int([w.split("=")[1] for w in out.split() if w.startswith("denied=")][0])
 assert denied > 0, "the filter denies nothing"
 assert len(ins) == 3 + denied + 2, f"{len(ins)} instructions for {denied} denied"
@@ -55,7 +56,7 @@ print(f"  arch={want_arch:#x} denied={denied} insns={len(ins)}")
 PYEOF
 ok "the emitted program names this host's arch and matches its denylist"
 
-desc="$(python3 "$GEN" --describe)"
+desc="$(python3 "$GEN" --arch "$ARCH" --describe)"
 for sc in ptrace mount chroot init_module bpf keyctl; do
     grep -q " ${sc}$" <<<"$desc" || die "the baseline floor lost ${sc}"
 done
@@ -66,8 +67,13 @@ ok "the SSOT list extends the floor"
 log "refusal tier: no generator => enforce must REFUSE, never run unfiltered"
 stub="${TMP}/bin"; mkdir -p "$stub"
 cp "$EXEC" "${stub}/mios-sandbox-exec"
+cat > "${stub}/bwrap" <<'BWRAP'
+#!/bin/sh
+exit 0
+BWRAP
+chmod +x "${stub}/bwrap"
 set +e
-PATH="/usr/bin:/bin" bash "${stub}/mios-sandbox-exec" --level enforce \
+MIOS_SECCOMP_FILTER_BIN="${TMP}/no-such-filter" PATH="${stub}:/usr/bin:/bin" bash "${stub}/mios-sandbox-exec" --level enforce \
     --workspace "$TMP" -- /bin/true 2>"${TMP}/err"; rc=$?
 set -e
 [[ "$rc" -eq 126 ]] || die "expected refusal 126 with no generator beside the wrapper, got $rc"
