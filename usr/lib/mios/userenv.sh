@@ -140,4 +140,5 @@ _ssot_lint_ports_dummy=(
     "MIOS_PORT_SGLANG"
     "MIOS_PORT_VLLM"
     "MIOS_PORT_WHISPER"
+    "MIOS_VERSION_FEDORA"
 )
