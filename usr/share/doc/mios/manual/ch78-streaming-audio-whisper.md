@@ -84,7 +84,7 @@ $$\text{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} x_i^2}$$
 The Whisper inference service runs as an isolated systemd Quadlet container:
 - **Unit Path**: `/usr/share/containers/systemd/mios-whisper.container`
 - **Pod Association**: Joins `Pod=mios-ai.pod` sharing host networking with `mios-llm-light` and `mios-open-webui`.
-- **Image**: `ghcr.io/ggerganov/whisper.cpp:main`
+- **Image**: `ghcr.io/ggml-org/whisper.cpp:main` (upstream moved from `ggerganov`; that path stopped updating in 2025-04)
 - **Port**: `8178` (configurable via `MIOS_PORT_WHISPER`).
 - **Models**: Pre-quantized `ggml-base.en.bin` and `ggml-small.en.bin` mounted read-only from `/usr/share/mios/whisper/models`.
 

@@ -5,14 +5,14 @@
 [Unit]
 After=network-online.target mios-cdi-detect.service
 Description='MiOS' Whisper Streaming STT Engine (whisper.cpp)
-Documentation=https://github.com/ggerganov/whisper.cpp
+Documentation=https://github.com/ggml-org/whisper.cpp
 Wants=network-online.target
 
 [Container]
 ContainerName=mios-whisper
 Environment=PORT=${MIOS_PORT_WHISPER:-8178}
 EnvironmentFile=/etc/mios/install.env
-Exec=--model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert
+Exec='whisper-server --model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'
 GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 Group=832
 HealthCmd=curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1
@@ -20,7 +20,7 @@ HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=30s
 HealthTimeout=10s
-Image=ghcr.io/ggerganov/whisper.cpp:main
+Image=ghcr.io/ggml-org/whisper.cpp:main
 Label=org.opencontainers.image.title=mios-whisper
 Label=org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"
 Pod=mios-ai.pod
