@@ -4,9 +4,9 @@ set -euo pipefail
 
 # [workspace] in the SSOT names the root and every MiOS repo; the devcontainer
 # opens that root, so a codespace shows all of them, not only the one it cloned.
-MIOS_ROOT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.."
-TOML_GET="${MIOS_ROOT_DIR}/usr/libexec/mios/mios-toml-get"
-WORKSPACE_DIR="$(MIOS_TOML_ROOT="${MIOS_ROOT_DIR}" python3 "${TOML_GET}" workspace root)"
+repo_root="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.."
+TOML_GET="${repo_root}/usr/libexec/mios/mios-toml-get"
+WORKSPACE_DIR="$(MIOS_TOML_ROOT="${repo_root}" python3 "${TOML_GET}" workspace root)"
 [ -n "$WORKSPACE_DIR" ] || { echo "[devcontainer:setup] ERROR: [workspace].root is empty" >&2; exit 1; }
 mkdir -p "$WORKSPACE_DIR"
 
@@ -23,7 +23,7 @@ while IFS=$'\t' read -r repo url; do
         # A failed clone leaves a usable codespace; the folder shows as missing until the next create.
         git clone "$url" "$target" || echo "  [WARN] Failed to clone $url"
     fi
-done < <(MIOS_TOML_ROOT="${MIOS_ROOT_DIR}" python3 "${TOML_GET}" workspace repos \
+done < <(MIOS_TOML_ROOT="${repo_root}" python3 "${TOML_GET}" workspace repos \
             | python3 -c 'import json, sys; print("\n".join(r["name"] + "\t" + r["url"] for r in json.load(sys.stdin)))')
 
 # ~/.dev-loop is where the toolkit's own installer looks. No second link under
