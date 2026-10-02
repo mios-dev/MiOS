@@ -342,7 +342,7 @@ fn deployment_cli_advertises_modes_and_rejects_incomplete_options() {
     assert!(advertised.status.success());
     assert_eq!(
         String::from_utf8(advertised.stdout).unwrap(),
-        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\n"
+        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install\n"
     );
     let temp = tempfile::tempdir().unwrap();
     for options in [vec!["--root"], vec!["--toml", "--check"], vec!["--unknown"]] {
@@ -546,4 +546,24 @@ fn sync_lookup_selects_the_host_suffix_when_both_artifacts_exist() {
                 .to_string_lossy()
         );
     }
+}
+
+#[test]
+fn bootc_install_config_projects_install_and_rejects_unknown_filesystems() {
+    let ok = mios_unit_gen::render_bootc_install("[install]\nroot_fs_type = \"btrfs\"\n").unwrap();
+    assert!(ok.contains("[install]\nroot-fs-type = \"btrfs\"\n"), "{ok}");
+    assert!(mios_unit_gen::render_bootc_install("[install]\nroot_fs_type = \"zfs\"\n").is_err());
+    assert!(mios_unit_gen::render_bootc_install("[image]\nref = \"x\"\n").is_err());
+    let repart = mios_unit_gen::render_repart_root(
+        "[install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 90\nroot_padding_gb = 2\n",
+    )
+    .unwrap();
+    assert!(
+        repart.contains("SizeMinBytes=90G\nPaddingMinBytes=2G\nFormat=xfs\n"),
+        "{repart}"
+    );
+    assert!(mios_unit_gen::render_repart_root(
+        "[install]\nroot_fs_type = \"xfs\"\nroot_min_gb = 0\nroot_padding_gb = 2\n"
+    )
+    .is_err());
 }

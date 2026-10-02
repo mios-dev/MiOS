@@ -2326,6 +2326,7 @@ surfaces = [
   { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
   { generator = "tools/gen-pipe-boundary-manifest.py", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_bootc_install_projection", output = "usr/lib/bootc/install/00-mios.toml, usr/lib/repart.d/50-root.conf" },
   { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
   { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
@@ -6063,6 +6064,25 @@ tag            = "latest"
 local_tag      = "localhost/mios:latest"
 machine_os_repo = "quay.io/podman/machine-os"
 machine_os_tag  = "6.0"
+
+[install]
+# mios-install (tools/native/mios-install) puts [image].ref on a disk by
+# running the image's own bootc in a privileged podman container
+# (`bootc install to-disk`), the invocation bootc documents. ADR-0014.
+# Root filesystem the image installs to; projected into
+# usr/lib/bootc/install/00-mios.toml and usr/lib/repart.d/50-root.conf by
+# `mios-unit-gen bootc-install`.
+# One of bootc's xfs | ext4 | btrfs.
+root_fs_type    = "ext4"
+# bootc --bound-images: "stored" copies the logically bound images from the
+# installing host's container storage (air-gapped media pre-seed them);
+# "pull" fetches them into the target during install.
+bound_images    = "stored"
+# Root partition floor and alignment padding, projected into
+# usr/lib/repart.d/50-root.conf; mios-install refuses a disk that cannot
+# hold the floor. 80 GB holds the rechunked image layers.
+root_min_gb     = 80
+root_padding_gb = 1
 [deployment]
 # BIB-supported types: ami, anaconda-iso, bootc-installer, gce, iso,
 # ova, pxe-tar-xz, qcow2, raw, vhd, vmdk. Names below map directly

@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|pair| PathBuf::from(&pair[1]))
         .unwrap_or_else(repo_root);
     if args.iter().any(|arg| arg == "--list-projections") {
-        println!("blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll");
+        println!("blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install");
         return Ok(());
     }
     let deployment = match args.get(1).map(String::as_str) {
@@ -54,6 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("uki-cmdline") => Some(DeploymentKind::UkiCmdline),
         Some("cockpit") => Some(DeploymentKind::Cockpit),
         Some("ipa-enroll") => Some(DeploymentKind::IpaEnroll),
+        Some("bootc-install") => Some(DeploymentKind::BootcInstall),
         _ => None,
     };
     if let Some(kind) = deployment {
@@ -146,6 +147,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    println!("mios-unit-gen: --check | --list | --render <unit> | blade-dropins | blade-karg | uki-cmdline | cockpit | ipa-enroll [--root DIR] [--toml FILE] [--check]");
+    println!("mios-unit-gen: --check | --list | --render <unit> | blade-dropins | blade-karg | uki-cmdline | cockpit | ipa-enroll | bootc-install [--root DIR] [--toml FILE] [--check]");
     Ok(())
 }

@@ -10559,7 +10559,7 @@
     },
     {
       "path": "usr/lib/bootc/install/00-mios.toml",
-      "hint": "Defines the bootcd installation configuration for MiOS, specifying the root filesystem type (ext4) and core installation parameters for the bootc-based deployment pipeline.",
+      "hint": "bootc install configuration projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -15768,7 +15768,7 @@
     },
     {
       "path": "usr/lib/repart.d/50-root.conf",
-      "hint": "Defines the root partition configuration for the MiOS installer, specifying a minimum 80GB size, ext4 format, and 1GB alignment for NVMe/SSD compatibility.",
+      "hint": "Root partition for systemd-repart projected from mios.toml [install]; regenerate with mios-unit-gen bootc-install, never edit.",
       "related": [],
       "functions": [],
       "doc": null,

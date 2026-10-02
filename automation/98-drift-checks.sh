@@ -3054,6 +3054,10 @@ check_ipa_enroll_projection() {
     _run_deployment_projection ipa-enroll
 }
 
+check_bootc_install_projection() {
+    _run_deployment_projection bootc-install
+}
+
 check_uki_cmdline_projection() {
     _run_deployment_projection uki-cmdline
 }
@@ -3895,6 +3899,7 @@ main() {
     check_build_artifacts_output_dir
     check_win11_vm_template_xml
     check_ipa_enroll_projection
+    check_bootc_install_projection
     check_uki_cmdline_projection
     check_composefs_projection
     check_cockpit_projection

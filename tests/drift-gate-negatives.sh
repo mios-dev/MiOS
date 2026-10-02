@@ -1461,6 +1461,24 @@ test_ipa_enroll_projection() {
     log "Test_ipa_enroll_projection negative test passed"
 }
 
+test_bootc_install_projection() {
+    log "Testing check_bootc_install_projection"
+    local target_file="${ROOT}/usr/lib/bootc/install/00-mios.toml"
+    _restore_service_projection bootc-install >/dev/null 2>&1 || die "Native bootc-install regeneration failed"
+
+    sed -i 's/^root-fs-type = .*/root-fs-type = "xfs-mutated"/' "$target_file"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bootc_install_projection >/dev/null 2>&1; then
+        _restore_service_projection bootc-install >/dev/null 2>&1 || die "Native bootc-install regeneration failed"
+        die "Check_bootc_install_projection passed despite mutated install config"
+    fi
+
+    _restore_service_projection bootc-install >/dev/null 2>&1 || die "Native bootc-install regeneration failed"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bootc_install_projection >/dev/null 2>&1 \
+        || die "Check_bootc_install_projection failed after restoration"
+    log "Test_bootc_install_projection negative test passed"
+}
+
 test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection"
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
@@ -5367,6 +5385,7 @@ _run_test test_leaked_fixtures
     _run_test test_build_artifacts_output_dir
     _run_test test_win11_vm_template_xml
     _run_test test_ipa_enroll_projection
+    _run_test test_bootc_install_projection
     _run_test test_uki_cmdline_projection
     _run_test test_composefs_projection
     _run_test test_cockpit_projection

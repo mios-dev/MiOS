@@ -124,6 +124,19 @@ impl Check for IPAEnrollProjectionCheck {
     }
 }
 
+pub struct BootcInstallProjectionCheck;
+impl Check for BootcInstallProjectionCheck {
+    fn id(&self) -> &'static str {
+        "check_bootc_install_projection"
+    }
+    fn describe(&self) -> &'static str {
+        "Assert the bootc install config projection matches mios.toml [install]"
+    }
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        deployment_check(ctx, mios_unit_gen::DeploymentKind::BootcInstall)
+    }
+}
+
 pub struct UKICmdlineProjectionCheck;
 impl Check for UKICmdlineProjectionCheck {
     fn id(&self) -> &'static str {

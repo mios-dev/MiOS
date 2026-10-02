@@ -1527,6 +1527,7 @@ def check_negative_test_coverage() -> int:
         "check_build_artifacts_output_dir",
         "check_win11_vm_template_xml",
         "check_ipa_enroll_projection",
+        "check_bootc_install_projection",
         "check_uki_cmdline_projection",
         "check_composefs_projection",
         "check_cockpit_projection",

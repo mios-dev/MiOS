@@ -267,9 +267,9 @@ use names::NamesRegistryCheck;
 use numbering::{DAGIntegrityCheck, PipelineNumberingCheck, RoadmapIndexCheck};
 use ports::{BarePortLiteralsCheck, ContainerPortsCheck};
 use projections::{
-    BladeDropinsCheck, ChronyProjectionCheck, CockpitProjectionCheck, EgressFirewallCheck,
-    IPAEnrollProjectionCheck, KargsProjectionCheck, NutProjectionCheck, PodQuadletsCheck,
-    UKICmdlineProjectionCheck,
+    BladeDropinsCheck, BootcInstallProjectionCheck, ChronyProjectionCheck, CockpitProjectionCheck,
+    EgressFirewallCheck, IPAEnrollProjectionCheck, KargsProjectionCheck, NutProjectionCheck,
+    PodQuadletsCheck, UKICmdlineProjectionCheck,
 };
 use resolver::{GlobalsImageParityCheck, GlobalsPortsCheck, ResolverParityCheck};
 use security::{CLIEvalSafetyCheck, PythonCompileLintCheck, ShellcheckLintCheck};
@@ -304,6 +304,7 @@ impl Registry {
             Box::new(ChronyProjectionCheck),
             Box::new(NutProjectionCheck),
             Box::new(IPAEnrollProjectionCheck),
+            Box::new(BootcInstallProjectionCheck),
             Box::new(UKICmdlineProjectionCheck),
             Box::new(CockpitProjectionCheck),
             Box::new(LawEnforcersCheck),
