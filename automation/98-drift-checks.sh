@@ -2859,7 +2859,8 @@ check_offline_install_invariant() {
     local code
     code="$(sed 's/#.*//' "$install_script")"
 
-    if ! grep -q -E '(oci-archive:|--transport\s+oci-archive)' <<<"$code"; then
+    # bootc has no --transport flag; the archive is named as an oci-archive: source.
+    if ! grep -q -E 'oci-archive:' <<<"$code"; then
         _violation "tools/install.sh executable code does not invoke bootc install with oci-archive transport/source"
         return 0
     fi

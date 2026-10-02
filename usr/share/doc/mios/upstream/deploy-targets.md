@@ -112,7 +112,7 @@ the published image.
 > **Bare-Metal & USB Deployment Status Notice (AGY-1888)**:
 > Automated USB/Ventoy installer media generation is functional for WinPE live sessions and standard Fedora recovery, but automated bare-metal deployment of the MiOS bootc image is disconnected: the kickstart scripts deploy standard Fedora rather than installing MiOS.
 > From a live environment with network access, install with `mios-install disk --target-disk DEV --yes` (or `--auto-select`), which runs the image's own `bootc install to-disk` in podman (ADR-0014; `upstream/bootc.md` §Installing a bootc image).
-> The offline `tools/install.sh` path runs the host's bootc against the staged `oci-archive:` without `--target-imgref`, so an installed host would track the archive path rather than the published image; it is being routed through `mios-install`.
+> Offline, `tools/install.sh --target-disk DEV` installs the staged `oci-archive:` from the MiOS-Repo partition through `mios-install disk --source oci-archive:PATH`, which sets `--target-imgref` so the installed host upgrades from the published image.
 
 > The `iso` recipe mounts **only** `config/artifacts/iso.toml`; mounting a
 > second BIB config crashes BIB with `found config.json and also config.toml`.

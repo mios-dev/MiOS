@@ -20,9 +20,8 @@ superseded_by: []
 
 Accepted — 2026-10-02 (proposed 2026-07-28). The operator chose to install
 the MiOS image itself (`[image].ref`, which is built FROM the ucore-hci base)
-and to run bootc inside that image through podman. `disk` and
-`existing-root` are implemented; `to-filesystem` and the offline source are
-not yet.
+and to run bootc inside that image through podman. `disk` (including the offline `oci-archive:` source) and
+`existing-root` are implemented; `to-filesystem` is not yet.
 
 ## Context
 
@@ -60,9 +59,11 @@ installed; host-run `--source-imgref` installs are outside that envelope
    `[bootc_install]` holds the root filesystem, the root-partition floor and
    padding, and the bound-images policy, and is projected into
    `usr/lib/bootc/install/00-mios.toml` and `usr/lib/repart.d/50-root.conf`.
-5. **Offline installs** (USB/Ventoy, Law 12) source the image from the staged
-   `oci-archive:` payload and must set `--target-imgref` to the registry
-   image, so `bootc upgrade` follows the published image after install.
+5. **Offline installs** (USB/Ventoy, Law 12): `mios-install disk --source
+   oci-archive:PATH` loads the staged archive with `podman load`, runs the
+   image podman reports as loaded, and sets `--target-imgref` to
+   `[image].ref`, so `bootc upgrade` follows the published image after
+   install. `tools/install.sh` is the front end on the live media.
 
 ## Rationale
 
@@ -98,15 +99,15 @@ installed; host-run `--source-imgref` installs are outside that envelope
 ### Done when
 - `mios-install disk` and `existing-root` have installed MiOS on real
   hardware and the result boots and upgrades (not yet verified).
-- The offline path sets `--target-imgref` and is exercised from USB media.
+- The offline path is exercised from USB media (it sets `--target-imgref`).
 
 ## Implementation
 
 - `tools/native/mios-install` -- `disk`, `existing-root`.
 - `usr/libexec/mios/deploy/baremetal_install.py` -- compatibility shim that
   forwards to `mios-install disk`.
-- `tools/install.sh` -- offline USB installer; to be routed through
-  `mios-install` with an `oci-archive:` source and a registry target imgref.
+- `tools/install.sh` -- offline USB front end: `mios-install disk --source
+  oci-archive:<staged archive>`.
 
 ## References
 

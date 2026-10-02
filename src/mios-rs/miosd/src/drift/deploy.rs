@@ -64,7 +64,7 @@ impl Check for OfflineInstallCheck {
                     .map(|l| l.split('#').next().unwrap_or(""))
                     .collect::<Vec<_>>()
                     .join("\n");
-                if !code.contains("oci-archive:") && !code.contains("--transport oci-archive") {
+                if !code.contains("oci-archive:") {
                     return Verdict::Fail(
                         "tools/install.sh executable code missing oci-archive transport/source"
                             .to_string(),

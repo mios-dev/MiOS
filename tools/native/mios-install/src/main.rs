@@ -6,14 +6,16 @@
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use mios_install::{
-    boot_disks, default_sys, mock_disks, plan, plan_existing_root, rank, scan, select, uefi,
+    boot_disks, default_sys, loaded_ref, mock_disks, plan, plan_existing_root, plan_offline, rank,
+    scan, select, uefi, Source,
 };
 use mios_resolver::runtime;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 const USAGE: &str = "usage: mios-install disk [--target-disk DEV | --auto-select] [--image-ref REF]
-                         [--filesystem xfs|ext4|btrfs] [--yes] [--force] [--dry-run] [--mock] [--json]
+                         [--source oci-archive:PATH] [--filesystem xfs|ext4|btrfs]
+                         [--yes] [--force] [--dry-run] [--mock] [--json]
        mios-install existing-root [--image-ref REF] [--cleanup] [--yes] [--force] [--dry-run] [--json]
 
 Installs [image].ref from mios.toml by running the image's own bootc in a
@@ -21,6 +23,8 @@ privileged podman container. `disk` erases DEV (`bootc install to-disk --wipe`);
 a disk backing the running system is always refused. `existing-root` installs
 over the running system (`bootc install to-existing-root`), which keeps running
 until reboot; --cleanup removes the previous install's files at first boot.
+--source installs offline: the archive is loaded with podman, the loaded image
+([image].local_tag) runs bootc, and the host tracks [image].ref for upgrades.
 A real install needs --yes. --force only skips the UEFI check.
 ";
 
@@ -28,6 +32,7 @@ A real install needs --yes. --force only skips the UEFI check.
 struct Args {
     verb: String,
     cleanup: bool,
+    source: Option<Source>,
     target: Option<String>,
     auto: bool,
     image: Option<String>,
@@ -58,6 +63,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
         match arg.as_str() {
             "--target-disk" => a.target = Some(value("--target-disk")?),
             "--image-ref" => a.image = Some(value("--image-ref")?),
+            "--source" => a.source = Some(Source::parse(&value("--source")?)?),
             "--filesystem" => {
                 let fs = value("--filesystem")?;
                 if !matches!(fs.as_str(), "xfs" | "ext4" | "btrfs") {
@@ -80,10 +86,12 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             other => return Err(format!("unknown option {other:?}")),
         }
     }
-    let disk_only = a.target.is_some() || a.auto || a.filesystem.is_some() || a.mock;
+    let disk_only =
+        a.target.is_some() || a.auto || a.filesystem.is_some() || a.mock || a.source.is_some();
     if a.verb == "existing-root" && disk_only {
         return Err(
-            "--target-disk, --auto-select, --filesystem and --mock apply to `disk` only".into(),
+            "--target-disk, --auto-select, --filesystem, --source and --mock apply to `disk` only"
+                .into(),
         );
     }
     if a.verb == "disk" && a.cleanup {
@@ -102,7 +110,7 @@ fn execute(command: &[String], yes: bool, what: String) -> Result<(), String> {
         .status()
         .map_err(|e| format!("could not run {}: {e}", command[0]))?;
     if !status.success() {
-        return Err(format!("bootc install exited with {status}"));
+        return Err(format!("{} exited with {status}", command.join(" ")));
     }
     Ok(())
 }
@@ -171,11 +179,45 @@ fn run(a: &Args) -> Result<serde_json::Value, String> {
     }
     let ranked = rank(disks, &boot, min_bytes);
     let target = select(&ranked, a.target.as_deref(), a.auto)?;
-    let p = plan(&image, target, a.filesystem.as_deref(), &bound, is_uefi);
+    let p = match &a.source {
+        Some(src) => plan_offline(
+            &image,
+            src,
+            &ssot("MIOS_LOCAL_TAG")?,
+            target,
+            a.filesystem.as_deref(),
+            &bound,
+            is_uefi,
+        ),
+        None => plan(&image, target, a.filesystem.as_deref(), &bound, is_uefi),
+    };
 
     if run_it {
+        let mut command = p.command.clone();
+        // The archive is loaded only once the erase is confirmed, and the
+        // install runs the image podman reports, not an assumed tag.
+        if a.yes {
+            if let Some(load) = p.preload.first() {
+                let out = Command::new(&load[0])
+                    .args(&load[1..])
+                    .output()
+                    .map_err(|e| format!("could not run {}: {e}", load[0]))?;
+                let text = String::from_utf8_lossy(&out.stdout).to_string();
+                if !out.status.success() {
+                    return Err(format!("{} exited with {}", load.join(" "), out.status));
+                }
+                let got = loaded_ref(&text)
+                    .ok_or_else(|| format!("{} reported no loaded image", load.join(" ")))?;
+                let planned = ssot("MIOS_LOCAL_TAG")?;
+                for part in command.iter_mut() {
+                    if *part == planned {
+                        *part = got.clone();
+                    }
+                }
+            }
+        }
         execute(
-            &p.command,
+            &command,
             a.yes,
             format!(
                 "this ERASES {} ({}, {} GB, serial {})",

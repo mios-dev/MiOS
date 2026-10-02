@@ -13,6 +13,7 @@ fn run(args: &[&str]) -> (i32, String) {
         .env("MIOS_IMAGE_REF", "registry.example/mios:test")
         .env("MIOS_BOOTC_INSTALL_BOUND_IMAGES", "stored")
         .env("MIOS_BOOTC_INSTALL_ROOT_MIN_GB", "80")
+        .env("MIOS_LOCAL_TAG", "localhost/mios:test")
         .output()
         .unwrap_or_else(|e| panic!("{e}"));
     let mut s = String::from_utf8_lossy(&out.stdout).to_string();
@@ -145,4 +146,40 @@ fn existing_root_plans_over_the_running_system_and_needs_yes() {
 fn disk_flags_are_refused_for_existing_root_and_vice_versa() {
     assert_eq!(run(&["existing-root", "--target-disk", "/dev/sda"]).0, 2);
     assert_eq!(run(&["disk", "--auto-select", "--mock", "--cleanup"]).0, 2);
+}
+
+#[test]
+fn an_offline_install_loads_the_archive_and_tracks_the_registry_image() {
+    let (code, out) = run(&[
+        "disk",
+        "--auto-select",
+        "--mock",
+        "--dry-run",
+        "--json",
+        "--source",
+        "oci-archive:/mnt/mios-repo/mios-latest.tar",
+    ]);
+    assert_eq!(code, 0, "{out}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"));
+    assert_eq!(v["preload"][0][0], "podman");
+    assert_eq!(v["preload"][0][3], "/mnt/mios-repo/mios-latest.tar");
+    let cmd = v["command"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{out}"))
+        .iter()
+        .filter_map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        cmd.contains("localhost/mios:test bootc install to-disk"),
+        "{cmd}"
+    );
+    assert!(
+        cmd.ends_with("--target-imgref registry.example/mios:test /dev/nvme0n1"),
+        "{cmd}"
+    );
+    assert_eq!(
+        run(&["disk", "--auto-select", "--mock", "--source", "docker://x"]).0,
+        2
+    );
 }

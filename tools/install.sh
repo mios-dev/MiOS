@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer
-# AI-hint: Offline bare-metal installer for MiOS (CATREPO-01 kickstart integration). Performs bootc install to-disk --transport oci-archive from staged oci-archive on MiOS-Repo/MiOS-Data.
+# AI-hint: Offline bare-metal installer for MiOS: installs the staged oci-archive on MiOS-Repo through mios-install, tracking [image].ref for upgrades.
 set -euo pipefail
 
 DRY_RUN=0
@@ -34,27 +34,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$TARGET_DISK" ]]; then
-    echo "[install.sh] Available disks:"
-    lsblk -d -n -o NAME,SIZE,MODEL 2>/dev/null || true
-    if (( DRY_RUN )); then
-        TARGET_DISK="/dev/sda"
-    fi
-fi
-
-if [[ -z "$TARGET_DISK" ]] && (( ! DRY_RUN )); then
-    echo "[!] Target disk is required. Specify via" >&2
+# The installed host tracks [image].ref, not this archive (ADR-0014).
+MIOS_INSTALL="${MIOS_INSTALL_BIN:-$(command -v mios-install || true)}"
+if [[ -z "$MIOS_INSTALL" ]]; then
+    echo "[!] mios-install is not installed on this live system" >&2
     exit 1
 fi
 
-echo "[install.sh] Offline Bare-Metal Installer Plan:"
-echo "  Target Disk: ${TARGET_DISK:-<none>}"
-echo "  OCI Archive: $OCI_ARCHIVE"
-echo "  Transport:   oci-archive"
+if [[ -z "$TARGET_DISK" ]]; then
+    echo "[install.sh] Available disks:"
+    lsblk -d -n -o NAME,SIZE,MODEL 2>/dev/null || true
+    echo "[!] Target disk is required. Specify via --target-disk" >&2
+    exit 1
+fi
+
+args=(disk --target-disk "$TARGET_DISK" --source "oci-archive:$OCI_ARCHIVE")
 
 if (( DRY_RUN )); then
-    echo "[install.sh] DRY-RUN: Would execute -> bootc install to-disk --target-no-signature-verification --source-imgref \"oci-archive:$OCI_ARCHIVE\" \"${TARGET_DISK:-/dev/sda}\""
-    exit 0
+    exec "$MIOS_INSTALL" "${args[@]}" --dry-run
 fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -74,5 +71,5 @@ if [[ "$CONFIRM" != "YES" ]]; then
     exit 0
 fi
 
-bootc install to-disk --target-no-signature-verification --source-imgref "oci-archive:$OCI_ARCHIVE" "$TARGET_DISK"
+"$MIOS_INSTALL" "${args[@]}" --yes
 echo "[install.sh] Offline installation complete"

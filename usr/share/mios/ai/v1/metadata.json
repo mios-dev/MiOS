@@ -8791,7 +8791,7 @@
     },
     {
       "path": "tools/install.sh",
-      "hint": "Offline bare-metal installer for MiOS (CATREPO-01 kickstart integration). Performs bootc install to-disk --transport oci-archive from staged oci-archive on MiOS-Repo/MiOS-Data.",
+      "hint": "Offline bare-metal installer for MiOS: installs the staged oci-archive on MiOS-Repo through mios-install, tracking [image].ref for upgrades.",
       "related": [],
       "functions": [],
       "doc": null,

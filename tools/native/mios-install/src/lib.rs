@@ -213,6 +213,8 @@ pub struct Plan {
     pub filesystem: Option<String>,
     pub bound_images: String,
     pub uefi: bool,
+    /// Commands run before `command` (an offline image load), in order.
+    pub preload: Vec<Vec<String>>,
     pub command: Vec<String>,
 }
 
@@ -226,7 +228,81 @@ pub fn plan(
     bound_images: &str,
     uefi: bool,
 ) -> Plan {
-    let mut command = podman_prefix(image_ref, &[]);
+    plan_from(image_ref, None, target, filesystem, bound_images, uefi)
+}
+
+/// An offline source bootc can install from without a registry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// A `podman save --format oci-archive` tarball (the staged USB payload).
+    OciArchive(String),
+}
+
+impl Source {
+    pub fn parse(s: &str) -> Result<Source, String> {
+        match s.strip_prefix("oci-archive:") {
+            Some(p) if !p.is_empty() => Ok(Source::OciArchive(p.to_string())),
+            _ => Err(format!(
+                "--source {s:?}: only oci-archive:PATH is supported"
+            )),
+        }
+    }
+}
+
+/// Offline variant: load the archive into the host's container storage,
+/// run the loaded image (`loaded_ref`, the tag it was saved under), and set
+/// `--target-imgref` to `image_ref` so the installed host upgrades from the
+/// registry rather than tracking the archive.
+pub fn plan_offline(
+    image_ref: &str,
+    source: &Source,
+    loaded_ref: &str,
+    target: Disk,
+    filesystem: Option<&str>,
+    bound_images: &str,
+    uefi: bool,
+) -> Plan {
+    let Source::OciArchive(path) = source;
+    let mut p = plan_from(
+        loaded_ref,
+        Some(image_ref),
+        target,
+        filesystem,
+        bound_images,
+        uefi,
+    );
+    p.preload = vec![["podman", "load", "-i", path.as_str()]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()];
+    p
+}
+
+/// The image `podman load` reports ("Loaded image: REF" or
+/// "Loaded image(s): REF[,…]"), so the install runs what was actually
+/// loaded rather than an assumed tag.
+pub fn loaded_ref(output: &str) -> Option<String> {
+    output.lines().find_map(|l| {
+        let rest = l
+            .strip_prefix("Loaded image(s):")
+            .or_else(|| l.strip_prefix("Loaded image:"))?;
+        rest.split(',')
+            .next()
+            .map(|r| r.trim().to_string())
+            .filter(|r| !r.is_empty())
+    })
+}
+
+fn plan_from(
+    run_ref: &str,
+    target_imgref: Option<&str>,
+    target: Disk,
+    filesystem: Option<&str>,
+    bound_images: &str,
+    uefi: bool,
+) -> Plan {
+    let image_ref = target_imgref.unwrap_or(run_ref);
+    let mut command = podman_prefix(run_ref, &[]);
     command.extend(
         ["to-disk", "--wipe", "--bound-images", bound_images]
             .iter()
@@ -235,6 +311,9 @@ pub fn plan(
     if let Some(fs) = filesystem {
         command.extend(["--filesystem".to_string(), fs.to_string()]);
     }
+    if let Some(t) = target_imgref {
+        command.extend(["--target-imgref".to_string(), t.to_string()]);
+    }
     command.push(target.device_path.clone());
     Plan {
         image_ref: image_ref.to_string(),
@@ -242,6 +321,7 @@ pub fn plan(
         filesystem: filesystem.map(str::to_string),
         bound_images: bound_images.to_string(),
         uefi,
+        preload: Vec::new(),
         command,
     }
 }
@@ -462,6 +542,52 @@ mod tests {
         assert!(plan_existing_root("r/os:1", "stored", true)
             .join(" ")
             .ends_with("--bound-images stored --cleanup"));
+    }
+
+    #[test]
+    fn an_offline_archive_is_loaded_then_installed_tracking_the_registry_image() {
+        let (disks, boot) = mock_disks();
+        let target =
+            select(&rank(disks, &boot, 80 * GIB), None, true).unwrap_or_else(|e| panic!("{e}"));
+        let src = Source::parse("oci-archive:/mnt/repo/mios.tar").unwrap_or_else(|e| panic!("{e}"));
+        let p = plan_offline(
+            "ghcr.example/os:latest",
+            &src,
+            "localhost/os:latest",
+            target,
+            None,
+            "stored",
+            true,
+        );
+        assert_eq!(
+            p.preload,
+            vec![vec!["podman", "load", "-i", "/mnt/repo/mios.tar"]]
+        );
+        let c = p.command.join(" ");
+        assert!(
+            c.contains("label=type:unconfined_t localhost/os:latest bootc install to-disk"),
+            "{c}"
+        );
+        assert!(
+            c.ends_with("--target-imgref ghcr.example/os:latest /dev/nvme0n1"),
+            "{c}"
+        );
+        assert_eq!(p.image_ref, "ghcr.example/os:latest");
+        assert!(Source::parse("docker://x").is_err() && Source::parse("oci-archive:").is_err());
+    }
+
+    #[test]
+    fn the_loaded_image_is_read_from_podman_load_output() {
+        assert_eq!(
+            loaded_ref("Getting image source signatures\nLoaded image: localhost/mios:latest\n")
+                .as_deref(),
+            Some("localhost/mios:latest")
+        );
+        assert_eq!(
+            loaded_ref("Loaded image(s): localhost/a:1,localhost/b:2").as_deref(),
+            Some("localhost/a:1")
+        );
+        assert_eq!(loaded_ref("Error: nothing"), None);
     }
 
     #[test]
