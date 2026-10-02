@@ -33,8 +33,8 @@ def main():
     try:
         import psycopg
     except ImportError:
-        log.error("psycopg not installed. Skipping database seeding.")
-        return 0
+        log.error("DEGRADED: psycopg not installed; database seeding skipped (dependency unavailable)")
+        return 2
 
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
@@ -334,7 +334,7 @@ def main():
                 conn.commit()
                 log.info("Seeding completed successfully.")
     except Exception as e:
-        log.error("Database seeding failed: %s", e)
+        log.error("DEGRADED: database seeding failed (pgvector unavailable): %s", e)
         return 1
 
     return 0

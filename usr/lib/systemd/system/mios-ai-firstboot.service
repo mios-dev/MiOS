@@ -7,8 +7,8 @@ Documentation=https://github.com/mios-dev/mios
 # overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh's header
 # explicitly anticipates this: "a firstboot retry can complete it later".
 # Needs network (pip + model pull); GGUF blobs come from Hugging Face.
-After=network-online.target
-Wants=network-online.target
+After=network-online.target mios-pgvector.service
+Wants=network-online.target mios-pgvector.service
 # The script writes the sentinel ONLY when both the venv and the GGUFs are
 # present, so a network-less first boot simply retries on the next one.
 ConditionPathExists=!/var/lib/mios/.ai-firstboot-done

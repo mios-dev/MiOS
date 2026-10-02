@@ -23,7 +23,10 @@ chown -R 1000:1000 /srv/mios/forge 2>/dev/null || true
 
 if [[ -r "$ENV_FILE" ]]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
-    set +u; set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+    set +u; set -a
+    # shellcheck source=/dev/null
+    source "$ENV_FILE" 2>/dev/null || true
+    set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
 
@@ -59,7 +62,7 @@ while (( $(date +%s) < deadline )); do
 done
 
 if [[ -z "$ready_port" ]]; then
-    _log "ERROR: Forgejo did not become ready; exiting with error for systemd retry"
+    _log "DEGRADED: Forgejo did not become ready; exiting with error for systemd retry"
     exit 1
 fi
 http_port="$ready_port"
@@ -179,16 +182,14 @@ if [[ -n "$runner_token" ]]; then
     _log "wrote runner token to ${RUNNER_TOKEN_FILE} (mode 0600, root-only)"
     systemctl start --no-block mios-forgejo-runner.service 2>/dev/null || \
         _log "(mios-forgejo-runner.service not yet available; will start on next boot)"
+    install -d -m 0755 -o root -g root "$(dirname "$SENTINEL")"
+    date -u +%FT%TZ > "$SENTINEL"
+    chmod 0644 "$SENTINEL"
+    _log "firstboot complete; sentinel at $SENTINEL"
 else
-    _log "WARN: could not mint runner token -- self-replication CI is offline."
-    _log "      Generate manually: 'sudo podman exec --user 816:816 mios-forge forgejo \\"
-    _log "         --config /data/gitea/conf/app.ini actions generate-runner-token'"
+    _log "DEGRADED: could not mint runner token from forgejo (runner registration skipped; retrying)"
+    exit 1
 fi
-
-install -d -m 0755 -o root -g root "$(dirname "$SENTINEL")"
-date -u +%FT%TZ > "$SENTINEL"
-chmod 0644 "$SENTINEL"
-_log "firstboot complete; sentinel at $SENTINEL"
 
 _log "Forgejo URL:  http://localhost:${http_port}/"
 _log "Admin user:   ${admin_user}"

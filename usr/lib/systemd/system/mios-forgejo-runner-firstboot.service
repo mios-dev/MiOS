@@ -4,9 +4,8 @@
 Description='MiOS' Forgejo Runner first-boot registration
 Documentation=https://forgejo.org/docs/latest/admin/actions/
 After=mios-forge.service mios-forge-firstboot.service
-Wants=mios-forge.service
+Wants=mios-forge.service mios-forge-firstboot.service
 Before=mios-forgejo-runner.service
-ConditionPathExists=/etc/mios/forge/runner-token
 ConditionPathExists=!/srv/mios/forge-runner/.runner
 StartLimitIntervalSec=1200
 StartLimitBurst=6

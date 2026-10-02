@@ -16,15 +16,16 @@ if [[ -f "$SENTINEL" ]]; then
 fi
 
 if [[ ! -r "$TOKEN_FILE" ]]; then
-    echo "[runner-firstboot] $TOKEN_FILE missing; mios-forge-firstboot must run first"
-    exit 0
+    echo "[runner-firstboot] DEGRADED: $TOKEN_FILE missing; forgejo registration token not ready (runner registration skipped/retrying)" >&2
+    exit 1
 fi
 
+# shellcheck source=/dev/null
 . "$TOKEN_FILE"
 
 if [[ -z "${FORGEJO_RUNNER_REGISTRATION_TOKEN:-}" ]]; then
-    echo "[runner-firstboot] token empty; cannot register"
-    exit 0
+    echo "[runner-firstboot] DEGRADED: token empty in $TOKEN_FILE; forgejo runner registration skipped/retrying" >&2
+    exit 1
 fi
 
 INSTANCE_URL="${FORGEJO_INSTANCE_URL:-http://localhost:3000/}"

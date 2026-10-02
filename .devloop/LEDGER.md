@@ -1716,3 +1716,20 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-10-02 21:20 · HEAD · lane-b T-1141 complete
+- objective: Order and report firstboot seeders when their dependencies are unavailable in usr/libexec/mios/*firstboot* (WS-DEPLOY | P2 | M) (T-1141)
+- done:
+  1. usr/lib/systemd/system/mios-ai-firstboot.service & mios.toml [units."mios-ai-firstboot.service".Unit]: ordered After= and Wants= mios-pgvector.service alongside network-online.target so database infrastructure is prioritized before AI provisioning starts.
+  2. usr/lib/systemd/system/mios-forgejo-runner-firstboot.service & mios.toml [units."mios-forgejo-runner-firstboot.service".Unit]: added mios-forge-firstboot.service to Wants= and removed ConditionPathExists=/etc/mios/forge/runner-token so missing registration tokens trigger active degradation reporting and systemd Restart=on-failure rather than silent skipping.
+  3. usr/libexec/mios/seed-db-config.py: returned exit 2 and logged DEGRADED message when psycopg is absent; returned exit 1 and logged DEGRADED when pgvector connection fails.
+  4. usr/libexec/mios/mios-ai-firstboot: integrated MIOS_PG_WAIT_RETRIES, surfaced DEGRADED when pgvector port is not ready, tracked _db_seed_ok and _db_config_ok, gated /var/lib/mios/.ai-firstboot-done sentinel on _db_ok, and degraded open (exit 0) reporting db="skipped/degraded".
+  5. usr/libexec/mios/mios-forgejo-runner-firstboot.sh: surfaced explicit DEGRADED message and exited 1 when registration token file is missing or empty, triggering systemd retry. Added shellcheck source directive.
+  6. usr/libexec/mios/forge-firstboot.sh: surfaced explicit DEGRADED messages and exited 1 without writing sentinel if Forgejo does not become ready or runner token cannot be minted. Added shellcheck source directive.
+  7. usr/libexec/mios/test_mios_firstboot_seeders.py: implemented 5/5 positive and negative test controls with scratch isolation and defect injection.
+  8. Relocated unit-hardening test to usr/libexec/mios/test_mios_unit_hardening.py to satisfy [ci.globs.libexec] without modifying Lane-A [ci.suites] table.
+  9. Standing gates verified: python tools/ci-suites.py --check (407 suites; 6/6 exempt), tools/native/target/debug/mios-unit-gen.exe --check (55 drifted match register), python tools/check-ssot.py unit-projection (70 declared, 55 drifted), python tools/sync-bootstrap.py --check (13 mirrored files, 2 tables, 2 keys match), bash automation/lint-shell.sh (317 shell scripts passed at error level, 3 modified at warning level), python automation/lint-python.sh (1106 files passed), python usr/libexec/mios/test_mios_firstboot_seeders.py (5/5 passed), python usr/libexec/mios/test_mios_unit_hardening.py (2/2 passed).
+- next: Task T-1144 (Remove the ephemeral packit COPR repo and pin releasever for PackageKit).
+- blockers: -
+- unverified: -
+
+

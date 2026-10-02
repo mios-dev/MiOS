@@ -231,13 +231,15 @@ if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
     fi
 fi
 
-python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
+_db_seed_ok=1
+if ! python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
 import os, sys, json, subprocess, socket, time
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 
 PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "8600")
 db_ready = False
-for _ in range(45):
+retries = int(os.environ.get("MIOS_PG_WAIT_RETRIES", "45"))
+for _ in range(retries):
     try:
         s = socket.create_connection(("127.0.0.1", PORT), timeout=1)
         s.close()
@@ -247,8 +249,8 @@ for _ in range(45):
         time.sleep(2)
 
 if not db_ready:
-    sys.stderr.write("seeder: pgvector port not ready, skipping seeding\n")
-    sys.exit(0)
+    sys.stderr.write("DEGRADED: pgvector port not ready; database account seeding skipped (dependency unavailable)\n")
+    sys.exit(2)
 
 merged = mios_toml.load_merged()
 
@@ -524,15 +526,25 @@ if statements:
             text=True
         )
         if proc.returncode != 0:
-            sys.stderr.write(f"seeder failed: {proc.stderr}\n")
+            sys.stderr.write(f"DEGRADED: pgvector account seeder failed: {proc.stderr}\n")
+            sys.exit(1)
         else:
             print(f"seeder successfully seeded {len(statements)} accounts")
     else:
-        sys.stderr.write("seeder: mios-pg-query not found\n")
+        sys.stderr.write("DEGRADED: mios-pg-query not found; database account seeding skipped\n")
+        sys.exit(1)
 PY_SEED
+then
+    _db_seed_ok=0
+    log "DEGRADED: pgvector account seeding failed or skipped"
+fi
 
+_db_config_ok=1
 if [ -f "/usr/libexec/mios/seed-db-config.py" ]; then
-    python3 /usr/libexec/mios/seed-db-config.py || true
+    if ! python3 /usr/libexec/mios/seed-db-config.py; then
+        _db_config_ok=0
+        log "DEGRADED: database config seeding (seed-db-config.py) failed or skipped"
+    fi
 fi
 
 FBLIST="/usr/lib/mios/bake/plan.d/firstboot.list"
@@ -587,11 +599,16 @@ if [ -n "${MIOS_VLLM_BAKE_MODEL:-}" ] && [ ! -f "/var/lib/mios/.vllm-firstboot-d
     _vllm_ok=0
 fi
 
-if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 ]; then
+_db_ok=1
+if [ "$_db_seed_ok" -ne 1 ] || [ "$_db_config_ok" -ne 1 ]; then
+    _db_ok=0
+fi
+
+if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 ] && [ "$_db_ok" -eq 1 ]; then
     touch /var/lib/mios/.ai-firstboot-done
     log "Complete"
     exit 0
 else
-    log "WARNING: incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- degrading open (exit 0); mios-ai-firstboot.timer retries until the sentinel lands"
+    log "WARNING: incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing ) db=$( [ "$_db_ok" -eq 1 ] && echo ok || echo "skipped/degraded" )) -- degrading open (exit 0); mios-ai-firstboot.timer retries until the sentinel lands"
     exit 0
 fi
