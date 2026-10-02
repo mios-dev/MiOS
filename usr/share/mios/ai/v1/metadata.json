@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3599,
-  "total_metadata_entries": 2964,
-  "total_hints": 2949,
+  "total_files_scanned": 3601,
+  "total_metadata_entries": 2966,
+  "total_hints": 2951,
   "total_functions_indexed": 1374,
-  "total_related_links": 4658,
+  "total_related_links": 4663,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -4275,6 +4275,19 @@
         "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/image_freshness.rs",
+      "hint": "Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree.",
+      "related": [
+        "tools/fetch-image-facts.sh",
+        "usr/share/mios/mios.toml",
+        ".github/workflows/mios-ci.yml"
       ],
       "functions": [],
       "doc": null,
@@ -8567,6 +8580,18 @@
         "_shape",
         "check_unwired_modules"
       ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tools/fetch-image-facts.sh",
+      "hint": "Writes .artifacts/image-facts.json -- every release tag of the [image].machine_os_repo podman machine OS and its CoreOS stream -- for `mios-gate image-freshness`.",
+      "related": [
+        "src/mios-rs/mios-gate/src/image_freshness.rs",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true

@@ -9,6 +9,7 @@ mod artifact_layers;
 mod credentials;
 mod dispatch;
 mod doc_refs;
+mod image_freshness;
 mod inert_tables;
 mod laws;
 mod phases;
@@ -87,7 +88,7 @@ impl Report {
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
-                             drift-stubs, law-enforcers, no-inert-ssot-tables,\n\
+                             drift-stubs, image-freshness, law-enforcers, no-inert-ssot-tables,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, signature-policy,\n\
                              version-literals-ssot\n";
@@ -149,6 +150,7 @@ fn main() -> ExitCode {
         "credential-literals" => credentials::check(&root),
         "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),
+        "image-freshness" => image_freshness::check(&root),
         "law-enforcers" => laws::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),

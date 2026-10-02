@@ -119,6 +119,12 @@ jobs:
           # The native gate binary backs a check that fails when it is absent; miosd backs the unit tier's daemon suites.
           cd ../../src/mios-rs && cargo build -p mios-gate -p miosd
 
+      - name: Base images are the newest stable release
+        # Every MiOS image shares [image].machine_os_repo; a newer stable tag fails here.
+        run: |
+          bash ./tools/fetch-image-facts.sh .
+          ./src/mios-rs/target/debug/mios-gate image-freshness --root .
+
       - name: Generated artifacts match the SSOT
         run: |
           bash ./tools/sync-generated.sh
