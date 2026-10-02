@@ -10688,15 +10688,8 @@ bootstrap_client_portable_surfaces = [
 # forwardPorts of every devcontainer.json above (both repos), projected by
 # tools/sync-dotfiles.py from these [ports] keys in order; the array is owned.
 # containerEnv: each named MIOS_* entry is set to the value the resolver emits.
-# The MiOS workspace: every MiOS repository on GitHub, checked out side by side
-# under root. Every MiOS image opens the same set -- a codespace, a local
-# devcontainer, the cloud environment, a local multi-root window -- because all
-# MiOS images are equivalent. The devcontainer opens root (workspaceFolder) and
-# its post-create clones each missing repo there; tools/sync-dotfiles.py projects
-# root into devcontainer's workspaceFolder and the repos into the folders of
-# every *.code-workspace surface ("." for primary, ../<name> for the rest).
-# A local-only checkout with no GitHub repository is not listed: a codespace
-# could never fill it.
+# Every MiOS repo on GitHub, side by side under root; every MiOS image opens this
+# set. Post-create clones the missing ones; tools/sync-dotfiles.py projects it.
 [workspace]
 root         = "/workspaces"
 primary      = "MiOS"

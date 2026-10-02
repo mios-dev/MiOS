@@ -103,3 +103,39 @@ This repo owns the system overlay, `Containerfile`, automation, systemd and Quad
 | [Agreements](AGREEMENTS.md) | Project acknowledgement and component attribution |
 
 The version is recorded in [`VERSION`](VERSION). MiOS and its deployment shapes remain under active development. Component licenses and upstream credits are recorded in the [license catalog](usr/share/doc/mios/reference/licenses.md) and [credits](usr/share/doc/mios/reference/credits.md).
+
+## Cloud Integration
+
+Every MiOS image is the same MiOS. A GitHub Codespace, a local devcontainer, a Claude Code cloud session, the MiOS-DEV podman machine and the bootable OCI image all build from this repository's SSOT. The dev image starts `FROM` the same podman machine OS mirror, `ghcr.io/mios-dev/machine-os`.
+
+### GitHub Codespaces and devcontainers
+
+Open this repository in a Codespace, or reopen it in a devcontainer. The container opens `/workspaces`, and on first create it clones every MiOS repository listed in `mios.toml` `[workspace].repos` beside this one: MiOS, mios-bootstrap, -dev-loop and mios-micro. A local checkout opens the same set through [`mios.code-workspace`](mios.code-workspace); both views are projected from `[workspace]` by `tools/sync-dotfiles.py`, and the drift gate fails if either differs.
+
+### Claude Code cloud environment
+
+A Claude Code cloud session runs on a fixed Ubuntu VM. MiOS builds its dev image there with rootful podman from `main` and installs `mios-dev`, which enters that image with the session's checkouts mounted at the same paths. It also installs the dev-loop plugin. In the environment's settings (environment menu, **Edit**), set the network to **Full** and paste:
+
+Setup script:
+
+```bash
+#!/bin/bash
+curl -fsSL https://raw.githubusercontent.com/mios-dev/MiOS/main/.devcontainer/cloud-shell/claude-code-cloud.sh -o /tmp/mios-claude-code-cloud.sh && bash /tmp/mios-claude-code-cloud.sh
+exit 0
+```
+
+Environment variables:
+
+```
+CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop
+```
+
+The script is [`.devcontainer/cloud-shell/claude-code-cloud.sh`](.devcontainer/cloud-shell/claude-code-cloud.sh). Every `FEDORA_*` value has a default there, so set one only to override it. The setup script always exits 0. A cold first build can run past the setup budget: the devcontainer lifecycle is then deferred, `mios-dev` reports it, and `bash /opt/dev-loop-fedora/cloud-fedora-setup.sh --lifecycle` applies it. Details: [cloud-shell README](.devcontainer/cloud-shell/README.md).
+
+A session's first prompt for live debugging:
+
+```
+/dev-loop:goal Develop MiOS live in this cloud session. Run every gate inside the MiOS dev image (`mios-dev <cmd>`, same $PWD): tests/run-suites.sh lint, python3 tools/ci-suites.py --check, python3 tools/sync-bootstrap.py --check. Take the highest-value open task from the MiOS task list, reproduce its failure, fix it in code, prove it with a positive and a negative control, and push to main. Repeat until the task list's acceptance criteria hold.
+```
+
+The image equivalence work is still in progress. One Containerfile with one stage per profile, plus a gate that proves every image carries the same floor, is tracked as T-1164 and T-1170 to T-1181.

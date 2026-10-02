@@ -69,7 +69,7 @@
     },
     {
       "path": ".devcontainer/cloud-shell/claude-code-cloud.sh",
-      "hint": "Setup script for a Claude Code cloud environment that develops MiOS: builds the MiOS dev image (the same .devcontainer Codespaces builds, FROM the machine-os mirror every MiOS image shares) under rootful podman from MiOS main, installs the mios-dev wrapper and the dev-loop plugin, and always exits 0.",
+      "hint": "Claude Code cloud environment Setup script for MiOS: builds the MiOS dev image (the Codespaces .devcontainer) under podman from main, installs mios-dev and the dev-loop plugin, always exits 0.",
       "related": [
         "/usr/share/mios/templates/bash",
         ".devcontainer/Containerfile",
@@ -10100,7 +10100,7 @@
     },
     {
       "path": "tools/sync-dotfiles.py",
-      "hint": "Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer] and workspaceFolder/folders from [workspace].",
+      "hint": "Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects [dotfiles.devcontainer] and [workspace] keys into them.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",

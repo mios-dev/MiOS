@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Setup script for a Claude Code cloud environment that develops MiOS: builds the MiOS dev image (the same .devcontainer Codespaces builds, FROM the machine-os mirror every MiOS image shares) under rootful podman from MiOS main, installs the mios-dev wrapper and the dev-loop plugin, and always exits 0.
+# AI-hint: Claude Code cloud environment Setup script for MiOS: builds the MiOS dev image (the Codespaces .devcontainer) under podman from main, installs mios-dev and the dev-loop plugin, always exits 0.
 # AI-related: /usr/share/mios/templates/bash, .devcontainer/Containerfile, .devcontainer/devcontainer.json, .devcontainer/cloud-shell/README.md
 # AI-functions: main
 #

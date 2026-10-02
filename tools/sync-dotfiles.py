@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer] and workspaceFolder/folders from [workspace].
+# AI-hint: Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects [dotfiles.devcontainer] and [workspace] keys into them.
 # AI-doc: usr/share/doc/mios/manual/tools.md
 import argparse
 import json
