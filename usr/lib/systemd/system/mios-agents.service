@@ -57,7 +57,8 @@ RestartSec=10s
 NoNewPrivileges=true
 ProtectSystem=strict
 PrivateTmp=true
-StateDirectory=mios/agents
+# No StateDirectory=: this unit runs as root, so systemd would chown the coder
+# home (tmpfiles.d/mios-agents.conf, uid 1000) to root on every start.
 ReadWritePaths=/var/lib/mios/agents /var/lib/containers /run
 
 [Install]

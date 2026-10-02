@@ -1150,7 +1150,7 @@ ExecStart = """/usr/sbin/podman run --replace --name mios-agents \
 ExecStop = "/usr/sbin/podman stop -t 10 mios-agents"
 Restart = "on-failure"
 RestartSec = "10s"
-StateDirectory = "mios/agents"
+comment3 = "# No StateDirectory=: this unit runs as root, so systemd would chown the coder\n# home (tmpfiles.d/mios-agents.conf, uid 1000) to root on every start."
 ReadWritePaths = "/var/lib/mios/agents /var/lib/containers /run"
 
 [units."mios-agents.service".Install]
@@ -1201,7 +1201,6 @@ User = "mios-ai"
 Group = "mios-ai"
 comment5 = "# The runner reads MIOS_PORT_MCP and MIOS_AI_ENDPOINT under set -u; the\n# resolver-rendered install.env is where they come from."
 EnvironmentFile = "-/etc/mios/install.env"
-Environment = "MIOS_PORTS_MCP=8770"
 comment = "# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener"
 ExecStartPre = "/usr/libexec/mios/mcp-init.sh"
 ExecStart = "/usr/libexec/mios/mcp-server-runner"
@@ -12312,8 +12311,12 @@ package_sets = ["devcontainer"]
 repos = ["https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"]
 # CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
 # composefs sealing (mkcomposefs, composefs-info), unit verification
-# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime.
-packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell"]
+# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime, and
+# test-ukify-stage's real-compiler tier (ukify + the systemd-boot EFI stub; the
+# image's own kernel is the input). A suite that cannot run its live tier exits
+# 77, which fails unless [ci.tool_skips] registers it: provide the tool here.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell",
+            "systemd-ukify", "systemd-boot-unsigned"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

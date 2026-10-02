@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3606,
-  "total_metadata_entries": 2972,
-  "total_hints": 2957,
-  "total_functions_indexed": 1378,
-  "total_related_links": 4682,
+  "total_files_scanned": 3607,
+  "total_metadata_entries": 2973,
+  "total_hints": 2958,
+  "total_functions_indexed": 1385,
+  "total_related_links": 4687,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -25785,7 +25785,10 @@
         "usr/libexec/mios/mios-forgejo-runner-firstboot.sh"
       ],
       "functions": [
-        "parse_unit_section",
+        "check_ordering",
+        "check_seed_db_config",
+        "check_runner",
+        "check_ai_firstboot",
         "TestFirstbootSeedersTwoSided"
       ],
       "doc": null,
@@ -25801,6 +25804,25 @@
         "docs/design/doc-generative-documentation.md"
       ],
       "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/libexec/mios/test_mios_mcp_port.py",
+      "hint": "Two-sided controls for T-1135 -- mios-mcp.service gets its MCP port from the resolver-rendered install.env, never a unit literal (Law 7).",
+      "related": [
+        "usr/lib/systemd/system/mios-mcp.service",
+        "usr/libexec/mios/mcp-server-runner",
+        "usr/lib/mios/mios_toml.py",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [
+        "render_exports",
+        "run_preamble",
+        "unit_port_literals",
+        "TestMcpPort"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
@@ -25905,7 +25927,8 @@
       "related": [
         "usr/lib/systemd/system/mios-agents.service",
         "usr/lib/systemd/system/mios-cron-director.service",
-        "usr/share/mios/mios.toml"
+        "usr/lib/tmpfiles.d/",
+        "usr/libexec/mios/mios-agents-firstboot.sh"
       ],
       "functions": [],
       "doc": null,
