@@ -132,6 +132,86 @@ def _check_mcp_sandbox(name, cond, detail=""):
         _fails_mcp_sandbox += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
+def _repo_file(*parts):
+    """Source-tree path relative to the repo root (agent-pipe is usr/lib/mios/agent-pipe)."""
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", *parts))
+
+def _runner_preamble(paths_sh):
+    """The runner's preamble (shebang through the export line) with the
+    installed paths.sh path pointed at a fixture, so the port contract runs in
+    isolation -- never against the live installation."""
+    src = _repo_file("usr", "libexec", "mios", "mcp-server-runner")
+    with open(src) as f:
+        lines = f.read().splitlines()
+    end = next(i for i, l in enumerate(lines) if l.startswith("export MIOS_AI_ENDPOINT"))
+    body = "\n".join(lines[:end + 1]).replace('"/usr/lib/mios/paths.sh"', f'"{paths_sh}"')
+    return body + '\necho "PORT=$MIOS_MCP_PORT"\n'
+
+def _run_preamble(paths_sh, env):
+    with tempfile.TemporaryDirectory() as d:
+        # Put the copy where the ../../lib/mios/paths.sh fallback does not exist.
+        script = os.path.join(d, "a", "b", "runner")
+        os.makedirs(os.path.dirname(script))
+        with open(script, "w") as f:
+            f.write(_runner_preamble(paths_sh))
+        return subprocess.run(["bash", script], capture_output=True, text=True,
+                              timeout=10, env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), **env})
+
+def t_runner_port_contract():
+    """T-1135: the port comes only from the resolver-rendered install.env --
+    no Environment= literal in the unit or its mios.toml table -- and an
+    unresolved port (or a missing paths.sh) is a named, non-zero failure."""
+    if sys.platform == "win32":
+        print("[SKIP] runner-port: bash evaluation skipped on Windows host")
+        return
+    import re
+    lit = re.compile(r"MIOS_(?:PORTS?_MCP|MCP_PORT)=")
+    with open(_repo_file("usr", "lib", "systemd", "system", "mios-mcp.service")) as f:
+        unit_env = [l for l in f.read().splitlines()
+                    if l.startswith("Environment=") and lit.search(l)]
+    _check_mcp_sandbox("runner-port: unit has no MCP port Environment= literal",
+                       not unit_env, f"got {unit_env}")
+    try:
+        import tomllib
+    except ImportError:
+        tomllib = None
+    _check_mcp_sandbox("runner-port: tomllib available (python>=3.11)", tomllib is not None)
+    if tomllib is not None:
+        with open(_repo_file("usr", "share", "mios", "mios.toml"), "rb") as f:
+            svc = tomllib.load(f)["units"]["mios-mcp.service"]["Service"]
+        envs = svc.get("Environment", [])
+        envs = [envs] if isinstance(envs, str) else list(envs)
+        bad = [e for e in envs if lit.search(e)]
+        _check_mcp_sandbox("runner-port: mios.toml unit table has no MCP port literal",
+                           not bad, f"got {bad}")
+        _check_mcp_sandbox("runner-port: unit reads the resolver-rendered install.env",
+                           svc.get("EnvironmentFile") == "-/etc/mios/install.env",
+                           f"got {svc.get('EnvironmentFile')!r}")
+
+    with tempfile.TemporaryDirectory() as d:
+        stub = os.path.join(d, "paths.sh")
+        with open(stub, "w") as f:
+            f.write(":\n")
+        ep = {"MIOS_AI_ENDPOINT": "http://localhost:1/v1"}
+        for name, extra in (("MIOS_PORTS_MCP only", {"MIOS_PORTS_MCP": "8770"}),
+                            ("MIOS_PORT_MCP only", {"MIOS_PORT_MCP": "8770"})):
+            r = _run_preamble(stub, {**ep, **extra})
+            _check_mcp_sandbox(f"runner-port: {name} resolves",
+                               r.returncode == 0 and "PORT=8770" in r.stdout,
+                               f"rc={r.returncode} out={r.stdout.strip()!r} err={r.stderr.strip()[-160:]!r}")
+        r = _run_preamble(stub, ep)
+        _check_mcp_sandbox("runner-port: unset port fails with named error",
+                           r.returncode != 0 and "MIOS_PORT_MCP is unset" in r.stderr
+                           and "PORT=" not in r.stdout,
+                           f"rc={r.returncode} err={r.stderr.strip()[-160:]!r}")
+        r = _run_preamble(os.path.join(d, "absent", "paths.sh"),
+                          {**ep, "MIOS_PORT_MCP": "8770"})
+        _check_mcp_sandbox("runner-port: missing paths.sh is a hard failure",
+                           r.returncode != 0 and "paths.sh not found" in r.stderr
+                           and "PORT=" not in r.stdout,
+                           f"rc={r.returncode} err={r.stderr.strip()[-160:]!r}")
+
 def t_sandbox_gate_parsing():
     """Verify that [security.mcp_sandbox].enable is read correctly from config."""
     from mios_config import _toml_section
@@ -339,6 +419,7 @@ def t_fapolicyd_rules_structure():
 
 def _main_mcp_sandbox():
     print("=== Running T-032 Hermetic MCP Sandboxing Tests ===")
+    t_runner_port_contract()
     t_sandbox_gate_parsing()
     t_gatekeeper_traversal_blocking()
     t_gatekeeper_write_path_validation()
