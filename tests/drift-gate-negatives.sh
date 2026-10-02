@@ -304,9 +304,9 @@ test_ratchet_direction() {
     local orig_val
     orig_val="$(cat "$main_toml"; printf X)"
 
-    MIOS_TOML_PATH="$main_toml" python3 - <<'EOF'
+    RATCHET_TOML="$main_toml" python3 - <<'EOF'
 import os
-p = os.environ["MIOS_TOML_PATH"]
+p = os.environ["RATCHET_TOML"]
 text = open(p, "r", encoding="utf-8").read()
 new_text = text.replace("max_exempt_suites = 6", "max_exempt_suites = 99", 1)
 open(p, "w", encoding="utf-8").write(new_text)

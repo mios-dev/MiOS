@@ -68,7 +68,7 @@ def main():
                     json.dump(phases_out, fh, indent=2)
                 log.info("Materialized build_phases.json (%d phases)", len(phases_out))
 
-                toml_path = os.environ.get("TOML_PATH") or os.environ.get("MIOS_TOML") or os.environ.get("MIOS_TOML_PATH")
+                toml_path = os.environ.get("TOML_PATH") or os.environ.get("MIOS_TOML")
                 if not toml_path:
                     for candidate in ["/etc/mios/mios.toml", "/usr/share/mios/mios.toml"]:
                         if os.path.isfile(candidate):
