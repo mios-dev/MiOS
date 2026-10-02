@@ -251,6 +251,38 @@ fn render_file(content: &str, cfg: &Config, ssot: &BTreeMap<String, String>) -> 
     }
 }
 
+/// `${NAME:-...}` forms still present after rendering, as (line, NAME).
+/// systemd expands that form nowhere, so one that survives ships as literal
+/// text (the forgejo runner label read `fedora-${FEDORA_VERSION:-44}`).
+/// `$${...}` is systemd's escape that hands a literal to a shell, so it is
+/// not a survivor; comments are documentation.
+fn surviving_defaults(rendered: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    for (i, line) in rendered.lines().enumerate() {
+        if is_comment(line) {
+            continue;
+        }
+        let b = line.as_bytes();
+        let mut j = 0;
+        while let Some(off) = line[j..].find("${") {
+            let at = j + off;
+            j = at + 2;
+            if at > 0 && b[at - 1] == b'$' {
+                continue;
+            }
+            let rest = &line[at + 2..];
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() && rest[name.len()..].starts_with(":-") {
+                out.push((i + 1, name));
+            }
+        }
+    }
+    out
+}
+
 fn main() -> ExitCode {
     let mut root = PathBuf::from(".");
     let mut check = false;
@@ -306,10 +338,26 @@ fn main() -> ExitCode {
                 Err(_) => continue, // not UTF-8 text; not ours to render
             };
             if !content.contains("${MIOS_") {
+                // Nothing to render, but a non-MIOS default form is still a
+                // unit systemd will read literally.
+                for (line, name) in surviving_defaults(&content) {
+                    problems.push(format!(
+                        "{}:{line} carries ${{{name}:-...}}, which systemd never expands -- \
+                         reference the SSOT (${{MIOS_...}}) or escape it ($${{...}}) for a shell",
+                        p.display()
+                    ));
+                }
                 continue;
             }
             scanned += 1;
             let outcome = render_file(&content, &cfg, &ssot);
+            for (line, name) in surviving_defaults(&outcome.rendered) {
+                problems.push(format!(
+                    "{}:{line} still carries ${{{name}:-...}} after rendering, which systemd \
+                     never expands -- reference the SSOT (${{MIOS_...}}) or escape it ($${{...}}) for a shell",
+                    p.display()
+                ));
+            }
             for (line, name) in &outcome.unresolved {
                 problems.push(format!(
                     "{}:{line} floats on ${{{name}}}, which resolved to nothing -- it is not in the \
@@ -337,7 +385,7 @@ fn main() -> ExitCode {
             eprintln!("mios-render-quadlets: {p}");
         }
         eprintln!(
-            "mios-render-quadlets: {} unresolved placeholder(s) across {scanned} file(s)",
+            "mios-render-quadlets: {} unresolved or unexpandable placeholder(s) across {scanned} file(s)",
             problems.len()
         );
         return ExitCode::from(1);
@@ -600,5 +648,14 @@ mod tests {
     fn a_later_service_section_does_not_inherit_an_earlier_container_env() {
         let unit = "[Container]\nEnvironment=FOO=bar\n\n[Service]\nExecStart=/bin/true\n";
         assert!(!declares_unit_environment(unit));
+    }
+
+    #[test]
+    fn a_surviving_default_form_is_reported_and_escapes_are_not() {
+        let text = "# ${DOC:-x} is prose\nEnvironment=A=fedora-${FEDORA_VERSION:-44}\nExecStart=/bin/sh -c 'echo $${HOME:-/}'\nEnvironment=B=${MIOS_X}\n";
+        assert_eq!(
+            surviving_defaults(text),
+            vec![(2, "FEDORA_VERSION".to_string())]
+        );
     }
 }
