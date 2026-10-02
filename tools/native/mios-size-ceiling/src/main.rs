@@ -36,17 +36,17 @@ fn tracked_bytes(root: &Path) -> Result<u64, String> {
         return Err("git ls-files failed -- no size was measured".into());
     }
     let text = String::from_utf8_lossy(&ls.stdout);
-    let mut oids = String::new();
-    for entry in text.split('\0') {
-        if entry.trim().is_empty() {
-            continue;
-        }
-        // "<mode> <oid> <stage>\t<path>"
-        let meta = entry.split('\t').next().unwrap_or("");
-        if let Some(oid) = meta.split_whitespace().nth(1) {
-            oids.push_str(oid);
-            oids.push('\n');
-        }
+    let (oids, unmerged) = index_oids(&text);
+    if let Some(first) = unmerged.first() {
+        // Mid-merge, a conflicted path is listed once per stage (base, ours,
+        // theirs), so summing them counted it up to three times and this tool
+        // then "regenerated" the ceiling up to fit. A merge has no single
+        // size: refuse, as usr/lib/mios/mios_comments.py does.
+        return Err(format!(
+            "the index has {} unmerged path(s) (first: {first}) -- a mid-merge index \
+             has no single size; resolve the merge, then measure",
+            unmerged.len()
+        ));
     }
     if oids.is_empty() {
         return Err("git listed no tracked file -- an empty index is not a measurement".into());
@@ -83,6 +83,33 @@ fn tracked_bytes(root: &Path) -> Result<u64, String> {
         return Err("tracked size measured as 0 bytes -- that is a broken measurement".into());
     }
     Ok(total)
+}
+
+/// The blob ids of a `git ls-files -s -z` listing, one per line, and every
+/// path listed at a stage other than 0 (an unmerged entry).
+fn index_oids(listing: &str) -> (String, Vec<String>) {
+    let mut oids = String::new();
+    let mut unmerged = Vec::new();
+    for entry in listing.split('\0') {
+        if entry.trim().is_empty() {
+            continue;
+        }
+        // "<mode> <oid> <stage>\t<path>"
+        let (meta, path) = entry.split_once('\t').unwrap_or((entry, ""));
+        let mut fields = meta.split_whitespace();
+        let oid = fields.nth(1);
+        if fields.next().is_some_and(|stage| stage != "0") {
+            if unmerged.last().map(String::as_str) != Some(path) {
+                unmerged.push(path.to_string());
+            }
+            continue;
+        }
+        if let Some(oid) = oid {
+            oids.push_str(oid);
+            oids.push('\n');
+        }
+    }
+    (oids, unmerged)
 }
 
 /// The band a committed ceiling may sit in: [floor, floor + headroom].
@@ -219,6 +246,27 @@ mod tests {
     fn rounding_is_half_up_at_the_boundary_both_ways() {
         assert_eq!(band((201.49 * MIB) as u64, 0).0, 201);
         assert_eq!(band((201.51 * MIB) as u64, 0).0, 202);
+    }
+
+    #[test]
+    fn a_merged_index_lists_every_blob_once() {
+        let listing = "100644 aaaa 0\tREADME.md\0100755 bbbb 0\ttools/x.sh\0";
+        let (oids, unmerged) = index_oids(listing);
+        assert_eq!(oids, "aaaa\nbbbb\n");
+        assert!(unmerged.is_empty());
+    }
+
+    #[test]
+    fn an_unmerged_path_is_named_once_and_never_summed() {
+        // One conflicted path at stages 1, 2 and 3: counting all three is the
+        // inflation this refuses.
+        let listing = "100644 aaaa 0\tREADME.md\0\
+                       100644 b111 1\tTASKS.jsonl\0\
+                       100644 b222 2\tTASKS.jsonl\0\
+                       100644 b333 3\tTASKS.jsonl\0";
+        let (oids, unmerged) = index_oids(listing);
+        assert_eq!(oids, "aaaa\n");
+        assert_eq!(unmerged, vec!["TASKS.jsonl".to_string()]);
     }
 
     #[test]

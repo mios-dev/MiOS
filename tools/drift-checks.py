@@ -185,12 +185,14 @@ def check_legibility_ratchet() -> int:
     # total sitting a few KiB past the 201.5 MiB rounding boundary, that expansion
     # alone pushed tracked_mb to 202 and held this ratchet red against content
     # nobody added. Blobs are identical in every clean checkout of a commit.
-    nbytes = 0
+    nbytes, unmerged = 0, []
     try:
         ls_s = subprocess.run(["git", "ls-files", "-s", "-z"], cwd=root,
                               capture_output=True, check=True).stdout.decode("utf-8", "replace")
-        oids = [e.split("\t", 1)[0].split()[1] for e in ls_s.split("\0") if e.strip()]
-        if oids:
+        entries = [e.split("\t", 1) for e in ls_s.split("\0") if e.strip()]
+        unmerged = sorted({p for m, p in entries if m.split()[2] != "0"})  # one entry per merge stage
+        oids = [m.split()[1] for m, _ in entries]
+        if oids and not unmerged:
             sizes = subprocess.run(["git", "cat-file", "--batch-check=%(objectsize)"],
                                    cwd=root, input="\n".join(oids).encode(),
                                    capture_output=True, check=True).stdout.decode()
@@ -201,6 +203,9 @@ def check_legibility_ratchet() -> int:
                 nbytes += os.path.getsize(os.path.join(root, rel.replace("/", os.sep)))
             except OSError:
                 pass
+    if unmerged:
+        sys.exit("[legibility] %d unmerged path(s) (first: %s) -- a mid-merge index has no "
+                 "single size; resolve the merge, then measure" % (len(unmerged), unmerged[0]))
 
     def _is_generated(rel):
         """True for a file that declares itself a machine projection.
