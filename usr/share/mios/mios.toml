@@ -6195,6 +6195,12 @@ verify_probes = [
     "syft"
 ]
 
+# Windows-side btop config root. mios-bootstrap's Install-MiosWindowsTools
+# stages the SSOT-rendered btop.conf + themes/mios.theme here and points the
+# User-scope BTOP_CONFIG_DIR at it. Defaults to the MiOS-owned data drive
+# ([bootstrap.host_storage].drive_letter) rather than %APPDATA%.
+btop_config_dir = "M:\\MiOS\\btop"
+
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
