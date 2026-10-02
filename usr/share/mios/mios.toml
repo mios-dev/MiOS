@@ -7418,6 +7418,18 @@ user = "mios-adguard"
 uid  = 825
 gid  = 825
 
+# Streaming speech engines of the mios-ai pod (Law 6: every Quadlet runs as a
+# declared non-root uid). 830 is mios-node; 831/832 continue the sidecar block.
+[services.piper]
+user = "mios-piper"
+uid  = 831
+gid  = 831
+
+[services.whisper]
+user = "mios-whisper"
+uid  = 832
+gid  = 832
+
 [adguard]
 # Upstream resolvers -- DoH for privacy (no plaintext :53 to the ISP). The agent
 # can add/replace these via the UI; this is the shipped default.
@@ -10116,6 +10128,7 @@ ContainerName = "mios-piper"
 Environment = "PORT=${MIOS_PORT_PIPER:-8179}"
 EnvironmentFile = "/etc/mios/install.env"
 Exec = "--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0"
+Group = "${MIOS_PIPER_GID:-831}"
 HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
@@ -10127,6 +10140,7 @@ Label = [
   'org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"'
 ]
 Pod = "mios-ai.pod"
+User = "${MIOS_PIPER_UID:-831}"
 Volume = [
   "/usr/share/mios/piper/models:/models:ro,Z",
   "/run/mios:/run/mios:Z"
@@ -10152,6 +10166,7 @@ ContainerName = "mios-whisper"
 Environment = "PORT=${MIOS_PORT_WHISPER:-8178}"
 EnvironmentFile = "/etc/mios/install.env"
 Exec = "--model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert"
+Group = "${MIOS_WHISPER_GID:-832}"
 HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
@@ -10163,6 +10178,7 @@ Label = [
   'org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"'
 ]
 Pod = "mios-ai.pod"
+User = "${MIOS_WHISPER_UID:-832}"
 Volume = [
   "/usr/share/mios/whisper/models:/models:ro,Z",
   "/run/mios:/run/mios:Z"
