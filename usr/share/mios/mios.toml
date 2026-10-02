@@ -1846,6 +1846,10 @@ dirs = [
   "/usr/share/mios/kb",
   "/usr/lib/systemd/system/cockpit.socket.d",
   "/usr/lib/systemd/system",
+  # Walked for the ${VAR:-...} survivor check even without placeholders (T-1134).
+  "/usr/lib/systemd/user",
+  "/etc/systemd/system",
+  "/etc/systemd/user",
 ]
 # Matches the bash `find -maxdepth 2`; miosd's read_dir was depth 1 and missed users/.
 max_depth = 2

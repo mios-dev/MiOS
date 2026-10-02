@@ -7,15 +7,6 @@ use std::path::Path;
 const CHECK: &str = "render-coverage";
 const SSOT: &str = "usr/share/mios/mios.toml";
 
-/// Repo-relative counterparts of the renderer's QUADLET_DIRS. The absolute
-/// paths it walks at bake are these trees once the overlay is in place.
-const SCAN_DIRS: [&str; 4] = [
-    "usr/lib/systemd/system",
-    "usr/share/containers/systemd",
-    "etc/mios",
-    "usr/share/mios/kb",
-];
-
 fn cannot_run(why: impl Into<String>) -> Report {
     Report {
         check: CHECK.to_string(),
@@ -26,8 +17,8 @@ fn cannot_run(why: impl Into<String>) -> Report {
     }
 }
 
-fn walk(dir: &Path, depth: usize, out: &mut Vec<std::path::PathBuf>) {
-    if depth > 2 {
+fn walk(dir: &Path, depth: usize, max: usize, out: &mut Vec<std::path::PathBuf>) {
+    if depth >= max {
         return;
     }
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -36,7 +27,7 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<std::path::PathBuf>) {
     for e in entries.flatten() {
         let p = e.path();
         if p.is_dir() {
-            walk(&p, depth + 1, out);
+            walk(&p, depth + 1, max, out);
         } else if p.is_file() {
             out.push(p);
         }
@@ -71,11 +62,31 @@ pub fn check(root: &Path) -> Report {
         }
     };
 
+    // The renderer's own trees and depth, repo-relative: a second list here
+    // drifted from the renderer's (it lacked etc/containers/systemd).
+    let qr = val.get("build").and_then(|b| b.get("quadlet_render"));
+    let dirs: Vec<String> = qr
+        .and_then(|q| q.get("dirs"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str())
+                .map(|d| d.trim_start_matches('/').to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    let Some(max_depth) = qr
+        .and_then(|q| q.get("max_depth"))
+        .and_then(|v| v.as_integer())
+        .and_then(|n| usize::try_from(n).ok())
+    else {
+        return cannot_run("[build.quadlet_render].max_depth is absent or not a count");
+    };
     let mut files = Vec::new();
-    for d in SCAN_DIRS {
+    for d in &dirs {
         let p = root.join(d);
         if p.is_dir() {
-            walk(&p, 0, &mut files);
+            walk(&p, 0, max_depth, &mut files);
         }
     }
     if files.is_empty() {
@@ -129,10 +140,43 @@ pub fn check(root: &Path) -> Report {
 mod tests {
     use super::*;
 
+    fn fixture(dirs: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "mios-rendercov-{}-{}",
+            std::process::id(),
+            dirs.len()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("usr/share/mios")).unwrap();
+        std::fs::create_dir_all(root.join("usr/lib/systemd/user")).unwrap();
+        std::fs::write(
+            root.join(SSOT),
+            format!(
+                "[build.quadlet_render]\nextensions = [\"service\"]\nmax_depth = 2\ndirs = {dirs}\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("usr/lib/systemd/user/x.timer"),
+            "[Timer]\nOnCalendar=${MIOS_PLANTED}\n",
+        )
+        .unwrap();
+        root
+    }
+
     #[test]
-    fn scan_dirs_match_the_renderers_repo_relative_trees() {
-        // A guard against this list silently diverging from QUADLET_DIRS.
-        assert!(SCAN_DIRS.contains(&"usr/lib/systemd/system"));
-        assert_eq!(SCAN_DIRS.len(), 4);
+    fn scans_the_trees_the_ssot_names() {
+        let r = check(&fixture(r#"["/usr/lib/systemd/user"]"#));
+        assert!(
+            !r.ok,
+            "a .timer placeholder in a declared tree must be found"
+        );
+        assert_eq!(r.findings.len(), 1, "{:?}", r.findings);
+    }
+
+    #[test]
+    fn an_undeclared_tree_is_not_scanned() {
+        let r = check(&fixture(r#"["/etc/mios", "/usr/lib/systemd/user/none"]"#));
+        assert!(r.could_not_run.is_some(), "no declared tree holds files");
     }
 }
