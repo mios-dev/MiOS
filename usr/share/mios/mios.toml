@@ -7745,12 +7745,14 @@ core = [
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
+  "docker.io/lizardbyte/sunshine:latest-ubuntu-26.10",
   "docker.io/lmsysorg/sglang:latest",
   "docker.io/pgvector/pgvector:latest",
   "docker.io/rancher/k3s:latest",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
   "docker.io/vllm/vllm-openai:latest",
+  "ghcr.io/ggml-org/whisper.cpp:main",
   "ghcr.io/mostlygeek/llama-swap:cuda",
   "ghcr.io/mios-dev/mios-node:latest",
   "ghcr.io/open-webui/open-webui:main",
@@ -10223,7 +10225,7 @@ HealthInterval = "30s"
 HealthRetries = 3
 HealthStartPeriod = "20s"
 HealthTimeout = "10s"
-Image = "docker.io/lizardbyte/sunshine:latest"
+Image = "docker.io/lizardbyte/sunshine:latest-ubuntu-26.10"
 Label = [
   "org.opencontainers.image.title=mios-sunshine",
   'org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"'

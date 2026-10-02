@@ -27,7 +27,7 @@ HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=20s
 HealthTimeout=10s
-Image=docker.io/lizardbyte/sunshine:latest
+Image=docker.io/lizardbyte/sunshine:latest-ubuntu-26.10
 Label=org.opencontainers.image.title=mios-sunshine
 Label=org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"
 Network=host
