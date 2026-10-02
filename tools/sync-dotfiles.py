@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer].
+# AI-hint: Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer] and workspaceFolder/folders from [workspace].
 # AI-doc: usr/share/doc/mios/manual/tools.md
 import argparse
 import json
@@ -93,7 +93,21 @@ def devcontainer_projection():
         if not env[n] or "${" in env[n]:
             raise SystemExit(_fatal(f"mios.toml [dotfiles.devcontainer].container_env_keys names {n!r}, which "
                                     f"the resolver does not emit as a resolved value ({env[n]!r})", EXIT_BAD_POLICY))
-    return {"forwardPorts": [int(v) for v in ports], "containerEnv": env}
+    ws = mios_toml.section(merged, "workspace")
+    repos, primary = ws.get("repos"), ws.get("primary")
+    if (not isinstance(repos, list) or not repos
+            or not all(isinstance(r, dict) and r.get("name") and r.get("url") for r in repos)
+            or primary not in [r["name"] for r in repos]
+            or not str(ws.get("root") or "").startswith("/") or not ws.get("devcontainer")):
+        raise SystemExit(_fatal("mios.toml [workspace] needs an absolute root, a devcontainer path and a "
+                                "non-empty repos list of {name, url} that names primary", EXIT_BAD_POLICY))
+    folders = [{"name": r.get("label") or r["name"], "path": "." if r["name"] == primary else f"../{r['name']}"}
+               for r in repos]
+    return {"forwardPorts": [int(v) for v in ports], "containerEnv": env,
+            "workspaceFolder": ws["root"],
+            # Pinned so a local clone under any directory name lands where Codespaces puts it.
+            "workspaceMount": f"source=${{localWorkspaceFolder}},target={ws['root']}/{primary},type=bind",
+            "workspaceDevcontainer": ws["devcontainer"], "folders": folders}
 
 
 # [theme.edge] key -> the settings key it owns in both .dotfiles settings sources (operator decision: compact, ModernUI on).
@@ -284,6 +298,19 @@ def project_json_merges(check, pol, ssot_settings, dc_owned):
             if owned_stale:
                 doc["forwardPorts"] = list(fwd)
                 doc["containerEnv"] = dict(cenv, **env)
+        # [workspace]: the primary devcontainer opens the workspace root and every
+        # *.code-workspace here lists the same repos, so each MiOS image opens one set.
+        if repo_root == REPO_ROOT and rel_target == dc_owned["workspaceDevcontainer"]:
+            for key in ("workspaceFolder", "workspaceMount"):
+                if doc.get(key) != dc_owned[key]:
+                    reasons.append(f"{key} {doc.get(key)!r} differs from the [workspace] projection {dc_owned[key]!r}")
+                    doc[key] = dc_owned[key]
+                    owned_stale = True
+        if repo_root == REPO_ROOT and rel_target.endswith(".code-workspace"):
+            if doc.get("folders") != dc_owned["folders"]:
+                reasons.append("folders differ from the [workspace].repos projection")
+                doc["folders"] = [dict(f) for f in dc_owned["folders"]]
+                owned_stale = True
         drift.extend((label, r) for r in reasons)
         if not check and (expected != existing or owned_stale):
             parent[key_path[-1]] = expected

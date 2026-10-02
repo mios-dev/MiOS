@@ -2796,6 +2796,10 @@ MIOS_WORKER_TOOLS_BM25_B=0.75
 MIOS_WORKER_TOOLS_BM25_K1=1.2
 MIOS_WORKER_TOOLS_PRIORITY_FALLBACK_SCORES=0.55,0.45,0.3,0.25,0.15
 MIOS_WORKER_TOOLS_TOOL_PRIORITY_CORE_FIRST=true
+MIOS_WORKSPACE_DEVCONTAINER=.devcontainer/devcontainer.json
+MIOS_WORKSPACE_PRIMARY=MiOS
+MIOS_WORKSPACE_REPOS={ label = "MiOS (system root)", name = "MiOS", url = "https://github.com/mios-dev/MiOS.git" },{ label = "mios-bootstrap (installer and user overlay)", name = "mios-bootstrap", url = "https://github.com/mios-dev/mios-bootstrap.git" },{ label = "-dev-loop (engineering loop)", name = "-dev-loop", url = "https://github.com/mios-dev/-dev-loop.git" },{ label = "mios-micro", name = "mios-micro", url = "https://github.com/mios-dev/mios-micro.git" }
+MIOS_WORKSPACE_ROOT=/workspaces
 MIOS_WSL2_AUTO_PROXY=true
 MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND=x11
 MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND=0

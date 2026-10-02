@@ -2926,6 +2926,10 @@ $script:MIOS_WORKER_TOOLS_BM25_B = if ($env:MIOS_WORKER_TOOLS_BM25_B) { $env:MIO
 $script:MIOS_WORKER_TOOLS_BM25_K1 = if ($env:MIOS_WORKER_TOOLS_BM25_K1) { $env:MIOS_WORKER_TOOLS_BM25_K1 } else { '1.2' }
 $script:MIOS_WORKER_TOOLS_PRIORITY_FALLBACK_SCORES = if ($env:MIOS_WORKER_TOOLS_PRIORITY_FALLBACK_SCORES) { $env:MIOS_WORKER_TOOLS_PRIORITY_FALLBACK_SCORES } else { '0.55,0.45,0.3,0.25,0.15' }
 $script:MIOS_WORKER_TOOLS_TOOL_PRIORITY_CORE_FIRST = if ($env:MIOS_WORKER_TOOLS_TOOL_PRIORITY_CORE_FIRST) { $env:MIOS_WORKER_TOOLS_TOOL_PRIORITY_CORE_FIRST } else { 'true' }
+$script:MIOS_WORKSPACE_DEVCONTAINER = if ($env:MIOS_WORKSPACE_DEVCONTAINER) { $env:MIOS_WORKSPACE_DEVCONTAINER } else { '.devcontainer/devcontainer.json' }
+$script:MIOS_WORKSPACE_PRIMARY = if ($env:MIOS_WORKSPACE_PRIMARY) { $env:MIOS_WORKSPACE_PRIMARY } else { 'MiOS' }
+$script:MIOS_WORKSPACE_REPOS = if ($env:MIOS_WORKSPACE_REPOS) { $env:MIOS_WORKSPACE_REPOS } else { '{ label = "MiOS (system root)", name = "MiOS", url = "https://github.com/mios-dev/MiOS.git" },{ label = "mios-bootstrap (installer and user overlay)", name = "mios-bootstrap", url = "https://github.com/mios-dev/mios-bootstrap.git" },{ label = "-dev-loop (engineering loop)", name = "-dev-loop", url = "https://github.com/mios-dev/-dev-loop.git" },{ label = "mios-micro", name = "mios-micro", url = "https://github.com/mios-dev/mios-micro.git" }' }
+$script:MIOS_WORKSPACE_ROOT = if ($env:MIOS_WORKSPACE_ROOT) { $env:MIOS_WORKSPACE_ROOT } else { '/workspaces' }
 $script:MIOS_WSL2_AUTO_PROXY = if ($env:MIOS_WSL2_AUTO_PROXY) { $env:MIOS_WSL2_AUTO_PROXY } else { 'true' }
 $script:MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND = if ($env:MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND) { $env:MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND } else { 'x11' }
 $script:MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND = if ($env:MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND) { $env:MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND } else { 0 }

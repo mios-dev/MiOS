@@ -200,13 +200,14 @@
     8500,
     8600
   ],
-  "postCreateCommand": "bash .devcontainer/boot-mios-systems.sh create",
-  "postStartCommand": "bash .devcontainer/boot-mios-systems.sh start",
+  "postCreateCommand": "bash MiOS/.devcontainer/boot-mios-systems.sh create",
+  "postStartCommand": "bash MiOS/.devcontainer/boot-mios-systems.sh start",
   "remoteUser": "mios-dev",
-  "workspaceFolder": "/workspaces/MiOS",
+  "workspaceFolder": "/workspaces",
   "hostRequirements": {
     "cpus": 4,
     "memory": "16gb",
     "storage": "32gb"
-  }
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/MiOS,type=bind"
 }

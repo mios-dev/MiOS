@@ -10678,7 +10678,6 @@ client_portable_surfaces = [
     ".devcontainer/devcontainer.json",
     ".devcontainer/artifact-builder/devcontainer.json",
     "mios.code-workspace",
-    ".devcontainer/mios-ecosystem.code-workspace",
 ]
 # The same kind of surface in mios-bootstrap.git (Law 15), relative to that
 # checkout (the sibling directory of this repository, or MIOS_BOOTSTRAP_ROOT).
@@ -10689,6 +10688,26 @@ bootstrap_client_portable_surfaces = [
 # forwardPorts of every devcontainer.json above (both repos), projected by
 # tools/sync-dotfiles.py from these [ports] keys in order; the array is owned.
 # containerEnv: each named MIOS_* entry is set to the value the resolver emits.
+# The MiOS workspace: every MiOS repository on GitHub, checked out side by side
+# under root. Every MiOS image opens the same set -- a codespace, a local
+# devcontainer, the cloud environment, a local multi-root window -- because all
+# MiOS images are equivalent. The devcontainer opens root (workspaceFolder) and
+# its post-create clones each missing repo there; tools/sync-dotfiles.py projects
+# root into devcontainer's workspaceFolder and the repos into the folders of
+# every *.code-workspace surface ("." for primary, ../<name> for the rest).
+# A local-only checkout with no GitHub repository is not listed: a codespace
+# could never fill it.
+[workspace]
+root         = "/workspaces"
+primary      = "MiOS"
+devcontainer = ".devcontainer/devcontainer.json"
+repos = [
+  { name = "MiOS",           url = "https://github.com/mios-dev/MiOS.git",           label = "MiOS (system root)" },
+  { name = "mios-bootstrap", url = "https://github.com/mios-dev/mios-bootstrap.git", label = "mios-bootstrap (installer and user overlay)" },
+  { name = "-dev-loop",      url = "https://github.com/mios-dev/-dev-loop.git",      label = "-dev-loop (engineering loop)" },
+  { name = "mios-micro",     url = "https://github.com/mios-dev/mios-micro.git",     label = "mios-micro" },
+]
+
 [dotfiles.devcontainer]
 forward_port_keys  = ["code_server", "agent_pipe", "llm_light", "pgvector"]
 container_env_keys = ["MIOS_AI_ENDPOINT"]

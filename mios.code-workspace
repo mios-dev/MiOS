@@ -1,20 +1,20 @@
 {
   "folders": [
     {
-      "name": "MiOS",
+      "name": "MiOS (system root)",
       "path": "."
     },
     {
+      "name": "mios-bootstrap (installer and user overlay)",
       "path": "../mios-bootstrap"
     },
     {
-      "path": "../mios-micro"
-    },
-    {
-      "path": "../MiOS-RnD"
-    },
-    {
+      "name": "-dev-loop (engineering loop)",
       "path": "../-dev-loop"
+    },
+    {
+      "name": "mios-micro",
+      "path": "../mios-micro"
     }
   ],
   "settings": {

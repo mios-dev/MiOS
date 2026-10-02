@@ -1,39 +1,34 @@
 #!/usr/bin/env bash
-# GENERATED FROM THREE-REPO DEVCONTAINER SPECIFICATION - DO NOT EDIT
-# AI-hint: Cohesive multi-repository sync and environment provisioning across MiOS, mios-bootstrap, and -dev-loop.
+# AI-hint: Post-create provisioning for the MiOS devcontainer: clones every [workspace] repo side by side, then applies the root overlay, agent shims and editor projection.
 set -euo pipefail
 
-WORKSPACE_DIR="/workspaces"
+# [workspace] in the SSOT names the root and every MiOS repo; the devcontainer
+# opens that root, so a codespace shows all of them, not only the one it cloned.
+MIOS_ROOT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.."
+TOML_GET="${MIOS_ROOT_DIR}/usr/libexec/mios/mios-toml-get"
+WORKSPACE_DIR="$(MIOS_TOML_ROOT="${MIOS_ROOT_DIR}" python3 "${TOML_GET}" workspace root)"
+[ -n "$WORKSPACE_DIR" ] || { echo "[devcontainer:setup] ERROR: [workspace].root is empty" >&2; exit 1; }
 mkdir -p "$WORKSPACE_DIR"
 
-echo "=== [1/5] Syncing Three-Repo Workspace Layout ==="
-# Ensure all three repositories are cloned side-by-side
-declare -A REPOS=(
-    ["MiOS"]="https://github.com/mios-dev/MiOS.git"
-    ["mios-bootstrap"]="https://github.com/mios-dev/mios-bootstrap.git"
-    ["-dev-loop"]="https://github.com/mios-dev/-dev-loop.git"
-)
-
-for repo in "${!REPOS[@]}"; do
+echo "=== [1/6] Syncing the MiOS workspace ([workspace].repos) ==="
+while IFS=$'\t' read -r repo url; do
     target="${WORKSPACE_DIR}/${repo}"
-    if [ ! -d "$target/.git" ]; then
-        if [ "$repo" = "-dev-loop" ] && [ -d "$HOME/.dev-loop/.git" ]; then
-            echo "  [LINK/SYNC] Existing checkout at $HOME/.dev-loop found"
-            ln -sfn "$HOME/.dev-loop" "$target"
-        else
-            echo "  [CLONE] $repo -> $target"
-            git clone --depth 1 "${REPOS[$repo]}" "$target" 2>/dev/null || {
-                echo "  [WARN] Failed to clone ${REPOS[$repo]} (token authorization required)"
-            }
-        fi
-    else
+    if [ -d "$target/.git" ] || [ -f "$target/.git" ]; then
         echo "  [EXISTS] $target"
+    elif [ "$repo" = "-dev-loop" ] && [ -d "$HOME/.dev-loop/.git" ]; then
+        echo "  [LINK/SYNC] Existing checkout at $HOME/.dev-loop found"
+        ln -sfn "$HOME/.dev-loop" "$target"
+    else
+        echo "  [CLONE] $repo -> $target"
+        # A failed clone leaves a usable codespace; the folder shows as missing until the next create.
+        git clone "$url" "$target" || echo "  [WARN] Failed to clone $url"
     fi
-done
+done < <(MIOS_TOML_ROOT="${MIOS_ROOT_DIR}" python3 "${TOML_GET}" workspace repos \
+            | python3 -c 'import json, sys; print("\n".join(r["name"] + "\t" + r["url"] for r in json.load(sys.stdin)))')
 
-# Create non-colliding symlinks for dev-loop access
+# ~/.dev-loop is where the toolkit's own installer looks. No second link under
+# the workspace root: it would show as a duplicate folder in the opened workspace.
 if [ -d "${WORKSPACE_DIR}/-dev-loop" ] || [ -L "${WORKSPACE_DIR}/-dev-loop" ]; then
-    ln -sfn "${WORKSPACE_DIR}/-dev-loop" "${WORKSPACE_DIR}/dev-loop"
     if [ ! -d "$HOME/.dev-loop" ] || [ -L "$HOME/.dev-loop" ]; then
         ln -sfn "${WORKSPACE_DIR}/-dev-loop" "$HOME/.dev-loop"
     fi
@@ -47,14 +42,14 @@ for repo_dir in "${WORKSPACE_DIR}"/*; do
     fi
 done
 
-echo "=== [2/5] Initializing Root Overlay (MiOS System Repo) ==="
+echo "=== [2/6] Initializing Root Overlay (MiOS System Repo) ==="
 if [ -x "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" ]; then
     sudo bash "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" || echo "  [WARN] Overlay init completed with warnings"
 elif [ -x "/usr/local/bin/mios-root-overlay" ]; then
     sudo bash "/usr/local/bin/mios-root-overlay" || echo "  [WARN] Overlay init completed with warnings"
 fi
 
-echo "=== [3/5] Configuring Antigravity Keyring & Shims ==="
+echo "=== [3/6] Configuring Antigravity Keyring & Shims ==="
 # The image bakes agy, so this must NOT be gated on agy being absent: the
 # keyring, headless grants and dev-loop skill install are setup-antigravity's
 # job too, and that gate skipped all of them on every baked image. Idempotent.
@@ -75,7 +70,7 @@ if ! command -v agy >/dev/null 2>&1; then
     rm -rf "${agy_tmp}"
 fi
 
-echo "=== [4/5] Installing Multi-Harness Shims & Skills ==="
+echo "=== [4/6] Installing Multi-Harness Shims & Skills ==="
 if [ -x "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" ]; then
     sh "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" --all --user >/dev/null 2>&1 || true
 fi

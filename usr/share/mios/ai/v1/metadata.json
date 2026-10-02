@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3605,
-  "total_metadata_entries": 2970,
-  "total_hints": 2955,
-  "total_functions_indexed": 1376,
-  "total_related_links": 4675,
+  "total_files_scanned": 3606,
+  "total_metadata_entries": 2972,
+  "total_hints": 2957,
+  "total_functions_indexed": 1378,
+  "total_related_links": 4682,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -115,7 +115,7 @@
     },
     {
       "path": ".devcontainer/setup-devcontainer.sh",
-      "hint": "Cohesive multi-repository sync and environment provisioning across MiOS, mios-bootstrap, and -dev-loop.",
+      "hint": "Post-create provisioning for the MiOS devcontainer: clones every [workspace] repo side by side, then applies the root overlay, agent shims and editor projection.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -10100,7 +10100,7 @@
     },
     {
       "path": "tools/sync-dotfiles.py",
-      "hint": "Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer].",
+      "hint": "Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer] and workspaceFolder/folders from [workspace].",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -25775,6 +25775,24 @@
       "has_shebang": true
     },
     {
+      "path": "usr/libexec/mios/test_mios_firstboot_seeders.py",
+      "hint": "Two-sided verification test suite for firstboot seeder ordering and degradation reporting (T-1141).",
+      "related": [
+        "usr/lib/systemd/system/mios-ai-firstboot.service",
+        "usr/lib/systemd/system/mios-forgejo-runner-firstboot.service",
+        "usr/libexec/mios/seed-db-config.py",
+        "usr/libexec/mios/mios-ai-firstboot",
+        "usr/libexec/mios/mios-forgejo-runner-firstboot.sh"
+      ],
+      "functions": [
+        "parse_unit_section",
+        "TestFirstbootSeedersTwoSided"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "usr/libexec/mios/test_mios_manual.py",
       "hint": "30-fixture unit test suite for the mios_comments comment classifier (AGY-1583).",
       "related": [
@@ -25878,6 +25896,19 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/libexec/mios/test_mios_unit_hardening.py",
+      "hint": "Two-sided verification test suite for unit hardening directives under ProtectSystem=strict (T-1139).",
+      "related": [
+        "usr/lib/systemd/system/mios-agents.service",
+        "usr/lib/systemd/system/mios-cron-director.service",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -27593,7 +27624,6 @@
         ".devcontainer/devcontainer.json",
         ".devcontainer/artifact-builder/devcontainer.json",
         "mios.code-workspace",
-        ".devcontainer/mios-ecosystem.code-workspace",
         "usr/share/doc/mios/adr/0010-ssot-as-system-dotfiles.md"
       ],
       "functions": [],

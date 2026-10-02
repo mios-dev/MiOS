@@ -2,6 +2,11 @@
 # AI-hint: Single devcontainer lifecycle entrypoint: create, start, and platform setup retain the original ordered hooks and fail behavior.
 set -euo pipefail
 
+# The lifecycle commands run in the devcontainer's workspaceFolder, which is the
+# [workspace] root holding every MiOS repo, not this repo; the relative paths
+# below (.devloop_artifacts, harness/) are this repo's.
+cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.."
+
 mios_platform() {
     local platform config_dir
     if [[ -n "${CODESPACES:-}" ]]; then
