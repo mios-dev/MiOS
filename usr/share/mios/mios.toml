@@ -1150,7 +1150,9 @@ ExecStart = """/usr/sbin/podman run --replace --name mios-agents \
 ExecStop = "/usr/sbin/podman stop -t 10 mios-agents"
 Restart = "on-failure"
 RestartSec = "10s"
-StateDirectory = "mios/agents"
+# /var/lib/mios/agents is writable through ReadWritePaths, not StateDirectory=:
+# this unit runs as root, and StateDirectory= would recursively chown the coder
+# home to root on every start. tmpfiles.d/mios-agents.conf owns it (T-1139).
 ReadWritePaths = "/var/lib/mios/agents /var/lib/containers /run"
 
 [units."mios-agents.service".Install]
