@@ -1700,7 +1700,19 @@ so long. Let a run finish.
   3. usr/share/mios/mios.toml: mirrored StateDirectory = "mios/agents" and ReadWritePaths = "/var/lib/mios/agents /var/lib/containers /run" under [units."mios-agents.service".Service] for SSOT parity. Retained mios-cron-director.service as intentional undeclared shipped unit to preserve 55 drifted unit count.
   4. tests/test-t1139-unit-hardening.py: implemented comprehensive two-sided test harness verifying positive compliance against all hardening directives and negative defect detection in isolated scratch tree with tree sha256 invariant assertion (2/2 tests OK).
   5. Standing gates verified: bash tests/run-suites.sh lint (6/6 suites passed), python tools/ci-suites.py --check (405 suites registered; 6/6 exempt), python tools/sync-bootstrap.py --check (13 files, 2 tables, 2 keys match), tools/native/target/debug/mios-unit-gen.exe --check (55 drifted match register), python tools/check-ssot.py unit-projection (70 declared, 55 drifted), bash tools/sync-generated.sh (all 7 steps passed).
-- next: Task T-1160 (Conformance for source, docs, and templates).
+- next: Task T-1142 (Fix winget forceArgs splat collapse and 0x8A15002B classification).
+- blockers: -
+- unverified: -
+
+## 2026-10-02 20:50 · HEAD · lane-b / z-ai T-1142 complete
+- objective: Fix forceArgs splat collapse and winget error classification in install-host-tools.ps1 (WS-INSTALL | P1 | S) (T-1142)
+- done:
+  1. Picked up task T-1142 following Z.Ai token limit exhaustion; verified implementation in c:\mios-bootstrap commit 1468d9e.
+  2. mios-bootstrap/src/install-host-tools.ps1: fixed forceArgs splatting via array-literal wrapper `$forceArgs = @(if ($wingetSeesIt) { '--force' })` to prevent PowerShell pipeline string unwrapping and character enumeration (`- - f o r c e`).
+  3. mios-bootstrap/src/install-host-tools.ps1: added APPINSTALLER_CLI_ERROR_PACKAGE_ALREADY_INSTALLED (`0x8A15002B` / `-1978335189`) error classification with immediate PATH verification on both user-scope attempt and retry, and deleted the admin-gated `--ignore-security-hash` retry.
+  4. mios-bootstrap/tests/test_install_host_tools.ps1: executed two-sided controls on host. Positive control: 22/22 assertions passed across all 6 test suites with hermetic scratch isolation. Negative control (`-PlantDefect`): reproduced single-element if collapse and successfully caught char-enumerated argument diagnostic (`PLANTED DEFECT REPRODUCED: forceArgs char-enumerated: - - f o r c e`).
+  5. Standing gates verified: python tools/sync-bootstrap.py --check passed (13 mirrored files, 2 tables, 2 keys match mios.git), UTF-8 BOM and CRLF preserved.
+- next: Task T-1141 (Order and report firstboot seeders when dependencies are unavailable).
 - blockers: -
 - unverified: -
 
