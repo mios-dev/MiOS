@@ -57,7 +57,11 @@ RestartSec=10s
 NoNewPrivileges=true
 ProtectSystem=strict
 PrivateTmp=true
-StateDirectory=mios/agents
+# ProtectSystem=strict makes /var read-only, so every path the firstboot script
+# and podman write is listed here. /var/lib/mios/agents is NOT a StateDirectory=:
+# this unit runs as root, and StateDirectory= would recursively chown the
+# coder home to root on every start. Its owner and mode belong to
+# usr/lib/tmpfiles.d/mios-agents.conf alone (T-1139).
 ReadWritePaths=/var/lib/mios/agents /var/lib/containers /run
 
 [Install]
