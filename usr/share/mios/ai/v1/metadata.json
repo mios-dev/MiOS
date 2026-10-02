@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3601,
-  "total_metadata_entries": 2966,
-  "total_hints": 2951,
-  "total_functions_indexed": 1374,
-  "total_related_links": 4663,
+  "total_files_scanned": 3603,
+  "total_metadata_entries": 2968,
+  "total_hints": 2953,
+  "total_functions_indexed": 1375,
+  "total_related_links": 4668,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -247,6 +247,18 @@
       "functions": [],
       "doc": null,
       "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": ".github/workflows/machine-os-mirror.yml",
+      "hint": "Publishes [image].machine_os_mirror, the container-only and digest-identical copy of the podman machine OS that the MiOS dev image and the drift-gate container build FROM.",
+      "related": [
+        "tools/mirror-machine-os.sh",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -9023,6 +9035,21 @@
       ],
       "functions": [
         "tracked"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tools/mirror-machine-os.sh",
+      "hint": "Mirrors the container images (not the podman-machine disk images) of [image].machine_os_repo:machine_os_tag into [image].machine_os_mirror, digest-identical, so builders that cannot parse the disk-image artifacts (Codespaces) pull the same MiOS base.",
+      "related": [
+        "/usr/share/mios/templates/bash",
+        "usr/share/mios/mios.toml",
+        ".github/workflows/machine-os-mirror.yml"
+      ],
+      "functions": [
+        "main"
       ],
       "doc": null,
       "comment_style": "hash",

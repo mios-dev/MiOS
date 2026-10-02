@@ -6069,6 +6069,11 @@ tag            = "latest"
 local_tag      = "localhost/mios:latest"
 machine_os_repo = "quay.io/podman/machine-os"
 machine_os_tag  = "6.1"
+# The container images of machine_os_repo:machine_os_tag, digest-identical,
+# without the podman-machine disk images its index also lists (older
+# containerd, as in Codespaces, cannot parse those). Published by
+# tools/mirror-machine-os.sh; MiOS-DEV still boots the upstream disk images.
+machine_os_mirror = "ghcr.io/mios-dev/machine-os"
 
 [bootc_install]
 # Read by mios-install and `mios-unit-gen bootc-install` (ADR-0014).
