@@ -18,6 +18,9 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
+# Every top-level table of the vendor SSOT; a round trip must keep them all.
+with open(os.path.join(_ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _fh:
+    _VENDOR_TABLES = len(__import__("tomllib").load(_fh))
 
 
 # ======================================================================
@@ -443,13 +446,13 @@ class TestDBSSOTMaterialize(unittest.TestCase):
         }
 
     def test_materialize_roundtrip_complete(self):
-        """Asserts that all 160 sections are retained and packages contains all package sub-tables."""
+        """Asserts that every vendor section is retained and packages contains all package sub-tables."""
         conn = _MockConnection(self._sample_db_data())
         cfg = mat.materialize_from_db(conn, merged=True)
         toml_out = mat.emit_toml(cfg)
         parsed = tomllib.loads(toml_out)
 
-        self.assertEqual(len(parsed), 160, f"Expected 160 top-level tables, got {len(parsed)}")
+        self.assertEqual(len(parsed), _VENDOR_TABLES, f"Expected {_VENDOR_TABLES} top-level tables, got {len(parsed)}")
         self.assertIn("packages", parsed)
         self.assertGreaterEqual(len(parsed["packages"]), 53, "Packages must retain all 53 package entries")
         self.assertIn("base", parsed["packages"])
@@ -536,16 +539,16 @@ class TestDBSSOTMaterialize(unittest.TestCase):
         self.assertIn("query", v["params"])
 
     def test_materialize_offline_fallback(self):
-        """Verify graceful fallback to mios_toml.load_merged() produces valid 160-table TOML."""
+        """Verify graceful fallback to mios_toml.load_merged() produces TOML with every vendor table."""
         fallback_toml = mat.materialize_fallback(merged=True)
         self.assertGreater(len(fallback_toml), 1000)
         parsed = tomllib.loads(fallback_toml)
-        self.assertEqual(len(parsed), 160)
+        self.assertEqual(len(parsed), _VENDOR_TABLES)
         self.assertIn("packages", parsed)
         self.assertGreaterEqual(len(parsed["packages"]), 53)
 
     def test_is_db_authoritative_preserves_packages_and_tables(self):
-        """Verify mios_toml.load_merged() preserves all 160 tables and package sets when db authoritative."""
+        """Verify mios_toml.load_merged() preserves every vendor table and package set when db authoritative."""
         old_auth = mios_db_config.is_db_authoritative
         old_load = mios_db_config.load_db_config
         try:
@@ -556,7 +559,7 @@ class TestDBSSOTMaterialize(unittest.TestCase):
             }
             mios_toml.clear_cache()
             merged = mios_toml.load_merged()
-            self.assertEqual(len(merged), 160)
+            self.assertEqual(len(merged), _VENDOR_TABLES)
             self.assertIn("packages", merged)
             self.assertGreaterEqual(len(merged["packages"]), 53)
             self.assertIn("dev_overlay", merged["packages"])
