@@ -513,6 +513,27 @@ fn jsonl_fields(id: &str, text: &str) -> Vec<(String, Value)> {
 
 // ---------------------------------------------------------------- merge
 
+/// A source list as the repository holds it. Every repo pins `eol=lf`, but a
+/// checkout may still carry CRLF (Windows autocrlf); measuring those bytes made
+/// the store depend on who ran migrate and rewrote every record.
+fn read_canonical(p: &Path) -> std::io::Result<Vec<u8>> {
+    let b = fs::read(p)?;
+    if !b.windows(2).any(|w| w == b"\r\n") {
+        return Ok(b);
+    }
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\r' && b.get(i + 1) == Some(&b'\n') {
+            i += 1;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    Ok(out)
+}
+
 fn sha(s: &str) -> String {
     let mut h = Sha256::new();
     h.update(s.as_bytes());
@@ -762,7 +783,7 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
             // Absorbed lists, and sibling checkouts that are not present, are rebuilt from the store's own slices.
             rematerialize(&key, &stored).map_err(|e| format!("{key} is not on disk and {e}"))?
         } else {
-            let bytes = fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+            let bytes = read_canonical(&p).map_err(|e| format!("{}: {e}", p.display()))?;
             String::from_utf8(bytes).map_err(|_| {
                 format!("{key}: not UTF-8; refusing, a lossy decode would drop bytes")
             })?
@@ -1005,7 +1026,7 @@ fn check_lossless(root: &Path, cfg: &Config) -> Result<bool, String> {
             .and_then(|v| v.first())
             .map(|x| x.5.clone())
             .unwrap_or_default();
-        match (d.absorbed, fs::read(root.join(&d.path))) {
+        match (d.absorbed, read_canonical(&root.join(&d.path))) {
             (true, Ok(_)) => {
                 println!(
                     "REAPPEARED: {key} exists again -- its tasks live in {}; delete it",
@@ -1364,6 +1385,22 @@ mod tests {
         let repos = HashMap::from([("MiOS".to_string(), root.to_path_buf())]);
         migrate(root, &repos, &cfg).unwrap();
         cfg
+    }
+
+    #[test]
+    fn a_crlf_checkout_migrates_to_the_same_store() {
+        let lf = sandbox("lf");
+        let crlf = sandbox("crlf");
+        fs::write(crlf.join("TASKS.md"), SAMPLE.replace('\n', "\r\n")).unwrap();
+        let cfg = run(&lf);
+        run(&crlf);
+        let a = fs::read(lf.join(&cfg.store)).unwrap();
+        let b = fs::read(crlf.join(&cfg.store)).unwrap();
+        assert!(
+            a == b,
+            "a CRLF checkout of the same source must give the same store"
+        );
+        assert!(check_lossless(&crlf, &cfg).unwrap());
     }
 
     #[test]
