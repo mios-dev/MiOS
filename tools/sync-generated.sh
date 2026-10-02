@@ -142,7 +142,7 @@ main() {
     "$PY" tools/generate-cargo-manifests.py >/dev/null
 
     step "4c/6 native deployment projections (blade + UKI + service configuration)"
-    _unit_gen="$(native_bin mios-unit-gen "${MIOS_UNIT_GEN_BIN:-}" || true)"
+    _unit_gen="$(native_bin mios-unit-gen || true)"
     if [[ -z "$_unit_gen" ]]; then
         echo "[sync-generated] FATAL: mios-unit-gen is required; build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen" >&2
         return 1

@@ -6,7 +6,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
 
 _mios_locate_userenv() {
-    local self_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local self_dir
+    self_dir="$(dirname "${BASH_SOURCE[0]}")"
     local candidates=(
         "${self_dir}/../../tools/lib/userenv.sh"
         "/tools/lib/userenv.sh"
@@ -23,6 +24,7 @@ _mios_locate_userenv() {
 }
 _mios_userenv_path="$(_mios_locate_userenv 2>/dev/null || true)"
 if [[ -n "$_mios_userenv_path" ]]; then
+    # shellcheck source=/dev/null  # located at runtime: repo, /ctx or the image
     source "$_mios_userenv_path"
 fi
 unset _mios_userenv_path
@@ -47,7 +49,7 @@ diag() { printf '[%s] DIAG: %s\n' "$(log_ts)" "$*"; }
 mios_project_config() {
     local root="$1" mode="$2" candidate binary=""
     shift 2
-    for candidate in "${MIOS_UNIT_GEN_BIN:-}" \
+    for candidate in \
         "$root/tools/native/target/release/mios-unit-gen" \
         "$root/tools/native/target/debug/mios-unit-gen" \
         "$root/tools/native/target/release/mios-unit-gen.exe" \

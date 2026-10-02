@@ -112,7 +112,7 @@ _gate_bin() {
 
 _unit_gen_bin() {
     local c
-    for c in "${MIOS_UNIT_GEN_BIN:-}" \
+    for c in \
              "$ROOT/tools/native/target/release/mios-unit-gen" \
              "$ROOT/tools/native/target/debug/mios-unit-gen" \
              "$ROOT/tools/native/target/release/mios-unit-gen.exe" \

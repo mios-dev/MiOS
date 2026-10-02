@@ -1483,7 +1483,7 @@ test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection"
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
     local unit_gen="" candidate
-    for candidate in "${MIOS_UNIT_GEN_BIN:-}" "$ROOT/tools/native/target/release/mios-unit-gen" \
+    for candidate in "$ROOT/tools/native/target/release/mios-unit-gen" \
             "$ROOT/tools/native/target/debug/mios-unit-gen" /usr/libexec/mios/mios-unit-gen; do
         [[ -n "$candidate" && -x "$candidate" ]] && { unit_gen="$candidate"; break; }
     done

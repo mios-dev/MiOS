@@ -39,7 +39,7 @@ if [[ -n "$_miosd" ]]; then
     MIOS_ROOT="$ROOT" "$_miosd" render-uki-cmdline
 else
     _unit_gen=""
-    for _c in "${MIOS_UNIT_GEN_BIN:-}" /usr/libexec/mios/mios-unit-gen \
+    for _c in /usr/libexec/mios/mios-unit-gen \
               "${ROOT}/tools/native/target/release/mios-unit-gen" \
               "${ROOT}/tools/native/target/debug/mios-unit-gen"; do
         if [[ -n "$_c" && -x "$_c" ]]; then _unit_gen="$_c"; break; fi
