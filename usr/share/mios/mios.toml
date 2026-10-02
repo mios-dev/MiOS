@@ -1150,6 +1150,8 @@ ExecStart = """/usr/sbin/podman run --replace --name mios-agents \
 ExecStop = "/usr/sbin/podman stop -t 10 mios-agents"
 Restart = "on-failure"
 RestartSec = "10s"
+StateDirectory = "mios/agents"
+ReadWritePaths = "/var/lib/mios/agents /var/lib/containers /run"
 
 [units."mios-agents.service".Install]
 WantedBy = "multi-user.target default.target"

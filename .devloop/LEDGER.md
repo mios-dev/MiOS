@@ -1691,3 +1691,16 @@ so long. Let a run finish.
 - next: Task T-1139 (Grant ReadWritePaths to hardened units).
 - blockers: -
 - unverified: -
+
+## 2026-10-02 20:45 · HEAD · lane-b T-1139 complete
+- objective: Grant ReadWritePaths/StateDirectory to hardened units with ProtectSystem=strict (mios-agents, mios-cron-director) (T-1139)
+- done:
+  1. usr/lib/systemd/system/mios-cron-director.service: added StateDirectory=mios/cron-director, StateDirectoryMode=0770, and ReadWritePaths=/var/lib/mios/cron-director under [Service] to resolve read-only /var filesystem errors on state.json deduplication writes and user-rules.toml updates.
+  2. usr/lib/systemd/system/mios-agents.service: added StateDirectory=mios/agents and ReadWritePaths=/var/lib/mios/agents /var/lib/containers /run under [Service] to enable persistent code-server settings/extensions and rootful Podman container execution/locks without EROFS errors under ProtectSystem=strict.
+  3. usr/share/mios/mios.toml: mirrored StateDirectory = "mios/agents" and ReadWritePaths = "/var/lib/mios/agents /var/lib/containers /run" under [units."mios-agents.service".Service] for SSOT parity. Retained mios-cron-director.service as intentional undeclared shipped unit to preserve 55 drifted unit count.
+  4. tests/test-t1139-unit-hardening.py: implemented comprehensive two-sided test harness verifying positive compliance against all hardening directives and negative defect detection in isolated scratch tree with tree sha256 invariant assertion (2/2 tests OK).
+  5. Standing gates verified: bash tests/run-suites.sh lint (6/6 suites passed), python tools/ci-suites.py --check (405 suites registered; 6/6 exempt), python tools/sync-bootstrap.py --check (13 files, 2 tables, 2 keys match), tools/native/target/debug/mios-unit-gen.exe --check (55 drifted match register), python tools/check-ssot.py unit-projection (70 declared, 55 drifted), bash tools/sync-generated.sh (all 7 steps passed).
+- next: Task T-1160 (Conformance for source, docs, and templates).
+- blockers: -
+- unverified: -
+

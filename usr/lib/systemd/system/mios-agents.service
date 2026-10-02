@@ -57,6 +57,8 @@ RestartSec=10s
 NoNewPrivileges=true
 ProtectSystem=strict
 PrivateTmp=true
+StateDirectory=mios/agents
+ReadWritePaths=/var/lib/mios/agents /var/lib/containers /run
 
 [Install]
 WantedBy=multi-user.target default.target
