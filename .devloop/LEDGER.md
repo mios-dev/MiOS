@@ -1647,3 +1647,10 @@ so long. Let a run finish.
 - next: configurator save target decision (profile.toml is not an SSOT tier); mios-config/palette/wallpaperd literals; static-pie hardening checks
 - blockers: criteria 5/6/9 need a bootc host and a Windows host (none here)
 - unverified: mios-ci for b5b10bc4 (pending at 22:45Z)
+
+## 2026-10-02 03:06 · dfa4fcef · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
