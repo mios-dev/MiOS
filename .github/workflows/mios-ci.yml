@@ -351,10 +351,11 @@ jobs:
               cosign sign --yes "$tag"
           done <<< "${{ steps.meta.outputs.tags }}"
 
+  # Builds the image and checks its MiOS components on every push, alongside
+  # drift-gate rather than after it, so a red source gate cannot hide whether
+  # the image builds. Publishing stays in `build`, which still needs drift-gate.
   smoke-test:
     runs-on: ubuntu-24.04
-    needs: build
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

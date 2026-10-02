@@ -160,8 +160,9 @@
 .github/workflows/mios-ci.yml	328	339	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	1
 .github/workflows/mios-ci.yml	337	339	3	27	65ae042547e9	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	351	358	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	1
+.github/workflows/mios-ci.yml	354	356	3	36	d50346f409d2	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	381	422	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	1
-.github/workflows/mios-ci.yml	384	384	1	9	2560e4a1eba3	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	385	385	1	9	2560e4a1eba3	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	469	484	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	1
 .github/workflows/mios-ci.yml	592	598	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	1
 .github/workflows/mios-ci.yml	624	631	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	1
