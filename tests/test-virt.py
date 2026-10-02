@@ -1786,7 +1786,7 @@ class OVMFContentProofTests(unittest.TestCase):
         self.desc = self.base / 'descriptors'
         self.desc.mkdir()
         self.lib = os.path.join(avd__ROOT, 'tools', 'find-ovmf-firmware.sh')
-        self.env = dict(os.environ, MIOS_OVMF_SHARE=str(self.base), MIOS_OVMF_FWDESC_DIR=str(self.desc))
+        self.env = dict(os.environ, OVMF_SHARE_ROOT=str(self.base), OVMF_FWDESC_DIR=str(self.desc))
 
     @staticmethod
     def guid(value):

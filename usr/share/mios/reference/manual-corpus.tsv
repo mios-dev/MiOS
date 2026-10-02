@@ -8901,7 +8901,7 @@ tools/drift-checks.py	4567	4569	3	23	22497b71fd82	STAY	midsize-why		0				0
 tools/drift-checks.py	4581	4582	2	14	7ff6d1c86fdd	STAY	local-scoped		0				0
 tools/drift-checks.py	4616	4616	1	5	fb8e55a6efe5	DROP	banner		0				0
 tools/drift-checks.py	4663	4664	2	14	7ff6d1c86fdd	STAY	local-scoped		0				0
-tools/find-ovmf-firmware.sh	1	20	20	218	809bfff64f2b	MIGRATE_HEADER	overlong-hint		0				0
+tools/find-ovmf-firmware.sh	1	20	20	224	0f5ddf0b6061	MIGRATE_HEADER	overlong-hint		0				0
 tools/find-ovmf-firmware.sh	30	33	4	13	0a3ddb824a06	STAY	midsize-why		0				0
 tools/find-ovmf-firmware.sh	56	56	1	13	0d09b459c557	STAY	local-scoped		0				0
 tools/find-ovmf-firmware.sh	62	62	1	2	dd0b40f14b41	DROP	banner		0				0

@@ -18,7 +18,7 @@ echo -e "${BOLD}${GREEN}══════════════════�
 echo -e "${BOLD}${GREEN}     OVMF Secure Boot Enrollment Fixer (verified)${NC}"
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}\n"
 
-OVMF_DIR="${MIOS_OVMF_TARGET_DIR:-$(ovmf_share_root)/edk2/x64}"
+OVMF_DIR="${OVMF_TARGET_DIR:-$(ovmf_share_root)/edk2/x64}"
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}[x] This script must be run as root${NC}"

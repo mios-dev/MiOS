@@ -15,8 +15,8 @@
 #   - A descriptor identifies compatible CODE/VARS and each image format. Both image
 #     structures are validated; filenames and directories do not prove compatible builds.
 #
-# Testability: MIOS_OVMF_SHARE overrides the /usr/share root (default /usr/share) and
-# MIOS_OVMF_FWDESC_DIR overrides the descriptor directory. No script in this family ever
+# Testability (scoped test seams, not MiOS settings): OVMF_SHARE_ROOT overrides the /usr/share root (default /usr/share) and
+# OVMF_FWDESC_DIR overrides the descriptor directory. No script in this family ever
 # writes to /var/lib/libvirt/qemu/nvram or overwrites an existing firmware file.
 
 RED='\033[0;31m'
@@ -33,11 +33,11 @@ NC='\033[0m'
 # ---------------------------------------------------------------------------
 
 ovmf_share_root() {
-    echo "${MIOS_OVMF_SHARE:-/usr/share}"
+    echo "${OVMF_SHARE_ROOT:-/usr/share}"
 }
 
 ovmf_fwdesc_dir() {
-    echo "${MIOS_OVMF_FWDESC_DIR:-$(ovmf_share_root)/qemu/firmware}"
+    echo "${OVMF_FWDESC_DIR:-$(ovmf_share_root)/qemu/firmware}"
 }
 
 ovmf_human_size() {
