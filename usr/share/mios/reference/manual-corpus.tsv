@@ -734,6 +734,7 @@ automation/23-gpu-passthrough.sh	1	4	4	21	bf9ca9245bb9	STAY	ai-header		0				0
 automation/23-gpu-passthrough.sh	1	4	4	36	44c7907f57aa	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:44c7907f57aa	36	1
 automation/24-cpu-affinity.sh	1	5	5	29	adc919d90ecc	STAY	ai-header		0				0
 automation/24-cpu-affinity.sh	10	10	1	3	19aef8dad626	STAY	local-scoped		0				0
+automation/24-cpu-affinity.sh	20	20	1	7	b2cf6c390ffb	STAY	inline-scoped		0				0
 automation/24-cpu-affinity.sh	24	26	3	7	ee866b5f7535	STAY	midsize-why		0				0
 automation/24-cpu-affinity.sh	68	70	3	6	dfc96b0423af	STAY	midsize-why		0				0
 automation/24-cpu-affinity.sh	96	96	1	4	bbb3406a8b52	STAY	local-scoped		0				0

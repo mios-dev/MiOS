@@ -17,7 +17,7 @@ command -v mios_log &>/dev/null || mios_log() { echo "[24-cpu-affinity] $*"; }
 command -v mios_ok &>/dev/null || mios_ok() { echo "[24-cpu-affinity] OK: $*"; }
 command -v mios_warn &>/dev/null || mios_warn() { echo "[24-cpu-affinity] WARN: $*"; }
 
-TARGET_ROOT="${MIOS_TARGET_ROOT:-}"
+TARGET_ROOT="${CPU_AFFINITY_TARGET_ROOT:-}"  # test seam: write into a fixture root
 
 mios_log "Starting CPU affinity and core scheduling configuration (T-858)"
 

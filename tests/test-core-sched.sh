@@ -245,7 +245,7 @@ pass_test "automation/24-cpu-affinity.sh passes bash syntax validation (bash -n)
 # Test 4.2: Execution against target root
 TARGET_DIR="${TMP}/target_root"
 mkdir -p "${TARGET_DIR}"
-MIOS_TARGET_ROOT="${TARGET_DIR}" bash "$AUTO_SCRIPT" >"${TMP}/auto.log" 2>&1 || fail_test "automation/24-cpu-affinity.sh execution failed"
+CPU_AFFINITY_TARGET_ROOT="${TARGET_DIR}" bash "$AUTO_SCRIPT" >"${TMP}/auto.log" 2>&1 || fail_test "automation/24-cpu-affinity.sh execution failed"
 pass_test "automation/24-cpu-affinity.sh executes with return code 0"
 
 # Test 4.3: Verify generated systemd drop-ins
