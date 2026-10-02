@@ -12256,11 +12256,11 @@ requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 packages = ["pyflakes"]
 
 [ci.fedora]
-# The drift-gate job runs in this container, the podman machine OS MiOS-DEV
-# boots ([bootstrap.dev_vm].base_image) and the one MiOS dev image
-# (.devcontainer/Containerfile) is built FROM, so the gate, the dev image and
-# the builder VM share one base.
-image = "quay.io/podman/machine-os:6.1"
+# The drift-gate job runs in this container and the one MiOS dev image
+# (.devcontainer/Containerfile) is built FROM it: the podman machine OS MiOS-DEV
+# boots ([bootstrap.dev_vm].base_image), through [image].machine_os_mirror --
+# the same image digests without the disk-image entries Codespaces cannot read.
+image = "ghcr.io/mios-dev/machine-os:6.1"
 # [packages.<set>] lists installed first; devcontainer is the dev image's own set.
 package_sets = ["devcontainer"]
 # Repo-config RPMs installed before any package. Fedora does not package

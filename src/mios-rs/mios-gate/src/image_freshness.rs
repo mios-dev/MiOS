@@ -1,4 +1,4 @@
-// AI-hint: Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree.
+// AI-hint: Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree, the container pin through [image].machine_os_mirror when one is set.
 // AI-related: tools/fetch-image-facts.sh, usr/share/mios/mios.toml, .github/workflows/mios-ci.yml
 
 use crate::Report;
@@ -72,16 +72,21 @@ pub fn check(root: &Path) -> Report {
         ));
     }
     let full = format!("{repo}:{want}");
-    for (key, path) in [
+    // MiOS-DEV boots the upstream index (it carries the disk images); the
+    // container pin may name the container-only mirror of the same tag.
+    let mirror = str_at(&ssot, &["image", "machine_os_mirror"])
+        .map_or_else(|| full.clone(), |m| format!("{m}:{want}"));
+    for (key, path, expect) in [
         (
             "[bootstrap.dev_vm].base_image",
             &["bootstrap", "dev_vm", "base_image"][..],
+            &full,
         ),
-        ("[ci.fedora].image", &["ci", "fedora", "image"][..]),
+        ("[ci.fedora].image", &["ci", "fedora", "image"][..], &mirror),
     ] {
         match str_at(&ssot, path) {
-            Some(v) if v == full => {}
-            Some(v) => findings.push(format!("{key} is {v}, not {full}")),
+            Some(v) if v == expect => {}
+            Some(v) => findings.push(format!("{key} is {v}, not {expect}")),
             None => findings.push(format!("{key} is not set")),
         }
     }
@@ -90,7 +95,7 @@ pub fn check(root: &Path) -> Report {
         check: CHECK.to_string(),
         ok: findings.is_empty(),
         could_not_run: None,
-        summary: format!("every machine-os pin is {full}, the newest stable release"),
+        summary: format!("every machine-os pin is {want}, the newest stable release ({full}; container pin {mirror})"),
         findings,
     }
 }
@@ -142,6 +147,42 @@ mod tests {
             "{:?}",
             r.findings
         );
+    }
+
+    fn with_mirror(tag: &str, ci_image: &str) -> tempfile::TempDir {
+        let d = tree(tag, FACTS_NEXT);
+        let p = d.path().join(SSOT);
+        let text = std::fs::read_to_string(&p).unwrap();
+        let text = text
+            .replace(
+                "[image]\n",
+                "[image]\nmachine_os_mirror = \"ghcr.io/mios-dev/machine-os\"\n",
+            )
+            .replace(
+                &format!("[ci.fedora]\nimage = \"quay.io/podman/machine-os:{tag}\""),
+                &format!("[ci.fedora]\nimage = \"{ci_image}\""),
+            );
+        std::fs::write(&p, text).unwrap();
+        d
+    }
+
+    #[test]
+    fn the_container_pin_names_the_mirror_when_one_is_set() {
+        let r = check(with_mirror("6.1", "ghcr.io/mios-dev/machine-os:6.1").path());
+        assert!(r.ok, "{:?}", r.findings);
+    }
+
+    #[test]
+    fn with_a_mirror_the_upstream_container_pin_fails() {
+        let r = check(with_mirror("6.1", "quay.io/podman/machine-os:6.1").path());
+        assert_eq!(r.findings.len(), 1, "{:?}", r.findings);
+        assert!(r.findings[0].contains("ghcr.io/mios-dev/machine-os:6.1"));
+    }
+
+    #[test]
+    fn a_stale_mirror_tag_fails() {
+        let r = check(with_mirror("6.1", "ghcr.io/mios-dev/machine-os:6.0").path());
+        assert!(!r.ok);
     }
 
     #[test]

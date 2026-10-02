@@ -4295,7 +4295,7 @@
     },
     {
       "path": "src/mios-rs/mios-gate/src/image_freshness.rs",
-      "hint": "Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree.",
+      "hint": "Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree, the container pin through [image].machine_os_mirror when one is set.",
       "related": [
         "tools/fetch-image-facts.sh",
         "usr/share/mios/mios.toml",
