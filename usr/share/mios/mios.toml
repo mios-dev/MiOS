@@ -6068,7 +6068,7 @@ name           = "ghcr.io/mios-dev/mios"
 tag            = "latest"
 local_tag      = "localhost/mios:latest"
 machine_os_repo = "quay.io/podman/machine-os"
-machine_os_tag  = "6.0"
+machine_os_tag  = "6.1"
 
 [bootc_install]
 # Read by mios-install and `mios-unit-gen bootc-install` (ADR-0014).
@@ -7903,7 +7903,7 @@ allocation_unit     = 4096       # NTFS default cluster size
 [bootstrap.dev_vm]
 machine_name        = "MiOS-DEV"   # podman derives "podman-MiOS-DEV"
 wsl_distro          = "MiOS"        # the eventual MiOS WSL distro (built from the OCI image)
-base_image          = "quay.io/podman/machine-os:6.0"   # LOCKED base
+base_image          = "quay.io/podman/machine-os:6.1"   # LOCKED base
 # Maximalist allocation — the dev VM IS the builder, so it gets every CPU
 # core, every GB of RAM, every GB of free disk, and every GPU the host
 # offers (minus the host_reserve below). Set to "max" to auto-detect via
@@ -12255,7 +12255,7 @@ packages = ["pyflakes"]
 # boots ([bootstrap.dev_vm].base_image) and the one MiOS dev image
 # (.devcontainer/Containerfile) is built FROM, so the gate, the dev image and
 # the builder VM share one base.
-image = "quay.io/podman/machine-os:6.0"
+image = "quay.io/podman/machine-os:6.1"
 # [packages.<set>] lists installed first; devcontainer is the dev image's own set.
 package_sets = ["devcontainer"]
 # Repo-config RPMs installed before any package. Fedora does not package

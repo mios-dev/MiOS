@@ -32,7 +32,7 @@ jobs:
     # resolved before any step can read the SSOT; tools/ci-suites.py --check
     # holds it equal to [ci.fedora].image and to .devcontainer/Containerfile.
     container:
-      image: quay.io/podman/machine-os:6.0
+      image: quay.io/podman/machine-os:6.1
     permissions:
       contents: read
     steps:

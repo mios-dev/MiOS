@@ -3352,7 +3352,7 @@ explicit instruction:
 IMPORTANT compatibility note: pinning a major-version-newer machine-os
 than the installed podman client requires the client to know how to
 consume it. On podman 5.8.2 (the operator's current client), `--image
-docker://quay.io/podman/machine-os:6.0` may fail at the Win32 pull-
+docker://quay.io/podman/machine-os:6.1` may fail at the Win32 pull-
 extraction step with:
     Error: failed to pull ... : The system cannot find the path specified.
 That's a podman-5.8-on-WSL bug, NOT a wrong-URL bug -- 6.0 itself is
@@ -3388,7 +3388,7 @@ To pin a specific machine-os tag, the operator must:
   (a) upgrade their podman client to a version that fixes the
       WSL pull bug (`winget upgrade Podman.Podman`, retry)
   (b) THEN set $env:MIOS_MACHINE_IMAGE=docker://quay.io/podman/
-      machine-os:6.0 (or whatever tag) before invoking the
+      machine-os:6.1 (or whatever tag) before invoking the
       bootstrap.
 
 Until the operator's client is upgraded, pinning is wedged shut by
@@ -4182,7 +4182,7 @@ Default tag: 6.0 (per operator instruction). Override with
 MIOS_MACHINE_TAG=<tag> or MIOS_MACHINE_IMAGE=<docker:// url> for a
 specific ref; pre-stage runs in both cases.
 Default machine image sourced from mios.toml [bootstrap.dev_vm].
-base_image (vendor default: quay.io/podman/machine-os:6.0). Env var
+base_image (vendor default: quay.io/podman/machine-os:6.1). Env var
 MIOS_MACHINE_TAG / MIOS_MACHINE_IMAGE still wins for ad-hoc overrides.
 
 <!-- mios-src:45675a8e83ed from build-mios.ps1:2845-2857 -->
@@ -4234,7 +4234,7 @@ not a phantom from a stream-merged warning.
 
 ── Recovery branch 1: pull failed on a pinned --image ──────────────────
 Pinning $MachineImage to a tag the operator's installed podman client
-can't pull (typical: docker://quay.io/podman/machine-os:6.0 against a
+can't pull (typical: docker://quay.io/podman/machine-os:6.1 against a
 podman 5.8 client) produces:
     Error: failed to pull quay.io/podman/machine-os@sha256:<digest>:
            The system cannot find the path specified.

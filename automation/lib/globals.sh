@@ -932,7 +932,7 @@ export MIOS_VERSION
 : "${MIOS_DESKTOP_START_MENU_SEARXNG_PORT_KEY:=searxng}"
 : "${MIOS_DESKTOP_START_MENU_SEARXNG_SCHEME:=http}"
 : "${MIOS_DEVELOPER:=MiOS}"
-: "${MIOS_DEV_VM_BASE_IMAGE:=quay.io/podman/machine-os:6.0}"
+: "${MIOS_DEV_VM_BASE_IMAGE:=quay.io/podman/machine-os:6.1}"
 : "${MIOS_DEV_VM_CPUS:=max}"
 : "${MIOS_DEV_VM_CPU_RESERVE_MIN:=2}"
 : "${MIOS_DEV_VM_CPU_RESERVE_PCT:=15}"
