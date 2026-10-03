@@ -1751,3 +1751,11 @@ so long. Let a run finish.
 - next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
 - blockers: -
 - unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-10-03 · fe90e938 · T-1169: one task list (notice to all sessions)
+- objective: land T-1169 (one canonical task store) on main.
+- done: `tasks.jsonl` at the repo root is now the ONLY task list. `TASKS.jsonl` and `.devloop/tasks.jsonl` are RETIRED and deleted -- never recreate or resurrect them. TASKS.md is rendered from tasks.jsonl.
+- how to edit: `mios-task set` / `mios-task add` / `mios-task claim`, then `mios-task render`; commit tasks.jsonl + TASKS.md and push. Build the binary from tools/native (`cargo build`; target/debug/mios-task is gitignored). Gate: `98-drift-checks.sh check_task_store`.
+- next: sessions holding branches that touch the retired files must re-apply their record changes through mios-task on tasks.jsonl after rebasing.
+- blockers: -
+- unverified: -
