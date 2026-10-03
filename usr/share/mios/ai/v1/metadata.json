@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3634,
-  "total_metadata_entries": 2997,
-  "total_hints": 2982,
-  "total_functions_indexed": 1446,
-  "total_related_links": 4787,
+  "total_files_scanned": 3632,
+  "total_metadata_entries": 2995,
+  "total_hints": 2980,
+  "total_functions_indexed": 1455,
+  "total_related_links": 4781,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -9790,7 +9790,7 @@
     },
     {
       "path": "tools/native/mios-task/src/check.rs",
-      "hint": "`mios-task check` -- schema, uniqueness, depends_on/epic resolution, cycles, evidence, born-record shape, canonical serialization, hygiene, overrides, retired stores, frozen history, the migrated count, and TASKS.md == render.",
+      "hint": "`mios-task check` -- every rule of ADR-0028 over tasks.jsonl, its frozen provenance slices, its overrides and TASKS.md == render.",
       "related": [
         "tasks.jsonl",
         "TASKS.md",
@@ -9804,7 +9804,18 @@
         "hygiene",
         "cycles",
         "retired_stores",
-        "first_difference"
+        "first_difference",
+        "sha",
+        "Slice",
+        "slices",
+        "rebuild",
+        "verify",
+        "cr_problem",
+        "migrated_shape",
+        "identity",
+        "archived_edges",
+        "former_ids",
+        "notes"
       ],
       "doc": null,
       "comment_style": "slash",
@@ -9827,32 +9838,13 @@
         "cmd_fmt",
         "cmd_render",
         "cmd_ready",
+        "resolve",
         "cmd_set",
         "cmd_claim",
         "cmd_add",
         "cmd_fold",
         "cmd_source",
         "cmd_migrate"
-      ],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-task/src/frozen.rs",
-      "hint": "The retired task lists as frozen history -- every byte lives in a record's provenance.sources slice; rebuild a list by offset, verify each slice and each list against [tasks.store].frozen, and name a dropped record from the slice that followed it.",
-      "related": [
-        "tasks.jsonl",
-        "/usr/share/mios/mios.toml [tasks.store]",
-        "/usr/lib/mios/schemas/task-record.schema.json",
-        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
-      ],
-      "functions": [
-        "sha",
-        "Slice",
-        "slices",
-        "rebuild",
-        "verify"
       ],
       "doc": null,
       "comment_style": "slash",
@@ -9889,6 +9881,8 @@
         "store_record",
         "lane_only_record",
         "place_deps",
+        "lane_ids",
+        "lane_deps",
         "kept_sources",
         "chain_after",
         "frozen_table"
@@ -9922,31 +9916,10 @@
     },
     {
       "path": "tools/native/mios-task/src/record.rs",
-      "hint": "Task record helpers -- canonical key order from the schema, the Python-identical serializer, the strict JSON-schema checker and the status word maps (OpenAI words canonical, legacy words read).",
-      "related": [
-        "/usr/lib/mios/schemas/task-record.schema.json",
-        "tasks.jsonl",
-        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
-      ],
-      "functions": [
-        "Schema::load",
-        "Schema::canon",
-        "Schema::conforms",
-        "dumps",
-        "canonical_status",
-        "lane_word",
-        "today",
-        "is_iso_date"
-      ],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-task/src/store.rs",
-      "hint": "tasks.jsonl access -- the [tasks.store] table from the SSOT (path, schema, doc, retired, frozen, migrated), repo-root discovery, line reading, and locked tmp+rename writes.",
+      "hint": "tasks.jsonl access and records -- [tasks.store], locked writes, the schema checker, the Python-identical serializer, status words.",
       "related": [
         "/usr/share/mios/mios.toml [tasks.store]",
+        "/usr/lib/mios/schemas/task-record.schema.json",
         "tasks.jsonl",
         "TASKS.md",
         "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
@@ -9959,7 +9932,15 @@
         "find_root",
         "read_lines",
         "lock_file",
-        "write_atomic"
+        "write_atomic",
+        "Schema::load",
+        "Schema::canon",
+        "Schema::conforms",
+        "dumps",
+        "canonical_status",
+        "lane_word",
+        "today",
+        "is_iso_date"
       ],
       "doc": null,
       "comment_style": "slash",
