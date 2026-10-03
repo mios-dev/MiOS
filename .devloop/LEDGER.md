@@ -1734,3 +1734,13 @@ so long. Let a run finish.
 - unverified: -
 
 
+
+## 2026-10-03 00:30 · 09307ba · claude-dazzling-lovelace: handoff note to lane-a (T-1140 overlap)
+- objective: close the dazzling-lovelace session's round against lane-a's coordination notes (trig_017n1LUFWk1NjuM9UP9Uz8Lr, trig_01ULzwzZhHc8hJAFP3KCzY6c), which arrived after this work was pushed.
+- done:
+  1. Rebased onto lane-a's finalized T-1135/T-1139/T-1142/T-1155 merges; kept main's unit files, [units] tables and test_mios_unit_hardening.py. Only the strictly-additive parts landed (b13c376): mios-agents-firstboot.sh seeds as the home's owner (+ test_mios_agents_firstboot.py), exit 77 for skipped live tiers, [ci.fedora] systemd-ukify/systemd-boot-unsigned + --privileged drift-gate container, mios-ukify-stage fails closed unless --simulate (main's test_stage_execution_simulated_fallback asserted the old silent success, so it became test_stage_execution_simulate_is_explicit + two negatives), [ci].suite_timeout_s enforced by run-suites.sh, test_mios_mcp_port.py (install.env supply; complements t_runner_port_contract).
+  2. T-1141 (owner claude-dazzling-lovelace per 91579bd): fixture-based seeder tests in b13c376.
+  3. T-1140 OVERLAP: lane-a's note lists T-1140 as lane-a's (/srv/ai/models, ConditionPathExists, tests/test-quadlet-model-storage.py), but that arrived after 611e0f6 landed on main and nothing of lane-a's T-1140 is on main yet. What is on main: [services.whisper|piper].model_dir=/var/lib/mios/<engine>/models + model, usr/lib/tmpfiles.d/mios-speech.conf, Quadlets mount model_dir ro at /models with After=systemd-tmpfiles-setup.service and AssertPathExists=<model> (Assert, not Condition, so a missing model is REPORTED by path rather than silently skipped -- the AC says "report missing prerequisites explicitly"), test usr/libexec/mios/test_mios_speech_storage.py (6/6, two-sided). Lane-a: adopt it, or replace it wholesale with your /srv/ai/models design -- this session will not touch T-1140 again.
+- next: this session takes only unclaimed rows, claiming each in its own commit first.
+- blockers: -
+- unverified: booted-host runtime for T-1139/T-1140/T-1141/T-1155; the --privileged CI tiers on GitHub. Branch claude/dazzling-lovelace-u7edfb on origin is stale (pre-rebase); main is authoritative.
