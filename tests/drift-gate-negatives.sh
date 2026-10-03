@@ -2939,7 +2939,7 @@ test_task_store() {
     local sbak dbak; sbak="$(mktemp)"; dbak="$(mktemp)"
     cp "$store" "$sbak"; cp "$doc" "$dbak"
     _ts_restore() { cp "$sbak" "$store"; cp "$dbak" "$doc"; rm -f "${ROOT}/.devloop/tasks.jsonl"; }
-    _ts_fail() { _ts_restore; rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant; die "$1"; }
+    _ts_fail() { _ts_restore; rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant _ts_edit; die "$1"; }
     # Each plant must fail check_task_store and be named in its output.
     _ts_plant() { # $1 = what was planted, $2 = text the output must contain
         _neg_gate check_task_store && _ts_fail "check_task_store passed with $1"
@@ -2964,7 +2964,43 @@ test_task_store() {
     # 5. A retired list's frozen bytes edited.
     _frozen_edit "MiOS:AGY-TASKS.md" '^## AGY-1 ' '## AGY-1 rewritten history ' || _ts_fail "could not plant an AGY-TASKS.md edit"
     _ts_plant "an edited AGY-TASKS.md slice" "MiOS:AGY-TASKS.md: the slice AGY-1 owns at offset"
-    # 6. No sibling checkout: a copy of the task files alone, with nothing beside it, still checks green.
+    # Rewrite one record ($1 = id) through a python statement over `r`, in the canonical bytes.
+    _ts_edit() {
+        python3 - "$store" "$1" "$2" <<'PYEOF'
+import json, sys
+p, rid, stmt = sys.argv[1:4]
+with open(p, encoding="utf-8", newline="") as f:
+    lines = f.read().split("\n")[:-1]
+out = []
+for line in lines:
+    r = json.loads(line)
+    if r.get("id") == rid:
+        exec(stmt)
+        line = json.dumps(r, ensure_ascii=False)
+    out.append(line)
+with open(p, "w", encoding="utf-8", newline="") as f:
+    f.write("\n".join(out) + "\n")
+PYEOF
+    }
+    # 6. An edge the lane file archived (archived_dependencies) put back into depends_on.
+    _ts_edit T-1073 'r["depends_on"].append("T-1046")' || _ts_fail "could not plant T-1073's archived edge"
+    _ts_plant "an archived edge back in depends_on" "T-1073: depends_on T-1046 is an edge the lane file archived"
+    # 7. A count-keeping swap: AGY-1692 (no frozen slice) replaced by a slice-less record.
+    grep -m1 '^{"id": "AGY-1692",' "$sbak" > /dev/null || _ts_fail "AGY-1692 is not in ${store##*/}"
+    sed -i '/^{"id": "AGY-1692",/d' "$store"
+    grep -m1 '^{"id": "AGY-1692",' "$sbak" >> "$store"
+    _ts_edit AGY-1692 'r["id"] = r["provenance"]["key"] = "T-9998"; r["provenance"]["sources"] = []' || _ts_fail "could not plant the swap"
+    _ts_plant "AGY-1692 swapped for a record with no slices" "T-9998: a migrated record with no provenance.sources"
+    # 8. The only record of the lane rename T-1104 -> T-1104#2 erased.
+    _ts_edit 'T-1104#2' 'r["provenance"]["aliases"] = []' || _ts_fail "could not plant T-1104#2's aliases"
+    _ts_plant "T-1104#2 without its alias" "T-1104#2: a renamed id whose provenance.aliases does not name T-1104"
+    # 9. A migrated record's provenance key rewritten.
+    _ts_edit T-1169 'r["provenance"]["key"] = "T-1169-forged"' || _ts_fail "could not plant a key rewrite"
+    _ts_plant "a rewritten provenance key" "[tasks.store].migrated_sha256"
+    # 10. A carriage return on a line.
+    sed -i '1s/$/\r/' "$store"
+    _ts_plant "a CRLF line end" "tasks.jsonl:1: carriage return"
+    # 11. No sibling checkout: a copy of the task files alone, with nothing beside it, still checks green.
     local alone; alone="$(mktemp -d)"
     mkdir -p "$alone/MiOS/usr/share/mios" "$alone/MiOS/usr/lib/mios/schemas"
     cp "$store" "$doc" "$alone/MiOS/"; cp "${ROOT}/usr/share/mios/mios.toml" "$alone/MiOS/usr/share/mios/"
@@ -2973,7 +3009,7 @@ test_task_store() {
     "$bin" check --root "$alone/MiOS" >/dev/null 2>&1 || { rm -rf "$alone"; _ts_fail "mios-task check needed a sibling checkout"; }
     rm -rf "$alone"
 
-    rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant
+    rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant _ts_edit
     _neg_gate check_task_store || die "check_task_store failed after restoration: $_NEG_GATE_OUT"
     log "Test_task_store negative test passed"
 }

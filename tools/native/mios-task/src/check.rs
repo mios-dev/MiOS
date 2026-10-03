@@ -1,14 +1,13 @@
-// AI-hint: `mios-task check` -- schema, uniqueness, depends_on/epic resolution, cycles, evidence, born-record shape, canonical serialization, hygiene, overrides, retired stores, frozen history, the migrated count, and TASKS.md == render.
+// AI-hint: `mios-task check` -- every rule of ADR-0028 over tasks.jsonl, its frozen provenance slices, its overrides and TASKS.md == render.
 // AI-related: tasks.jsonl, TASKS.md, /usr/lib/mios/schemas/task-record.schema.json, /usr/share/mios/mios.toml [tasks.store], automation/98-drift-checks.sh
-// AI-functions: State::load, check, hygiene, cycles, retired_stores, first_difference
+// AI-functions: State::load, check, hygiene, cycles, retired_stores, first_difference, sha, Slice, slices, rebuild, verify, cr_problem, migrated_shape, identity, archived_edges, former_ids, notes
 
-use crate::frozen;
 use crate::overrides::{self, Block, Effective};
-use crate::record::{dumps, lane_word, Schema};
-use crate::store::{Line, Store};
+use crate::record::{dumps, lane_word, Frozen, Line, Schema, Store};
 use regex::Regex;
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -293,9 +292,10 @@ pub fn cycles(recs: &[Value]) -> Vec<Vec<String>> {
     out
 }
 
-/// The first differing line (1-based) and that line of `a`, or None when the texts are equal.
+/// The first differing line (1-based) and that line of `a`, or None when the texts are equal. Lines split on
+/// '\n' only, so a carriage return is a difference on its own line.
 pub fn first_difference(a: &str, b: &str) -> Option<(usize, String)> {
-    let (mut la, mut lb) = (a.lines(), b.lines());
+    let (mut la, mut lb) = (a.split('\n'), b.split('\n'));
     let mut n = 0;
     loop {
         n += 1;
@@ -311,6 +311,194 @@ pub fn first_difference(a: &str, b: &str) -> Option<(usize, String)> {
             _ => {}
         }
     }
+}
+
+pub fn cr_problem(path: &str, n: usize) -> String {
+    format!("{path}:{n}: carriage return in the line (a CRLF line end) -- {path} lines end in LF only; run: mios-task fmt")
+}
+
+/// A migrated record owns at least one slice, and a '#n' id names the id it was renamed from.
+fn migrated_shape(id: &str, prov: &Value) -> Vec<String> {
+    let mut p = Vec::new();
+    if prov
+        .get("sources")
+        .and_then(|x| x.as_array())
+        .is_none_or(|a| a.is_empty())
+    {
+        p.push(format!(
+            "{id}: a migrated record with no provenance.sources -- every migrated record keeps the bytes it owned (ADR-0028)"
+        ));
+    }
+    if let Some((base, _)) = id.split_once('#') {
+        let named = prov
+            .get("aliases")
+            .and_then(|x| x.as_array())
+            .is_some_and(|a| a.iter().any(|x| x.as_str() == Some(base)));
+        if !named {
+            p.push(format!(
+                "{id}: a renamed id whose provenance.aliases does not name {base} -- the record of the rename is gone"
+            ));
+        }
+    }
+    p
+}
+
+/// The migrated set as one digest: per record its provenance key, id, aliases and slice set, sorted.
+/// [tasks.store].migrated_sha256 freezes it, so a swap that keeps the count, a rewritten key, a dropped alias
+/// or a stripped slice outside the frozen lists all fail.
+pub fn identity(records: &[Value]) -> (usize, String) {
+    let mut rows: Vec<String> = Vec::new();
+    for r in records {
+        let Some(p) = r.get("provenance").filter(|p| p.is_object()) else {
+            continue;
+        };
+        let s = |v: &Value, k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let aliases: Vec<String> = p
+            .get("aliases")
+            .and_then(|x| x.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut sl: Vec<String> = p
+            .get("sources")
+            .and_then(|x| x.as_array())
+            .map(|a| {
+                a.iter()
+                    .map(|x| {
+                        format!(
+                            "{}@{}+{}:{}",
+                            s(x, "file"),
+                            x.get("offset").and_then(|v| v.as_u64()).unwrap_or(0),
+                            x.get("length").and_then(|v| v.as_u64()).unwrap_or(0),
+                            s(x, "sha256")
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        sl.sort();
+        rows.push(format!(
+            "{}\t{}\t{}\t{}",
+            s(p, "key"),
+            id_of(r),
+            aliases.join(","),
+            sl.join(",")
+        ));
+    }
+    rows.sort();
+    (rows.len(), sha(&rows.join("\n")))
+}
+
+/// Each migrated lane line's archived_dependencies (edges the toolkit took out of depends_on because the target
+/// was archived) must not be back in the record's depends_on.
+fn archived_edges(records: &[Value]) -> Vec<String> {
+    // A lane id the migration renamed: the record keyed "<lane file>#<lane id>" answers to it.
+    let mut renamed: HashMap<String, String> = HashMap::new();
+    for r in records {
+        let key = r
+            .get("provenance")
+            .and_then(|p| p.get("key"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        renamed.insert(key.to_string(), id_of(r).to_string());
+    }
+    let mut out = Vec::new();
+    for r in records {
+        let id = id_of(r);
+        let deps: HashSet<&str> = r
+            .get("depends_on")
+            .and_then(|x| x.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+            .unwrap_or_default();
+        let slices = r
+            .get("provenance")
+            .and_then(|p| p.get("sources"))
+            .and_then(|x| x.as_array())
+            .cloned()
+            .unwrap_or_default();
+        for sl in slices
+            .iter()
+            .filter(|x| x.get("kind").and_then(|k| k.as_str()) == Some("jsonl"))
+        {
+            let file = sl.get("file").and_then(|x| x.as_str()).unwrap_or("");
+            let line: Value = sl
+                .get("text")
+                .and_then(|x| x.as_str())
+                .and_then(|t| serde_json::from_str(t).ok())
+                .unwrap_or(Value::Null);
+            for d in line
+                .get("archived_dependencies")
+                .and_then(|x| x.as_array())
+                .cloned()
+                .unwrap_or_default()
+            {
+                let d = d.as_str().unwrap_or("");
+                let now = renamed
+                    .get(&format!("{file}#{d}"))
+                    .map(String::as_str)
+                    .unwrap_or(d);
+                if deps.contains(now) {
+                    out.push(format!(
+                        "{id}: depends_on {now} is an edge the lane file archived (archived_dependencies) -- it is history, a related entry of type \"archived\", never a block (ADR-0028)"
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every former id that also names a live task, as (former id, the record it was renamed to).
+pub fn former_ids(records: &[Value]) -> Vec<(String, String)> {
+    let ids: HashSet<&str> = records.iter().map(id_of).collect();
+    let mut out = Vec::new();
+    for r in records {
+        for a in r
+            .get("provenance")
+            .and_then(|p| p.get("aliases"))
+            .and_then(|x| x.as_array())
+            .cloned()
+            .unwrap_or_default()
+        {
+            let a = a.as_str().unwrap_or("").to_string();
+            if ids.contains(a.as_str()) && a != id_of(r) {
+                out.push((a, id_of(r).to_string()));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// A record born in the list must not take an id a migrated record answered to.
+fn born_aliases(records: &[Value]) -> Vec<String> {
+    let born: HashSet<&str> = records
+        .iter()
+        .filter(|r| r.get("provenance").is_some_and(Value::is_null))
+        .map(id_of)
+        .collect();
+    former_ids(records)
+        .into_iter()
+        .filter(|(a, _)| born.contains(a.as_str()))
+        .map(|(a, to)| {
+            format!(
+                "{a}: a record born in the list reuses {a}, the former id of {to} -- pick a new id"
+            )
+        })
+        .collect()
+}
+
+/// Ids that are a task and also a former id of another task (ADR-0028 decision 6).
+pub fn notes(records: &[Value]) -> Vec<String> {
+    former_ids(records)
+        .into_iter()
+        .map(|(a, to)| {
+            format!("note: {a} names task {a} and is a former id of {to}; edit {to} by its own id")
+        })
+        .collect()
 }
 
 /// Every problem in the canonical list, its overrides and its rendered doc. Empty means clean.
@@ -335,6 +523,9 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
             continue;
         };
         if is_marker(v) {
+            if l.raw.contains('\r') {
+                p.push(cr_problem(&st.path, l.n));
+            }
             if v.get(DIALECT_KEY).and_then(|x| x.as_str()) != Some("openai") {
                 p.push(format!(
                     "{}:{}: dialect marker {} -- {} keeps the OpenAI plan-status words",
@@ -355,7 +546,9 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
                 ));
             }
         }
-        if dumps(&state.schema.canon(v, node)) != l.raw {
+        if l.raw.contains('\r') {
+            p.push(cr_problem(&st.path, l.n));
+        } else if dumps(&state.schema.canon(v, node)) != l.raw {
             p.push(format!(
                 "{}:{} ({id}): not in canonical serialization -- run mios-task fmt",
                 st.path, l.n
@@ -365,7 +558,10 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
             p.push(format!("duplicate id {id}"));
         }
         match v.get("provenance") {
-            Some(x) if x.is_object() => migrated += 1,
+            Some(x) if x.is_object() => {
+                migrated += 1;
+                p.extend(migrated_shape(&id, x));
+            }
             Some(Value::Null) => {
                 let ac = v
                     .get("acceptance_criteria")
@@ -411,7 +607,21 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
             if migrated < st.migrated { "dropped" } else { "forged" }
         ));
     }
-    p.extend(frozen::verify(&state.records, &st.frozen));
+    let (n, digest) = identity(&state.records);
+    match &st.migrated_sha256 {
+        Some(want) if *want == digest => {}
+        Some(want) => p.push(format!(
+            "the {n} migrated record(s) hash to {digest}, not [tasks.store].migrated_sha256 {want} -- a migrated record was swapped, renamed, or its provenance key, aliases or slices were edited (ADR-0028); `git diff {}` names it",
+            st.path
+        )),
+        None if st.migrated > 0 => p.push(format!(
+            "[tasks.store].migrated_sha256 is missing; the {n} migrated record(s) hash to {digest}"
+        )),
+        None => {}
+    }
+    p.extend(verify(&state.records, &st.frozen));
+    p.extend(archived_edges(&state.records));
+    p.extend(born_aliases(&state.records));
     // Overrides: block structure and every line.
     let by_id = state.by_id();
     match &state.block {
@@ -469,4 +679,133 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
         }
     }
     p
+}
+
+pub fn sha(s: &str) -> String {
+    format!("{:x}", Sha256::digest(s.as_bytes()))
+}
+
+/// One provenance slice with the record that owns it.
+pub struct Slice {
+    pub owner: String,
+    pub offset: usize,
+    pub after: String,
+    pub sha256: String,
+    pub length: usize,
+    pub text: String,
+}
+
+/// Every slice of every record, grouped by file and sorted by offset.
+pub fn slices(records: &[Value]) -> BTreeMap<String, Vec<Slice>> {
+    let mut out: BTreeMap<String, Vec<Slice>> = BTreeMap::new();
+    for r in records {
+        let owner = r.get("id").and_then(|x| x.as_str()).unwrap_or("?");
+        let Some(a) = r
+            .get("provenance")
+            .and_then(|p| p.get("sources"))
+            .and_then(|s| s.as_array())
+        else {
+            continue;
+        };
+        for s in a {
+            let g = |k: &str| s.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let n = |k: &str| s.get(k).and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+            out.entry(g("file")).or_default().push(Slice {
+                owner: owner.to_string(),
+                offset: n("offset"),
+                after: g("after"),
+                sha256: g("sha256"),
+                length: n("length"),
+                text: g("text"),
+            });
+        }
+    }
+    for v in out.values_mut() {
+        v.sort_by_key(|s| s.offset);
+    }
+    out
+}
+
+/// The bytes of one frozen list, rebuilt from its slices; Err names every gap, overlap or edited slice.
+pub fn rebuild(file: &str, sl: &[Slice], want: Option<&Frozen>) -> Result<String, Vec<String>> {
+    let mut errs = Vec::new();
+    let mut out = String::new();
+    let mut at = 0usize;
+    for s in sl {
+        if sha(&s.text) != s.sha256 || s.text.len() != s.length {
+            errs.push(format!(
+                "{file}: the slice {} owns at offset {} was edited (sha256/length no longer match its text)",
+                s.owner, s.offset
+            ));
+        }
+        if s.offset > at {
+            errs.push(format!(
+                "{file}: bytes {at}..{} are missing -- record {} was dropped (the slice owned by {} follows it)",
+                s.offset,
+                if s.after.is_empty() { "(unnamed)" } else { s.after.as_str() },
+                s.owner
+            ));
+        } else if s.offset < at {
+            errs.push(format!(
+                "{file}: the slice {} owns at offset {} overlaps the one before it (a record was duplicated)",
+                s.owner, s.offset
+            ));
+            continue;
+        }
+        out.push_str(&s.text);
+        at = s.offset + s.text.len();
+    }
+    if let Some(f) = want {
+        if at < f.bytes {
+            let last = sl.last().map(|s| s.owner.as_str()).unwrap_or("(none)");
+            errs.push(format!(
+                "{file}: bytes {at}..{} are missing at the end -- a record after {last} was dropped",
+                f.bytes
+            ));
+        }
+        if errs.is_empty() && sha(&out) != f.sha256 {
+            errs.push(format!(
+                "{file}: the rebuilt bytes differ from [tasks.store].frozen sha256"
+            ));
+        }
+    }
+    if errs.is_empty() {
+        Ok(out)
+    } else {
+        Err(errs)
+    }
+}
+
+/// Every problem with the frozen history: each declared list rebuilds to its digest, every other slice is intact.
+pub fn verify(records: &[Value], frozen: &[Frozen]) -> Vec<String> {
+    let all = slices(records);
+    let mut errs = Vec::new();
+    for f in frozen {
+        match all.get(&f.source) {
+            None => errs.push(format!(
+                "{}: no record carries its slices any more -- every record migrated from it was dropped",
+                f.source
+            )),
+            Some(sl) => {
+                if let Err(e) = rebuild(&f.source, sl, Some(f)) {
+                    errs.extend(e);
+                }
+            }
+        }
+    }
+    // Slices of a list that is not frozen whole (a record moved from a sibling's backlog) still keep their digest.
+    for (file, sl) in &all {
+        if frozen.iter().any(|f| &f.source == file) {
+            continue;
+        }
+        for s in sl {
+            if sha(&s.text) != s.sha256 || s.text.len() != s.length {
+                errs.push(format!(
+                    "{file}: the slice {} owns at offset {} was edited (sha256/length no longer match its text)",
+                    s.owner, s.offset
+                ));
+            }
+        }
+    }
+    errs
 }

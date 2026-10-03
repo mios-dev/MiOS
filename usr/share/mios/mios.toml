@@ -11788,8 +11788,11 @@ retired = [
   "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
   "usr/share/mios/docs/MIOS-GEMINI-TASKS-R2-2026-06-22.md",
 ]
-# Records carried by the migration; each keeps a non-null provenance, so a dropped one fails the check.
+# Records carried by the migration; each keeps a non-null provenance and at least one slice, so a dropped one
+# fails the check. The digest freezes their identity -- provenance key, id, aliases and slice set (mios-task
+# check names the current digest) -- so a swap that keeps the count, a rewritten key or a lost alias fails too.
 migrated = 3484
+migrated_sha256 = "d88adbd0434a5a98016dccf0bc32ffee2762cab58a4e149c3fa764e9a2fae534"
 # Frozen history: every byte of these lists, as last merged, lives in the records' provenance.sources and
 # rebuilds to this digest (`mios-task source <source>`). ROADMAP.md and mios-micro's ROADMAP.md live on as
 # documents; the bytes here are the snapshot their task items were migrated from.

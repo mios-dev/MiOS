@@ -1,13 +1,11 @@
 // AI-hint: mios-task verbs over tasks.jsonl -- check, fmt, render, ready/next, set, claim, release, add, overrides fold, source (rebuild a frozen retired list) and the one-shot migrate-canonical.
 // AI-related: tasks.jsonl, TASKS.md, /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, /usr/share/doc/mios/adr/0028-one-canonical-task-list.md
-// AI-functions: run, Args, cmd_check, cmd_fmt, cmd_render, cmd_ready, cmd_set, cmd_claim, cmd_add, cmd_fold, cmd_source, cmd_migrate
+// AI-functions: run, Args, cmd_check, cmd_fmt, cmd_render, cmd_ready, resolve, cmd_set, cmd_claim, cmd_add, cmd_fold, cmd_source, cmd_migrate
 
 use crate::check::{self, State};
-use crate::frozen;
 use crate::migrate::{self, Inputs};
 use crate::overrides;
-use crate::record::{canonical_status, dumps, today, Schema};
-use crate::store::{self, find_root, write_atomic, Store};
+use crate::record::{self, canonical_status, dumps, find_root, today, write_atomic, Schema, Store};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -34,9 +32,10 @@ pub const USAGE: &str = "usage: mios-task <verb> [--root DIR] ...
   fmt [--check]                        rewrite every line canonically (fills missing fields, legacy -> OpenAI words)
   render                               write TASKS.md from tasks.jsonl, keeping the overrides block
   ready|next [--json] [--limit N]      pending and unblocked (overrides applied); next sorts by priority
-  set ID [--status S] [--owner O] [--evidence E]
-  claim ID LANE                        compare-and-set owner; exit 2 if another lane owns ID
-  release ID LANE
+  set ID [--status S] [--owner O] [--evidence E] [--exact]
+  claim ID LANE [--exact]              compare-and-set owner; exit 2 if another lane owns ID
+  release ID LANE [--exact]            (an ID that is also a former id of another task needs --exact;
+                                        an ID that is only a former id resolves to the renamed task)
   add --id ID --title T --ac TEXT... --positive CMD --negative CMD [--expect E] [--type T]
       [--priority P] [--size S] [--workstream W] [--domain D] [--epic E] [--goal G]
       [--depends-on ID]... [--owner O]
@@ -52,7 +51,7 @@ pub struct Args {
     pub switches: HashSet<String>,
 }
 
-const SWITCHES: [&str; 3] = ["--json", "--check", "--dry-run"];
+const SWITCHES: [&str; 4] = ["--json", "--check", "--dry-run", "--exact"];
 
 impl Args {
     pub fn parse(v: &[String]) -> Result<Args, String> {
@@ -137,7 +136,7 @@ fn root_of(a: &Args) -> Result<PathBuf, Fail> {
             let cwd = std::env::current_dir().map_err(|e| Fail::Bad(e.to_string()))?;
             find_root(&cwd).ok_or(Fail::Bad(format!(
                 "no {} above {}; pass --root",
-                store::SSOT,
+                record::SSOT,
                 cwd.display()
             )))
         }
@@ -175,16 +174,22 @@ fn cmd_check(st: &Store, a: &Args) -> Result<(), Fail> {
         return Err(Fail::Usage("--only takes: hygiene".into()));
     }
     let problems = check::check(st, &state, only);
+    let notes = if only.is_some() {
+        vec![]
+    } else {
+        check::notes(&state.records)
+    };
     if a.has("--json") {
         println!(
             "{}",
             dumps(
                 &json!({"ok": problems.is_empty(), "records": state.records.len(),
-                          "overrides": state.override_lines().len(), "problems": problems})
+                          "overrides": state.override_lines().len(), "problems": problems,
+                          "notes": notes})
             )
         );
     } else {
-        for p in &problems {
+        for p in problems.iter().chain(notes.iter()) {
             println!("{p}");
         }
     }
@@ -280,12 +285,16 @@ fn cmd_fmt(st: &Store, a: &Args) -> Result<(), Fail> {
                 st.path, l.n
             )));
         };
+        if l.raw.contains('\r') {
+            changed.push(check::cr_problem(&st.path, l.n));
+        }
         if check::is_marker(v) {
-            out.push(l.raw.clone());
+            // Outside a string a CR is JSON whitespace, and a raw CR inside one is not JSON: dropping it is exact.
+            out.push(l.raw.replace('\r', ""));
             continue;
         }
         let c = dumps(&canonical(&state.schema, v));
-        if c != l.raw {
+        if c != l.raw && !l.raw.contains('\r') {
             changed.push(format!(
                 "{}:{} ({}): not canonical -- run mios-task fmt",
                 st.path,
@@ -444,6 +453,12 @@ where
             st.path, l.n
         )));
     }
+    if let Some(l) = state.lines.iter().find(|l| l.raw.contains('\r')) {
+        return Err(Fail::Bad(format!(
+            "{}; refusing to rewrite the file around it",
+            check::cr_problem(&st.path, l.n)
+        )));
+    }
     let mut recs = state.records.clone();
     let mut touched = HashSet::new();
     let inner = f(&state, &mut recs, &mut touched)?;
@@ -477,6 +492,52 @@ fn find(recs: &[Value], id: &str) -> Result<usize, Fail> {
         .ok_or(Fail::Bad(format!("no task {id}")))
 }
 
+/// The record an edit by `id` means. A former id (provenance.aliases) of exactly one record resolves to it; an
+/// id that is a task AND a former id of another is refused unless `exact` -- never a silent retarget.
+fn resolve(recs: &[Value], id: &str, exact: bool) -> Result<usize, Fail> {
+    let hit = recs
+        .iter()
+        .position(|r| r.get("id").and_then(|x| x.as_str()) == Some(id));
+    if exact {
+        return hit.ok_or(Fail::Bad(format!("no task {id}")));
+    }
+    let renamed: Vec<usize> = recs
+        .iter()
+        .enumerate()
+        .filter(|(i, r)| {
+            Some(*i) != hit
+                && r.get("provenance")
+                    .and_then(|p| p.get("aliases"))
+                    .and_then(|x| x.as_array())
+                    .is_some_and(|a| a.iter().any(|x| x.as_str() == Some(id)))
+        })
+        .map(|(i, _)| i)
+        .collect();
+    let name = |i: usize| recs[i]["id"].as_str().unwrap_or("?").to_string();
+    match (hit, renamed.as_slice()) {
+        (Some(i), []) => Ok(i),
+        (None, [j]) => {
+            eprintln!(
+                "mios-task: {id} is a former id of {}; editing {}",
+                name(*j),
+                name(*j)
+            );
+            Ok(*j)
+        }
+        (None, []) => Err(Fail::Bad(format!("no task {id}"))),
+        (h, many) => {
+            let to: Vec<String> = many.iter().map(|&j| name(j)).collect();
+            Err(Fail::Bad(format!(
+                "{id} is ambiguous: {}it is a former id of {} (renamed by the migration, ADR-0028); name {} or pass --exact{}",
+                if h.is_some() { format!("it is task {id}, and ") } else { String::new() },
+                to.join(", "),
+                to.join(" or "),
+                if h.is_some() { format!(" to edit task {id}") } else { String::new() }
+            )))
+        }
+    }
+}
+
 fn cmd_set(st: &Store, a: &Args) -> Result<(), Fail> {
     let id = a
         .pos
@@ -494,8 +555,9 @@ fn cmd_set(st: &Store, a: &Args) -> Result<(), Fail> {
         )))?),
         None => None,
     };
+    let exact = a.has("--exact");
     mutate(st, |_, recs, touched| {
-        let i = find(recs, &id)?;
+        let i = resolve(recs, &id, exact)?;
         let r = recs[i]
             .as_object_mut()
             .ok_or(Fail::Bad(format!("{id} is not an object")))?;
@@ -533,8 +595,9 @@ fn cmd_claim(st: &Store, a: &Args, claim: bool) -> Result<(), Fail> {
         return Err(Fail::Usage("LANE must not be empty".into()));
     }
     let mut noop = false;
+    let exact = a.has("--exact");
     mutate(st, |state, recs, touched| {
-        let i = find(recs, &id)?;
+        let i = resolve(recs, &id, exact)?;
         let eff = state.effective();
         let owner = eff.records[i]
             .get("owner")
@@ -699,7 +762,7 @@ fn cmd_source(st: &Store, a: &Args) -> Result<(), Fail> {
         "source needs REPO:PATH, e.g. MiOS:AGY-TASKS.md".into(),
     ))?;
     let state = State::load(st)?;
-    let all = frozen::slices(&state.records);
+    let all = check::slices(&state.records);
     let sl = all.get(&file).ok_or(Fail::Bad(format!(
         "{file}: no record carries a slice of it; frozen lists: {}",
         st.frozen
@@ -709,7 +772,7 @@ fn cmd_source(st: &Store, a: &Args) -> Result<(), Fail> {
             .join(", ")
     )))?;
     let want = st.frozen.iter().find(|f| f.source == file);
-    let text = frozen::rebuild(&file, sl, want).map_err(|e| Fail::Bad(e.join("\n")))?;
+    let text = check::rebuild(&file, sl, want).map_err(|e| Fail::Bad(e.join("\n")))?;
     use std::io::Write;
     std::io::stdout()
         .write_all(text.as_bytes())
@@ -738,14 +801,14 @@ fn cmd_migrate(a: &Args) -> Result<(), Fail> {
         }
     };
     let schema = Schema::load(&schema_p)?;
-    let store = store::read_lines(&store_p)?
+    let store = record::read_lines(&store_p)?
         .into_iter()
         .map(|l| {
             l.value
                 .ok_or(format!("{}:{}: not JSON", store_p.display(), l.n))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let lane = store::read_lines(&lane_arg)?
+    let lane = record::read_lines(&lane_arg)?
         .into_iter()
         .map(|l| match l.value {
             Some(v) => Ok((l.raw, v)),

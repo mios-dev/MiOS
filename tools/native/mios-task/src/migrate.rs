@@ -1,8 +1,8 @@
 // AI-hint: One-shot `mios-task migrate-canonical` -- folds the retired TASKS.jsonl store and the lane file into tasks.jsonl, keeping each record's id, status and every byte it owned (provenance.sources), counting every input both ways.
 // AI-related: tasks.jsonl, /usr/lib/mios/schemas/task-record.schema.json, /usr/share/doc/mios/adr/0028-one-canonical-task-list.md
-// AI-functions: Inputs, migrate, store_record, lane_only_record, place_deps, kept_sources, chain_after, frozen_table
+// AI-functions: Inputs, migrate, store_record, lane_only_record, place_deps, lane_ids, lane_deps, kept_sources, chain_after, frozen_table
 
-use crate::frozen::sha;
+use crate::check::sha;
 use crate::record::{canonical_status, dumps, is_iso_date, Schema};
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -345,34 +345,24 @@ pub fn migrate(inp: &Inputs, schema: &Schema) -> Result<Outcome, String> {
         )
         .collect();
     let mut dangling: Vec<Value> = Vec::new();
-    let mut rewrites = 0usize;
+    let mut lk = LaneLinks {
+        ids: &ids,
+        rename: &lane_rename,
+        rewrites: 0,
+        archived: Vec::new(),
+    };
     let mut out: Vec<Value> = Vec::new();
     for (k, &status) in kept.iter().zip(statuses.iter()) {
         let lane = k.lane.map(|i| &inp.lane[i]);
-        let rec = store_record(
-            k,
-            status,
-            lane,
-            inp,
-            &ids,
-            &lane_rename,
-            &mut dangling,
-            &mut rewrites,
-        );
+        let rec = store_record(k, status, lane, inp, &mut lk, &mut dangling);
         key_map.insert(k.key.clone(), k.id.clone());
         out.push(rec);
     }
     for li in &lane_only {
         let l = &inp.lane[*li].1;
-        out.push(lane_only_record(
-            l,
-            inp,
-            &ids,
-            &lane_rename,
-            &mut dangling,
-            &mut rewrites,
-        ));
+        out.push(lane_only_record(l, inp, &mut lk, &mut dangling));
     }
+    let (rewrites, archived) = (lk.rewrites, lk.archived);
     // An unschedulable cycle: each edge inside it becomes `related`, and the report lists it.
     let mut cycle_edges: Vec<Value> = Vec::new();
     for comp in crate::check::cycles(&out) {
@@ -486,9 +476,11 @@ pub fn migrate(inp: &Inputs, schema: &Schema) -> Result<Outcome, String> {
             .map(|k| json!({"key": k.key, "id": k.id, "aliases": k.aliases})).collect::<Vec<_>>(),
         "lane_dep_rewrites": rewrites,
         "dangling_blocks_moved_to_related": dangling,
+        "archived_dependencies_kept_as_related": archived,
         "cycle_edges_moved_to_related": cycle_edges,
         "changed_status": changed,
         "frozen": frozen,
+        "migrated_sha256": crate::check::identity(&out).1,
         "store_key_map": key_map,
         "lane_id_map": lane_map,
     });
@@ -531,10 +523,15 @@ fn lane_verification(l: &Value, statements: Vec<String>) -> Value {
     })
 }
 
-fn lane_deps(l: &Value, rename: &HashMap<String, String>, rewrites: &mut usize) -> Vec<String> {
-    let mut v = strs(l.get("depends_on"));
-    v.extend(strs(l.get("archived_dependencies")));
-    v.into_iter()
+/// A lane record's ids under `key` (depends_on or archived_dependencies), each renamed to its kept id.
+fn lane_ids(
+    l: &Value,
+    key: &str,
+    rename: &HashMap<String, String>,
+    rewrites: &mut usize,
+) -> Vec<String> {
+    strs(l.get(key))
+        .into_iter()
         .map(|d| match rename.get(&d) {
             Some(n) => {
                 *rewrites += 1;
@@ -543,6 +540,35 @@ fn lane_deps(l: &Value, rename: &HashMap<String, String>, rewrites: &mut usize) 
             None => d,
         })
         .collect()
+}
+
+/// The lane's blocking edges, plus each edge the toolkit archived out of depends_on (archived_dependencies),
+/// which stays history: a `related` entry of type "archived", never a block.
+fn lane_deps(
+    id: &str,
+    l: &Value,
+    lk: &mut LaneLinks,
+    related: &mut Vec<Value>,
+    dangling: &mut Vec<Value>,
+) -> Vec<String> {
+    let wanted = lane_ids(l, "depends_on", lk.rename, &mut lk.rewrites);
+    let deps = place_deps(id, wanted, lk.ids, related, dangling);
+    for d in lane_ids(l, "archived_dependencies", lk.rename, &mut lk.rewrites) {
+        lk.archived.push(json!({"id": id, "dep": d}));
+        let e = json!({"id": d, "type": "archived"});
+        if !related.contains(&e) {
+            related.push(e);
+        }
+    }
+    deps
+}
+
+/// What lane-record conversion needs from the whole migration, and what it reports back.
+struct LaneLinks<'a> {
+    ids: &'a HashSet<String>,
+    rename: &'a HashMap<String, String>,
+    rewrites: usize,
+    archived: Vec<Value>,
 }
 
 fn evidence(status: &str, given: &str, origin: &str, raw: Option<&str>) -> String {
@@ -556,16 +582,13 @@ fn evidence(status: &str, given: &str, origin: &str, raw: Option<&str>) -> Strin
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn store_record(
     k: &Kept,
     status: &str,
     lane: Option<&(String, Value)>,
     inp: &Inputs,
-    ids: &HashSet<String>,
-    rename: &HashMap<String, String>,
+    lk: &mut LaneLinks,
     dangling: &mut Vec<Value>,
-    rewrites: &mut usize,
 ) -> Value {
     let r = k.rec;
     let origin = st(r, "origin").unwrap_or("").to_string();
@@ -656,13 +679,7 @@ fn store_record(
         title_raw,
     ) = match lane {
         Some((_, l)) => {
-            let deps = place_deps(
-                &k.id,
-                lane_deps(l, rename, rewrites),
-                ids,
-                &mut related,
-                dangling,
-            );
+            let deps = lane_deps(&k.id, l, lk, &mut related, dangling);
             let goal = st(r, "goal").or(st(l, "goal")).unwrap_or("").to_string();
             let w = st(l, "status");
             (
@@ -690,7 +707,7 @@ fn store_record(
             String::new(),
             String::new(),
             st(r, "goal").unwrap_or("").to_string(),
-            place_deps(&k.id, blocks, ids, &mut related, dangling),
+            place_deps(&k.id, blocks, lk.ids, &mut related, dangling),
             strs(r.get("done_when")),
             json!({"positive_cmd": null, "negative_control_cmd": null, "negative_expect": null,
                        "statements": store_verify}),
@@ -757,10 +774,8 @@ fn store_record(
 fn lane_only_record(
     l: &Value,
     inp: &Inputs,
-    ids: &HashSet<String>,
-    rename: &HashMap<String, String>,
+    lk: &mut LaneLinks,
     dangling: &mut Vec<Value>,
-    rewrites: &mut usize,
 ) -> Value {
     let id = st(l, "id").unwrap_or("").to_string();
     let w = st(l, "status");
@@ -774,13 +789,7 @@ fn lane_only_record(
         }
     }
     let mut related = Vec::new();
-    let deps = place_deps(
-        &id,
-        lane_deps(l, rename, rewrites),
-        ids,
-        &mut related,
-        dangling,
-    );
+    let deps = lane_deps(&id, l, lk, &mut related, dangling);
     let rtype = match st(l, "type") {
         Some("epic") => "epic",
         Some("bug") => "bug",
@@ -931,11 +940,11 @@ fn frozen_table(inp: &Inputs, out: &[Value]) -> Result<Value, String> {
         inp.lane_origin.clone(),
         (inp.lane_text.len(), sha(&inp.lane_text)),
     );
-    let all = crate::frozen::slices(out);
+    let all = crate::check::slices(out);
     let mut table = Vec::new();
     let mut errs = Vec::new();
     for (f, (bytes, digest)) in &want {
-        let fz = crate::store::Frozen {
+        let fz = crate::record::Frozen {
             source: f.clone(),
             bytes: *bytes,
             sha256: digest.clone(),
@@ -943,7 +952,7 @@ fn frozen_table(inp: &Inputs, out: &[Value]) -> Result<Value, String> {
         match all.get(f) {
             None => errs.push(format!("{f}: no kept record holds a slice of it")),
             Some(sl) => {
-                if let Err(e) = crate::frozen::rebuild(f, sl, Some(&fz)) {
+                if let Err(e) = crate::check::rebuild(f, sl, Some(&fz)) {
                     errs.extend(e);
                 }
             }

@@ -85,9 +85,13 @@ fn migrate_args<'a>(
     ]
 }
 
-/// The [tasks.store] keys a migration report implies: the migrated count and the frozen digests.
+/// The [tasks.store] keys a migration report implies: the migrated count, identity digest and frozen digests.
 fn frozen_toml(rep: &Value) -> String {
-    let mut s = format!("migrated = {}\nfrozen = [\n", rep["out_lines"]);
+    let mut s = format!("migrated = {}\n", rep["out_lines"]);
+    if let Some(d) = rep["migrated_sha256"].as_str() {
+        s.push_str(&format!("migrated_sha256 = \"{d}\"\n"));
+    }
+    s.push_str("frozen = [\n");
     for f in rep["frozen"].as_array().unwrap() {
         s.push_str(&format!(
             "  {{ source = {}, bytes = {}, sha256 = {} }},\n",
@@ -99,10 +103,15 @@ fn frozen_toml(rep: &Value) -> String {
 
 /// A sandbox holding the fixture migration as tasks.jsonl plus its render: a green tree.
 fn sandbox(name: &str) -> PathBuf {
+    sandbox_from(name, &fixture("lane.jsonl"))
+}
+
+/// The fixture migration with `lane` as the lane file.
+fn sandbox_from(name: &str, lane: &Path) -> PathBuf {
     let d = bare(name);
     let (s, l, c) = (
         fixture("store.v1.jsonl"),
-        fixture("lane.jsonl"),
+        lane.to_path_buf(),
         fixture("classification.json"),
     );
     let (out, rep) = (d.join("tasks.jsonl"), d.join("report.json"));
@@ -749,7 +758,8 @@ fn overrides_validate_and_apply() {
         "ready reads the overridden status: {}",
         o.text
     );
-    let o = run(&d, &["claim", "T-031", "lane-b"]);
+    // T-031 is also the former id of T-031#2, so an edit by it names the task exactly.
+    let o = run(&d, &["claim", "T-031", "lane-b", "--exact"]);
     assert_eq!(
         o.code, 2,
         "claim compares against the overridden owner: {}",
@@ -1032,5 +1042,184 @@ fn fold_bakes_an_override_and_drops_its_line() {
         !md.contains("{\"id\": \"T-002\"") && md.contains("{\"id\": \"T-001\""),
         "only T-002's line goes"
     );
+    assert_eq!(run(&d, &["check"]).code, 0);
+}
+
+#[test]
+fn an_archived_dependency_stays_out_of_depends_on() {
+    // The toolkit moves an edge to archived_dependencies when it archives the target; it is history, not a block.
+    let lane = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("lane.archived.jsonl");
+    let t = fs::read_to_string(fixture("lane.jsonl")).unwrap();
+    let planted: Vec<String> = t
+        .lines()
+        .map(|l| {
+            let mut v: Value = serde_json::from_str(l).unwrap();
+            if v["id"] == "T-070" {
+                v["archived_dependencies"] = json!(["T-050"]);
+                py(&v)
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    fs::write(&lane, planted.join("\n") + "\n").unwrap();
+    let d = sandbox_from("archived-deps", &lane);
+    let t70 = get(&d, "T-070");
+    assert_eq!(t70["depends_on"], json!(["T-060#2"]), "{t70}");
+    assert!(
+        t70["related"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"id": "T-050", "type": "archived"})),
+        "{t70}"
+    );
+    // Put the archived edge back into depends_on: check names it from the frozen lane line.
+    plant_line(&d, "T-070", |v| {
+        v["depends_on"] = json!(["T-060#2", "T-050"]);
+    });
+    let o = run(&d, &["check"]);
+    assert!(
+        o.code == 1
+            && o.text.contains(
+                "T-070: depends_on T-050 is an edge the lane file archived (archived_dependencies)"
+            ),
+        "{}",
+        o.text
+    );
+}
+
+#[test]
+fn the_migrated_identity_is_frozen() {
+    // a. A count-keeping swap: AGY-9 (no frozen slice) replaced by a slice-less record.
+    let d = sandbox("swap");
+    let p = d.join("tasks.jsonl");
+    let t = fs::read_to_string(&p).unwrap();
+    let mut lines: Vec<String> = t
+        .lines()
+        .filter(|l| !l.starts_with("{\"id\": \"AGY-9\","))
+        .map(str::to_string)
+        .collect();
+    let mut forged: Value = serde_json::from_str(
+        t.lines()
+            .find(|l| l.starts_with("{\"id\": \"AGY-9\","))
+            .unwrap(),
+    )
+    .unwrap();
+    forged["id"] = "T-777".into();
+    forged["provenance"]["key"] = "T-777".into();
+    forged["provenance"]["sources"] = json!([]);
+    lines.push(py(&forged));
+    fs::write(&p, lines.join("\n") + "\n").unwrap();
+    run(&d, &["render"]);
+    let o = run(&d, &["check"]);
+    assert_eq!(o.code, 1, "{}", o.text);
+    assert!(
+        o.text
+            .contains("T-777: a migrated record with no provenance.sources"),
+        "{}",
+        o.text
+    );
+    assert!(
+        o.text.contains("[tasks.store].migrated_sha256"),
+        "{}",
+        o.text
+    );
+    // b. The only record of a lane rename loses it.
+    let d = sandbox("aliases");
+    plant_line(&d, "T-060#2", |v| v["provenance"]["aliases"] = json!([]));
+    let o = run(&d, &["check"]);
+    assert!(
+        o.code == 1
+            && o.text
+                .contains("T-060#2: a renamed id whose provenance.aliases does not name T-060")
+            && o.text.contains("[tasks.store].migrated_sha256"),
+        "{}",
+        o.text
+    );
+    // c. A rewritten provenance key.
+    let d = sandbox("key");
+    plant_line(&d, "T-002", |v| {
+        v["provenance"]["key"] = "T-002-forged".into()
+    });
+    let o = run(&d, &["check"]);
+    assert!(
+        o.code == 1 && o.text.contains("[tasks.store].migrated_sha256"),
+        "{}",
+        o.text
+    );
+    // d. A kept record's toolkit slices stripped.
+    let d = sandbox("strip");
+    plant_line(&d, "AGY-9", |v| v["provenance"]["sources"] = json!([]));
+    let o = run(&d, &["check"]);
+    assert!(
+        o.code == 1
+            && o.text
+                .contains("AGY-9: a migrated record with no provenance.sources")
+            && o.text.contains("[tasks.store].migrated_sha256"),
+        "{}",
+        o.text
+    );
+}
+
+#[test]
+fn a_former_id_is_resolved_or_refused_never_silently_retargeted() {
+    let d = sandbox("alias-set");
+    let before = bytes(&d.join("tasks.jsonl"));
+    // T-060 is a task, and also the lane id T-060#2 answered to before the migration.
+    for args in [
+        &["set", "T-060", "--owner", "x"][..],
+        &["claim", "T-060", "lane-x"][..],
+    ] {
+        let o = run(&d, args);
+        assert!(
+            o.code == 1 && o.text.contains("T-060 is ambiguous") && o.text.contains("T-060#2"),
+            "{args:?}: {}",
+            o.text
+        );
+        assert_eq!(
+            bytes(&d.join("tasks.jsonl")),
+            before,
+            "a refusal writes nothing"
+        );
+    }
+    let o = run(&d, &["set", "T-060", "--owner", "x", "--exact"]);
+    assert_eq!(o.code, 0, "{}", o.text);
+    assert_eq!(get(&d, "T-060")["owner"], "x");
+    assert_eq!(get(&d, "T-060#2")["owner"], "lane-b");
+    // check names every such id, so a toolkit edit by the old id is a known hazard, not a silent one.
+    let o = run(&d, &["check"]);
+    assert!(
+        o.code == 0
+            && o.text
+                .contains("note: T-060 names task T-060 and is a former id of T-060#2"),
+        "{}",
+        o.text
+    );
+}
+
+#[test]
+fn a_carriage_return_is_refused_and_named() {
+    let d = sandbox("crlf");
+    let p = d.join("tasks.jsonl");
+    let t = fs::read_to_string(&p).unwrap();
+    fs::write(&p, t.replacen('\n', "\r\n", 1)).unwrap();
+    let before = bytes(&p);
+    for args in [&["check"][..], &["fmt", "--check"][..]] {
+        let o = run(&d, args);
+        assert!(
+            o.code == 1 && o.text.contains("tasks.jsonl:1") && o.text.contains("carriage return"),
+            "{args:?}: {}",
+            o.text
+        );
+    }
+    let o = run(&d, &["set", "T-002", "--owner", "x"]);
+    assert!(
+        o.code == 1 && o.text.contains("carriage return"),
+        "set must not strip it silently: {}",
+        o.text
+    );
+    assert_eq!(bytes(&p), before);
+    assert_eq!(run(&d, &["fmt"]).code, 0, "fmt is the repair");
+    assert!(!fs::read_to_string(&p).unwrap().contains('\r'));
     assert_eq!(run(&d, &["check"]).code, 0);
 }

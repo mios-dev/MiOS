@@ -39,7 +39,9 @@ keeps its status dialect, and applies a `TASKS.md` overrides block (JSON lines b
    `mios-task add/set/claim/release` or by the dev-loop task tools, which resolve the same file. Every line is
    a `mios_task_record` (strict OpenAI `json_schema`), serialized like Python
    `json.dumps(obj, ensure_ascii=False)` with keys in the schema's `required` order, so the toolkit and
-   `mios-task` rewrite a record to the same bytes. Statuses are the OpenAI plan words.
+   `mios-task` rewrite a record to the same bytes. Statuses are the OpenAI plan words. Lines end in LF only:
+   `check` and `fmt --check` name a line carrying a carriage return, and `set`/`claim` refuse to rewrite the
+   file around one (`fmt` is the repair).
 2. **TASKS.md is generated.** `mios-task render` writes it from `tasks.jsonl`: `# TASKS`, the overrides
    block, a status summary and one line per task grouped by workstream and epic. No dates, so the render is
    byte-deterministic. Outside the overrides block it is never hand-edited; `mios-task check` fails on any
@@ -57,8 +59,19 @@ keeps its status dialect, and applies a `TASKS.md` overrides block (JSON lines b
    id of the record owning the slice before it). Concatenated by offset, the slices rebuild each list in
    `[tasks.store].frozen` to the recorded digest (`mios-task source <list>`), so the task gates over the old
    `TASKS.md` and `AGY-TASKS.md` keep running on frozen history. A dropped record leaves a gap whose next
-   slice names it; an edited slice fails its digest; `[tasks.store].migrated` counts the carried records.
-6. **Scope.** MiOS reads no `-dev-loop` or `mios-micro` file. The operator's classification decisions put
+   slice names it; an edited slice fails its digest; `[tasks.store].migrated` counts the carried records,
+   each of which must own at least one slice. `[tasks.store].migrated_sha256` freezes their identity -- every
+   migrated record's provenance key, id, aliases and slice set -- so a swap that keeps the count (a record whose
+   only slices lie outside the frozen lists, such as AGY-1692, dropped and another appended), a rewritten key, a
+   lost alias or a stripped slice fails `check`. A `#n` id must name the id it was renamed from in its aliases.
+6. **Former ids.** A migrated record that was renamed keeps its old id in `provenance.aliases`. Where that old
+   id is also a live task (T-031, T-1104..T-1107 against T-031#2, T-1104#2..T-1107#2), `mios-task set/claim/
+   release` refuse it as ambiguous unless `--exact` is passed; an id that is only a former id resolves to the
+   renamed record. `check` prints a note per such id, and refuses a record born in the list that takes one.
+   **Follow-up (dev-loop toolkit):** its `tasks set ID` matches `id` only, so `tasks set T-1104` edits task
+   T-1104, never the lane's former T-1104 (now T-1104#2); the toolkit should refuse an id that is also a former
+   id of another record, as `mios-task` does. Until it does, the `check` notes name each such id.
+7. **Scope.** MiOS reads no `-dev-loop` or `mios-micro` file. The operator's classification decisions put
    7 records in the toolkit (they stay in `-dev-loop`) and keep the rest. A MiOS record that only the toolkit
    backlog held (AGY-1692) keeps its toolkit bytes as provenance.
 
@@ -69,8 +82,12 @@ store 3491 = kept 3484 + toolkit 7 + devloop-only 0; lane 115 = merged into thei
 0; out 3484 lines. Every kept record keeps its id (a second task that reused an id keeps the `#n` form the
 store already keyed it by: T-031#2, T-1104#2..T-1107#2) and its status (0 changed: a store record keeps the
 store's word, a lane record its lane word). Lane claims are carried as `owner` (lane-b, Codex, claude-code);
-the store's free-form "Who" text moves to `provenance.owner_raw`. The 61 `depends_on` edges that formed
-cycles move to `related`, each listed in the report, because a cycle cannot be scheduled. Every frozen list
+the store's free-form "Who" text moves to `provenance.owner_raw`. Edges, counted from the lane file: a lane
+record's `depends_on` stays a block; its `archived_dependencies` -- edges the toolkit took out of `depends_on`
+because the target was archived -- become `related` entries of type `archived` (3: T-1070 -> T-1050,
+T-1071 -> T-1055, T-1073 -> T-1046), never blocks, and `check` fails if one returns to `depends_on`. The 61
+`depends_on` edges that formed cycles move to `related`, each listed in the report, because a cycle cannot be
+scheduled; no edge dangles and no lane edge was renamed. Every frozen list
 rebuilds byte for byte to the digest the retired store recorded.
 
 ## Rationale
@@ -89,11 +106,13 @@ rebuilds byte for byte to the digest the retired store recorded.
 Done when:
 
 1. `mios-task check` exits 0 on the tree: schema, unique ids, resolvable `depends_on`/`epic`, no cycles,
-   evidence on every completed record, canonical serialization, no retired or second store, the frozen
-   history rebuilds, the migrated count holds, overrides validate, and `TASKS.md` equals its render.
+   evidence on every completed record, canonical serialization (LF only), no retired or second store, the
+   frozen history rebuilds, the migrated count and identity digest hold, no archived edge is a block, overrides
+   validate, and `TASKS.md` equals its render.
 2. `tests/drift-gate-negatives.sh test_task_store` plants a duplicate id, a hand-edited `TASKS.md` task line,
-   a dropped record, a retired `.devloop/tasks.jsonl` and an edited frozen slice; each fails naming the plant,
-   and a copy of the task files with no sibling checkout beside it passes.
+   a dropped record, a retired `.devloop/tasks.jsonl`, an edited frozen slice, an archived edge back in
+   `depends_on`, a count-keeping swap of AGY-1692, T-1104#2 without its alias, a rewritten provenance key and a
+   CRLF line; each fails naming the plant, and a copy of the task files with no sibling checkout beside it passes.
 3. The dev-loop toolkit resolves `<root>/tasks.jsonl`, validates it, and reads the overrides block.
 
 Costs:
