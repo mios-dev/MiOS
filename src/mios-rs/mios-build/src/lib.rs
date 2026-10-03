@@ -962,6 +962,45 @@ impl Profiles {
         Ok(out)
     }
 
+    /// The profiles `name` is built from: every ancestor along `extends`,
+    /// parents before children, each once, ending with `name` itself. The same
+    /// walk as `resolve`, so a cycle or an unknown name is the same error.
+    pub fn closure(&self, name: &str) -> Result<Vec<String>, String> {
+        let mut stack: Vec<String> = Vec::new();
+        let mut out: Vec<String> = Vec::new();
+        self.closure_walk(name, &mut stack, &mut out)?;
+        Ok(out)
+    }
+
+    fn closure_walk(
+        &self,
+        name: &str,
+        stack: &mut Vec<String>,
+        out: &mut Vec<String>,
+    ) -> Result<(), String> {
+        if stack.iter().any(|s| s == name) {
+            return Err(format!(
+                "[profiles] extends cycle: {} -> {}",
+                stack.join(" -> "),
+                name
+            ));
+        }
+        let def = self
+            .table
+            .get(name)
+            .and_then(|v| v.as_table())
+            .ok_or_else(|| format!("no profile named {name:?} in [profiles]"))?;
+        stack.push(name.to_string());
+        for parent in Self::strings(def, "extends", name)? {
+            self.closure_walk(&parent, stack, out)?;
+        }
+        stack.pop();
+        if !out.iter().any(|s| s == name) {
+            out.push(name.to_string());
+        }
+        Ok(())
+    }
+
     fn walk(
         &self,
         name: &str,
@@ -1221,6 +1260,31 @@ targets = ["wsl2"]
                 ("wsl2".to_string(), s(&["dev", "full"])),
             ]
         );
+    }
+
+    #[test]
+    fn closure_lists_ancestors_first_once_each() {
+        let p = Profiles::from_toml_str(T).unwrap();
+        assert_eq!(p.closure("core").unwrap(), ["core"]);
+        assert_eq!(p.closure("dev").unwrap(), ["core", "dev"]);
+        assert_eq!(p.closure("full").unwrap(), ["full"]);
+        // A diamond: both parents extend core, which still appears once.
+        let diamond = Profiles::from_toml_str(&T.replace(
+            "[profiles.full]\nall = true\n",
+            "[profiles.mid]\nextends = [\"core\"]\n[profiles.full]\nall = true\nextends = [\"dev\", \"mid\"]\n",
+        ))
+        .unwrap();
+        assert_eq!(
+            diamond.closure("full").unwrap(),
+            ["core", "dev", "mid", "full"]
+        );
+        let cyc = Profiles::from_toml_str(&T.replace(
+            "[profiles.core]\n",
+            "[profiles.core]\nextends = [\"dev\"]\n",
+        ))
+        .unwrap();
+        assert!(cyc.closure("dev").unwrap_err().contains("cycle"));
+        assert!(p.closure("zz-planted").unwrap_err().contains("zz-planted"));
     }
 
     #[test]

@@ -1769,32 +1769,33 @@ test_impossible_eol() {
 
 test_smoke_manifest() {
     log "Testing check_smoke_manifest"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    if [ -f "$toml_file" ]; then
-        local bak_file="${toml_file}.bak"
-        cp "$toml_file" "$bak_file"
-        python3 - "$toml_file" << 'PYEOF'
-import sys, os
-p = sys.argv[1]
-try:
-    os.chmod(p, 0o666)
-except Exception:
-    pass
-val = open(p, 'r', encoding='utf-8', errors='ignore').read()
-try:
-    os.remove(p)
-except Exception:
-    pass
-with open(p, 'w', encoding='utf-8') as f:
-    f.write(val + '\n[testing.smoke_components]\nshims = ["usr/libexec/mios/non-existent-bogus-shim"]\n')
-PYEOF
+    local toml_file="${ROOT}/usr/share/mios/mios.toml" bak_file out
+    [ -f "$toml_file" ] || die "check_smoke_manifest has no SSOT to plant into"
+    bak_file="${toml_file}.bak"
+    _smoke() {
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+            bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest 2>&1
+    }
+    cp "$toml_file" "$bak_file"
 
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 && die "Check_smoke_manifest passed despite missing component path"
+    # 1. An overlay naming no [packages] section can never be selected (T-1171).
+    # Appending a NEW sub-table keeps the TOML valid, so a red result is the
+    # check's verdict and not a parse error.
+    printf '\n[testing.smoke_components.sections.zz-planted]\ncommands = ["x"]\n' >> "$toml_file"
+    out="$(_smoke)" && { cp "$bak_file" "$toml_file"; die "check_smoke_manifest passed an overlay naming no [packages] section"; }
+    grep -q "sections.zz-planted\] names 'zz-planted', no \[packages\] section" <<<"$out" \
+        || { cp "$bak_file" "$toml_file"; die "check_smoke_manifest failed without naming zz-planted: $out"; }
+    cp "$bak_file" "$toml_file"
 
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
-            || die "Check_smoke_manifest failed after restoration"
-    fi
+    # 2. A floor component absent from the source tree.
+    sed -i 's|^shims = \[$|shims = [\n    "usr/libexec/mios/non-existent-bogus-shim",|' "$toml_file"
+    out="$(_smoke)" && { cp "$bak_file" "$toml_file"; die "check_smoke_manifest passed despite missing component path"; }
+    grep -q 'non-existent-bogus-shim' <<<"$out" \
+        || { cp "$bak_file" "$toml_file"; die "check_smoke_manifest failed without naming the missing shim: $out"; }
+
+    cp "$bak_file" "$toml_file" && rm -f "$bak_file"
+    _smoke >/dev/null || die "check_smoke_manifest failed after restoration"
+    unset -f _smoke
     log "Test_smoke_manifest negative test passed"
 }
 

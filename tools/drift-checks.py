@@ -3360,6 +3360,16 @@ def check_bib_rootfs_label_policy() -> int:
     return 0
 
 def check_smoke_manifest() -> int:
+    """[testing.smoke_components] is closed over the SSOT it ships in (T-1171).
+
+    Every probe key is a kind `mios-gate image-equivalence` knows, every file
+    probe exists in the source tree (commands, paths and rpm packages are build
+    products, asserted against the image instead), every rpm_sections entry and
+    every sections.<s> overlay names a [packages] section, every phases.<p> a
+    registered phase, every profiles.<q> a declared profile, and the floor holds
+    at least [testing].min_smoke_components probes. An overlay naming nothing
+    can never be selected, so its probes would never run.
+    """
     import os, sys
     import tomllib
 
@@ -3380,18 +3390,70 @@ def check_smoke_manifest() -> int:
         sys.stderr.write("    Missing [testing.smoke_components] table in mios.toml\n")
         return 1
 
-    missing = []
-    for key in ["shims", "units", "python_entries"]:
-        for rel_path in sc.get(key, []):
-            full_path = os.path.join(root, rel_path)
-            if not os.path.exists(full_path):
-                missing.append(rel_path)
+    file_kinds = ("shims", "units", "python_entries", "manpages")
+    kinds = file_kinds + ("paths", "commands", "rpm_sections")
+    packages = {k for k, v in data.get("packages", {}).items() if isinstance(v, dict)}
+    phases = {p.get("name") for p in data.get("build", {}).get("phases", {}).get("list", [])}
+    profiles = {k for k, v in data.get("profiles", {}).items() if isinstance(v, dict)}
+    overlay_owner = {
+        "sections": ("[packages] section", packages),
+        "phases": ("registered phase in [build.phases].list", phases),
+        "profiles": ("declared profile in [profiles]", profiles),
+    }
 
+    bad = []
+    missing = []
+
+    def probes(table, at):
+        n = 0
+        for key, val in table.items():
+            if key not in kinds:
+                bad.append(f"[testing.smoke_components{at}].{key} is not a probe kind"
+                           f" (one of {', '.join(kinds)})")
+                continue
+            if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+                bad.append(f"[testing.smoke_components{at}].{key} is not a list of strings")
+                continue
+            for item in val:
+                if key in file_kinds and not os.path.exists(os.path.join(root, item)):
+                    missing.append(item)
+                if key == "rpm_sections":
+                    if item not in packages:
+                        bad.append(f"[testing.smoke_components{at}].rpm_sections names {item!r},"
+                                   " no [packages] section")
+                        continue
+                    n += len(data["packages"][item].get("pkgs", []))
+                else:
+                    n += 1
+        return n
+
+    floor = probes({k: v for k, v in sc.items() if k not in overlay_owner}, "")
+    for group, (what, owners) in overlay_owner.items():
+        tables = sc.get(group, {})
+        if not isinstance(tables, dict):
+            bad.append(f"[testing.smoke_components].{group} is not a table")
+            continue
+        for name, table in tables.items():
+            if name not in owners:
+                bad.append(f"[testing.smoke_components.{group}.{name}] names {name!r},"
+                           f" no {what}")
+            if not isinstance(table, dict):
+                bad.append(f"[testing.smoke_components.{group}.{name}] is not a table")
+                continue
+            probes(table, f".{group}.{name}")
+
+    minimum = data.get("testing", {}).get("min_smoke_components")
+    if not isinstance(minimum, int):
+        bad.append("[testing].min_smoke_components is absent; the floor has no minimum")
+    elif floor < minimum:
+        bad.append(f"the floor asserts {floor} component(s), below"
+                   f" [testing].min_smoke_components {minimum} (grow-only)")
+
+    for b in bad:
+        sys.stderr.write(f"    {b}\n")
     if missing:
         sys.stderr.write(f"    Paths listed in [testing.smoke_components] missing from repo: {missing}\n")
-        return 1
-
-    return 0
+    return 1 if bad or missing else 0
 
 def check_negative_coverage() -> int:
     import os, sys, re

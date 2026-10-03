@@ -153,7 +153,7 @@
 152	check_doc_port_scheme	doc port scheme
 153	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
 154	check_renderer_gate_coverage	renderer gate coverage verified clean
-155	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
+155	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree; every overlay names a real section, phase or profile
 156	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
 157	check_verb_templates	verb templates compile and validate against SSOT args
 158	check_pipe_boundaries	pipe-boundaries.manifest.json matches the agent-pipe tree

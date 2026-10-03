@@ -9,6 +9,7 @@ mod artifact_layers;
 mod credentials;
 mod dispatch;
 mod doc_refs;
+mod image_equivalence;
 mod image_freshness;
 mod inert_tables;
 mod laws;
@@ -87,8 +88,10 @@ impl Report {
 }
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
+                     \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
                      checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
-                             drift-stubs, image-freshness, law-enforcers, no-inert-ssot-tables,\n\
+                             drift-stubs, image-equivalence, image-freshness, law-enforcers,\n\
+                             no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, signature-policy,\n\
                              version-literals-ssot\n";
@@ -98,6 +101,10 @@ fn main() -> ExitCode {
     let mut check: Option<String> = None;
     let mut root: Option<String> = std::env::var("MIOS_DRIFT_ROOT").ok();
     let mut json = false;
+    // image-equivalence only: what it asserts against, and for which profile.
+    let mut ssot: Option<String> = None;
+    let mut profile: Option<String> = None;
+    let mut allow_tree_only = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -123,6 +130,20 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            "--ssot" | "--profile" => {
+                let flag = args[i].clone();
+                i += 1;
+                let Some(v) = args.get(i).cloned() else {
+                    eprint!("mios-gate: {flag} needs a value\n{USAGE}");
+                    return ExitCode::from(EXIT_CANNOT_RUN);
+                };
+                if flag == "--ssot" {
+                    ssot = Some(v);
+                } else {
+                    profile = Some(v);
+                }
+            }
+            "--allow-tree-only" => allow_tree_only = true,
             "-h" | "--help" => {
                 print!("{USAGE}");
                 return ExitCode::from(EXIT_CLEAN);
@@ -143,6 +164,10 @@ fn main() -> ExitCode {
         return ExitCode::from(EXIT_CANNOT_RUN);
     };
     let root = std::path::PathBuf::from(root.unwrap_or_else(|| ".".to_string()));
+    if name != "image-equivalence" && (ssot.is_some() || profile.is_some() || allow_tree_only) {
+        eprint!("mios-gate: --ssot, --profile and --allow-tree-only belong to image-equivalence\n{USAGE}");
+        return ExitCode::from(EXIT_CANNOT_RUN);
+    }
 
     let report = match name.as_str() {
         "artifact" => artifact::check(&root),
@@ -150,6 +175,12 @@ fn main() -> ExitCode {
         "credential-literals" => credentials::check(&root),
         "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),
+        "image-equivalence" => image_equivalence::check(&image_equivalence::Options {
+            root: root.clone(),
+            ssot: ssot.map(std::path::PathBuf::from),
+            profile,
+            allow_tree_only,
+        }),
         "image-freshness" => image_freshness::check(&root),
         "law-enforcers" => laws::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),

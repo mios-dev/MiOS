@@ -3206,9 +3206,9 @@ check_smoke_manifest() {
     _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py smoke-manifest
     then
-        echo "[98-drift-checks]   smoke manifest components in mios.toml exist in source tree"
+        echo "[98-drift-checks]   smoke manifest components in mios.toml exist in source tree; every overlay names a real section, phase or profile"
     else
-        _violation "smoke manifest component missing from repo"
+        _violation "smoke manifest is not closed over the SSOT (missing component, unknown kind, or an overlay naming nothing) -- see above"
     fi
 }
 

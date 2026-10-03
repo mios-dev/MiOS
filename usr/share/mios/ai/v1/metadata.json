@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3611,
-  "total_metadata_entries": 2977,
-  "total_hints": 2962,
-  "total_functions_indexed": 1395,
-  "total_related_links": 4702,
+  "total_files_scanned": 3613,
+  "total_metadata_entries": 2979,
+  "total_hints": 2964,
+  "total_functions_indexed": 1397,
+  "total_related_links": 4711,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -4310,6 +4310,23 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/image_equivalence.rs",
+      "hint": "Asserts an image (or, with --allow-tree-only, a staged tree) holds every component [testing.smoke_components] names for its profile: the floor plus the section, phase and profile overlays the profile selects through mios_build Profiles/PhaseRegistry.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/mios-build/src/lib.rs",
+        "tools/drift-checks.py",
+        "tests/test-image-equivalence.sh",
+        "tests/bake-smoke.sh"
+      ],
+      "functions": [
+        "check"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/image_freshness.rs",
       "hint": "Asserts every MiOS image pinned to the podman machine OS uses its newest STABLE tag, from registry facts fetched by tools/fetch-image-facts.sh; all three pins must agree, the container pin through [image].machine_os_mirror when one is set.",
       "related": [
@@ -6816,6 +6833,22 @@
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-image-equivalence.sh",
+      "hint": "Runs mios-gate image-equivalence against a fixture staged from this checkout's usr/ tree (--allow-tree-only), proving the core floor is clean, the dev overlay appears only under dev, and each refusal (missing shim, undeclared profile, empty manifest, lowered floor, non-/ root) fails with its own message and exit code.",
+      "related": [
+        "src/mios-rs/mios-gate/src/image_equivalence.rs",
+        "usr/share/mios/mios.toml",
+        "tools/drift-checks.py",
+        "tests/bake-smoke.sh"
+      ],
+      "functions": [
+        "main"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
