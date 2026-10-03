@@ -1759,3 +1759,14 @@ so long. Let a run finish.
 - next: sessions holding branches that touch the retired files must re-apply their record changes through mios-task on tasks.jsonl after rebasing.
 - blockers: -
 - unverified: -
+
+## 2026-10-03 19:55 · 779b0bb6 · claude/fervent-gates-jp5d5z: [pgvector] keys restored (mios-dev/MiOS#60)
+- objective: restore the [pgvector] keys that a lost table header (6ab11843) stranded under [offline], so every consumer's MIOS_* name is emitted again (Law 9), and close the gate hole that let it land.
+- done:
+  1. usr/share/mios/mios.toml: rls_enable, pool_enable/min/max, hnsw_iterative_scan, hnsw_max_scan_tuples, hnsw_scan_mem_multiplier, emb_model, emb_version, scratch_persist, backfill_batch, backup_enable/dir/keep and listen_loopback are back in [pgvector]. A parsed-TOML compare shows only those 15 paths moved, with equal values.
+  2. tools/drift-checks.py value-aliases: a registered name the resolver does not emit is now a violation that names it (the gate used to skip the row). value-aliases.tsv gains [pgvector].rls_enable -> MIOS_DB_RLS_ENABLE. tools/test_drift-checks.py TestValueAliasRegistry has 7 tests, one replaying the af6de6a layout hermetically.
+  3. Ledgers: var-closure drops MIOS_DB_RLS_ENABLE and MIOS_PG_POOL_* (ceiling 410 -> 406); value-dup-baseline is a pure rename and keeps its 405 ceiling.
+  4. Controls: the af6de6a layout fails check_value_aliases naming 27 variables, also after tools/sync-generated.sh; the old gate passes that plant; the fixed tree passes. The Python and Rust resolvers emit identical maps (2840 names).
+- next: the PR is a draft. Its CI is red only where main 26edb17f is red: the behavioural tier fails the same 5 suites with identical output, and main's smoke build fails at the in-image 98-drift-checks. Follow-ups queued for the operator: make the Quadlet render fail on placeholders the SSOT never emits (MIOS_PG_BIND_ADDR among them), and retire the dead offline.backup_* alias in both resolver twins together with the inert [offline] table.
+- blockers: -
+- unverified: the PR-head smoke test (its in-image violation set against main's 108); the Rust and drift-gate CI tiers, which never run on the PR or on main while the behavioural tier is red; the restored knobs on a booted host.
