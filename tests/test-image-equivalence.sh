@@ -34,7 +34,9 @@ GATE="$(gate_bin)" || {
 # tree cannot hold: the commands and paths the manifest names, as stubs.
 FX="$TMP/root"
 mkdir -p "$FX"
-cp -al "$ROOT/usr" "$FX/usr" 2>/dev/null || cp -a "$ROOT/usr" "$FX/usr"
+# Hard links when TMP shares the checkout's filesystem; otherwise a plain copy
+# into a clean target (a failed cp -al leaves a partial usr/ behind).
+cp -al "$ROOT/usr" "$FX/usr" 2>/dev/null || { rm -rf "${FX:?}/usr"; cp -a "$ROOT/usr" "$FX/usr"; }
 python3 - "$SSOT" > "$TMP/stubs.txt" <<'PY'
 import sys, tomllib
 sc = tomllib.load(open(sys.argv[1], "rb"))["testing"]["smoke_components"]
@@ -69,15 +71,15 @@ main() {
     if run 0 --profile core && grep -q '^\[image-equivalence\] clean' "$TMP/out"; then
         n="$(grep -o 'floor [0-9]* probe' "$TMP/out" | grep -o '[0-9]*' || echo 0)"
         if (( n >= 24 )); then pass "core is clean with a floor of $n probe(s)"; else fail "core floor is $n, below 24"; fi
-        if grep -q 'profile:dev' "$TMP/out"; then fail "core listed the dev overlay"; else pass "core lists no dev overlay"; fi
+        if grep -q 'section:devcontainer' "$TMP/out"; then fail "core listed the devcontainer overlay"; else pass "core lists no devcontainer overlay"; fi
     else
         fail "core is not clean"
     fi
 
-    if run 0 --profile dev && grep -q 'overlays: profile:dev ' "$TMP/out"; then
+    if run 0 --profile dev && grep -q 'section:devcontainer ' "$TMP/out"; then
         pass "dev lists its overlay: $(grep -o 'overlays: [^;]*' "$TMP/out")"
     else
-        fail "dev did not list the dev overlay"
+        fail "dev did not list the devcontainer overlay"
     fi
 
     if run 0 --profile core --format json && python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["status"] != "clean")' "$TMP/out"; then
