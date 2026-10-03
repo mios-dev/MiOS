@@ -7,6 +7,28 @@ set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
+# Gate: kargs.d under root $1 holds at least one *.toml, and each parses with
+# a kargs array of strings. tests/test-postcheck-kargs.sh sources this.
+mios_postcheck_kargs() {
+    local dir="${1:-}/usr/lib/bootc/kargs.d" err
+    [[ -d "$dir" ]] || die "Kargs.d missing: $dir"
+    compgen -G "$dir/*.toml" >/dev/null || die "Kargs.d has no *.toml: $dir"
+    err="$(python3 - "$dir" <<'PY'
+import pathlib, sys, tomllib
+for f in sorted(pathlib.Path(sys.argv[1]).glob("*.toml")):
+    try:
+        k = tomllib.loads(f.read_text(encoding="utf-8")).get("kargs")
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        print(f"{f.name}: {exc}"); continue
+    if not isinstance(k, list) or not all(isinstance(v, str) for v in k):
+        print(f"{f.name}: kargs must be an array of strings")
+PY
+)" || die "Kargs.d validator failed to run"
+    [[ -z "$err" ]] || die "Kargs.d invalid: $err"
+    mios_ok "Kargs.d: $(compgen -G "$dir/*.toml" | wc -l) files valid"
+}
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 mios_step "'MiOS' build-time validation"
 
 if command -v systemd-sysusers >/dev/null 2>&1; then
@@ -40,7 +62,7 @@ else
     COCKPIT_CONF=""
 fi
 
-if [[ -f "$COCKPIT_CONF" ]]; then
+if [[ -n "$COCKPIT_CONF" ]]; then
     if ! grep -q "LoginTo = false" "$COCKPIT_CONF"; then
         die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF"
     fi
@@ -50,13 +72,7 @@ else
 fi
 
 mios_log "Validate kargs.d files"
-if [[ -d /usr/lib/bootc/kargs.d ]]; then
-    for f in /usr/lib/bootc/kargs.d/*; do
-        [[ -e "$f" ]] || continue
-        mios_log "Karg: $(basename "$f")"
-    done
-    mios_ok "Kargs.d presence verified"
-fi
+mios_postcheck_kargs ""
 
 mios_log "Verify critical system binaries"
 CRITICAL_TOOLS=(podman bootc cockpit-bridge rpm-ostree)
@@ -617,8 +633,6 @@ if [[ -d "$_lbi_dir" ]]; then
             [[ -z "$img_ref" || "$img_ref" == "image" ]] && continue
             _lbi_baked["$img_ref"]=1
         done < "$_lbi_tsv"
-        _lbi_baked["localhost/mios-sys:latest"]=1
-        _lbi_baked["localhost/mios-cuda:latest"]=1
 
         while IFS= read -r link || [[ -n "$link" ]]; do
             [[ -L "$link" ]] || continue

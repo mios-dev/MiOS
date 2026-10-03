@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3620,
-  "total_metadata_entries": 2986,
-  "total_hints": 2971,
+  "total_files_scanned": 3621,
+  "total_metadata_entries": 2987,
+  "total_hints": 2972,
   "total_functions_indexed": 1393,
   "total_related_links": 4741,
   "entries": [
@@ -7535,6 +7535,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/mios.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-postcheck-kargs.sh",
+      "hint": "bash Runs the 99-postcheck kargs.d gate against fixture roots: the shipped kargs.d passes; a missing dir, an empty dir, malformed TOML and a non-string kargs array each fail.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tests.md",
       "comment_style": "hash",
       "has_shebang": true
     },
