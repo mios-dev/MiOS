@@ -1,11 +1,11 @@
-# AI-hint: Cargo manifest for mios-task -- the one writer of the canonical MiOS task store (ADR-0026).
+# AI-hint: Cargo manifest for mios-task -- validates, renders and edits tasks.jsonl, the one canonical MiOS task list (ADR-0028).
 # AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
 
 [package]
 name = "mios-task"
 version.workspace = true
 edition.workspace = true
-description = "Merge every MiOS task list into one strict-schema JSONL store, losslessly"
+description = "Validate, render and edit the canonical MiOS task list (tasks.jsonl)"
 
 [dependencies]
 regex.workspace = true
