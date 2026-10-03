@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3621,
-  "total_metadata_entries": 2987,
-  "total_hints": 2972,
+  "total_files_scanned": 3622,
+  "total_metadata_entries": 2988,
+  "total_hints": 2973,
   "total_functions_indexed": 1393,
   "total_related_links": 4747,
   "entries": [
