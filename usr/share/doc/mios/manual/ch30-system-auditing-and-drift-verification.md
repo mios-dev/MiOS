@@ -81,3 +81,30 @@ Verifies that active system configurations meet zero-trust security profiles.
 1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
+
+### [testing.smoke_components] is closed over the SSOT it ships...
+
+[testing.smoke_components] is closed over the SSOT it ships in (T-1171).
+
+    Every probe key is a kind `mios-gate image-equivalence` knows, every file
+    probe exists in the source tree (commands, paths and rpm packages are build
+    products, asserted against the image instead), every rpm_sections entry and
+    every sections.<s> overlay names a [packages] section, every phases.<p> a
+    registered phase, every profiles.<q> a declared profile, and the floor holds
+    at least [testing].min_smoke_components probes. An overlay naming nothing
+    can never be selected, so its probes would never run.
+
+<!-- mios-src:36f2a7dd8e80 from tools/drift-checks.py:3363-3372 -->
+
+### What every MiOS image holds, whatever its profile (T-1171)....
+
+What every MiOS image holds, whatever its profile (T-1171). The top-level
+lists are the floor. sections.<s>, phases.<p> and profiles.<q> add probes
+only when the asserted profile selects that [packages] section, registered
+phase or profile (its extends closure included). Probe kinds: shims and
+paths exist, units, python_entries and manpages are files, commands are
+executables on PATH, rpm_sections names [packages] sections whose pkgs the
+rpm database must provide. Gate: mios-gate image-equivalence; manifest
+closure: check_smoke_manifest.
+
+<!-- mios-src:19ffba41eb73 from usr/share/mios/mios.toml:11277-11284 -->
