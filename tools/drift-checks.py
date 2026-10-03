@@ -4068,7 +4068,7 @@ def check_secret_handling() -> int:
     EXEMPT_PATHS = {
         "usr/share/doc/mios/reference/audit-security.md",
         "usr/share/doc/mios/reference/audit-deploy-plane.md",
-        "TASKS.jsonl",
+        "tasks.jsonl",
     }
 
     violations = []

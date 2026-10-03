@@ -100,7 +100,7 @@ pipeline.
 - [`/AGENTS.md`](../AGENTS.md) - canonical repository contract
 - [`/CLAUDE.md`](../CLAUDE.md) - system engineering contract
 - [`/ROADMAP.md`](../ROADMAP.md) - roadmap and sequencing
-- [`/TASKS.jsonl`](../TASKS.jsonl) - the master task list: every task, one strict-schema record per line (ADR-0026)
+- [`/tasks.jsonl`](../tasks.jsonl) - the only canonical task list: every task, one strict-schema record per line; [`/TASKS.md`](../TASKS.md) is its rendered view plus operator overrides (ADR-0028)
 - [`/PROJECT.md`](../PROJECT.md) - dev-loop contract
 - [`/usr/share/mios/mios.toml`](../usr/share/mios/mios.toml) - runtime SSOT
 - [`/usr/share/mios/prompts/upstream-researched-patterns/foss/model/`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/) - FOSS research prompts

@@ -537,7 +537,7 @@ class tpb_TestSkipSurfaces(unittest.TestCase):
     def test_ssot_and_docs_cannot_prove_a_binding(self):
         # A port mentioned only where ports are DESCRIBED is still unbound.
         for p in ("usr/share/mios/mios.toml", "usr/share/doc/mios/x.md",
-                  "automation/lib/globals.sh", "TASKS.jsonl", "ADR.md"):
+                  "automation/lib/globals.sh", "tasks.jsonl", "ADR.md"):
             self.assertTrue(p.startswith(tpb_mod.pb_SKIP_PREFIXES), p)
 
     def test_a_quadlet_is_not_skipped(self):

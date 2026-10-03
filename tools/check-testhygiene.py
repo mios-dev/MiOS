@@ -368,7 +368,7 @@ sc_SCHEMA = "usr/share/mios/postgres/schema-init.sql"
 # this gate's own register) -- naming it there is not reading or writing it, and
 # counting it would let the register satisfy itself.
 sc_NON_CONSUMER_SUFFIXES = (".md", ".txt", ".tsv", ".json", ".snap", ".toml", ".negbak", ".bak")
-sc_NON_CONSUMER_DIRS = ("/docs/", "usr/share/doc/", "usr/share/mios/reference/", "TASKS.jsonl")
+sc_NON_CONSUMER_DIRS = ("/docs/", "usr/share/doc/", "usr/share/mios/reference/", "tasks.jsonl")
 # A file GENERATED from mios.toml re-emits whatever the SSOT says -- including
 # this gate's own register -- so a table name appearing there is an echo, not a
 # consumer. Detected by the marker the renderers stamp, so a new projection is

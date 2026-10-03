@@ -17,7 +17,7 @@ The following specialist agents are defined and available for immediate delegati
 | **`pipeline-worker`** | Linux Core & Rust Developer | Native Binaries & Services | Hardened Rust static binaries, systemd units, `/usr/libexec/mios` utilities, two-sided unit tests. |
 | **`pipeline-reviewer`** | SCOPE Reviewer & Verifier | Code Oversight & Quality | SCOPE staged code reviews, contract preservation, positive/negative control verification. |
 | **`artifact-publisher`** | Release & SSOT Publisher | Packaging & Projections | `tools/sync-generated.sh`, UKI kernel cmdline drop-ins, SBOM generation, `.devloop/LEDGER.md` receipts. |
-| **`pipeline-orchestrator`** | Dev-Loop Coordinator | Multi-Lane Orchestration | Isolated worktree management, `.devloop/tasks.jsonl` queueing, subagent dispatching and verification. |
+| **`pipeline-orchestrator`** | Dev-Loop Coordinator | Multi-Lane Orchestration | Isolated worktree management, `tasks.jsonl` queueing, subagent dispatching and verification. |
 
 ## Invocation Protocol
 To delegate tasks to any specialized agent in this environment:

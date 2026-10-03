@@ -72,7 +72,7 @@
       ],
       "enable_write_tools": true,
       "enable_subagent_tools": true,
-      "system_prompt": "You are the MiOS Pipeline Orchestrator subagent. You coordinate autonomous dev-loop workflows and task execution. You keep the master task list TASKS.jsonl, dispatch isolated worktree lanes to specialist subagents (auditor, worker, reviewer, artifact-publisher), monitor progress in .agents/, and enforce clean trunk-based merges."
+      "system_prompt": "You are the MiOS Pipeline Orchestrator subagent. You coordinate autonomous dev-loop workflows and task execution. You keep the master task list tasks.jsonl, dispatch isolated worktree lanes to specialist subagents (auditor, worker, reviewer, artifact-publisher), monitor progress in .agents/, and enforce clean trunk-based merges."
     }
   ]
 }

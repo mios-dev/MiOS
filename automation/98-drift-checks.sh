@@ -1629,12 +1629,12 @@ check_fluff_tokens() {
 }
 
 check_coordination_hygiene() {
-    # The two absorbed ledgers, as TASKS.jsonl rebuilds them (ADR-0026).
+    # The two absorbed ledgers, rebuilt from the frozen history in tasks.jsonl (ADR-0028).
     local bad="" f text bin="$ROOT/tools/native/target/release/mios-task"
     [[ -x "$bin" ]] || bin="$ROOT/tools/native/target/debug/mios-task"
     [[ -x "$bin" ]] || { _violation "mios-task is not built, so check_coordination_hygiene could not run"; return; }
     for f in AGY-TASKS.md TASKS.md; do
-        text="$("$bin" source "MiOS:$f" --root "$ROOT")" || { _violation "mios-task could not rebuild $f from TASKS.jsonl"; return; }
+        text="$("$bin" source "MiOS:$f" --root "$ROOT")" || { _violation "mios-task could not rebuild $f from tasks.jsonl"; return; }
         local line_num=0
         while read -r line || [[ -n "$line" ]]; do
             line_num=$((line_num + 1))
@@ -1980,7 +1980,7 @@ check_size_ceiling() {
 }
 
 check_task_store() {
-    # ADR-0026: the task store keeps every source byte, and every line is a valid mios_task_record.
+    # ADR-0028: `mios-task check` over tasks.jsonl, its frozen history, overrides and TASKS.md render.
     local bin="" c
     for c in "$ROOT/tools/native/target/release/mios-task" \
              "$ROOT/tools/native/target/debug/mios-task" \
@@ -1992,20 +1992,13 @@ check_task_store() {
         return
     fi
     local out rc=0
-    out="$("$bin" check-lossless --root "$ROOT" 2>&1)" || rc=$?
+    out="$("$bin" check --root "$ROOT" 2>&1)" || rc=$?
     if [[ $rc -ne 0 ]]; then
-        printf '%s\n' "$out" | grep -v '^LOSSLESS:' | sed 's/^/    /' >&2
-        _violation "TASKS.jsonl no longer holds every byte of the task lists it was merged from -- rerun: mios-task migrate (ADR-0026)"
+        printf '%s\n' "$out" | head -40 | sed 's/^/    /' >&2
+        _violation "tasks.jsonl, its frozen history, its overrides or TASKS.md failed mios-task check (ADR-0028)"
         return
     fi
-    rc=0
-    out="$("$bin" validate --root "$ROOT" 2>&1)" || rc=$?
-    if [[ $rc -ne 0 ]]; then
-        printf '%s\n' "$out" | head -20 | sed 's/^/    /' >&2
-        _violation "TASKS.jsonl has records that are not valid mios_task_record lines (ADR-0026)"
-        return
-    fi
-    echo "[98-drift-checks]   task store: $(printf '%s' "$out" | tail -1); every source byte accounted for"
+    echo "[98-drift-checks]   task list: $(printf '%s' "$out" | tail -1)"
 }
 
 check_render_quadlets() {

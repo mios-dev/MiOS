@@ -30,7 +30,7 @@ const SCAN_EXT: [&str; 16] = [
 /// Files whose references are deliberately outside the check: task registers
 /// name planned paths, and the negative-test harness plants paths on purpose.
 const SKIP_BASENAME: [&str; 3] = [
-    "TASKS.jsonl",
+    "tasks.jsonl",
     "doc-generative-documentation.md",
     "drift-gate-negatives.sh",
 ];

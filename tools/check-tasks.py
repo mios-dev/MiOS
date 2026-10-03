@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the lists TASKS.jsonl keeps (ADR-0026).
+# AI-hint: Task-plane drift gates in one module: the retired TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the frozen lists tasks.jsonl keeps (ADR-0028).
 # AI-doc: usr/share/doc/mios/manual/tools.md
 # AI-functions: main, status_parity_main, schema_main, agy_main
 """Task-plane drift gates. One module, one subcommand per gate."""
@@ -12,25 +12,38 @@ import sys
 TASKS = "TASKS.md"
 AGY_TASKS = "AGY-TASKS.md"
 PLACEHOLDER = "?"
-STORE = "TASKS.jsonl"
+def store_path(root: str):
+    """tasks.jsonl as mios.toml [tasks.store].path names it (ADR-0028), or None."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # py<3.11
+        import tomli as tomllib  # type: ignore
+    try:
+        with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+            rel = ((tomllib.load(fh).get("tasks") or {}).get("store") or {}).get("path")
+    except (OSError, ValueError):
+        return None
+    return os.path.join(root, rel) if rel else None
 
 
 def list_text(root: str, name: str):
-    """A task list as merged (ADR-0026): the file if present, else rebuilt from TASKS.jsonl."""
+    """A retired task list rebuilt from its frozen slices in tasks.jsonl (ADR-0028), else the file itself."""
+    store = store_path(root)
+    if store and os.path.isfile(store):
+        import json
+        parts = []
+        with open(store, encoding="utf-8") as fh:
+            for line in fh:
+                rec = json.loads(line)
+                for s in ((rec.get("provenance") or {}).get("sources") or []):
+                    if s["file"] == "MiOS:" + name:
+                        parts.append((s["offset"], s["text"]))
+        if parts:
+            return "".join(t for _, t in sorted(parts))
     path = os.path.join(root, name)
     if os.path.isfile(path):
         return open(path, encoding="utf-8", errors="replace").read()
-    store = os.path.join(root, STORE)
-    if not os.path.isfile(store):
-        return None
-    import json
-    parts = []
-    with open(store, encoding="utf-8") as fh:
-        for line in fh:
-            for s in json.loads(line)["sources"]:
-                if s["source_file"] == "MiOS:" + name:
-                    parts.append((s["byte_offset"], s["text"]))
-    return "".join(t for _, t in sorted(parts)) if parts else None
+    return None
 KNOWN = {
     "done", "done-by-code", "completed", "retired",
     "planned", "planned/unverified", "in-progress", "pending",
@@ -85,7 +98,7 @@ def status_parity_main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", os.environ.get("MIOS_TOML_ROOT", "."))
     text = list_text(root, TASKS)
     if text is None:
-        print(f"{TASKS} not found under {root}, on disk or in {STORE}")
+        print(f"{TASKS} not found under {root}, on disk or in tasks.jsonl")
         return 1
     detail = status_parity_detail_statuses(text)
     rows = status_parity_table_rows(text)
@@ -158,7 +171,7 @@ def schema_main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     text = list_text(root, "AGY-TASKS.md")
     if text is None:
-        print(f"AGY-TASKS.md unreadable: not on disk and not in {STORE}")
+        print(f"AGY-TASKS.md unreadable: not on disk and not in tasks.jsonl")
         return 1
 
     try:
@@ -248,7 +261,7 @@ def agy_main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", os.environ.get("MIOS_TOML_ROOT", "."))
     content = list_text(root, AGY_TASKS_FILE)
     if content is None:
-        print(f"VIOLATION: {AGY_TASKS_FILE} not found under {root}, on disk or in {STORE}")
+        print(f"VIOLATION: {AGY_TASKS_FILE} not found under {root}, on disk or in tasks.jsonl")
         return 1
 
     # Pattern for AGY headers: single task '## AGY-123' or range '## AGY-123..259' / '## AGY-123..AGY-259'

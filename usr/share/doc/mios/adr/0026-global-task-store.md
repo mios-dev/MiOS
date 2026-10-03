@@ -11,12 +11,15 @@ laws: [1, 2, 8, 14, 16]
 ssot_keys: [tasks, legibility]
 related_ws: [WS-DEBT, WS-PROCESS]
 supersedes: []
-superseded_by: []
+superseded_by: [0028]
 ---
 
 # ADR-0026: One canonical task store, merged losslessly from every task list
 
 ## Status
+
+Superseded by ADR-0028 (T-1169): `tasks.jsonl` at the repo root is now the only canonical task list, edited
+directly; the store below and `.devloop/tasks.jsonl` are retired and live on as frozen provenance.
 
 proposed — 2026-09-26. Implements T-1023 (QUEUE-01) and the storage half of T-1029 (QUEUE-02). The four
 choices below were made by the operator in the question UI on 2026-09-26; the rest is the design that follows

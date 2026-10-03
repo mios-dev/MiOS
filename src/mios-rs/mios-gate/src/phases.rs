@@ -1,5 +1,5 @@
 // AI-hint: Asserts every automation/NN-*.sh on disk is registered in mios.toml [build.phases].list, or is named on the shrink-only unregistered register with a reason.
-// AI-related: usr/share/mios/mios.toml, automation/build.sh, automation/55-native-build.sh, TASKS.jsonl
+// AI-related: usr/share/mios/mios.toml, automation/build.sh, automation/55-native-build.sh, tasks.jsonl
 
 use crate::Report;
 use std::collections::BTreeSet;

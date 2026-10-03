@@ -273,7 +273,7 @@ up_UNIT_DIR = "usr/lib/systemd/system"
 
 def up_declared_units(data: dict) -> set:
     """Unit filenames [units.*] projects. Table-valued keys only -- the
-    string-valued half is name aliases, not units. See TASKS.jsonl T-317."""
+    string-valued half is name aliases, not units. See tasks.jsonl T-317."""
     return {k for k, v in (data.get("units") or {}).items() if isinstance(v, dict)}
 
 def up_unit_aliases(data: dict) -> set:
@@ -594,7 +594,7 @@ pb_SKIP_PREFIXES = (
     "tools/manifest.json",
     "docs/",
     "ROADMAP.md",
-    "TASKS.jsonl",
+    "tasks.jsonl",
     "ADR.md",
 )
 

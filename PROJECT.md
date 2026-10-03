@@ -9,7 +9,7 @@ The core system architecture consists of:
 2. **Harness Adapters & Gating Engine (`adapters.py`)**:
    Synthesizes execution commands (`build_argv`) for diverse CLI agents, prepares isolated prompt contracts, and executes two-sided verification gates (`positive_cmd` and `negative_control_cmd`). Validates path ownership (`cmd_owned`), detects tool permission denials (`cmd_denials`), and enforces supply-chain / security scans.
 3. **Base-Tree State Guard & Leakage Enforcement (`adapters.py`, `agy_session.py`, `devloop.sh`)**:
-   Enforces absolute immutability of the base git repository. Captures baseline `git status --porcelain` snapshots prior to execution and ensures that only designated metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `TASKS.jsonl`, `<worktree_root>/`) can ever be modified in the base working tree. Halts execution immediately with diagnostic error reporting if stray files or fixture leaks are detected.
+   Enforces absolute immutability of the base git repository. Captures baseline `git status --porcelain` snapshots prior to execution and ensures that only designated metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `tasks.jsonl`, `<worktree_root>/`) can ever be modified in the base working tree. Halts execution immediately with diagnostic error reporting if stray files or fixture leaks are detected.
 4. **Git Lock & Concurrency Manager (`git_lock.py`, `adapters.py:git`)**:
    Resolves git directories for primary and linked worktrees, arbitrating concurrent git operations with exponential backoff, jitter, and stale lock eviction (>45s) to eliminate index lock contention.
 
@@ -43,7 +43,7 @@ The core system architecture consists of:
 ## Interface Contracts
 ### `adapters.py` ↔ `devloop.sh`
 - `adapters.py base-audit --root <root> --before <snapshot_file> [--lanes <lanes_json>]`:
-  - Returns exit code 0 if base tree has no modifications outside allowed metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `TASKS.jsonl`, `<worktree_root>/`).
+  - Returns exit code 0 if base tree has no modifications outside allowed metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `tasks.jsonl`, `<worktree_root>/`).
   - Returns exit code 6 if stray modifications or untracked files exist, outputting the newline-delimited list of stray paths to `stderr`.
 - `adapters.py gate --lane <lane_json> --wt <worktree_dir> --run <run_dir> [--root <base_root>]`:
   - Executes positive and negative controls.

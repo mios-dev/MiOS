@@ -2433,7 +2433,7 @@ test_unit_projection() {
     cp "$bak" "$toml"
 
     # (2) Toolchain-free half: register below its own ceiling. The renderer half
-    # is asserted by tests/projection.rs. See TASKS.jsonl T-317.
+    # is asserted by tests/projection.rs. See tasks.jsonl T-317.
     python3 - "$toml" <<'PYX'
 import io, re, sys
 p = sys.argv[1]
@@ -2935,94 +2935,85 @@ test_schema_consumers() {
 
 test_task_store() {
     log "Testing check_task_store"
-    local store="${ROOT}/TASKS.jsonl"
-    local backup="${store}.negbak"
-    local bin="${ROOT}/tools/native/target/release/mios-task"
-    [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/mios-task"
-    [[ -x "$bin" ]] || die "test_task_store needs mios-task built (cd tools/native && cargo build -p mios-task)"
-    cp "$store" "$backup"
-    _ts_fail() { cp "$backup" "$store"; rm -f "$backup"; unset -f _ts_fail; die "$1"; }
+    local store="${ROOT}/tasks.jsonl" doc="${ROOT}/TASKS.md"
+    local sbak dbak; sbak="$(mktemp)"; dbak="$(mktemp)"
+    cp "$store" "$sbak"; cp "$doc" "$dbak"
+    _ts_restore() { cp "$sbak" "$store"; cp "$dbak" "$doc"; rm -f "${ROOT}/.devloop/tasks.jsonl"; }
+    _ts_fail() { _ts_restore; rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant; die "$1"; }
+    # Each plant must fail check_task_store and be named in its output.
+    _ts_plant() { # $1 = what was planted, $2 = text the output must contain
+        _neg_gate check_task_store && _ts_fail "check_task_store passed with $1"
+        printf '%s\n' "$_NEG_GATE_OUT" | grep -qF -- "$2" || _ts_fail "check_task_store did not name $1 (wanted: $2): $_NEG_GATE_OUT"
+        _ts_restore
+    }
+    _neg_gate check_task_store || _ts_fail "check_task_store failed on the tree as committed: $_NEG_GATE_OUT"
 
-    # Plant 1 (a short slice) is a cargo test in tools/native/mios-task. Plant 2: a duplicate key.
-    grep -m1 '"key":"T-1029"' "$backup" >> "$store"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_task_store >/dev/null 2>&1 \
-        && _ts_fail "check_task_store passed with two records keyed T-1029"
-    local out; out="$("$bin" validate --root "$ROOT" 2>&1)" || true
-    printf '%s\n' "$out" | grep -q '^INVALID: duplicate key T-1029$' \
-        || _ts_fail "mios-task validate did not name the planted duplicate key T-1029"
-    mv "$backup" "$store"
-    unset -f _ts_fail
+    # 1. A duplicate id.
+    grep -m1 '^{"id": "T-1169",' "$sbak" >> "$store"
+    _ts_plant "two records with id T-1169" "duplicate id T-1169"
+    # 2. A task line of the rendered TASKS.md hand-edited outside the overrides block.
+    sed -i '0,/^- `T-1169` /s//- `T-1169` HAND-EDITED /' "$doc"
+    _ts_plant "a hand-edited TASKS.md task line" 'HAND-EDITED'
+    # 3. A migrated record dropped: the frozen history names it.
+    local victim; victim="$(sed -n '100p' "$sbak" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+    sed -i '100d' "$store"
+    _ts_plant "record ${victim} dropped" "record ${victim} was dropped"
+    # 4. A retired store back in use.
+    mkdir -p "${ROOT}/.devloop"; printf '{"id": "T-9999"}\n' > "${ROOT}/.devloop/tasks.jsonl"
+    _ts_plant "a retired .devloop/tasks.jsonl" "retired task store present: .devloop/tasks.jsonl"
+    # 5. A retired list's frozen bytes edited.
+    _frozen_edit "MiOS:AGY-TASKS.md" '^## AGY-1 ' '## AGY-1 rewritten history ' || _ts_fail "could not plant an AGY-TASKS.md edit"
+    _ts_plant "an edited AGY-TASKS.md slice" "MiOS:AGY-TASKS.md: the slice AGY-1 owns at offset"
+    # 6. No sibling checkout: a copy of the task files alone, with nothing beside it, still checks green.
+    local alone; alone="$(mktemp -d)"
+    mkdir -p "$alone/MiOS/usr/share/mios" "$alone/MiOS/usr/lib/mios/schemas"
+    cp "$store" "$doc" "$alone/MiOS/"; cp "${ROOT}/usr/share/mios/mios.toml" "$alone/MiOS/usr/share/mios/"
+    cp "${ROOT}/usr/lib/mios/schemas/task-record.schema.json" "$alone/MiOS/usr/lib/mios/schemas/"
+    local bin="${ROOT}/tools/native/target/release/mios-task"; [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/mios-task"
+    "$bin" check --root "$alone/MiOS" >/dev/null 2>&1 || { rm -rf "$alone"; _ts_fail "mios-task check needed a sibling checkout"; }
+    rm -rf "$alone"
 
-    # Plant 3: a stub re-created where an absorbed list was. Plant 4: a live list edited after the migration.
-    local st; echo "see TASKS.jsonl" > "${ROOT}/TASKS.md"
-    st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { rm -f "${ROOT}/TASKS.md"; die "check-lossless passed with a TASKS.md stub back at the root"; }
-    rm -f "${ROOT}/TASKS.md"
-    printf '%s\n' "$st" | grep -q '^REAPPEARED: MiOS:TASKS.md exists again' || die "check-lossless did not name the TASKS.md stub as REAPPEARED"
-    local rm_="${ROOT}/ROADMAP.md" rbak; rbak="$(mktemp)"; cp "$rm_" "$rbak"; echo "DEVLOOP-PLANTED stale line" >> "$rm_"
-    st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { cp "$rbak" "$rm_"; die "check-lossless passed although ROADMAP.md changed"; }
-    cp "$rbak" "$rm_"; rm -f "$rbak"
-    printf '%s\n' "$st" | grep -q '^STALE: MiOS:ROADMAP.md changed after the store was migrated' || die "check-lossless did not name the ROADMAP.md edit as STALE"
-
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_task_store >/dev/null 2>&1 \
-        || die "check_task_store failed after restoration"
-
+    rm -f "$sbak" "$dbak"; unset -f _ts_fail _ts_restore _ts_plant
+    _neg_gate check_task_store || die "check_task_store failed after restoration: $_NEG_GATE_OUT"
     log "Test_task_store negative test passed"
 }
 
 test_tasks_status_parity() {
     log "Testing check_tasks_status_parity"
-    local tasks="${ROOT}/TASKS.md"
-    local backup="${tasks}.negbak"
-    _task_list TASKS.md
-    cp "$tasks" "$backup"
-
-    # Flip ONE summary-table cell away from what that task's own section says.
-    # The sabotage targets the first row whose status the gate can resolve, so
-    # the test does not depend on any particular task id surviving edits.
+    local store="${ROOT}/tasks.jsonl" sbak; sbak="$(mktemp)"; cp "$store" "$sbak"
+    # Flip ONE frozen summary-table cell (ADR-0028) away from that task's own section status.
     local tid
-    tid="$(grep -m1 -oE '^\| T-[0-9]+ \| P[0-9] \| (done|done-by-code|planned|in-progress) \|' "$tasks" \
-            | awk '{print $2}')"
-    [[ -z "$tid" ]] && die "test_tasks_status_parity found no resolvable summary row to sabotage"
-    sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P9 | pending |/" "$tasks"
-    sed -i "0,/^| ${tid} | P9 | pending |/s/| P9 |/| P1 |/" "$tasks"
-
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 && die "check_tasks_status_parity passed while the summary table contradicted ${tid}'s own Status line"
-    mv "$backup" "$tasks"
+    local txt; txt="$(_frozen_text MiOS:TASKS.md)"
+    tid="$(grep -m1 -oE '^\| T-[0-9]+ \| P[0-9] \| (done|done-by-code|planned|in-progress) \|' <<< "$txt" | awk '{print $2}')"
+    [[ -z "$tid" ]] && { rm -f "$sbak"; die "test_tasks_status_parity found no resolvable summary row to sabotage"; }
+    _frozen_edit "MiOS:TASKS.md" "^\\| ${tid} \\| P[0-9] \\| [a-z/-]* \\|" "| ${tid} | P1 | pending |" || { cp "$sbak" "$store"; rm -f "$sbak"; die "could not plant the ${tid} row"; }
+    _neg_gate check_tasks_status_parity && { cp "$sbak" "$store"; rm -f "$sbak"; die "check_tasks_status_parity passed while the summary table contradicted ${tid}'s own Status line"; }
+    cp "$sbak" "$store"
 
     # The '?' placeholder must fail too -- it is how the drift hid for 28 rows.
-    cp "$tasks" "$backup"
-    sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P1 | ? |/" "$tasks"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 && die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"
-    rm -f "$backup" "$tasks"
+    _frozen_edit "MiOS:TASKS.md" "^\\| ${tid} \\| P[0-9] \\| [a-z/-]* \\|" "| ${tid} | P1 | ? |" || { cp "$sbak" "$store"; rm -f "$sbak"; die "could not plant the '?' row"; }
+    _neg_gate check_tasks_status_parity && { cp "$sbak" "$store"; rm -f "$sbak"; die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"; }
+    cp "$sbak" "$store"; rm -f "$sbak"
 
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 \
-        || die "check_tasks_status_parity failed after restoration"
-
+    _neg_gate check_tasks_status_parity || die "check_tasks_status_parity failed after restoration: $_NEG_GATE_OUT"
     log "Test_tasks_status_parity negative test passed"
 }
 
 test_agy_tasks() {
     log "Testing check_agy_tasks"
-    local agy="${ROOT}/AGY-TASKS.md"
-    local backup="${agy}.negbak"
-    _task_list AGY-TASKS.md
-    cp "$agy" "$backup"
+    local store="${ROOT}/tasks.jsonl" sbak; sbak="$(mktemp)"; cp "$store" "$sbak"
 
-    # Inject duplicate task ID
-    echo -e "\n## AGY-1 -- Duplicate header test\n" >> "$agy"
+    # Inject a duplicate task ID into the frozen AGY-TASKS.md.
+    _frozen_edit "MiOS:AGY-TASKS.md" '\Z' $'\n## AGY-1 -- Duplicate header test\n' || { rm -f "$sbak"; die "could not plant a duplicate AGY-1"; }
+    _neg_gate check_agy_tasks && { cp "$sbak" "$store"; rm -f "$sbak"; die "check_agy_tasks passed despite duplicate AGY task ID"; }
+    cp "$sbak" "$store"
 
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 && die "check_agy_tasks passed despite duplicate AGY task ID"
-    mv "$backup" "$agy"
+    # Inject a dangling Dep reference.
+    _frozen_edit "MiOS:AGY-TASKS.md" '\Z' $'\n## AGY-9999 -- Test task\n**Dep:** AGY-999999\n' || { cp "$sbak" "$store"; rm -f "$sbak"; die "could not plant AGY-9999"; }
+    _neg_gate check_agy_tasks && { cp "$sbak" "$store"; rm -f "$sbak"; die "check_agy_tasks passed despite dangling Dep reference"; }
+    cp "$sbak" "$store"; rm -f "$sbak"
 
-    # Inject dangling Dep reference
-    cp "$agy" "$backup"
-    echo -e "\n## AGY-9999 -- Test task\n**Dep:** AGY-999999\n" >> "$agy"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 && die "check_agy_tasks passed despite dangling Dep reference"
-    rm -f "$backup" "$agy"
-
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 \
-        || die "check_agy_tasks failed after restoration"
-
+    _neg_gate check_agy_tasks || die "check_agy_tasks failed after restoration: $_NEG_GATE_OUT"
     log "check_agy_tasks negative test passed"
 }
 
@@ -3509,11 +3500,30 @@ test_globals_generated() {
 }
 
 _FAILED=()
-_task_list() { # $1 = absorbed list path: write its bytes, rebuilt from TASKS.jsonl, back to disk (ADR-0026)
+_frozen_text() { # $1 = a frozen list, e.g. MiOS:TASKS.md: its bytes, rebuilt from tasks.jsonl (ADR-0028)
     local b="${ROOT}/tools/native/target/release/mios-task"
     [[ -x "$b" ]] || b="${ROOT}/tools/native/target/debug/mios-task"
     [[ -x "$b" ]] || die "mios-task is not built (cd tools/native && cargo build -p mios-task)"
-    "$b" source "MiOS:$1" --root "$ROOT" > "${ROOT}/$1" || die "mios-task could not rebuild $1 from TASKS.jsonl"
+    "$b" source "$1" --root "$ROOT" || die "mios-task could not rebuild $1 from tasks.jsonl"
+}
+
+_frozen_edit() { # $1 = frozen list, $2 = Python regex (re.M), $3 = replacement: plant into the first slice that matches
+    python3 - "${ROOT}/tasks.jsonl" "$1" "$2" "$3" <<'PY'
+import json, re, sys
+path, src, pat, rep = sys.argv[1:]
+lines = open(path, encoding="utf-8").read().split("\n")
+for i, line in enumerate(lines):
+    if not line:
+        continue
+    rec = json.loads(line)
+    for s in (rec.get("provenance") or {}).get("sources") or []:
+        if s["file"] == src and re.search(pat, s["text"], re.M):
+            s["text"] = re.sub(pat, lambda _m: rep, s["text"], count=1, flags=re.M)
+            lines[i] = json.dumps(rec, ensure_ascii=False)
+            open(path, "w", encoding="utf-8").write("\n".join(lines))
+            sys.exit(0)
+sys.exit(1)
+PY
 }
 
 _run_test() {
@@ -3872,10 +3882,10 @@ test_ci_suite_coverage() {
 
 test_task_schema() {
     log "Testing check_task_schema"
-    local f="${ROOT}/AGY-TASKS.md" bak; bak="$(mktemp)"; _task_list AGY-TASKS.md; cp "$f" "$bak"
+    local store="${ROOT}/tasks.jsonl" sbak; sbak="$(mktemp)"; cp "$store" "$sbak"
     # A task with no Verify line is a task anyone can declare done, and a Dep
     # naming a missing id is an ordering nobody can follow.
-    printf '
+    local probe='
 ## AGY-9999 -- schema probe  (WS-PROCESS | P2 | S)
 **Goal:** x
 **What+How:** x
@@ -3883,9 +3893,10 @@ test_task_schema() {
 **Done When:** x
 **Why:** x
 **Dep:** AGY-4242
-' >> "$f"
-    _neg_gate check_task_schema && die "check_task_schema passed on a task with no Verify and a dangling Dep"
-    rm -f "$bak" "$f"
+'
+    _frozen_edit "MiOS:AGY-TASKS.md" '\Z' "$probe" || { rm -f "$sbak"; die "could not plant AGY-9999"; }
+    _neg_gate check_task_schema && { cp "$sbak" "$store"; rm -f "$sbak"; die "check_task_schema passed on a task with no Verify and a dangling Dep"; }
+    cp "$sbak" "$store"; rm -f "$sbak"
     _neg_gate check_task_schema || die "check_task_schema failed after restoration"
     log "check_task_schema negative test passed"
 }

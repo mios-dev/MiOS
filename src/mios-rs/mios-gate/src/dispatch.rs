@@ -1,5 +1,5 @@
 // AI-hint: Detects bake-time tool-dispatch gates whose PATH lookup cannot resolve, against the shrink-only register in SSOT.
-// AI-related: usr/share/mios/mios.toml, Containerfile, automation/98-drift-checks.sh, TASKS.jsonl
+// AI-related: usr/share/mios/mios.toml, Containerfile, automation/98-drift-checks.sh, tasks.jsonl
 
 use crate::Report;
 use std::collections::{BTreeMap, BTreeSet};

@@ -16,7 +16,7 @@ EXEMPT_PATHS = [
     "tools/lib/userenv.sh",
     "usr/lib/mios/userenv.sh",
     "usr/lib/mios/mios_toml.py",
-    "TASKS.jsonl",
+    "tasks.jsonl",
     "ROADMAP.md",
 ]
 
