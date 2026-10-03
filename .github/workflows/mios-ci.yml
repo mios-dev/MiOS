@@ -33,6 +33,10 @@ jobs:
     # holds it equal to [ci.fedora].image and to .devcontainer/Containerfile.
     container:
       image: ghcr.io/mios-dev/machine-os:6.1
+      # tests/test-sandbox-seccomp.sh's live tier runs bwrap, which needs user
+      # namespaces the default container seccomp/AppArmor profile denies. A
+      # suite that cannot run it exits 77 and fails: it is never a pass.
+      options: --privileged
     permissions:
       contents: read
     steps:

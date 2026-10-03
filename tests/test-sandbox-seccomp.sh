@@ -96,17 +96,19 @@ ok "with no generator, level=enforce refuses (126) instead of running unfiltered
 
 # ------------------------------------------------------------------ live tier --
 # A kernel that refuses bwrap is an ENVIRONMENT fact, so the live tier skips
-# loudly even under REQUIRE_TOOLS. Manual ch62.
+# loudly even under REQUIRE_TOOLS. Manual ch62. A skipped live tier is exit 77:
+# run-suites.sh counts it against [ci].max_tool_skips and never as a pass,
+# because the generator tier alone never proves a syscall is actually denied.
 if ! command -v bwrap >/dev/null 2>&1; then
     log "SKIP live tier: bwrap absent"
-    log "PASS (generator tier only)"
-    exit 0
+    log "generator tier passed; live tier NOT run (exit 77, a skip)"
+    exit 77
 fi
 if ! bwrap --ro-bind / / --die-with-parent /bin/true >/dev/null 2>&1; then
     log "SKIP live tier: bwrap installed but this kernel/policy refuses it --"
     log "      $(bwrap --ro-bind / / --die-with-parent /bin/true 2>&1 | head -1)"
-    log "PASS (generator tier only)"
-    exit 0
+    log "generator tier passed; live tier NOT run (exit 77, a skip)"
+    exit 77
 fi
 
 log "live tier: $(bwrap --version 2>/dev/null || echo bwrap)"

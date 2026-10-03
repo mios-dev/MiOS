@@ -300,6 +300,10 @@ def cmd_check(root: str, ci: dict) -> int:
         if not frm or frm.group(1) != want:
             viol.append("devcontainer FROM differs from [ci.fedora].image")
 
+    if suite_timeout(ci) is None:
+        viol.append("[ci].suite_timeout_s must be a positive integer -- without it"
+                    " one hung suite wedges the whole tier")
+
     ceiling = ci.get("max_exempt_suites")
     if ceiling is None:
         viol.append("[ci] has no max_exempt_suites -- an absent ceiling is a broken"
@@ -313,6 +317,11 @@ def cmd_check(root: str, ci: dict) -> int:
               f"{len(set(reg.values()))} tier(s); {len(exempt)}/{ceiling} exempt",
               file=sys.stderr)
     return 1 if viol else 0
+
+def suite_timeout(ci: dict):
+    """[ci].suite_timeout_s as a positive int, else None (bool is not a count)."""
+    v = ci.get("suite_timeout_s")
+    return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else None
 
 def main(argv: list) -> int:
     root = _root()
@@ -344,6 +353,13 @@ def main(argv: list) -> int:
                 return 1
             print(" ".join(args))
             return 0
+    if "--suite-timeout" in argv:
+        t = suite_timeout(ci)
+        if t is None:
+            print("[ci].suite_timeout_s is absent or not a positive integer", file=sys.stderr)
+            return 1
+        print(t)
+        return 0
     if "--tool-skips" in argv:
         print("\n".join(sorted(ci.get("tool_skips") or {})))
         return 0
@@ -352,7 +368,7 @@ def main(argv: list) -> int:
             return cmd_list(root, ci, argv[i + 1])
         if a.startswith("--tier="):
             return cmd_list(root, ci, a.split("=", 1)[1])
-    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-repos | --dnf-packages | --fedora-image | --tool-skips",
+    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-repos | --dnf-packages | --fedora-image | --tool-skips | --suite-timeout",
           file=sys.stderr)
     return 2
 

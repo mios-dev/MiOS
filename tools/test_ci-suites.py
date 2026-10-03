@@ -246,5 +246,64 @@ class TestFedoraProvisioning(unittest.TestCase):
             self.assertIn("exporter refused", result.stderr)
             self.assertFalse(os.path.exists(marker))
 
+class TestSuiteTimeout(unittest.TestCase):
+    """[ci].suite_timeout_s: one hung suite must fail by name, not wedge the tier."""
+
+    def test_check_requires_a_positive_integer(self):
+        base = TestRegistryReader()._ci()
+        for bad in (None, 0, -5, "900", True):
+            ci = dict(base)
+            if bad is None:
+                ci.pop("suite_timeout_s", None)
+            else:
+                ci["suite_timeout_s"] = bad
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                MOD.cmd_check(_ROOT, ci)
+            self.assertIn("[ci].suite_timeout_s must be a positive integer", out.getvalue(), repr(bad))
+        self.assertEqual(MOD.suite_timeout({"suite_timeout_s": 900}), 900)
+
+    def _tree(self, d: str, runner_text: str) -> str:
+        """A scratch repo: the real run-suites.sh logic over a stub registry."""
+        os.makedirs(os.path.join(d, "tests"))
+        os.makedirs(os.path.join(d, "tools"))
+        Path(d, "tests", "run-suites.sh").write_text(runner_text)
+        Path(d, "tools", "ci-suites.py").write_text(
+            "import sys\n"
+            "a = sys.argv[1:]\n"
+            "if '--tier' in a: print('bash\\ttests/hang.sh\\nbash\\ttests/ok.sh')\n"
+            "elif '--suite-timeout' in a: print(2)\n"
+            "sys.exit(0)\n")
+        # The orphan holds stdout -- the pipe run-suites.sh captures -- after
+        # its parent is gone, which is what wedged the tier before the limit.
+        Path(d, "tests", "hang.sh").write_text("sleep 300 &\nsleep 300\n")
+        Path(d, "tests", "ok.sh").write_text("echo fine\n")
+        return os.path.join(d, "tests", "run-suites.sh")
+
+    @unittest.skipIf(os.name == "nt", "POSIX process groups")
+    def test_a_hung_suite_fails_by_name_and_the_tier_finishes(self):
+        runner = Path(_ROOT, "tests", "run-suites.sh").read_text()
+        with tempfile.TemporaryDirectory() as d:
+            res = subprocess.run(["bash", self._tree(d, runner), "unit"],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("[FAIL] tests/hang.sh (timed out after 2s", res.stdout)
+        self.assertIn("[ OK ] tests/ok.sh", res.stdout)
+        self.assertIn("1 passed, 1 failed", res.stdout)
+
+    @unittest.skipIf(os.name == "nt", "POSIX process groups")
+    def test_negative_without_the_limit_the_tier_wedges(self):
+        runner = Path(_ROOT, "tests", "run-suites.sh").read_text()
+        planted = runner.replace('timeout --kill-after=10s "${SUITE_TIMEOUT}s" ', "")
+        self.assertNotEqual(planted, runner, "plant did not apply")
+        with tempfile.TemporaryDirectory() as d:
+            proc = subprocess.Popen(["setsid", "bash", self._tree(d, planted), "unit"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    proc.wait(timeout=8)
+            finally:
+                os.killpg(proc.pid, 9)
+                proc.wait()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

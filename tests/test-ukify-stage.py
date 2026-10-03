@@ -71,7 +71,8 @@ class TestUkifyStage(unittest.TestCase):
                 f.write(f'@"{sys.executable}" "%~dp0ukify" %*\n')
         return bindir
 
-    def _run_stage(self, path: str, out_efi: str, entry: str, kernel: str, initrd: str, cmdline: str):
+    def _run_stage(self, path: str, out_efi: str, entry: str, kernel: str, initrd: str, cmdline: str,
+                   *extra: str, want_rc: int = 0):
         env = os.environ.copy()
         env["PATH"] = path
         res = subprocess.run(
@@ -84,12 +85,13 @@ class TestUkifyStage(unittest.TestCase):
                 "--initrd", initrd,
                 "--cmdline", cmdline,
                 "--json",
+                *extra,
             ],
             capture_output=True,
             text=True,
             env=env,
         )
-        self.assertEqual(res.returncode, 0, f"stage failed: {res.stdout}{res.stderr}")
+        self.assertEqual(res.returncode, want_rc, f"stage exit {res.returncode}: {res.stdout}{res.stderr}")
         return json.loads(res.stdout)
 
     def _mock_inputs(self, tag: str):
@@ -122,19 +124,45 @@ class TestUkifyStage(unittest.TestCase):
             hdr = f.read(32)
         self.assertIn(b"MZ-FAKE-UKIFY", hdr)
 
-    def test_stage_execution_simulated_fallback(self):
+    def _no_ukify_path(self) -> str:
+        no_ukify = os.path.join(self.tmpdir.name, "empty-bin")
+        os.makedirs(no_ukify, exist_ok=True)
+        return no_ukify
+
+    def test_stage_execution_simulate_is_explicit(self):
         out_efi = os.path.join(self.tmpdir.name, "boot", "EFI", "Linux", "mios-sim.efi")
         mock_kernel, mock_initrd = self._mock_inputs("sim")
-        no_ukify = os.path.join(self.tmpdir.name, "empty-bin")
-        os.makedirs(no_ukify)
-
         entry = os.path.join(self.tmpdir.name, "loader", "entries", "mios-sim.conf")
-        data = self._run_stage(no_ukify, out_efi, entry, mock_kernel, mock_initrd, "console=tty0 rw")
+        data = self._run_stage(self._no_ukify_path(), out_efi, entry, mock_kernel, mock_initrd,
+                               "console=tty0 rw", "--simulate")
         self.assertEqual(data.get("status"), "success")
+        self.assertTrue(data.get("simulated"))
         self.assertFalse(data.get("ukify_executed"))
         with open(out_efi, "rb") as f:
             hdr = f.read(32)
         self.assertIn(b"MZ-SIMULATED-UKI", hdr)
+
+    def test_negative_missing_ukify_is_an_error(self):
+        """Pre-fix, no ukify on PATH staged a SIMULATED UKI as success, with a loader entry."""
+        out_efi = os.path.join(self.tmpdir.name, "boot", "EFI", "Linux", "mios-none.efi")
+        mock_kernel, mock_initrd = self._mock_inputs("none")
+        entry = os.path.join(self.tmpdir.name, "loader", "entries", "mios-none.conf")
+        data = self._run_stage(self._no_ukify_path(), out_efi, entry, mock_kernel, mock_initrd,
+                               "console=tty0 rw", want_rc=1)
+        self.assertEqual(data.get("status"), "error")
+        self.assertIn("ukify not found", data.get("error", ""))
+        self.assertFalse(os.path.exists(out_efi), "a placeholder EFI was staged")
+        self.assertFalse(os.path.exists(entry), "a loader entry points at no real UKI")
+
+    def test_negative_missing_kernel_is_an_error(self):
+        out_efi = os.path.join(self.tmpdir.name, "boot", "EFI", "Linux", "mios-nok.efi")
+        _, mock_initrd = self._mock_inputs("nok")
+        entry = os.path.join(self.tmpdir.name, "loader", "entries", "mios-nok.conf")
+        data = self._run_stage(self._fake_ukify_dir(), out_efi, entry,
+                               os.path.join(self.tmpdir.name, "no-such-vmlinuz"), mock_initrd,
+                               "console=tty0 rw", want_rc=1)
+        self.assertIn("kernel/initrd not found", data.get("error", ""))
+        self.assertFalse(os.path.exists(entry))
 
     def test_stage_ignores_removed_env_override(self):
         """No environment variable may force the simulated UKI when ukify is on PATH."""
@@ -220,7 +248,11 @@ class TestUkifyStage(unittest.TestCase):
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUkifyStage)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
+    if not result.wasSuccessful():
+        return 1
+    # A skipped real-compiler tier is exit 77, never a pass: run-suites.sh fails
+    # it unless [ci.tool_skips] registers it ([ci.fedora] provides ukify instead).
+    return 77 if result.skipped else 0
 
 
 if __name__ == "__main__":

@@ -7,24 +7,43 @@ IMG="${MIOS_AGENTS_IMAGE:-localhost/mios-agents:latest}"
 CTX="/usr/share/mios/agents"
 CF="$CTX/Containerfile"
 SETTINGS_SOURCE="$CTX/code-server-mobile-settings.json"
-SETTINGS_TARGET="/var/lib/mios/agents/.local/share/code-server/User/settings.json"
+EXT_SOURCE="/usr/share/mios/extensions/be5invis.vscode-custom-css"
+# The container's coder home; tmpfiles.d/mios-agents.conf owns it (uid 1000).
+AGENTS_HOME="/var/lib/mios/agents"
 TOML_GET="/usr/libexec/mios/mios-toml-get"
 CSS="/usr/share/mios/themes/code-server-terminal.css"
 PATCHER="/usr/libexec/mios/mios-vscode-custom-css"
 
 log() { logger -t mios-agents-firstboot "$*" 2>/dev/null || true; echo "[mios-agents-firstboot] $*" >&2; }
 
+# This runs as root, but code-server runs as the home's owner: everything seeded
+# into AGENTS_HOME takes that owner, or code-server cannot write its own state.
+home_owner() { stat -c '%u:%g' "$AGENTS_HOME"; }
+
+# install -d as the home's owner for EVERY missing component, not only the leaf.
+mkdir_owned() {
+    local path="$AGENTS_HOME" part owner parts
+    owner="$(home_owner)"
+    IFS=/ read -ra parts <<<"${1#"$AGENTS_HOME"/}"
+    for part in "${parts[@]}"; do
+        path="$path/$part"
+        [ -d "$path" ] || install -d -m 0755 -o "${owner%:*}" -g "${owner#*:}" "$path"
+    done
+}
+
 seed_code_server_settings() {
+    local target="$AGENTS_HOME/.local/share/code-server/User/settings.json" owner
     [ -f "$SETTINGS_SOURCE" ] || return 0
 
-    install -d -m 0755 "$(dirname "$SETTINGS_TARGET")"
-    if [ ! -e "$SETTINGS_TARGET" ]; then
-        install -m 0644 "$SETTINGS_SOURCE" "$SETTINGS_TARGET"
+    mkdir_owned "$(dirname "$target")"
+    if [ ! -e "$target" ]; then
+        owner="$(home_owner)"
+        install -m 0644 -o "${owner%:*}" -g "${owner#*:}" "$SETTINGS_SOURCE" "$target"
         log "Seeded portrait code-server settings"
         return 0
     fi
 
-    python3 - "$SETTINGS_SOURCE" "$SETTINGS_TARGET" <<'PY'
+    python3 - "$SETTINGS_SOURCE" "$target" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -49,13 +68,13 @@ PY
 }
 
 seed_code_server_extensions() {
-    local ext_src="/usr/share/mios/extensions/be5invis.vscode-custom-css"
-    local ext_target="/var/lib/mios/agents/.local/share/code-server/extensions/be5invis.vscode-custom-css"
-    [ -d "$ext_src" ] || return 0
+    local ext_target="$AGENTS_HOME/.local/share/code-server/extensions/be5invis.vscode-custom-css"
+    [ -d "$EXT_SOURCE" ] || return 0
 
-    install -d -m 0755 "$(dirname "$ext_target")"
+    mkdir_owned "$(dirname "$ext_target")"
     if [ ! -d "$ext_target" ]; then
-        cp -r "$ext_src" "$ext_target"
+        cp -r "$EXT_SOURCE" "$ext_target"
+        chown -R "$(home_owner)" "$ext_target"
         log "Seeded custom CSS extension into code-server extensions"
     fi
 }
@@ -71,6 +90,9 @@ resolve_build_args() {
     BUILD_ARGS=(--build-arg "MIOS_CODE_SERVER_VERSION=$tag" --build-arg "CODE_SERVER_SCROLLBAR_PX=$sb"
                 --build-arg "CODE_SERVER_PERIMETER_PX=$pm" --build-context mios=/)
 }
+
+# Sourced (by test_mios_unit_hardening.py) for the seeders alone.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
 seed_code_server_settings
 seed_code_server_extensions

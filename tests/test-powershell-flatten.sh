@@ -94,9 +94,11 @@ if [[ -z "$REAL_PWSH" ]]; then
     if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
         die "no pwsh available and MIOS_DRIFT_REQUIRE_TOOLS=1 -- the live tier cannot be skipped"
     fi
+    # Exit 77: run-suites.sh counts a skipped live tier against
+    # [ci].max_tool_skips, never as a pass.
     log "SKIP live tier: no pwsh on this host (set MIOS_DRIFT_REQUIRE_TOOLS=1 to make this fatal)"
-    log "PASS (stub tier only)"
-    exit 0
+    log "stub tier passed; live tier NOT run (exit 77, a skip)"
+    exit 77
 fi
 
 log "live tier: $REAL_PWSH"

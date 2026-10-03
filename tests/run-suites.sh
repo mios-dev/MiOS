@@ -76,6 +76,8 @@ fi
 # The registry, the skip reasons and the [ci].max_tool_skips ceiling are checked on every tier.
 (cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --check >/dev/null) || { echo "[run-suites] tools/ci-suites.py --check failed" >&2; exit 1; }
 mapfile -t TOOL_SKIPS < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --tool-skips | tr -d '\r')
+SUITE_TIMEOUT="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$PYTHON_BIN" tools/ci-suites.py --suite-timeout | tr -d '\r')" \
+    || { echo "[run-suites] [ci].suite_timeout_s unresolved" >&2; exit 1; }
 echo "[run-suites] tier=${TIER} suites=${#SUITES[@]} root=${ROOT}"
 FAILED=()
 SKIPPED=()
@@ -93,7 +95,7 @@ for entry in "${SUITES[@]}"; do
     start=$SECONDS
     if out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
               MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \
-              "$runner" "$path" 2>&1)"; then
+              timeout --kill-after=10s "${SUITE_TIMEOUT}s" "$runner" "$path" 2>&1)"; then
         PASSED=$((PASSED + 1))
         echo "::group::[ OK ] ${path} ($((SECONDS - start))s)"
         printf '%s\n' "$out"
@@ -109,6 +111,14 @@ for entry in "${SUITES[@]}"; do
             continue
         fi
         FAILED+=("$path")
+        # timeout(1) signals the suite's whole process group, so an orphan that
+        # held the output pipe dies with it instead of wedging the tier.
+        if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+            echo "[FAIL] ${path} (timed out after ${SUITE_TIMEOUT}s, [ci].suite_timeout_s)"
+            printf '%s\n' "$out"
+            echo "::error file=${path}::${path} timed out after ${SUITE_TIMEOUT}s"
+            continue
+        fi
         echo "[FAIL] ${path} (exit ${rc}, $((SECONDS - start))s)"
         printf '%s\n' "$out"
         echo "::error file=${path}::${path} failed with exit ${rc}"

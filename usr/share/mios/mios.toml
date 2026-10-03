@@ -12281,6 +12281,11 @@ max_exempt_suites = 6
 runners = ["tests/run-suites.sh"]
 # Ceiling, checked by run-suites.sh on every tier; lower it as tools land. A suite in [ci.tool_skips] may exit 77 when a host tool it needs is absent; run-suites.sh counts and names it, never passes it.
 max_tool_skips = 1
+# Wall-clock limit, in seconds, run-suites.sh gives each suite (timeout(1),
+# whole process group, then SIGKILL). Without it one hung suite -- an orphaned
+# listener holding the output pipe -- wedged the tier with no verdict at all
+# (T-1155). A suite that hits it FAILS; raise it only for a measured runtime.
+suite_timeout_s = 900
 
 [tests]
 # Shrink-only. A negative test that leaves its injected fixture behind ships the
@@ -12319,8 +12324,12 @@ package_sets = ["devcontainer"]
 repos = ["https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"]
 # CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
 # composefs sealing (mkcomposefs, composefs-info), unit verification
-# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime.
-packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell"]
+# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime, and
+# test-ukify-stage's real-compiler tier (ukify + the systemd-boot EFI stub; the
+# image's own kernel is the input). A suite that cannot run its live tier exits
+# 77, which fails unless [ci.tool_skips] registers it: provide the tool here.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell",
+            "systemd-ukify", "systemd-boot-unsigned"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

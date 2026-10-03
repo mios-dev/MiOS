@@ -85,6 +85,7 @@ def stage_uki(
     oneshot: bool = False,
     dry_run: bool = False,
     root: str = "/",
+    simulate: bool = False,
 ) -> Dict[str, Any]:
     """Compiles kernel + initrd + baked kargs into staged UKI and writes loader entry."""
     discovered = find_kernel_and_initrd(root)
@@ -106,8 +107,20 @@ def stage_uki(
     ukify_bin = shutil.which("ukify")
 
     if not dry_run:
+        # A missing compiler or input is an error, never a quietly simulated
+        # UKI: the loader entry below would point the next boot at a text file.
+        if not simulate:
+            if not ukify_bin:
+                result["status"] = "error"
+                result["error"] = "ukify not found on PATH (install systemd-ukify, or pass --simulate)"
+                return result
+            missing = [p for p in (kernel, initrd) if not os.path.isfile(p)]
+            if missing:
+                result["status"] = "error"
+                result["error"] = f"kernel/initrd not found: {', '.join(missing)}"
+                return result
         os.makedirs(os.path.dirname(output_efi), exist_ok=True)
-        if ukify_bin and os.path.isfile(kernel) and os.path.isfile(initrd):
+        if not simulate:
             cmd = [
                 ukify_bin,
                 "build",
@@ -124,10 +137,11 @@ def stage_uki(
                 result["error"] = f"ukify failed: {e.stderr.decode().strip()}"
                 return result
         else:
-            # Create simulated UKI header envelope for container/test environments
+            # --simulate only: a header envelope for container/test environments
             with open(output_efi, "w", encoding="utf-8") as f:
                 f.write(f"MZ-SIMULATED-UKI\nKERNEL={kernel}\nINITRD={initrd}\nCMDLINE={baked_cmdline}\n")
             result["ukify_executed"] = False
+            result["simulated"] = True
 
         # Determine target loader entry
         if loader_entry:
@@ -177,7 +191,9 @@ def main() -> int:
     parser.add_argument("--initrd", help="Initramfs image")
     parser.add_argument("--cmdline", help="Explicit kernel command line to bake into UKI")
     parser.add_argument("--oneshot", action="store_true", help="Set bootctl oneshot to staged entry")
-    parser.add_argument("--dry-run", action="store_true", help="Simulate without writing files")
+    parser.add_argument("--dry-run", action="store_true", help="Report the plan without writing files")
+    parser.add_argument("--simulate", action="store_true",
+                        help="Write a placeholder UKI envelope instead of running ukify (test/container use only)")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
 
     args = parser.parse_args()
@@ -191,12 +207,15 @@ def main() -> int:
         oneshot=args.oneshot,
         dry_run=args.dry_run,
         root=args.root,
+        simulate=args.simulate,
     )
 
     if args.json:
         print(json.dumps(res, indent=2))
     else:
         print(f"[mios-ukify-stage] Status: {res['status'].upper()}")
+        if res.get("error"):
+            print(f"  - Error: {res['error']}")
         print(f"  - Target EFI: {res['output_efi']}")
         print(f"  - Kernel: {res['kernel']}")
         print(f"  - Initrd: {res['initrd']}")
