@@ -7,7 +7,6 @@ use crate::frozen;
 use crate::migrate::{self, Inputs};
 use crate::overrides;
 use crate::record::{canonical_status, dumps, today, Schema};
-use crate::render;
 use crate::store::{self, find_root, write_atomic, Store};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -346,7 +345,7 @@ fn write_doc(
     .map(|b| b.lines)
     .map_err(|e| Fail::Bad(e.join("\n")))?;
     let eff = overrides::apply(records, &lines);
-    write_atomic(&st.doc_file(), &render::render(&st.path, &eff, &inner))?;
+    write_atomic(&st.doc_file(), &overrides::render(&st.path, &eff, &inner))?;
     Ok(())
 }
 

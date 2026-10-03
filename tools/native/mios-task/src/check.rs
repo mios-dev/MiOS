@@ -5,7 +5,6 @@
 use crate::frozen;
 use crate::overrides::{self, Block, Effective};
 use crate::record::{dumps, lane_word, Schema};
-use crate::render;
 use crate::store::{Line, Store};
 use regex::Regex;
 use serde_json::Value;
@@ -82,7 +81,7 @@ impl State {
     pub fn inner(&self) -> String {
         match &self.block {
             Ok(b) => b.inner.clone(),
-            _ => render::empty_block(),
+            _ => overrides::empty_block(),
         }
     }
 }
@@ -458,7 +457,7 @@ pub fn check(st: &Store, state: &State, only: Option<&str>) -> Vec<String> {
     // The doc is a projection: it must equal the render byte for byte.
     if let Some(md) = &state.md {
         if state.block.is_ok() {
-            let want = render::render(&st.path, &eff, &state.inner());
+            let want = overrides::render(&st.path, &eff, &state.inner());
             if let Some((n, got)) = first_difference(md, &want) {
                 p.push(format!(
                     "{}:{n} differs from the render of {} (a stale render, or a hand edit outside the overrides block): {:?} -- run: mios-task render",

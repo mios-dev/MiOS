@@ -354,43 +354,45 @@ fn migration_refuses_unknown_keys_collisions_unknown_words_and_a_stale_store() {
     let d = bare("migrate-neg");
     let (out, rep) = (d.join("o.jsonl"), d.join("r.json"));
     let (o, r) = (out.to_str().unwrap(), rep.to_str().unwrap());
-    let stale = d.join("lane.stale.jsonl");
-    fs::write(
-        &stale,
-        fs::read_to_string(fixture("lane.jsonl"))
-            .unwrap()
-            .replace("\"owner\": \"lane-b\"", "\"owner\": \"lane-c\""),
-    )
-    .unwrap();
-    let stale = stale.to_str().unwrap().to_string();
+    // Each plant is derived from a good fixture, so the fixtures stay three files.
+    let plant = |name: &str, from: &str, f: &dyn Fn(String) -> String| -> PathBuf {
+        let p = d.join(name);
+        fs::write(&p, f(fs::read_to_string(fixture(from)).unwrap())).unwrap();
+        p
+    };
+    let unknown_key = plant("cls.unknown.json", "classification.json", &|_| {
+        "[{\"key\": \"T-999\", \"class\": \"mios\", \"why\": \"planted: not in the store\"}]".into()
+    });
+    let collision = plant("lane.collision.jsonl", "lane.jsonl", &|t| {
+        let mut v: Value = serde_json::from_str(t.lines().nth(2).unwrap()).unwrap();
+        v["id"] = "T-002".into();
+        v["title"] = "planted: a different task under a store id".into();
+        format!("{t}{}\n", py(&v))
+    });
+    let bad_status = plant("store.bad.jsonl", "store.v1.jsonl", &|t| {
+        // The first pending record is T-002.
+        t.replacen("\"status\":\"pending\"", "\"status\":\"frobnicated\"", 1)
+    });
+    let stale = plant("lane.stale.jsonl", "lane.jsonl", &|t| {
+        t.replace("\"owner\": \"lane-b\"", "\"owner\": \"lane-c\"")
+    });
+    let (cls, lane, store) = (
+        fixture("classification.json"),
+        fixture("lane.jsonl"),
+        fixture("store.v1.jsonl"),
+    );
     let cases = [
+        (&store, &lane, &unknown_key, "T-999"),
+        (&store, &collision, &cls, "lane-only id T-002 collides"),
+        (&bad_status, &lane, &cls, "T-002: unknown status"),
         (
-            fixture("store.v1.jsonl"),
-            fixture("lane.jsonl"),
-            "classification.unknown-key.json",
-            "T-999",
-        ),
-        (
-            fixture("store.v1.jsonl"),
-            fixture("lane.collision.jsonl"),
-            "classification.json",
-            "lane-only id T-002 collides",
-        ),
-        (
-            fixture("store.bad-status.v1.jsonl"),
-            fixture("lane.jsonl"),
-            "classification.json",
-            "T-002: unknown status",
-        ),
-        (
-            fixture("store.v1.jsonl"),
-            PathBuf::from(&stale),
-            "classification.json",
+            &store,
+            &stale,
+            &cls,
             "the store is stale against the lane file",
         ),
     ];
     for (s, l, c, want) in cases {
-        let c = fixture(c);
         let x = run(
             &d,
             &migrate_args(

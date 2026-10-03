@@ -8,7 +8,6 @@ mod frozen;
 mod migrate;
 mod overrides;
 mod record;
-mod render;
 mod store;
 
 use std::process::ExitCode;

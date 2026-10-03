@@ -12,38 +12,23 @@ import sys
 TASKS = "TASKS.md"
 AGY_TASKS = "AGY-TASKS.md"
 PLACEHOLDER = "?"
-def store_path(root: str):
-    """tasks.jsonl as mios.toml [tasks.store].path names it (ADR-0028), or None."""
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # py<3.11
-        import tomli as tomllib  # type: ignore
-    try:
-        with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-            rel = ((tomllib.load(fh).get("tasks") or {}).get("store") or {}).get("path")
-    except (OSError, ValueError):
-        return None
-    return os.path.join(root, rel) if rel else None
 
 
 def list_text(root: str, name: str):
     """A retired task list rebuilt from its frozen slices in tasks.jsonl (ADR-0028), else the file itself."""
-    store = store_path(root)
-    if store and os.path.isfile(store):
-        import json
-        parts = []
+    import json
+    try:
+        with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+            store = os.path.join(root, tomllib.load(fh)["tasks"]["store"]["path"])
         with open(store, encoding="utf-8") as fh:
-            for line in fh:
-                rec = json.loads(line)
-                for s in ((rec.get("provenance") or {}).get("sources") or []):
-                    if s["file"] == "MiOS:" + name:
-                        parts.append((s["offset"], s["text"]))
-        if parts:
-            return "".join(t for _, t in sorted(parts))
+            parts = sorted((s["offset"], s["text"]) for rec in map(json.loads, fh)
+                           for s in (rec.get("provenance") or {}).get("sources") or [] if s["file"] == "MiOS:" + name)
+    except FileNotFoundError:  # a fixture root with no SSOT or no store: read the file itself
+        parts = []
+    if parts:
+        return "".join(t for _, t in parts)
     path = os.path.join(root, name)
-    if os.path.isfile(path):
-        return open(path, encoding="utf-8", errors="replace").read()
-    return None
+    return open(path, encoding="utf-8", errors="replace").read() if os.path.isfile(path) else None
 KNOWN = {
     "done", "done-by-code", "completed", "retired",
     "planned", "planned/unverified", "in-progress", "pending",
