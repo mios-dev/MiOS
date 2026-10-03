@@ -520,9 +520,9 @@ class TestValueAliasRegistry(unittest.TestCase):
     """value-aliases.tsv vouches for names the resolver emits.
 
     A row whose names were not emitted used to be skipped as informational.
-    That skip is how fourteen [pgvector] keys parsed into [offline] after a
-    lost table header without any gate noticing: every one of their rows was
-    skipped, and each consumer quietly took its inline default.
+    A lost table header stranded fifteen [pgvector] keys under [offline].
+    Fourteen had rows here, every one was skipped, and each consumer quietly
+    took its inline default; the fifteenth, rls_enable, had no row at all.
     """
 
     def setUp(self):
