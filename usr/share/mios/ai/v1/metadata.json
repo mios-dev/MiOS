@@ -4,7 +4,7 @@
   "total_metadata_entries": 2997,
   "total_hints": 2982,
   "total_functions_indexed": 1455,
-  "total_related_links": 4781,
+  "total_related_links": 4782,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -10017,10 +10017,11 @@
     },
     {
       "path": "tools/native/mios-template-conform/src/main.rs",
-      "hint": "Compiled Rust implementation of template conformance checker.",
+      "hint": "Compiled Rust implementation of template conformance checker; --llms-txt instead validates <root>/llms.txt against the llmstxt.org format.",
       "related": [
         "/usr/libexec/mios/check-template-conformance",
-        "/usr/share/mios/mios.toml"
+        "/usr/share/mios/mios.toml",
+        "llms.txt"
       ],
       "functions": [],
       "doc": null,
