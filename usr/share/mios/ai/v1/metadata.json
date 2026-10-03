@@ -1,9 +1,9 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3611,
-  "total_metadata_entries": 2977,
-  "total_hints": 2962,
-  "total_functions_indexed": 1395,
+  "total_files_scanned": 3612,
+  "total_metadata_entries": 2978,
+  "total_hints": 2963,
+  "total_functions_indexed": 1396,
   "total_related_links": 4702,
   "entries": [
     {
@@ -7978,6 +7978,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-swarm-pack-arming.sh",
+      "hint": "Two-sided test that mios-swarm-pack-firstboot creates a worker's slot dir before writing its .env, and arms no worker whose slot dir cannot be created.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tests.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -24004,7 +24013,8 @@
         "mios-swarm-pack"
       ],
       "functions": [
-        "log"
+        "log",
+        "arm_worker"
       ],
       "doc": null,
       "comment_style": "hash",

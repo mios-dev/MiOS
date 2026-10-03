@@ -7909,6 +7909,10 @@ tests/test-subagent-cgroups.py	29	29	1	12	d92a6e298110	STAY	local-scoped		0				0
 tests/test-subagent-cgroups.py	88	88	1	2	e242f6b6a4c8	STAY	local-scoped		0				0
 tests/test-subuid-alloc.py	1	3	3	17	39a0bea0066b	STAY	ai-header		0				0
 tests/test-subuid-alloc.py	21	21	1	8	e9e168d1193c	STAY	local-scoped		0				0
+tests/test-swarm-pack-arming.sh	1	3	3	29	49947816d6fa	STAY	ai-header		0				0
+tests/test-swarm-pack-arming.sh	9	9	1	3	ee573bae3b99	STAY	local-scoped		0				0
+tests/test-swarm-pack-arming.sh	17	17	1	13	75b85e0fe3c1	STAY	local-scoped		0				0
+tests/test-swarm-pack-arming.sh	25	25	1	15	dd13c5c71a18	STAY	local-scoped		0				0
 tests/test-swarm-pss-memory.py	1	2	2	16	9ed30a8dc15e	STAY	ai-header		0				0
 tests/test-swarm-pss-memory.py	4	4	1	13	8004328763b2	STAY	local-scoped		0				0
 tests/test-swarm-pss-memory.py	10	10	1	11	fd839db88e66	STAY	local-scoped		0				0
@@ -18558,9 +18562,11 @@ usr/libexec/mios/mios-summarize	45	45	1	3	79a909aaf0c5	STAY	inline-scoped		0				
 usr/libexec/mios/mios-summarize	60	61	2	25	66cc60893220	STAY	local-scoped		0				0
 usr/libexec/mios/mios-summarize	85	85	1	5	c4f02ab54d7f	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-summarize	88	88	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
-usr/libexec/mios/mios-swarm-pack-firstboot	1	4	4	37	3fa0c85bade9	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:3fa0c85bade9	37	0
-usr/libexec/mios/mios-swarm-pack-firstboot	58	58	1	3	11a1d97f5085	DROP	commented-out-code		0				0
-usr/libexec/mios/mios-swarm-pack-firstboot	59	59	1	1	8af97a096d11	DROP	commented-out-code		0				0
+usr/libexec/mios/mios-swarm-pack-firstboot	1	4	4	38	db06aabcf927	STAY	ai-header		0				0
+usr/libexec/mios/mios-swarm-pack-firstboot	12	13	2	32	9026ba7f988b	STAY	midsize-why		0				0
+usr/libexec/mios/mios-swarm-pack-firstboot	33	33	1	6	39ee2ec22946	STAY	local-scoped		0				0
+usr/libexec/mios/mios-swarm-pack-firstboot	83	83	1	3	11a1d97f5085	DROP	commented-out-code		0				0
+usr/libexec/mios/mios-swarm-pack-firstboot	84	84	1	1	8af97a096d11	DROP	commented-out-code		0				0
 usr/libexec/mios/mios-sync-theme	1	3	3	12	a07b2cf727dd	STAY	ai-header		0				0
 usr/libexec/mios/mios-sync-theme	18	18	1	6	a422abbbec3d	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-sync-to-root	1	4	4	24	baa5888f81db	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:baa5888f81db	24	0
@@ -22470,22 +22476,22 @@ usr/share/mios/mios.toml	12327	12328	2	21	2de4fbe6ac23	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	12330	12335	6	67	da7776b618c7	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tests.md	mios-src:da7776b618c7	67	0
 usr/share/mios/mios.toml	12340	12340	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	12349	12349	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12581	12581	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12587	12588	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12608	12609	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12621	12624	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	12626	12627	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12631	12633	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12639	12639	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12641	12643	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12709	12713	5	53	9ef4afec86f6	MIGRATE	midsize-narrative		0				0
-usr/share/mios/mios.toml	12717	12718	2	28	48026294ac12	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12739	12742	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12744	12744	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12823	12824	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12829	12833	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12835	12838	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12841	12846	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	12582	12582	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12588	12589	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12609	12610	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12622	12625	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	12627	12628	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12632	12634	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12640	12640	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12642	12644	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12710	12714	5	53	9ef4afec86f6	MIGRATE	midsize-narrative		0				0
+usr/share/mios/mios.toml	12718	12719	2	28	48026294ac12	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12740	12743	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12745	12745	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12824	12825	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12830	12834	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12836	12839	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12842	12847	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0

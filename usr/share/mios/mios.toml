@@ -12379,6 +12379,7 @@ unit = [
     "tests/test-vscode-custom-css.sh",
     "tests/test-code-server-bake.py",
     "tests/test-quadlet-state-mounts.py",
+    "tests/test-swarm-pack-arming.sh",
     "tests/test-hardware-target-profiling.sh",
     "tests/test-blade-enroll.sh",
     "tests/test-greenboot-hardware-degrade.sh",
