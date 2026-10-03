@@ -524,3 +524,12 @@ Notation:
 6. **Configurator runtime language.** Is a generated vanilla-JS page acceptable, or must the page be Bun/TS per Law 14's Portal target? Either way it would be generated.
 7. **Engine shape: decided by ADR-0021, two residuals.** The shape is no longer open (2.0): function-named binaries registered in `[rust.categories]`, `miosd`'s `render-*`/`generate-*` work in `mios-gen`, its daemon half seeding `mios-serve`. Residuals for the operator: (a) confirm that ADR-0021's "`miosd` keeps the subcommands it already serves" means thin exec shims, not a second implementation; (b) which functions fill slots 6-8: `install`, `build`, `task`, or a merge of them into the named five?
 8. **`[identity].default_password = "mios"`** in vendor mios.toml. Does this pass Law 11, or should it become a credential/secrets.env reference?
+
+### Operator decisions (2026-10-03)
+
+- **Q2 pre-build tier:** a pre-build `mios.html` edit is saved to the **host tier** (`/etc/mios/mios.d/`) as a validated delta via `mios-resolve import --tier host`; builds keep excluding the per-user tier. (G03, G18.)
+- **Q1 live vs bake:** **per-key `x-mios-apply`** (`live|boot|bake`) declared in the schema; packages and kargs are `bake`, ports/theme/dotfiles are `live`; `mios-gen apply` applies live/boot keys and reports bake keys as needing a rebuild. (G05, G07.)
+- **Q7 engine slots 6-8:** **fold into the five** named binaries -- install, build and task become modules of `mios-gate`/`mios-gen`/`mios-resolve`/`mios-serve`/`mios-probe` (no 6th-8th binary); `miosd` remains a thin exec shim over them (one implementation). ADR-0021 to be amended accordingly. (G06, G16.)
+- **Q8 default password:** **move to a credential** -- remove `[identity].default_password` from vendor mios.toml; first boot takes it from a systemd credential / `secrets.env` (Law 11) and forces a change at first login when none is provided.
+
+Q3-Q6 remain open.

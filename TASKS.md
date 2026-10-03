@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1614 |
+| pending | 1616 |
 | in_progress | 45 |
 | completed | 1807 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3503 |
+| total | 3505 |
 
 0 record(s) carry at least one override.
 
@@ -2189,6 +2189,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1198` `mios-gen apply` re-projects after save and at boot (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1196, T-1197
 - `T-1199` One config server (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1198
 - `T-1207` Verb dispatcher projected; miosd render verbs moved into `mios-gen` (WS-LANG | P2 | M) -- pending · P2 · size M · depends_on T-1197
+- `T-1212` Amend ADR-0021: five function binaries, install/build/task folded in, miosd a thin exec shim (WS-LANG | P1 | S) -- pending · P1 · size S · depends_on T-1197
 
 ## WS-LANG,WS-DEBT
 
@@ -3378,6 +3379,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2561` Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite -- pending · P2 · size S · depends_on AGY-2560
 - `AGY-2580` Consult the policy arbiter by default instead of shipping it unreachable -- pending · P1 · size S
 - `T-1139` Grant ReadWritePaths to state-writing hardened units (mios-agents, mios-cron-director) -- in_progress · owner claude-code · P1 · size S
+- `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- pending · P1 · size S
 
 ## WS-SEC2
 
