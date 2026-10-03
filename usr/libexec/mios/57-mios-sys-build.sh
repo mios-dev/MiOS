@@ -18,7 +18,7 @@ fi
 log() { printf '[57-mios-sys-build] %s\n' "$*"; }
 
 if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then
-    log "SKIP bound-images bake for mios-base, mios-sys and mios-cuda"
+    log "SKIP bound-images bake for mios-base, mios-sys, mios-cuda and mios-piper"
     exit 0
 fi
 
@@ -114,19 +114,41 @@ log "Building localhost/mios-cuda"
 build_image_with_retry "localhost/mios-cuda" "/usr/share/mios/cuda" \
   --build-arg BASE_IMAGE="$SERVICE_BASE"
 
+# localhost/mios-piper bakes the [services.piper] voice (Law 12); every build
+# arg comes from the resolver, and an empty one fails the bake.
+log "Building localhost/mios-piper"
+_piper_env="$(PYTHONPATH="/usr/lib/mios:${SCRIPT_DIR}/../../lib/mios${PYTHONPATH:+:$PYTHONPATH}" python3 -c '
+import mios_toml
+e = mios_toml.emit_exports()
+for k in ("MIOS_PIPER_BASE", "MIOS_PIPER_VERSION", "MIOS_PIPER_VOICE", "MIOS_PIPER_UID", "MIOS_PIPER_GID"):
+    print("%s=%s" % (k, e.get(k, "")))
+')"
+_piper_args=()
+for _k in MIOS_PIPER_BASE MIOS_PIPER_VERSION MIOS_PIPER_VOICE MIOS_PIPER_UID MIOS_PIPER_GID; do
+    _v="$(printf '%s\n' "$_piper_env" | sed -n "s/^${_k}=//p")"
+    if [[ -z "$_v" ]]; then
+        log "ERROR: ${_k} resolved empty; set [services.piper] in mios.toml"
+        exit 1
+    fi
+    _piper_args+=(--build-arg "${_k}=${_v}")
+done
+build_image_with_retry "localhost/mios-piper:latest" "/usr/share/mios/piper" "${_piper_args[@]}"
+
 SBOM_DIR="${SBOM_DIR:-/usr/share/mios/artifacts/sbom}"
 _base_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-base:latest --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 _sys_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-sys --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 _cuda_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-cuda --format '{{.Digest}}' 2>/dev/null || echo "Local")"
+_piper_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-piper:latest --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 install -d -m 0755 "$SBOM_DIR"
 printf '%s\t%s\t%s\n' "localhost/mios-base:latest" "${_base_digest:-local}" "base" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-sys:latest" "${_sys_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-cuda:latest" "${_cuda_digest:-local}" "cuda" >> "$SBOM_DIR/bound-images.tsv"
+printf '%s\t%s\t%s\n' "localhost/mios-piper:latest" "${_piper_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 
 log "Pruning build-stage images from ${STORE}"
 while read -r _img; do
     case "$_img" in
-        localhost/mios-base:latest|localhost/mios-base|localhost/mios-sys:latest|localhost/mios-sys|localhost/mios-cuda:latest|localhost/mios-cuda|"<none>:<none>") continue ;;
+        localhost/mios-base:latest|localhost/mios-base|localhost/mios-sys:latest|localhost/mios-sys|localhost/mios-cuda:latest|localhost/mios-cuda|localhost/mios-piper:latest|localhost/mios-piper|"<none>:<none>") continue ;;
     esac
     CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" --runroot "$SCRATCH/run" rmi -f "$_img" >/dev/null 2>&1 || true
 done < <(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | sort -u)

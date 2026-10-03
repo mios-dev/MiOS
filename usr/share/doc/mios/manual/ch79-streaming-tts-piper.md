@@ -1,10 +1,10 @@
-<!-- AI-hint: Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
+<!-- AI-hint: Chapter 79: Concurrent Streaming Piper TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
 
-# Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder
+# Chapter 79: Concurrent Streaming Piper TTS Audio Synthesis and PipeWire Buffer Feeder
 
 > Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
-This chapter documents the concurrent streaming speech synthesis architecture, sentence boundary detection, local Piper and Kokoro ONNX neural voice engines, and PipeWire low-latency buffer feeder implemented in [`usr/lib/mios/agent-pipe/mios_audio_tts.py`](file:///usr/lib/mios/agent-pipe/mios_audio_tts.py) and the Quadlet container [`usr/share/containers/systemd/mios-piper.container`](file:///usr/share/containers/systemd/mios-piper.container).
+This chapter documents the concurrent streaming speech synthesis architecture, sentence boundary detection, the local Piper ONNX neural voice engine, and PipeWire low-latency buffer feeder implemented in [`usr/lib/mios/agent-pipe/mios_audio_tts.py`](file:///usr/lib/mios/agent-pipe/mios_audio_tts.py) and the Quadlet container [`usr/share/containers/systemd/mios-piper.container`](file:///usr/share/containers/systemd/mios-piper.container).
 
 ```mermaid
 flowchart TD
@@ -13,8 +13,8 @@ flowchart TD
     subgraph Dispatch ["Concurrent Synthesis Pool"]
         Split --> Q0["Sentence Chunk 0 ('Welcome to MiOS.')"]
         Split --> Q1["Sentence Chunk 1 ('Audio stack active.')"]
-        Q0 --> W0["Worker 0 (Piper / Kokoro ONNX)"]
-        Q1 --> W1["Worker 1 (Piper / Kokoro ONNX)"]
+        Q0 --> W0["Worker 0 (Piper ONNX)"]
+        Q1 --> W1["Worker 1 (Piper ONNX)"]
     end
 
     subgraph Engine ["Local TTS Sidecar Container"]
@@ -51,7 +51,7 @@ MiOS circumvents this through real-time sentence and clause segmentation via `Se
 
 ---
 
-### <a name="79_concurrent_synthesis"></a>79.Concurrent Synthesis: Piper & Kokoro ONNX Neural Engines
+### <a name="79_concurrent_synthesis"></a>79.Concurrent Synthesis: Piper ONNX Neural Engine
 
 > Path Reference: `/usr/share/doc/mios/manual.md#79_concurrent_synthesis`
 
@@ -67,11 +67,15 @@ To ensure audio playback begins before later sentences are synthesized:
 | Engine | Default Voice | Sample Rate | Profile / Characteristics |
 | :--- | :--- | :--- | :--- |
 | **Piper** | `en_US-lessac-medium` | 24,000 Hz / 22,050 Hz | Lightweight VITS model, low CPU footprint, ONNX runtime accelerated. |
-| **Kokoro** | `af_heart` | 24,000 Hz | High-fidelity style-TTS architecture, expressive natural prosody. |
 
 Additional supported voices include:
 - Piper: `en_US-lessac-high`, `en_US-lessac-low`, `en_US-amy-medium`, `en_US-ryan-medium`, `en_GB-alan-medium`.
-- Kokoro: `af_bella`, `af_nicole`, `af_sarah`, `af_sky`, `am_adam`, `am_michael`, `bf_emma`, `bm_george`.
+
+Piper is the only engine: nothing on the box serves an OpenAI `/v1/audio/speech`
+TTS route, so the client has no Kokoro path. `HttpSynthesisEngine` POSTs
+piper1-gpl's own request shape, `{"text": ..., "voice": ...}`, to
+`<piper url>/synthesize` (the `http_server` index route is GET-only) and decodes
+the WAV it returns. A voice the image does not carry falls back to the `-m` voice.
 
 ---
 
@@ -101,15 +105,14 @@ In mock / accelerated mode, synthesis completes in under 50ms, achieving convers
 
 > Path Reference: `/usr/share/doc/mios/manual.md#79_quadlet_containerization`
 
-The Piper/Kokoro TTS engine is deployed as a systemd Quadlet container within the MiOS AI pod:
+The Piper TTS engine (piper1-gpl `http_server`) is deployed as a systemd Quadlet container within the MiOS AI pod:
 - **Unit File**: `/usr/share/containers/systemd/mios-piper.container`
 - **Pod**: `mios-ai.pod`
-- **Image**: `ghcr.io/rhasspy/piper:latest`
-- **Port**: `8179` (configurable via `MIOS_PORT_PIPER`).
-- **Volume Mounts**:
-  - `/usr/share/mios/piper/models:/models:ro,Z` (pre-cached ONNX voice weights)
-  - `/run/mios:/run/mios:Z` (shared runtime IPC)
-- **Health Check**: `curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1`
+- **Image**: `localhost/mios-piper:latest`, built at bake from `usr/share/mios/piper/Containerfile` with the `[services.piper]` version and voice.
+- **Port**: `[ports].piper` (`MIOS_PORT_PIPER`).
+- **Voice**: baked into the image at `/usr/share/piper/voices` and loaded with `-m ${MIOS_PIPER_VOICE} --data-dir /usr/share/piper/voices`; no host model bind.
+- **Volume Mounts**: `/run/mios:/run/mios:Z` (shared runtime IPC)
+- **Health Check**: a `python3` urllib GET of `/info` (the image has no curl and `http_server` has no `/health`).
 
 ---
 
@@ -129,7 +132,7 @@ The Piper/Kokoro TTS engine is deployed as a systemd Quadlet container within th
 
 | Flag | Description |
 | :--- | :--- |
-| `--engine <piper\|kokoro>` | Selects synthesis engine (default: `piper`). |
+| `--engine <piper>` | Selects synthesis engine (only `piper`). |
 | `--voice <voice>` | Specifies voice model identifier (default: `en_US-lessac-medium`). |
 | `--sample-rate <hz>` | Configures audio sample rate (default: `24000`). |
 | `--output <file>` | Writes synthesized audio to `.wav` or `.pcm` file. |

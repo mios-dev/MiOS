@@ -7075,7 +7075,7 @@ ai_legacy        = 8640    # legacy AI endpoint
 field_live_chat  = 8642    # field live chat
 node             = 8650    # mios-node edge daemon
 whisper            = 8178     # mios-whisper: whisper.cpp streaming STT engine (audio band, index 0). Was a DEAD key: mios-whisper.container carried :-8178 with no SSOT row, so nothing could tune or collision-check it.
-piper              = 8179     # mios-piper: Piper/Kokoro streaming TTS engine (audio band, index 1). Was a DEAD key: mios-piper.container carried :-8179 with no SSOT row.
+piper              = 8179     # mios-piper: Piper streaming TTS engine (audio band, index 1). Was a DEAD key: mios-piper.container carried :-8179 with no SSOT row.
 
 # Files pairing a MIOS_PORT_* name with a literal that disagrees with this table.
 # SHRINK-ONLY (gate: check_port_fallbacks), and currently EMPTY -- a new entry
@@ -7181,7 +7181,7 @@ doc     = "Edge node, legacy AI endpoint, and field live chat ports."
 base    = 8178
 stride  = 1
 members = ["whisper", "piper"]
-doc     = "Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper/Kokoro TTS. The base is where the pair's shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both."
+doc     = "Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper TTS. The base is where the pair's shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both."
 
 
 [units]
@@ -7428,14 +7428,17 @@ user = "mios-adguard"
 uid  = 825
 gid  = 825
 
-# Speech engines (Law 6 uids 831/832). model_dir: tmpfiles-declared host store mounted at
-# /models (piper); whisper uses its in-image model. test_mios_speech_storage.py (T-1140).
+# Speech engines (Law 6 uids 831/832). Both load a model baked into their bound
+# image -- no host model store. test_mios_speech_storage.py (T-1140).
 [services.piper]
 user = "mios-piper"
 uid  = 831
 gid  = 831
-model_dir = "/var/lib/mios/piper/models"
-model     = "en_US-lessac-medium.onnx"
+# localhost/mios-piper build args (usr/share/mios/piper/Containerfile): piper-tts[http]
+# version and the voice baked into the image (Law 12) -- no host model_dir.
+base    = "docker.io/library/python:3.13-slim"
+version = "1.8.0"
+voice   = "en_US-lessac-medium"
 
 [services.whisper]
 user = "mios-whisper"
@@ -7750,6 +7753,7 @@ additional_image_store = "/usr/lib/bootc/storage"
 core = [
   "localhost/mios-sys",
   "localhost/mios-cuda",
+  "localhost/mios-piper:latest",
   "localhost/mios-crawl4ai-slim:latest",
   "localhost/mios-firecrawl:v1.0.0",
   "code.forgejo.org/forgejo/runner:latest",
@@ -7783,7 +7787,10 @@ firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
 "firecrawl" = "Webtools heavy crawl runtime deferred from Day-0 bake"
 
 [build.bake.group_members]
-sys = ["sys"]
+# localhost/mios-piper is built by 57-mios-sys-build.sh with mios-sys, so it
+# belongs to the builder-owned sys group: in extra, mios-bake-group would try to
+# PULL a localhost/* ref and exit 1.
+sys = ["sys", "piper"]
 cuda = ["cuda"]
 heavy = ["open-webui", "ceph"]
 extra = []
@@ -10139,36 +10146,35 @@ Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
 
 [containers.mios-piper.Unit]
-After = "network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service"
-Description = "'MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)"
-Documentation = "https://github.com/rhasspy/piper"
+# Image=localhost/: ordered behind the firstboot that guarantees local images
+# are present, like every other local-image system Quadlet (check_dag_integrity).
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
+Description = "'MiOS' Piper Streaming TTS Engine (piper1-gpl http_server)"
+Documentation = "https://github.com/OHF-Voice/piper1-gpl"
 Wants = "network-online.target"
-# The model is provisioned into [services.piper].model_dir; without it the
-# unit fails here, naming the file, rather than looping on podman statfs.
-AssertPathExists = "/var/lib/mios/piper/models/en_US-lessac-medium.onnx"
 
 [containers.mios-piper.Container]
 ContainerName = "mios-piper"
-Environment = "PORT=${MIOS_PORT_PIPER:-8179}"
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0"
-Group = "${MIOS_PIPER_GID:-831}"
-HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1"
+# The voice ships inside localhost/mios-piper (/usr/share/piper/voices), so no
+# host bind: a read-only vendor model is image content (Law 12), not /var state.
+Exec = "-m ${MIOS_PIPER_VOICE} --data-dir /usr/share/piper/voices --host 0.0.0.0 --port ${MIOS_PORT_PIPER}"
+Group = "${MIOS_PIPER_GID}"
+HealthCmd = "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${MIOS_PORT_PIPER}/info', timeout=5)\" || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
 HealthStartPeriod = "30s"
 HealthTimeout = "10s"
-Image = "ghcr.io/rhasspy/piper:latest"
+Image = "localhost/mios-piper:latest"
 Label = [
   "org.opencontainers.image.title=mios-piper",
-  'org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"'
+  'org.opencontainers.image.description="Local piper1-gpl streaming server for MiOS real-time speech synthesis"',
+  "org.opencontainers.image.source=https://github.com/OHF-Voice/piper1-gpl",
+  "org.opencontainers.image.licenses=GPL-3.0-or-later"
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_PIPER_UID:-831}"
-Volume = [
-  "/var/lib/mios/piper/models:/models:ro,Z",
-  "/run/mios:/run/mios:Z"
-]
+User = "${MIOS_PIPER_UID}"
+Volume = "/run/mios:/run/mios:Z"
 
 [containers.mios-piper.Install]
 WantedBy = "multi-user.target default.target"

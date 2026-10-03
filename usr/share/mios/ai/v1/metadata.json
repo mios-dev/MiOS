@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3614,
-  "total_metadata_entries": 2980,
-  "total_hints": 2965,
-  "total_functions_indexed": 1398,
-  "total_related_links": 4711,
+  "total_files_scanned": 3615,
+  "total_metadata_entries": 2981,
+  "total_hints": 2966,
+  "total_functions_indexed": 1399,
+  "total_related_links": 4712,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -11494,7 +11494,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_audio_tts.py",
-      "hint": "Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
+      "hint": "Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/ch79-streaming-tts-piper.md",
@@ -14195,6 +14195,20 @@
         "usr/lib/mios/agent-pipe/server.py"
       ],
       "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/test_mios_audio_tts.py",
+      "hint": "Sibling unit test for the mios_audio_tts python module: the piper HTTP client must POST piper1-gpl's /synthesize request shape and decode the WAV it returns.",
+      "related": [
+        "/usr/lib/mios/agent-pipe/mios_audio_tts.py",
+        "/usr/lib/mios/agent-pipe/test_mios_audio_tts.py"
+      ],
+      "functions": [
+        "TestAudioTts"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": false
@@ -18954,19 +18968,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tmpfiles.d.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/lib/tmpfiles.d/mios-speech.conf",
-      "hint": "Persistent model storage for the mios-ai pod's streaming speech engines (Piper TTS; whisper.cpp loads the model baked into its image), bind-mounted read-only at /models.",
-      "related": [
-        "usr/share/containers/systemd/mios-whisper.container",
-        "usr/share/containers/systemd/mios-piper.container",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -26006,10 +26007,10 @@
     },
     {
       "path": "usr/libexec/mios/test_mios_speech_storage.py",
-      "hint": "Two-sided controls for T-1140 -- the speech engines' model storage is persistent /var declared in tmpfiles, mounted from the SSOT model_dir, and asserted before start.",
+      "hint": "Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host model-store Volume, no [services] model_dir, no /var store in tmpfiles, no AssertPathExists on one.",
       "related": [
         "usr/share/mios/mios.toml",
-        "usr/lib/tmpfiles.d/mios-speech.conf",
+        "usr/share/mios/piper/Containerfile",
         "usr/share/containers/systemd/mios-whisper.container",
         "usr/share/containers/systemd/mios-piper.container"
       ],
@@ -30141,7 +30142,7 @@
     },
     {
       "path": "usr/share/doc/mios/manual/ch79-streaming-tts-piper.md",
-      "hint": "Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization.",
+      "hint": "Chapter 79: Concurrent Streaming Piper TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -33363,6 +33364,18 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/piper/Containerfile",
+      "hint": "Defines the OCI build for localhost/mios-piper, the piper1-gpl (piper-tts) HTTP speech engine of the mios-ai pod: installs piper-tts[http] at the SSOT version, bakes the SSOT voice under /usr/share/piper/voices (Law 12) and runs piper.http_server as the [services.piper] uid/gid.",
+      "related": [
+        "mios-piper.container",
+        "57-mios-sys-build.sh"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

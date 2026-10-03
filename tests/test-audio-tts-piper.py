@@ -11,7 +11,9 @@ import configparser
 import json
 import os
 import pathlib
+import re
 import select
+import shlex
 import shutil
 import socket
 import struct
@@ -20,7 +22,9 @@ import sys
 import tempfile
 import threading
 import time
+import tomllib
 import unittest
+import urllib.parse
 from typing import Any, Dict, List
 
 # Locate project root and scripts
@@ -28,6 +32,7 @@ SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
 TTS_SCRIPT = ROOT_DIR / "usr" / "lib" / "mios" / "agent-pipe" / "mios_audio_tts.py"
 QUADLET_FILE = ROOT_DIR / "usr" / "share" / "containers" / "systemd" / "mios-piper.container"
+SSOT_TOML = ROOT_DIR / "usr" / "share" / "mios" / "mios.toml"
 
 # Import internal modules directly from script for unit testing
 sys.path.insert(0, str(TTS_SCRIPT.parent))
@@ -328,20 +333,56 @@ def test_5_quadlet_container_syntax() -> None:
         else:
             assert_fail(f"ContainerName unexpected: {c_name}")
 
-        if "piper" in c_image or "kokoro" in c_image:
-            assert_pass(f"Container Image references Piper/Kokoro ({c_image})")
+        ssot = tomllib.loads(SSOT_TOML.read_text(encoding="utf-8"))
+        piper_spec = ssot["containers"]["mios-piper"]
+        want_image = piper_spec["Container"]["Image"]
+        if c_image == want_image:
+            assert_pass(f"Container Image is the SSOT image ({c_image})")
         else:
-            assert_fail(f"Container Image unexpected: {c_image}")
+            assert_fail(f"mios-piper Image must be {want_image} (got {c_image})")
 
         if c_pod == "mios-ai.pod":
             assert_pass("Container Pod correctly mapped to 'mios-ai.pod'")
         else:
             assert_fail(f"Container Pod unexpected: {c_pod}")
 
-        if "curl" in c_health:
-            assert_pass("Container defines HTTP health check command")
+        # piper1-gpl's http_server serves GET /info; it has no /health route.
+        url_match = re.search(r"https?://[^\s'\"]+", c_health)
+        health_path = urllib.parse.urlparse(url_match.group(0)).path if url_match else ""
+        if health_path == "/info" and "curl" not in c_health:
+            assert_pass(f"Container HealthCmd probes /info without curl ({c_health})")
         else:
-            assert_fail(f"Container HealthCmd missing curl: {c_health}")
+            assert_fail(f"mios-piper HealthCmd must probe /info (got {c_health})")
+
+        allowed_flags = {"-m", "--data-dir", "--host", "--port", "--speaker", "--cuda"}
+        c_exec = cp.get("Container", "Exec", fallback="")
+        bad_flags = [t for t in shlex.split(c_exec) if t.startswith("-") and t not in allowed_flags]
+        if c_exec and not bad_flags:
+            assert_pass(f"Exec uses only piper1-gpl http_server flags ({c_exec})")
+        else:
+            assert_fail(f"mios-piper Exec carries flags http_server does not accept: {bad_flags or c_exec}")
+
+        # Law 7: only the generator-projected User=/Group= may carry the uid/gid;
+        # any other uid/port literal or ${VAR:-literal} fallback is hand-written.
+        uid = str(ssot["services"]["piper"]["uid"])
+        gid = str(ssot["services"]["piper"]["gid"])
+        port = str(ssot["ports"]["piper"])
+        quadlet_text = QUADLET_FILE.read_text(encoding="utf-8")
+        body = [ln for ln in quadlet_text.splitlines()
+                if not ln.startswith(("User=", "Group="))]
+        literals = [ln for ln in body if uid in ln or gid in ln or port in ln or ":-" in ln]
+        if (cp.get("Container", "User", fallback="") == uid
+                and cp.get("Container", "Group", fallback="") == gid
+                and not literals):
+            assert_pass(f"Quadlet carries no literal {uid}/{port} and no :- fallback outside the SSOT-projected User=/Group=")
+        else:
+            assert_fail(f"mios-piper Quadlet carries literal {uid}/{port} or :- fallbacks: {literals}")
+        src_literals = [f"{sec}.{k}" for sec, kv in piper_spec.items() if isinstance(kv, dict)
+                        for k, v in kv.items() if uid in str(v) or port in str(v)]
+        if not src_literals:
+            assert_pass(f"[containers.mios-piper] source carries no literal {uid} or {port}")
+        else:
+            assert_fail(f"[containers.mios-piper] source carries literal {uid}/{port}: {src_literals}")
 
     except Exception as e:
         assert_fail("Quadlet syntax parsing failed", str(e))

@@ -86,7 +86,7 @@ The Whisper inference service runs as an isolated systemd Quadlet container:
 - **Pod Association**: Joins `Pod=mios-ai.pod` sharing host networking with `mios-llm-light` and `mios-open-webui`.
 - **Image**: `ghcr.io/ggml-org/whisper.cpp:main` (upstream moved from `ggerganov`; that path stopped updating in 2025-04)
 - **Port**: `8178` (configurable via `MIOS_PORT_WHISPER`).
-- **Models**: `ggml-base.en.bin` ships inside the bound `whisper.cpp` image at `/app/models/`, so the unit needs no host model bind and the model is lifecycled with the image (`bootc upgrade`/`rollback`). Piper keeps a host store under `[services.piper].model_dir` until its voice is baked into its own image.
+- **Models**: `ggml-base.en.bin` ships inside the bound `whisper.cpp` image at `/app/models/`, so the unit needs no host model bind and the model is lifecycled with the image (`bootc upgrade`/`rollback`). Piper does the same: its voice is baked into `localhost/mios-piper`.
 
 #### Streaming HTTP API
 
@@ -179,22 +179,24 @@ usr/lib/mios/agent-pipe/mios_audio_stream.py transcribe sample.wav --mock -v
 
 ### T-1140
 
-T-1140: mios-whisper bind-mounted /usr/share/mios/whisper/models, a path
-nothing created, so podman's statfs failed and the unit looped on Restart=.
+T-1140: the speech engines bound a host model store nothing populated.
+Read-only vendor models are image content (Law 12); nothing seeds /var, so a
+host store plus AssertPathExists failed every stock boot.
 
-For every [services.<engine>] carrying model_dir/model, the shipped tree must
-hold:
+For every speech engine (the [services.<engine>] tables named in IN_IMAGE) the
+shipped tree must hold:
 
-* usr/lib/tmpfiles.d declares model_dir (Law 2), owned by the engine's uid/gid,
-  and model_dir lives under /var -- never mutable state under /usr;
-* the rendered Quadlet mounts exactly model_dir at /models, read-only;
-* its Exec= loads /models/<model>;
-* its [Unit] orders after systemd-tmpfiles-setup.service and asserts
-  model_dir/model exists, so a missing model fails the unit by name.
+* [services.<engine>] carries no model_dir/model key (no host model store);
+* usr/lib/tmpfiles.d declares nothing under /var/lib/mios/<engine>;
+* the rendered Quadlet mounts no Volume whose source is under
+  /var/lib/mios/<engine> or /srv (a host model store by another name), and no
+  Volume whose target is /models or the engine's in-image model path (a bind
+  there shadows the baked model), and asserts no path under
+  /var/lib/mios/<engine>;
+* its Exec= loads the model from the in-image path, and for an image MiOS
+  builds, the Containerfile bakes that model at that path.
 
 Each negative control plants one defect in a scratch copy and requires the
 same check to name it.
 
-Whisper carries no `model_dir`: it loads `ggml-base.en.bin` from inside its bound image, so the test asserts it binds no host `/models`. Piper keeps the host store until its voice is baked into its own image.
-
-<!-- mios-src:74377a6ef9fd from usr/libexec/mios/test_mios_speech_storage.py:5-20 -->
+<!-- mios-src:83a55d19ec28 from usr/libexec/mios/test_mios_speech_storage.py:5-24 -->

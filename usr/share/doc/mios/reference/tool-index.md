@@ -388,7 +388,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_argval.py` | Verb argument validation and synonym mapping helper (WS-DEBT / TD-5 / T-273). Extracted from mios_dispatch.py. Pure helper, must NOT import server.py or... |
 | `usr/lib/mios/agent-pipe/mios_ast_diff.py` | Tree-Sitter & Structural AST diff engine and 2-peer review merge gating for agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_audio_stream.py` | Low-latency WebRTC streaming audio ingress and streaming Whisper STT bridge (T-533, AGY-2131). |
-| `usr/lib/mios/agent-pipe/mios_audio_tts.py` | Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132). |
+| `usr/lib/mios/agent-pipe/mios_audio_tts.py` | Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132). |
 | `usr/lib/mios/agent-pipe/mios_audit.py` | Re-export shim for mios_pipe.observability.audit |
 | `usr/lib/mios/agent-pipe/mios_batch.py` | Re-export shim for mios_pipe.scheduler.batch |
 | `usr/lib/mios/agent-pipe/mios_bench.py` | Re-export shim for mios_pipe.scheduler.bench |
@@ -659,6 +659,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_arbiter.py` | Standalone assert-script unit test for mios_arbiter (WS-9 out-of-process policy-arbiter decision core). Pure stdlib, no serv... |
 | `usr/lib/mios/agent-pipe/test_mios_argval.py` | Sibling unit test for the mios_argval python module, ensuring compliance with drift-check 11. |
 | `usr/lib/mios/agent-pipe/test_mios_ast_diff.py` | Unit and regression test suite for Tree-Sitter & Structural AST diff engine and 2-peer review gating. |
+| `usr/lib/mios/agent-pipe/test_mios_audio_tts.py` | Sibling unit test for the mios_audio_tts python module: the piper HTTP client must POST piper1-gpl's /synthesize request shape and decode the WAV it returns. |
 | `usr/lib/mios/agent-pipe/test_mios_audit.py` | Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain. |
 | `usr/lib/mios/agent-pipe/test_mios_batch.py` | Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Stdlib + asyncio, no DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_bench.py` | Standalone assert-script unit test for mios_bench (agentic-capability benchmark scoring core). Pure stdlib, no server.py/DB/pytest. |
@@ -811,7 +812,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 436 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 437 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
