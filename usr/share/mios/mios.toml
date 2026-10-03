@@ -5683,6 +5683,11 @@ ingress_key              = ""
 # userenv.sh). Port from [ports].pgvector. Local-only defaults.
 [pgvector]
 memory_guard_mode = "log"
+# WS-A15: pluggable agent-memory backend. The recall path routes through the
+# MemoryProvider seam (mios_memory); "pgvector" (default) is a verbatim
+# pass-through to the mios_pg client. A future backend registers under a new
+# name; an UNKNOWN name fails closed (factory raises) -> the pipe logs + falls
+# back to pgvector at startup. Env override: MIOS_MEMORY_PROVIDER.
 memory_provider = "pgvector"
 memguard_judge_mode = "model"
 host        = "127.0.0.1"
@@ -5696,17 +5701,6 @@ embed_model = "nomic-embed-text"   # 768-dim, OWUI-compat (vector(768))
 enable      = true
 db_backend  = "postgres"
 rls_mode    = "off"
-
-[lsfs]
-enable      = true
-root_dir    = "/var/lib/mios/lsfs"
-embed_model = "nomic-embed-text"
-max_versions = 10
-
-[offline]
-enable            = false
-rpm_mirror_dir    = "/usr/share/mios/vendored/rpm-mirror"
-fallback_to_online = true
 rls_enable  = false
 pool_enable = false
 pool_min    = 0
@@ -5721,16 +5715,8 @@ hnsw_max_scan_tuples     = 20000
 # work_mem (consulted only under relaxed_order; inert under strict_order).
 # pgvector default. Env: MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER.
 hnsw_scan_mem_multiplier = 1
-
-
 emb_model       = "nomic-embed-text"
 emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
-# WS-A15: pluggable agent-memory backend. The recall path routes through the
-# MemoryProvider seam (mios_memory); "pgvector" (default) is a verbatim
-# pass-through to the mios_pg client. A future backend registers under a new
-# name; an UNKNOWN name fails closed (factory raises) -> the pipe logs + falls
-# back to pgvector at startup. Env override: MIOS_MEMORY_PROVIDER.
-
 scratch_persist = true             # durable per-chat working memory (survives restart)
 backfill_batch  = 50               # re-embed batch size (mios_embed_backfill.plan_batches)
 backup_enable  = true
@@ -5748,6 +5734,17 @@ backup_keep    = 7
 # the quadlet renders; flip false to bind 0.0.0.0 (off-box exposure -- only for
 # a deliberately federated deployment).
 listen_loopback = true
+
+[lsfs]
+enable      = true
+root_dir    = "/var/lib/mios/lsfs"
+embed_model = "nomic-embed-text"
+max_versions = 10
+
+[offline]
+enable            = false
+rpm_mirror_dir    = "/usr/share/mios/vendored/rpm-mirror"
+fallback_to_online = true
 
 [llamacpp]
 enable     = true   # additive + gated; flip on after GGUFs baked + verified live

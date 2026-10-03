@@ -8,6 +8,7 @@ that they are now reachable from a test, so this asserts exactly that.
 import ast
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -513,6 +514,105 @@ class TestMonitorRegistry(unittest.TestCase):
         self.assertTrue(transparent)
         self.ns["IS_WINDOWS"] = False
         self.assertFalse(self.ns["load_ssot_colors"]()[1])
+
+
+class TestValueAliasRegistry(unittest.TestCase):
+    """value-aliases.tsv vouches for names the resolver emits.
+
+    A row whose names were not emitted used to be skipped as informational.
+    That skip is how fourteen [pgvector] keys parsed into [offline] after a
+    lost table header without any gate noticing: every one of their rows was
+    skipped, and each consumer quietly took its inline default.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mios-value-aliases-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _run(self, emitted, rows):
+        snap = os.path.join(self.tmp, "snapshot.sh")
+        with open(snap, "w", encoding="utf-8") as fh:
+            fh.write("#!/usr/bin/env bash\n")
+            for k, v in emitted.items():
+                fh.write("printf '%%s\\n' '%s=%s'\n" % (k, v))
+        tsv = os.path.join(self.tmp, "value-aliases.tsv")
+        with open(tsv, "w", encoding="utf-8") as fh:
+            fh.write("# canonical\talias\tdisposition\n")
+            for row in rows:
+                fh.write("\t".join(row) + "\n")
+        env = dict(os.environ, MIOS_DRIFT_ROOT=self.tmp)
+        return subprocess.run([sys.executable, _MOD_PATH, "value-aliases", snap, tsv],
+                              capture_output=True, text=True, cwd=_ROOT, env=env)
+
+    def test_an_emitted_derive_pair_with_equal_values_passes(self):
+        r = self._run({"T_A": "1", "T_B": "1"},
+                      [("T_A", "T_B", "derive")])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_a_divergent_derive_pair_fails(self):
+        r = self._run({"T_A": "1", "T_B": "2"},
+                      [("T_A", "T_B", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("MUST be equal", r.stderr)
+
+    def test_an_equal_keep_distinct_pair_fails(self):
+        r = self._run({"T_A": "1", "T_B": "1"},
+                      [("T_A", "T_B", "keep-distinct")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("keep-distinct", r.stderr)
+
+    def test_a_stranded_family_fails_naming_both_variables(self):
+        # The lost-header shape: the key now parses under another table, so
+        # the resolver emits neither spelling the registry vouches for.
+        r = self._run({"OFFLINE_HNSW_ITERATIVE_SCAN": "strict_order"},
+                      [("PGVECTOR_HNSW_ITERATIVE_SCAN",
+                        "PG_HNSW_ITERATIVE_SCAN", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("PG_HNSW_ITERATIVE_SCAN is registered", r.stderr)
+        self.assertIn("PGVECTOR_HNSW_ITERATIVE_SCAN is registered", r.stderr)
+
+    def test_only_the_unemitted_side_is_named(self):
+        r = self._run({"T_A": "1"}, [("T_A", "T_B", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("T_B is registered", r.stderr)
+        self.assertNotIn("T_A is registered", r.stderr)
+
+    def test_a_family_prefix_row_names_no_variable(self):
+        r = self._run({}, [("T_", "U_", "derive")])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def _gate_over(self, toml_text):
+        """The real gate, snapshot tool and registry over a copy of the SSOT."""
+        root = os.path.join(self.tmp, "root")
+        os.makedirs(os.path.join(root, "usr/share/mios"), exist_ok=True)
+        with open(os.path.join(root, "usr/share/mios/mios.toml"), "w", encoding="utf-8") as fh:
+            fh.write(toml_text)
+        return subprocess.run(
+            [sys.executable, _MOD_PATH, "value-aliases",
+             os.path.join(_ROOT, "usr/libexec/mios/mios-env-snapshot"),
+             os.path.join(_ROOT, "usr/share/mios/reference/value-aliases.tsv")],
+            capture_output=True, text=True, cwd=_ROOT,
+            env=dict(os.environ, MIOS_DRIFT_ROOT=root))
+
+    def test_the_lost_pgvector_header_is_named_by_variable(self):
+        # Replays the defect on the shipped SSOT: [lsfs] and [offline] opened
+        # mid-[pgvector], so rls_enable..listen_loopback parsed into [offline].
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), encoding="utf-8") as fh:
+            shipped = fh.read()
+        m = re.search(r"^rls_enable\s*=.*?^listen_loopback\s*=[^\n]*\n", shipped, re.S | re.M)
+        anchor = "\nfallback_to_online = true\n"
+        self.assertTrue(m and shipped.count(anchor) == 1,
+                        "[pgvector]/[offline] shape changed; this fixture is stale")
+        stranded = (shipped[:m.start()] + shipped[m.end():]).replace(anchor, anchor + m.group(0), 1)
+
+        control = self._gate_over(shipped)
+        self.assertEqual(0, control.returncode, control.stderr)
+
+        r = self._gate_over(stranded)
+        self.assertEqual(1, r.returncode, r.stderr)
+        # The names the pgvector Quadlet, agent-pipe pg.py and mios-pg-query read.
+        for name in ("MIOS_PG_HNSW_ITERATIVE_SCAN", "MIOS_PG_POOL_ENABLE", "MIOS_DB_RLS_ENABLE"):
+            self.assertIn(name + " is registered", r.stderr)
 
 
 if __name__ == "__main__":
