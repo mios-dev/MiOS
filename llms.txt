@@ -2,7 +2,7 @@
      AI-related: mios-dev, mios.git, Containerfile, Justfile, automation, usr/share/mios/mios.toml, usr/share/doc/mios, usr/libexec/mios/mios-manual, MIOS_AI_ENDPOINT -->
 # mios-dev/mios
 
-> Machine-readable index for `mios.git` v0.3.0 — the **system layer** of MiOS: the FHS overlay whose repo root IS the deployed system root. The interactive installer and user-editable layer (`Get-MiOS.ps1`, profile overlay, deployed AI assets) live in https://github.com/mios-dev/mios-bootstrap — both repos overlay onto the same deployed `/`.
+> Machine-readable index for `mios.git` v0.3.0 — the **system layer** of MiOS: the FHS overlay whose repo root IS the deployed system root. The interactive installer and user-editable layer (`Get-MiOS.ps1`, profile overlay, RAG knowledge graphs) live in https://github.com/mios-dev/mios-bootstrap — both repos overlay onto the same deployed `/`.
 
 **What MiOS is (so this index makes sense).**
 
@@ -33,12 +33,13 @@ orchestration, profile capture), use `mios-bootstrap` — its `llms.txt`
 documents that surface.
 
 **Repo split (never double-track paths).**
-`mios.git` owns: Containerfile, build automation, FHS system overlay,
-systemd units, Quadlet sidecars, kernel args, tmpfiles, sysusers.
+`mios.git` owns: Containerfile, build automation, FHS system overlay
+(including the AI files, `usr/share/mios/ai/`), systemd units, Quadlet
+sidecars, kernel args, tmpfiles, sysusers.
 
-`mios-bootstrap.git` owns: AI files (`usr/share/mios/ai/`), knowledge
-graphs, user profile templates, installer scripts. The two overlay onto the
-same `/`; no path is tracked in both.
+`mios-bootstrap.git` owns: knowledge graphs, user profile templates,
+installer scripts. The two overlay onto the same `/`; no path is tracked
+in both.
 
 **`mios.toml` — the singular SSOT.**
 Every operator-tunable value in the entire pipeline (packages, ports, AI
