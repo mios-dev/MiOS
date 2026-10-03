@@ -661,3 +661,67 @@ The preset script is present when the tree carries it.
         exist, and say so, rather than assert a file the repo excludes.
 
 <!-- mios-src:f5bf22f169aa from tests/test-windows-driver-pack.py:21-30 -->
+
+### mios-agents.service runs its ExecStartPre...
+
+mios-agents.service runs its ExecStartPre (mios-agents-firstboot.sh) as root,
+and that script seeds code-server settings and an extension into
+/var/lib/mios/agents -- the container's coder home, owned by uid 1000 per
+tmpfiles.d/mios-agents.conf. Created as root, those paths leave code-server
+(running as the home's owner) unable to write its own User/ state.
+
+Positive control: seeding a uid-1000 scratch home as root leaves every seeded
+path owned 1000:1000. Negative control: the pre-fix seeding (plain install -d,
+install and cp as root) is planted in a scratch copy and the same check must
+name a root-owned path. The script is sourced -- it returns before its build
+step when sourced -- with its home, settings and extension sources pointed at
+the scratch fixture.
+
+<!-- mios-src:8cb122940c72 from usr/libexec/mios/test_mios_agents_firstboot.py:5-17 -->
+
+### Two-sided verification controls for Task T-1141. WHEN...
+
+Two-sided verification controls for Task T-1141.
+
+WHEN forgejo/pgvector/psycopg are unavailable THE SYSTEM SHALL order firstboot
+seeders after them and surface the degradation instead of silently skipping.
+
+Each check_* function RUNS the code under test against a scratch fixture and
+returns the violations it observed. The positive controls require an empty
+list from the shipped files; every negative control plants the pre-fix defect
+in a scratch copy and requires the SAME function to name it. Nothing reads the
+host: scripts run with their host paths rewritten into the scratch directory,
+an empty PATH where they would otherwise find host tools, ambient MIOS_*
+scrubbed, psycopg shadowed by a module that refuses to import, and pgvector
+pointed at a port nobody listens on.
+
+<!-- mios-src:d087fbdd6bad from usr/libexec/mios/test_mios_firstboot_seeders.py:5-18 -->
+
+### T-1135
+
+T-1135: WHEN mios-mcp.service starts THE SYSTEM SHALL have its MCP port
+defined -- by the resolver-rendered /etc/mios/install.env, not a literal.
+
+* the exports the resolver renders from the vendor mios.toml carry
+  MIOS_PORT_MCP / MIOS_PORTS_MCP equal to [ports].mcp;
+* mcp-server-runner's preamble, run under exactly that environment (ambient
+  MIOS_* scrubbed), resolves MIOS_MCP_PORT to that value;
+* neither the unit nor its [units."mios-mcp.service"] SSOT mirror assigns a
+  MIOS_* port literal.
+
+Negative controls: the same environment without the port names must stop
+the runner with its named error, and a planted Environment=MIOS_PORTS_MCP=<n>
+must be named by the literal check.
+
+<!-- mios-src:9f41e90a8cce from usr/libexec/mios/test_mios_mcp_port.py:5-18 -->
+
+### CI-only extras the dev image does not carry: sandbox tests...
+
+CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
+composefs sealing (mkcomposefs, composefs-info), unit verification
+(systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime, and
+test-ukify-stage's real-compiler tier (ukify + the systemd-boot EFI stub; the
+image's own kernel is the input). A suite that cannot run its live tier exits
+77, which fails unless [ci.tool_skips] registers it: provide the tool here.
+
+<!-- mios-src:da7776b618c7 from usr/share/mios/mios.toml:12330-12335 -->

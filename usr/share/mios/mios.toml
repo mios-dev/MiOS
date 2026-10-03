@@ -7428,14 +7428,8 @@ user = "mios-adguard"
 uid  = 825
 gid  = 825
 
-# Streaming speech engines of the mios-ai pod (Law 6: every Quadlet runs as a
-# declared non-root uid). 830 is mios-node; 831/832 continue the sidecar block.
-# model_dir is persistent /var storage declared by usr/lib/tmpfiles.d/mios-speech.conf
-# (Law 2) and bind-mounted read-only at /models; model is the file the engine
-# loads from it. The Quadlet asserts that file exists, so a host without the
-# model fails the unit by name instead of looping on a missing bind source.
-# test_mios_speech_storage.py holds tmpfiles, Volume=, Exec= and the assert to
-# these keys (T-1140).
+# Speech engines (Law 6 uids 831/832). model_dir: tmpfiles-declared host store mounted at
+# /models (piper); whisper uses its in-image model. test_mios_speech_storage.py (T-1140).
 [services.piper]
 user = "mios-piper"
 uid  = 831

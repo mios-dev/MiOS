@@ -176,3 +176,25 @@ usr/lib/mios/agent-pipe/mios_audio_stream.py serve --mock --dry-run -v
 # Transcribe sample audio with token streaming
 usr/lib/mios/agent-pipe/mios_audio_stream.py transcribe sample.wav --mock -v
 ```
+
+### T-1140
+
+T-1140: mios-whisper bind-mounted /usr/share/mios/whisper/models, a path
+nothing created, so podman's statfs failed and the unit looped on Restart=.
+
+For every [services.<engine>] carrying model_dir/model, the shipped tree must
+hold:
+
+* usr/lib/tmpfiles.d declares model_dir (Law 2), owned by the engine's uid/gid,
+  and model_dir lives under /var -- never mutable state under /usr;
+* the rendered Quadlet mounts exactly model_dir at /models, read-only;
+* its Exec= loads /models/<model>;
+* its [Unit] orders after systemd-tmpfiles-setup.service and asserts
+  model_dir/model exists, so a missing model fails the unit by name.
+
+Each negative control plants one defect in a scratch copy and requires the
+same check to name it.
+
+Whisper carries no `model_dir`: it loads `ggml-base.en.bin` from inside its bound image, so the test asserts it binds no host `/models`. Piper keeps the host store until its voice is baked into its own image.
+
+<!-- mios-src:74377a6ef9fd from usr/libexec/mios/test_mios_speech_storage.py:5-20 -->
