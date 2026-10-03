@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3633,
-  "total_metadata_entries": 2996,
-  "total_hints": 2981,
+  "total_files_scanned": 3634,
+  "total_metadata_entries": 2997,
+  "total_hints": 2982,
   "total_functions_indexed": 1455,
   "total_related_links": 4781,
   "entries": [
@@ -180,6 +180,15 @@
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": ".devloop/handoff/antigravity-2026-10-03.md",
+      "hint": "Work brief for the local Antigravity agent: five MiOS tasks that collide with no running cloud lane, branch-per-task, verified and merged to main by the cloud session.",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "xml",

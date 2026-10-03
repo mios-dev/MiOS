@@ -1359,7 +1359,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1594` Port the comment lexer hot path to Rust behind the unchanged mios-manual CLI -- completed · P3 · size L · depends_on AGY-1583, AGY-1589
 - `AGY-1601` Ratchet the 150 stale AI-related references down to zero -- completed · P2 · size M
 - `T-1116` Drop .devloop/foreign-srf-libexec.patch and land its unlanded seed-db-config.py header hunk -- completed · P2 · size S
-- `T-1189` Drop stale AI-functions lines naming removed functions from the harvested manual -- pending · P3 · size S
+- `T-1189` Drop stale AI-functions lines naming removed functions from the harvested manual -- pending · owner antigravity · P3 · size S
 
 ## WS-DOCS
 
@@ -2184,7 +2184,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2173` Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue -- completed · P1 · size M · depends_on AGY-2172
 - `AGY-2174` Real-time wallpaper occlusion frame pacing and GPU load benchmark suite -- completed · P2 · size S · depends_on AGY-2173
 - `T-1125` Prove credential handoff and sandbox boundaries for agent children -- pending · P1 · size M
-- `T-1188` Remove audited dead PowerShell in both repos and settle the mios-node Rust parity stubs -- pending · P3 · size M
+- `T-1188` Remove audited dead PowerShell in both repos and settle the mios-node Rust parity stubs -- pending · owner antigravity · P3 · size M
 - `T-1197` Create ADR-0021's `[rust.categories]` registry + ownership gate (WS-LANG | P1 | M) -- pending · P1 · size M
 - `T-1198` `mios-gen apply` re-projects after save and at boot (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1196, T-1197
 - `T-1199` One config server (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1198
@@ -2476,7 +2476,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### No epic
 
-- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- pending · P1 · size M
+- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- pending · owner antigravity · P1 · size M
 - `T-1147` Classify native Rust executables through one shared role catalog -- completed · P1 · size M
 - `T-1148` Enforce static Linux linkage across native executable roles -- pending · P1 · size M · depends_on T-1147
 - `T-1149` Validate ARM64 native releases and bootc image lifecycle -- pending · P2 · size M · depends_on T-1148
@@ -3163,8 +3163,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2581` Ship real evaluation suites and gate on their scores in CI -- pending · P2 · size M
 - `T-1122` Trace llama-swap queue, health, unload, and failure recovery -- pending · P1 · size M
 - `T-1185` Swarm pack arms no worker whose slot dir it could not create -- completed · owner claude-code · P2 · size S
-- `T-1190` Make agent-pipe dispatch take the global priority gate and endpoint semaphores in one order -- pending · P1 · size S
-- `T-1191` Inject live callables into vram_scheduler.configure so VRAM admission and co-load gating actually run -- pending · P1 · size M
+- `T-1190` Make agent-pipe dispatch take the global priority gate and endpoint semaphores in one order -- pending · owner antigravity · P1 · size S
+- `T-1191` Inject live callables into vram_scheduler.configure so VRAM admission and co-load gating actually run -- pending · owner antigravity · P1 · size M
 
 ## WS-SEC
 
