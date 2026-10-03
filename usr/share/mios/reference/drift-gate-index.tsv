@@ -66,7 +66,7 @@
 65	check_toml_projection	mios.toml derived copies project verbatim from the canonical SSOT
 66	check_ratchet_direction	shrink-only ratchet ceilings in mios.toml do not exceed the baseline
 67	check_size_ceiling	size ceiling
-68	check_task_store	task store: $(printf '%s'
+68	check_task_store	task list: $(printf '%s'
 69	check_toolchain_pin	toolchain pin
 70	check_ai_config_projection	etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json equal their [ai] + [ports] projection (Law 8)
 71	check_artifact_prompt	ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8)

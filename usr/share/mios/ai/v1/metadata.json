@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3622,
-  "total_metadata_entries": 2988,
-  "total_hints": 2973,
-  "total_functions_indexed": 1393,
-  "total_related_links": 4747,
+  "total_files_scanned": 3638,
+  "total_metadata_entries": 2998,
+  "total_hints": 2983,
+  "total_functions_indexed": 1446,
+  "total_related_links": 4791,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -4289,7 +4289,7 @@
         "usr/share/mios/mios.toml",
         "Containerfile",
         "automation/98-drift-checks.sh",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -4385,7 +4385,7 @@
         "usr/share/mios/mios.toml",
         "automation/build.sh",
         "automation/55-native-build.sh",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -4482,7 +4482,7 @@
         "src/mios-rs/miosd/src/drift/",
         "usr/share/mios/mios.toml",
         "Containerfile",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -8614,7 +8614,7 @@
     },
     {
       "path": "tools/check-tasks.py",
-      "hint": "Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the lists TASKS.jsonl keeps (ADR-0026).",
+      "hint": "Task-plane drift gates in one module: the retired TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the frozen lists tasks.jsonl keeps (ADR-0028).",
       "related": [],
       "functions": [
         "main",
@@ -9778,7 +9778,7 @@
     },
     {
       "path": "tools/native/mios-task/Cargo.toml",
-      "hint": "Cargo manifest for mios-task -- the one writer of the canonical MiOS task store (ADR-0026).",
+      "hint": "Cargo manifest for mios-task -- validates, renders and edits tasks.jsonl, the one canonical MiOS task list (ADR-0028).",
       "related": [
         "tools/native/Cargo.toml",
         "usr/share/mios/mios.toml"
@@ -9789,25 +9789,213 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-task/src/check.rs",
+      "hint": "`mios-task check` -- schema, uniqueness, depends_on/epic resolution, cycles, evidence, born-record shape, canonical serialization, hygiene, overrides, retired stores, frozen history, the migrated count, and TASKS.md == render.",
+      "related": [
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [
+        "State::load",
+        "check",
+        "hygiene",
+        "cycles",
+        "retired_stores",
+        "first_difference"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/cli.rs",
+      "hint": "mios-task verbs over tasks.jsonl -- check, fmt, render, ready/next, set, claim, release, add, overrides fold, source (rebuild a frozen retired list) and the one-shot migrate-canonical.",
+      "related": [
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "run",
+        "Args",
+        "cmd_check",
+        "cmd_fmt",
+        "cmd_render",
+        "cmd_ready",
+        "cmd_set",
+        "cmd_claim",
+        "cmd_add",
+        "cmd_fold",
+        "cmd_source",
+        "cmd_migrate"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/frozen.rs",
+      "hint": "The retired task lists as frozen history -- every byte lives in a record's provenance.sources slice; rebuild a list by offset, verify each slice and each list against [tasks.store].frozen, and name a dropped record from the slice that followed it.",
+      "related": [
+        "tasks.jsonl",
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "sha",
+        "Slice",
+        "slices",
+        "rebuild",
+        "verify"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-task/src/main.rs",
-      "hint": "mios-task -- sole writer of the canonical task store (ADR-0026): migrate, check-lossless, validate, ready.",
+      "hint": "mios-task -- validates, renders and edits tasks.jsonl, the one canonical MiOS task list (ADR-0028); rebuilds the retired lists from their frozen provenance.",
       "related": [
         "/usr/share/mios/mios.toml [tasks.store]",
         "/usr/lib/mios/schemas/task-record.schema.json",
-        "TASKS.jsonl",
-        "/usr/share/doc/mios/adr/0026-global-task-store.md"
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
       ],
       "functions": [
-        "main",
+        "main"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/migrate.rs",
+      "hint": "One-shot `mios-task migrate-canonical` -- folds the retired TASKS.jsonl store and the lane file into tasks.jsonl, keeping each record's id, status and every byte it owned (provenance.sources), counting every input both ways.",
+      "related": [
+        "tasks.jsonl",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "Inputs",
         "migrate",
-        "check_lossless",
+        "store_record",
+        "lane_only_record",
+        "place_deps",
+        "kept_sources",
+        "chain_after",
+        "frozen_table"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/overrides.rs",
+      "hint": "The TASKS.md operator-overrides block in the dev-loop toolkit's format -- '# TASKS' banner, overrides:begin/end markers, one {\"id\": ..., field: value} JSON line per override -- validated against the record schema and applied on top of tasks.jsonl.",
+      "related": [
+        "TASKS.md",
+        "tasks.jsonl",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "parse_block",
         "validate",
-        "ready",
-        "parse_markdown",
-        "parse_jsonl",
-        "heading_fields",
-        "body_fields",
-        "normalise_status"
+        "apply",
+        "Effective",
+        "override_value"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/record.rs",
+      "hint": "Task record helpers -- canonical key order from the schema, the Python-identical serializer, the strict JSON-schema checker and the status word maps (OpenAI words canonical, legacy words read).",
+      "related": [
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "tasks.jsonl",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "Schema::load",
+        "Schema::canon",
+        "Schema::conforms",
+        "dumps",
+        "canonical_status",
+        "lane_word",
+        "today",
+        "is_iso_date"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/render.rs",
+      "hint": "TASKS.md renderer -- byte-deterministic documentation of tasks.jsonl under the '# TASKS' banner, around the verbatim operator-overrides block; no dates, no timestamps.",
+      "related": [
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "tools/native/mios-task/src/overrides.rs"
+      ],
+      "functions": [
+        "render",
+        "empty_block",
+        "line"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/store.rs",
+      "hint": "tasks.jsonl access -- the [tasks.store] table from the SSOT (path, schema, doc, retired, frozen, migrated), repo-root discovery, line reading, and locked tmp+rename writes.",
+      "related": [
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/share/doc/mios/adr/0028-one-canonical-task-list.md"
+      ],
+      "functions": [
+        "Store::open",
+        "Store::read",
+        "Store::write_lines",
+        "Store::locked",
+        "find_root",
+        "read_lines",
+        "lock_file",
+        "write_atomic"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/tests/cli.rs",
+      "hint": "Integration tests for mios-task -- every check of ADR-0028 with its planted negative (dropped record, edited frozen slice, duplicate id, second store, hand-edited TASKS.md, bad override), on a sandbox migrated from fixtures with the real schema.",
+      "related": [
+        "tools/native/mios-task/src/cli.rs",
+        "tools/native/mios-task/tests/fixtures/",
+        "/usr/lib/mios/schemas/task-record.schema.json"
+      ],
+      "functions": [
+        "bare",
+        "sandbox",
+        "run",
+        "migrate_args",
+        "plant_line",
+        "py",
+        "set_overrides"
       ],
       "doc": null,
       "comment_style": "slash",
@@ -11502,7 +11690,7 @@
       "related": [
         "usr/lib/mios/agent-pipe/server.py",
         "tests/test-ast-diff-peer-review.sh",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -27839,6 +28027,24 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/doc/mios/adr/0028-one-canonical-task-list.md",
+      "hint": "ADR-0028 makes tasks.jsonl at the repo root the only canonical MiOS task list, edited directly; TASKS.md is its rendered documentation plus an operator-overrides block every task tool applies; the retired stores live on as frozen, byte-verified provenance. Supersedes ADR-0026.",
+      "related": [
+        "/usr/share/doc/mios/adr/README.md",
+        "/usr/share/doc/mios/adr/0026-global-task-store.md",
+        "tasks.jsonl",
+        "TASKS.md",
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "tools/native/mios-task",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/doc/mios/adr/README.md",
       "hint": "Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing.",
       "related": [
@@ -28138,7 +28344,7 @@
       "related": [
         "https://github.com/mios-dev/mios-bootstrap/tree/main/field/autounattend",
         "ROADMAP.md Part 12",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -28380,7 +28586,7 @@
       "hint": "Master architectural distillation and full-spectrum systems synthesis for MiOS.",
       "related": [
         "ROADMAP.md",
-        "TASKS.jsonl",
+        "tasks.jsonl",
         "ADR.md",
         "usr/share/doc/mios/adr/",
         "usr/share/mios/mios.toml"
@@ -30901,7 +31107,7 @@
         "tools/lib/userenv.sh",
         "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
-        "TASKS.jsonl"
+        "tasks.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -31260,7 +31466,7 @@
       "path": "usr/share/doc/mios/reference/deploy-plane-state.md",
       "hint": "The measured state of the MiOS deploy plane: what installs, what does not, and the root causes behind each.",
       "related": [
-        "TASKS.jsonl",
+        "tasks.jsonl",
         "installation/",
         "usr/share/mios/ventoy/"
       ],
