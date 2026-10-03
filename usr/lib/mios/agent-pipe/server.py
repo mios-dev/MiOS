@@ -466,12 +466,6 @@ DEEPEN_LANES = set(x.strip() for x in os.environ.get(
 from mios_pipe.scheduler.admission import (
     _parse_lane_caps,
     _priority_gate,
-    _SloShed,
-    _parse_lane_priority,
-    _lane_sem,
-    _endpoint_key,
-    _endpoint_sem,
-    _admit,
     configure as _configure_admission,
 )
 
@@ -689,9 +683,9 @@ mios_slo.configure(
         "interactive_priority", 7.0)),
 )
 
+from mios_pipe import vram_scheduler as _vram_scheduler
 from mios_pipe.vram_scheduler import (
     _SloShed,
-    _parse_lane_priority,
     _lane_sem,
     _endpoint_key,
     _endpoint_sem,
@@ -699,15 +693,12 @@ from mios_pipe.vram_scheduler import (
     configure as _configure_vram_scheduler,
     _LANE_SEMS,
     _ENDPOINT_SEMS,
-    _LANE_PRIORITY,
     _ACTIVE_MODELS,
     _ACTIVE_LOCK,
     _ENDPOINT_RESERVED,
     _HOST_STATS_CACHE,
     _RESIDENT_CACHE,
     _ADMIT_SEQ,
-    NODES_RESEARCH_ONLY,
-    VRAM_RECLAIM_IDLE
 )
 
 _configure_vram_scheduler(
@@ -1277,6 +1268,7 @@ from mios_pipe.scheduler.vram import (
     _model_is_active,
     _dispatch_priority,
     _reclaim_idle_vram,
+    configure as _configure_sched_vram,
 )
 
 _orig_over_global_ceiling = _over_global_ceiling
@@ -1458,7 +1450,11 @@ sys.modules["mios_agentreg"].configure(
     opt_int_mb=_opt_int_mb,
     logger=log,
     catalog_fail_mode=CATALOG_FAIL_MODE,
-    nodes_research_only=NODES_RESEARCH_ONLY,
+    nodes_research_only=_vram_scheduler.NODES_RESEARCH_ONLY,
+)
+_configure_sched_vram(
+    lane_priority=_vram_scheduler._LANE_PRIORITY,
+    agent_lane=_agent_lane,
 )
 
 _AGENT_REGISTRY = _load_agent_registry()
@@ -1891,6 +1887,13 @@ def _turn_tenant() -> "Optional[str]":
         return owner or None
     except Exception:  # noqa: BLE001 -- degrade-open: tenant binding never breaks a turn
         return None
+
+_configure_admission(
+    priority_queue_enable=PRIORITY_QUEUE_ENABLE,
+    tenant_quota_enable=TENANT_QUOTA_ENABLE,
+    global_priority_gate=_GLOBAL_PRIORITY_GATE,
+    turn_tenant=_turn_tenant,
+)
 
 _dispatch_agent_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_agent", default="")

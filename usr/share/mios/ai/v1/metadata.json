@@ -13294,10 +13294,10 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py",
-      "hint": "Admission control / SLO / lane-semaphore seam extracted from server.py.",
+      "hint": "Global priority-gate seam extracted from server.py; lane/endpoint semaphores and _admit live in mios_pipe/vram_scheduler.py.",
       "related": [
         "usr/lib/mios/agent-pipe/server.py",
-        "usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py"
+        "usr/lib/mios/agent-pipe/mios_pipe/vram_scheduler.py"
       ],
       "functions": [],
       "doc": null,

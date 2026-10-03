@@ -186,6 +186,60 @@ _EXTRACTED = {
                      "_judge_answer_satisfied"],
 }
 
+def _ssot_flag(env: str, key: str, default: str, server) -> str:
+    """The [dispatch] value as the SSOT cascade resolves it: env wins, then the TOML."""
+    return str(os.environ.get(env) or server._DISPATCH_TOML.get(key, default)).strip().lower()
+
+def _check_scheduler_wiring(server):
+    """The [dispatch] scheduler knobs reach their consumers after server's DI runs."""
+    import asyncio
+    from mios_pipe import vram_scheduler as vs
+    from mios_pipe.scheduler import admission
+
+    want_reclaim = _ssot_flag("MIOS_VRAM_RECLAIM_IDLE", "vram_reclaim_idle", "true",
+                              server) not in {"0", "false", "no", "off"}
+    check("[dispatch] vram_reclaim_idle reaches the admit path",
+          vs.VRAM_RECLAIM_IDLE is want_reclaim,
+          f"want {want_reclaim}, got {vs.VRAM_RECLAIM_IDLE}")
+
+    want_research = _ssot_flag("MIOS_NODES_RESEARCH_ONLY", "nodes_research_only", "false",
+                               server) in {"1", "true", "yes"}
+    got_research = sys.modules["mios_agentreg"].NODES_RESEARCH_ONLY
+    check("[dispatch] nodes_research_only reaches the agent registry",
+          got_research is want_research, f"want {want_research}, got {got_research}")
+
+    lane_map = vs._parse_lane_priority(
+        os.environ.get("MIOS_LANE_PRIORITY") or server._DISPATCH_TOML.get("lane_priority", ""))
+    for lane in ("gpu", "cpu", "igpu"):
+        want = lane_map.get(lane, lane_map["_default"])
+        got = server._dispatch_priority({"lane": lane})
+        check(f"[dispatch] lane_priority sets the {lane} dispatch priority",
+              got == want, f"want {want}, got {got}")
+
+    gate = server._GLOBAL_PRIORITY_GATE
+    cap = gate.stats()["cap"]
+    peak = {"now": 0, "max": 0}
+
+    async def _hold():
+        async with server._priority_gate(5.0):
+            peak["now"] += 1
+            peak["max"] = max(peak["max"], peak["now"])
+            await asyncio.sleep(0.02)
+            peak["now"] -= 1
+
+    async def _burst():
+        await asyncio.gather(*(_hold() for _ in range(cap + 2)))
+
+    asyncio.run(_burst())
+    enabled = server.PRIORITY_QUEUE_ENABLE
+    want_peak = cap if enabled else cap + 2
+    check("[dispatch] priority_queue_enable engages the global priority gate",
+          admission._GLOBAL_PRIORITY_GATE is (gate if enabled else None)
+          and peak["max"] == want_peak,
+          f"enable={enabled} cap={cap} peak={peak['max']} want={want_peak}")
+    check("priority gate released every permit", gate.stats()["in_flight"] == 0,
+          str(gate.stats()))
+
 def main():
     _resolve_toml()
     _install_stubs()
@@ -213,6 +267,8 @@ def main():
         check("_bind_host auth-on -> all-interfaces", bh(True) == "0.0.0.0", bh(True))
         check("_bind_host explicit override wins",
               bh(False, "10.1.2.3") == "10.1.2.3", bh(False, "10.1.2.3"))
+
+    _check_scheduler_wiring(server)
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0

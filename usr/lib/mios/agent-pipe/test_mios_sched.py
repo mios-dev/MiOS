@@ -481,25 +481,56 @@ async def main() -> int:
 # ==============================================================================
 # Consolidated from test_mios_admission.py (T-1092)
 # ==============================================================================
-# AI-hint: Unit tests for mios_pipe.scheduler.admission.
+# AI-hint: Unit tests for the admission seam (mios_pipe.vram_scheduler semaphores + the scheduler.admission priority gate).
 """Unit tests for admission control and lane semaphore management."""
 
 import unittest
 
-from mios_pipe.scheduler.admission import (
+from mios_pipe import vram_scheduler as _vs
+from mios_pipe.scheduler import admission as _adm
+from mios_pipe.vram_scheduler import (
     _SloShed,
     _endpoint_key,
     _lane_sem,
-    configure as configure_admission,
+    configure as configure_vram_scheduler,
 )
 
 class TestAdmission(unittest.TestCase):
 
     def setUp(self):
-        configure_admission(
-            agent_concurrency=4,
-            endpoint_concurrency=2,
+        configure_vram_scheduler(
+            AGENT_CONCURRENCY=4,
+            ENDPOINT_CONCURRENCY=2,
+            _dispatch_num=lambda _env, _key, default, cast=int: default,
         )
+
+    def test_priority_gate_serializes_when_enabled(self):
+        """With the queue enabled, _priority_gate holds a permit of the configured gate."""
+        saved = (_adm.PRIORITY_QUEUE_ENABLE, _adm._GLOBAL_PRIORITY_GATE)
+        gate = PriorityGate(1, 0.0)
+        peak = {"now": 0, "max": 0}
+
+        async def _hold():
+            async with _adm._priority_gate(5.0):
+                peak["now"] += 1
+                peak["max"] = max(peak["max"], peak["now"])
+                await asyncio.sleep(0.01)
+                peak["now"] -= 1
+
+        async def _burst():
+            await asyncio.gather(_hold(), _hold(), _hold())
+
+        try:
+            _adm.configure(priority_queue_enable=True, global_priority_gate=gate)
+            asyncio.run(_burst())
+            self.assertEqual(peak["max"], 1)
+            self.assertEqual(gate.stats()["in_flight"], 0)
+            _adm.configure(priority_queue_enable=False)
+            peak["max"] = 0
+            asyncio.run(_burst())
+            self.assertEqual(peak["max"], 3)
+        finally:
+            _adm.PRIORITY_QUEUE_ENABLE, _adm._GLOBAL_PRIORITY_GATE = saved
 
     def test_sloshed_exception_class(self):
         err = _SloShed("slo_test")
@@ -594,15 +625,45 @@ def _run_extra_vram():
 # ==============================================================================
 # Consolidated from test_mios_vram_scheduler.py (T-1092)
 # ==============================================================================
-# AI-hint: Placeholder test for mios_vram_scheduler.py.
-def test_stub():
-    pass
+# AI-hint: [dispatch] values injected through vram_scheduler.configure take effect.
+class TestVramSchedulerDispatch(unittest.TestCase):
+
+    _ENV = ("MIOS_NODES_RESEARCH_ONLY", "MIOS_VRAM_RECLAIM_IDLE", "MIOS_LANE_PRIORITY")
+
+    def test_configured_dispatch_table_recomputes_derived_values(self):
+        saved = (_vs._DISPATCH_TOML, _vs.NODES_RESEARCH_ONLY, _vs.VRAM_RECLAIM_IDLE,
+                 _vs._LANE_PRIORITY)
+        for k in self._ENV:
+            os.environ.pop(k, None)
+        try:
+            configure_vram_scheduler(_DISPATCH_TOML={
+                "nodes_research_only": "true",
+                "vram_reclaim_idle": "false",
+                "lane_priority": "gpu:9,cpu:1,_default:4",
+            })
+            self.assertIs(_vs.NODES_RESEARCH_ONLY, True)
+            self.assertIs(_vs.VRAM_RECLAIM_IDLE, False)
+            self.assertEqual(_vs._LANE_PRIORITY["gpu"], 9.0)
+            self.assertEqual(_vs._LANE_PRIORITY["cpu"], 1.0)
+            self.assertEqual(_vs._LANE_PRIORITY["_default"], 4.0)
+            os.environ["MIOS_NODES_RESEARCH_ONLY"] = "false"
+            configure_vram_scheduler(_DISPATCH_TOML={"nodes_research_only": "true"})
+            self.assertIs(_vs.NODES_RESEARCH_ONLY, False)
+        finally:
+            (_vs._DISPATCH_TOML, _vs.NODES_RESEARCH_ONLY, _vs.VRAM_RECLAIM_IDLE,
+             _vs._LANE_PRIORITY) = saved
+
 
 def _run_extra_vram_scheduler():
     import os
     _saved_env = dict(os.environ)
     try:
-        return 0
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(
+            TestVramSchedulerDispatch))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
     except SystemExit as _e:
         return _e.code if _e.code is not None else 0
     finally:

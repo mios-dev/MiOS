@@ -34,7 +34,9 @@ _LANE_SEMS = {}
 _ENDPOINT_SEMS = {}
 
 def configure(**kwargs):
+    """Inject server state; values derived from [dispatch] follow the injected table."""
     globals().update(kwargs)
+    _apply_dispatch_toml()
 
 class _SloShed(Exception):
     """Raised by _admit to SHED a best_effort dispatch under contention (WS-SCHED-
@@ -44,13 +46,6 @@ class _SloShed(Exception):
 _HOST_STATS_CACHE = {"t": 0.0, "v": None}
 _RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
 _ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
-
-NODES_RESEARCH_ONLY = str(os.environ.get("MIOS_NODES_RESEARCH_ONLY")
-                          or _DISPATCH_TOML.get("nodes_research_only", "false")
-                          ).strip().lower() in {"1", "true", "yes"}
-VRAM_RECLAIM_IDLE = str(os.environ.get("MIOS_VRAM_RECLAIM_IDLE")
-                        or _DISPATCH_TOML.get("vram_reclaim_idle", "true")
-                        ).strip().lower() not in {"0", "false", "no", "off"}
 
 def _parse_lane_priority(s: str) -> dict:
     """'gpu:8,cpu:7,...' -> {lane: prio}. Always carries a _default."""
@@ -64,10 +59,21 @@ def _parse_lane_priority(s: str) -> dict:
                 pass
     return out
 
-_LANE_PRIORITY = _parse_lane_priority(
-    os.environ.get("MIOS_LANE_PRIORITY")
-    or _DISPATCH_TOML.get("lane_priority",
-                          "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"))
+def _apply_dispatch_toml() -> None:
+    """Derive the [dispatch] scheduler knobs from the current _DISPATCH_TOML (env wins)."""
+    global NODES_RESEARCH_ONLY, VRAM_RECLAIM_IDLE, _LANE_PRIORITY
+    NODES_RESEARCH_ONLY = str(os.environ.get("MIOS_NODES_RESEARCH_ONLY")
+                              or _DISPATCH_TOML.get("nodes_research_only", "false")
+                              ).strip().lower() in {"1", "true", "yes"}
+    VRAM_RECLAIM_IDLE = str(os.environ.get("MIOS_VRAM_RECLAIM_IDLE")
+                            or _DISPATCH_TOML.get("vram_reclaim_idle", "true")
+                            ).strip().lower() not in {"0", "false", "no", "off"}
+    _LANE_PRIORITY = _parse_lane_priority(
+        os.environ.get("MIOS_LANE_PRIORITY")
+        or _DISPATCH_TOML.get("lane_priority",
+                              "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"))
+
+_apply_dispatch_toml()
 _ACTIVE_MODELS: "collections.Counter" = collections.Counter()
 _ACTIVE_LOCK = asyncio.Lock()
 _ENDPOINT_RESERVED: dict = {}
