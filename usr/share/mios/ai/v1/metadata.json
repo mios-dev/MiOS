@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3632,
-  "total_metadata_entries": 2995,
-  "total_hints": 2980,
+  "total_files_scanned": 3633,
+  "total_metadata_entries": 2996,
+  "total_hints": 2981,
   "total_functions_indexed": 1455,
   "total_related_links": 4781,
   "entries": [
@@ -381,6 +381,15 @@
     {
       "path": ".research/separate-dotfiles-secrets-repository-pattern-2026-09.md",
       "hint": "Upstream pattern research on keeping operator dotfiles and secrets in separate repositories, and the resulting MiOS three-repository decision.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": ".research/ssot-engine-prior-art-2026-10.md",
+      "hint": "Prior art and gap plan for the SSOT engine: mios.toml + typed schema -> generated mios.html -> categorized local Rust binaries in every image -> projections.",
       "related": [],
       "functions": [],
       "doc": null,

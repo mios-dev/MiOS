@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1595 |
+| pending | 1614 |
 | in_progress | 45 |
 | completed | 1807 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3484 |
+| total | 3503 |
 
 0 record(s) carry at least one override.
 
@@ -658,6 +658,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2381` Automated livepatch signature verification, unsigned module rejection, and IMA test suite -- pending · P2 · size S · depends_on AGY-2380
 - `AGY-2388` Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore -- pending · P1 · size M · depends_on AGY-2387
 - `AGY-2389` Automated kernel panic injection, ramoops log preservation, and database ingestion test suite -- pending · P2 · size S · depends_on AGY-2388
+- `T-1204` First-boot credential import as two ADR-0021 verbs (no new binary) (WS-BOOT | P2 | M) -- pending · P2 · size M · depends_on T-1196, T-1198
 
 ## WS-BOOTC
 
@@ -688,6 +689,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `AGY-103` Harden the `artifacts/ai-rag` producer to match the `/v1`-only consumer -- completed · P2 · size M
 - `AGY-1621` Sync the bootstrap repo at build time, not by hand -- completed · P0 · size M
+- `T-1194` Stop the bootstrap promote from writing the vendor tier (WS-BOOTSTRAP | P0 | M) -- pending · P0 · size M · depends_on T-1196
+- `T-1209` Bootstrap profile becomes a sparse host-tier delta (WS-BOOTSTRAP | P3 | M) -- pending · P3 · size M · depends_on T-1196, T-1194
 
 ## WS-BUILD
 
@@ -757,6 +760,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2363` Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms -- pending · P1 · size M · depends_on AGY-2362
 - `AGY-2364` Automated out-of-tree module compilation, MOK signature verification, and cache test suite -- pending · P2 · size S · depends_on AGY-2363
 - `T-1128` Complete self-hosting and development package dependency closure -- completed · P1 · size M
+- `T-1200` Build-time consumers read the layered resolver, including host-tier pre-build edits (WS-BUILD | P1 | M) -- pending · P1 · size M · depends_on T-1192
 
 ## WS-C0
 
@@ -911,6 +915,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-227` Couple the installers' /configure URL to the real Portal route so it cannot 404 -- completed · P2 · size S
 - `AGY-2217` Declarative configuration drift auditor and 3-way OCI overlay reconciler -- pending · P1 · size M · depends_on AGY-2216
 - `AGY-2218` Automated configuration drift detection and state reconciliation test suite -- pending · P2 · size S · depends_on AGY-2217
+- `T-1196` The shared SSOT crate owns the typed model, validate and tiered writes; `mios-gen schema` emits the schema (WS-CONFIG | P1 | M) -- pending · P1 · size M · depends_on T-1192
+- `T-1195` The configurator never parses TOML in the browser (WS-CONFIG | P0 | M) -- pending · P0 · size M · depends_on T-1196
+- `T-1206` Schema-generated configurator (WS-CONFIG | P2 | M) -- pending · P2 · size M · depends_on T-1195, T-1196
 
 ## WS-CONSOLIDATE
 
@@ -1292,6 +1299,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-210` Gate ship-completeness of the QML component graph: every surface Config.qml pulls in must exist in the image -- completed · P3 · size S · depends_on AGY-209
 - `AGY-1928` The desktop shell effects are hardcoded rather than projected -- pending · P2 · size M · depends_on AGY-1874
 - `T-1146` Flatpak hygiene: pre-seed the Fedora Platform runtime and de-duplicate Epiphany -- pending · P3 · size S
+- `T-1202` dconf from SSOT, readable at runtime (WS-DESKTOP | P2 | M) -- pending · P2 · size M · depends_on T-1201, T-1203
 
 ## WS-DIAG
 
@@ -1522,6 +1530,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2063` Cross-platform clipboard synchronizer between host and virtual machines with redaction -- completed · P1 · size M · depends_on AGY-2062
 - `AGY-2180` Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project -- completed · P1 · size M · depends_on AGY-2179
 - `AGY-1692` ADR-0010 finish charter (restated): registry kind + merge-surface test coverage, ON MAIN, no branches -- completed · P2 · size M · depends_on AGY-58
+- `T-1201` `mios-gen dotfiles` module (WS-DOTFILES | P2 | M) -- pending · P2 · size M · depends_on T-1192, T-1197
 
 ## WS-DOTFILES / ADR-0010
 
@@ -2055,6 +2064,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ## WS-IMAGE
 
+### No epic
+
+- `T-1205` Rust devcontainer projector + image metadata label (WS-IMAGE | P2 | M) -- pending · P2 · size M · depends_on T-1197
+
 ### Epic T-1164
 
 - `T-1170` Law 6 residual: generator refuses a non-allowlisted container with no User=; missing-User= negative plant; user-scope sunshine kept as committed -- completed · owner claude-code · P1 · size S
@@ -2172,6 +2185,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2174` Real-time wallpaper occlusion frame pacing and GPU load benchmark suite -- completed · P2 · size S · depends_on AGY-2173
 - `T-1125` Prove credential handoff and sandbox boundaries for agent children -- pending · P1 · size M
 - `T-1188` Remove audited dead PowerShell in both repos and settle the mios-node Rust parity stubs -- pending · P3 · size M
+- `T-1197` Create ADR-0021's `[rust.categories]` registry + ownership gate (WS-LANG | P1 | M) -- pending · P1 · size M
+- `T-1198` `mios-gen apply` re-projects after save and at boot (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1196, T-1197
+- `T-1199` One config server (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1198
+- `T-1207` Verb dispatcher projected; miosd render verbs moved into `mios-gen` (WS-LANG | P2 | M) -- pending · P2 · size M · depends_on T-1197
 
 ## WS-LANG,WS-DEBT
 
@@ -3003,6 +3020,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1194` Reconcile the two divergent EXCLUDED_SECTIONS semantics into one typed model in mios-ssot-walk -- completed · P1 · size M
 - `AGY-1195` Add a bootstrap-ordering degrade-open guard so resolver consumers survive before the binary is installed -- completed · P0 · size M
 - `AGY-1561` Make native `mios-config` schema-GENERIC so a mios.toml section change never forces a Rust recompile -- completed · P1 · size M
+- `T-1192` Resolver honours "empty never overrides" in every binary (WS-RESOLVER | P0 | M) -- pending · P0 · size M
+- `T-1193` Twin-parity corpus that cannot skip (WS-RESOLVER | P0 | M) -- pending · P0 · size M · depends_on T-1192
+- `T-1208` Aliases become an SSOT table; Python and bash twins consume `--emit json` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1193
+- `T-1210` `mios-resolve --explain KEY` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1192
 
 ## WS-ROADMAP
 
@@ -4088,6 +4109,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1474` Narrow the blanket exempt_files globs that hide usr/libexec, usr/share/mios and firstboot from the port/IP scan -- pending · P2 · size L
 - `AGY-1475` Generate the nohc_allowlist bare-port exempt_patterns from the [ports] loopback keys and diff-gate them -- pending · P3 · size M
 - `AGY-1476` Correct the mios-ttyd-launch fallbacks to the SSOT ttyd ports and strip the stale :7681/:7682 comment literals -- pending · P3 · size S
+- `T-1203` Collapse duplicate appearance names; remove literals (WS-ZEROHC | P2 | M) -- pending · P2 · size M · depends_on T-1197
 
 ## test-coverage
 
