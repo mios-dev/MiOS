@@ -12,6 +12,7 @@ with sub-300ms time-to-first-sound latency.
 from __future__ import annotations
 
 import argparse
+import array
 import concurrent.futures
 import io
 import json
@@ -553,7 +554,37 @@ class HttpSynthesisEngine(BaseSynthesisEngine):
         if not data.startswith(b"RIFF"):
             raise RuntimeError(f"HTTP synthesis at {url} returned non-WAV data ({len(data)} bytes)")
         with wave.open(io.BytesIO(data), "rb") as wf:
-            return wf.readframes(wf.getnframes())
+            rate, width, chans = wf.getframerate(), wf.getsampwidth(), wf.getnchannels()
+            frames = wf.readframes(wf.getnframes())
+        if width != BYTES_PER_SAMPLE or chans != DEFAULT_CHANNELS:
+            raise RuntimeError(f"HTTP synthesis at {url} returned {width * 8}-bit/{chans}ch audio; "
+                               f"the feeder plays {BYTES_PER_SAMPLE * 8}-bit/{DEFAULT_CHANNELS}ch")
+        # piper voices run at their own rate (22050 Hz for -medium); played unconverted at the
+        # feeder's rate they would sound fast and high-pitched.
+        return resample_pcm16(frames, rate, self.sample_rate)
+
+
+def resample_pcm16(frames: bytes, src_rate: int, dst_rate: int) -> bytes:
+    """Linear-interpolation resample of mono signed 16-bit little-endian PCM."""
+    if src_rate == dst_rate or not frames:
+        return frames
+    src = array.array("h")
+    src.frombytes(frames)
+    if sys.byteorder == "big":
+        src.byteswap()
+    n_out = max(1, round(len(src) * dst_rate / src_rate))
+    step = (len(src) - 1) / max(n_out - 1, 1)
+    out = array.array("h", bytes(2 * n_out))
+    for i in range(n_out):
+        x = i * step
+        j = int(x)
+        frac = x - j
+        a = src[j]
+        b = src[j + 1] if j + 1 < len(src) else a
+        out[i] = int(round(a + (b - a) * frac))
+    if sys.byteorder == "big":
+        out.byteswap()
+    return out.tobytes()
 
 
 # ==============================================================================

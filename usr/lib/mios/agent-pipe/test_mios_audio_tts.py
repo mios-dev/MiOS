@@ -82,7 +82,7 @@ class TestAudioTts(unittest.TestCase):
         _PiperStub.requests.clear()
 
     def test_posts_synthesize_with_piper_request_shape(self):
-        eng = mios_audio_tts.HttpSynthesisEngine(endpoint_url=self.base + "/")
+        eng = mios_audio_tts.HttpSynthesisEngine(endpoint_url=self.base + "/", sample_rate=22050)
         pcm = eng.synthesize_chunk("Hello there.", "en_US-lessac-medium")
         self.assertEqual(pcm, PCM)
         self.assertEqual(len(_PiperStub.requests), 1)
@@ -96,7 +96,8 @@ class TestAudioTts(unittest.TestCase):
             pcm = worker.synthesis_engine.synthesize_chunk("Hi.", worker.voice)
         finally:
             worker.executor.shutdown(wait=False)
-        self.assertEqual(pcm, PCM)
+        # The worker plays at the feeder's rate; the stub's 22050 Hz voice is converted to it.
+        self.assertEqual(len(pcm) // 2, round((len(PCM) // 2) * worker.sample_rate / 22050))
         self.assertEqual([p for p, _ in _PiperStub.requests], ["/synthesize"])
 
     def test_http_error_is_raised_not_swallowed(self):
@@ -104,6 +105,39 @@ class TestAudioTts(unittest.TestCase):
         eng.synthesize_url = lambda: self.base + "/"  # GET-only route -> 405
         with self.assertRaises(RuntimeError):
             eng.synthesize_chunk("Hi.", "en_US-lessac-medium")
+
+    def test_voice_rate_is_converted_to_the_feeder_rate(self):
+        # A 22050 Hz voice played at 24000 Hz unconverted would run ~9% fast and sharp.
+        eng = mios_audio_tts.HttpSynthesisEngine(endpoint_url=self.base, sample_rate=24000)
+        pcm = eng.synthesize_chunk("Rate.", "en_US-lessac-medium")
+        self.assertEqual(len(pcm) // 2, round((len(PCM) // 2) * 24000 / 22050))
+
+    def test_resample_keeps_a_constant_signal_and_passes_equal_rates_through(self):
+        flat = (1000).to_bytes(2, "little", signed=True) * 2205
+        out = mios_audio_tts.resample_pcm16(flat, 22050, 24000)
+        self.assertEqual(len(out) // 2, 2400)
+        self.assertEqual(set(out[i:i + 2] for i in range(0, len(out), 2)), {flat[:2]})
+        self.assertIs(mios_audio_tts.resample_pcm16(flat, 24000, 24000), flat)
+
+    def test_unplayable_sample_format_is_refused(self):
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(1)
+            wf.setframerate(22050)
+            wf.writeframes(b"\x80" * 64)
+        eng = mios_audio_tts.HttpSynthesisEngine(endpoint_url=self.base)
+        import urllib.request as _u
+        real = _u.urlopen
+        class _Resp(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        _u.urlopen = lambda *a, **k: _Resp(buf.getvalue())
+        try:
+            with self.assertRaises(RuntimeError):
+                eng.synthesize_chunk("x", "en_US-lessac-medium")
+        finally:
+            _u.urlopen = real
 
     def test_only_served_engines_are_supported(self):
         # Nothing serves an OpenAI /v1/audio/speech TTS route, so no engine may

@@ -1985,7 +1985,7 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_AUDIO_BASE:=8178}"
-[ -n "${MIOS_PORTS_CATEGORIES_AUDIO_DOC+x}" ] || MIOS_PORTS_CATEGORIES_AUDIO_DOC='Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper/Kokoro TTS. The base is where the pair'"'"'s shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both.'
+[ -n "${MIOS_PORTS_CATEGORIES_AUDIO_DOC+x}" ] || MIOS_PORTS_CATEGORIES_AUDIO_DOC='Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper TTS. The base is where the pair'"'"'s shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both.'
 : "${MIOS_PORTS_CATEGORIES_AUDIO_MEMBERS:=whisper,piper}"
 : "${MIOS_PORTS_CATEGORIES_AUDIO_STRIDE:=1}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_BASE:=8950}"

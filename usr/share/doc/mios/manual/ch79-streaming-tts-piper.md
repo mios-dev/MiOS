@@ -1,10 +1,10 @@
-<!-- AI-hint: Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
+<!-- AI-hint: Chapter 79: Concurrent Streaming Piper TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
 
-# Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder
+# Chapter 79: Concurrent Streaming Piper TTS Audio Synthesis and PipeWire Buffer Feeder
 
 > Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
-This chapter documents the concurrent streaming speech synthesis architecture, sentence boundary detection, local Piper and Kokoro ONNX neural voice engines, and PipeWire low-latency buffer feeder implemented in [`usr/lib/mios/agent-pipe/mios_audio_tts.py`](file:///usr/lib/mios/agent-pipe/mios_audio_tts.py) and the Quadlet container [`usr/share/containers/systemd/mios-piper.container`](file:///usr/share/containers/systemd/mios-piper.container).
+This chapter documents the concurrent streaming speech synthesis architecture, sentence boundary detection, the local Piper ONNX neural voice engine, and PipeWire low-latency buffer feeder implemented in [`usr/lib/mios/agent-pipe/mios_audio_tts.py`](file:///usr/lib/mios/agent-pipe/mios_audio_tts.py) and the Quadlet container [`usr/share/containers/systemd/mios-piper.container`](file:///usr/share/containers/systemd/mios-piper.container).
 
 ```mermaid
 flowchart TD
@@ -13,8 +13,8 @@ flowchart TD
     subgraph Dispatch ["Concurrent Synthesis Pool"]
         Split --> Q0["Sentence Chunk 0 ('Welcome to MiOS.')"]
         Split --> Q1["Sentence Chunk 1 ('Audio stack active.')"]
-        Q0 --> W0["Worker 0 (Piper / Kokoro ONNX)"]
-        Q1 --> W1["Worker 1 (Piper / Kokoro ONNX)"]
+        Q0 --> W0["Worker 0 (Piper ONNX)"]
+        Q1 --> W1["Worker 1 (Piper ONNX)"]
     end
 
     subgraph Engine ["Local TTS Sidecar Container"]
@@ -51,7 +51,7 @@ MiOS circumvents this through real-time sentence and clause segmentation via `Se
 
 ---
 
-### <a name="79_concurrent_synthesis"></a>79.Concurrent Synthesis: Piper & Kokoro ONNX Neural Engines
+### <a name="79_concurrent_synthesis"></a>79.Concurrent Synthesis: Piper ONNX Neural Engine
 
 > Path Reference: `/usr/share/doc/mios/manual.md#79_concurrent_synthesis`
 

@@ -115,8 +115,23 @@ def _in_image_model(root: str, engine: str, spec: dict, argv: list[str]) -> list
 
 
 def _under(path: str, root: str) -> bool:
-    path, root = path.rstrip("/") or "/", root.rstrip("/") or "/"
-    return path == root or path.startswith(root + "/")
+    path, root = os.path.normpath(path), os.path.normpath(root)
+    return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+def _mounts(q: dict) -> list[tuple[str, str]]:
+    """(source, target) for every Volume=, Mount= and Tmpfs= of the unit; a tmpfs has no source."""
+    out = []
+    for v in q.get("Container", {}).get("Volume", []):
+        parts = v.split(":")
+        out.append((parts[0], parts[1] if len(parts) >= 2 else parts[0]))
+    for m in q.get("Container", {}).get("Mount", []):
+        kv = dict(f.split("=", 1) for f in m.split(",") if "=" in f)
+        out.append((kv.get("source", kv.get("src", "")),
+                    kv.get("target", kv.get("destination", kv.get("dst", "")))))
+    for t in q.get("Container", {}).get("Tmpfs", []):
+        out.append(("", t.split(":")[0]))
+    return out
 
 
 def _model_targets(engine: str, argv: list[str]) -> list[str]:
@@ -146,15 +161,13 @@ def check_engine(root: str, engine: str, spec: dict) -> list[str]:
     execs = q.get("Container", {}).get("Exec", [])
     argv = shlex.split(" ".join(execs).replace("'", "")) if execs else []
     targets = _model_targets(engine, argv)
-    for v in q.get("Container", {}).get("Volume", []):
-        parts = v.split(":")
-        src = parts[0]
-        dst = parts[1] if len(parts) >= 2 else parts[0]
+    for src, dst in _mounts(q):
         if src.startswith("/") and (_under(src, store) or any(_under(src, h) for h in HOST_STORE_ROOTS)):
             errors.append(f"{unit} mounts host model store {src} (at {dst})")
+        # At, below or above the model path: a mount over an ancestor hides it too.
         for t in targets:
-            if _under(dst, t):
-                errors.append(f"{unit} mounts {src} over in-image model path {dst}")
+            if dst and (_under(dst, t) or _under(t, dst)):
+                errors.append(f"{unit} mounts {src or 'a tmpfs'} over in-image model path {dst}")
                 break
     for a in q.get("Unit", {}).get("AssertPathExists", []):
         if a.startswith(store):
@@ -190,6 +203,31 @@ class TestSpeechStorage(unittest.TestCase):
     def _append(self, rel: str, text: str) -> None:
         with open(os.path.join(self.scratch, rel), "a", encoding="utf-8") as f:
             f.write(text)
+
+    def test_negative_mount_shapes_that_hide_the_model(self) -> None:
+        """Non-normalized store sources, ancestor targets, Mount= binds and a Tmpfs= over the model."""
+        plants = {
+            "piper": ["Volume=/var/lib//mios/piper/models:/data:ro,Z",
+                      "Volume=/opt/x:/usr/share/piper:ro,Z",
+                      "Mount=type=bind,source=/var/lib/mios/piper,target=/usr/share/piper/voices",
+                      "Tmpfs=/usr/share/piper/voices"],
+            "whisper": ["Volume=/var/lib/mios/./whisper:/data:ro,Z",
+                        "Volume=/opt/x:/app:ro,Z",
+                        "Mount=type=bind,src=/srv/w,dst=/app/models",
+                        "Tmpfs=/app"],
+        }
+        for engine, lines in plants.items():
+            for line in lines:
+                with self.subTest(engine=engine, plant=line):
+                    rel = os.path.join(_QUADLETS, f"mios-{engine}.container")
+                    path = os.path.join(self.scratch, rel)
+                    with open(path, encoding="utf-8") as f:
+                        orig = f.read()
+                    self._plant(rel, "Volume=/run/mios:/run/mios:Z", f"{line}\nVolume=/run/mios:/run/mios:Z")
+                    errs = check_engine(self.scratch, engine, self.engines[engine])
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(orig)
+                    self.assertTrue(errs, f"{line} passed check_engine for {engine}")
 
     def test_both_engines_are_checked(self) -> None:
         # Guards against a vacuous pass: both units exist and both are walked.
