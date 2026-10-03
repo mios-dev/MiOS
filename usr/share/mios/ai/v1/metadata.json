@@ -4,7 +4,7 @@
   "total_metadata_entries": 2972,
   "total_hints": 2957,
   "total_functions_indexed": 1378,
-  "total_related_links": 4682,
+  "total_related_links": 4684,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -25901,10 +25901,12 @@
     },
     {
       "path": "usr/libexec/mios/test_mios_unit_hardening.py",
-      "hint": "Two-sided verification test suite for unit hardening directives under ProtectSystem=strict (T-1139).",
+      "hint": "Two-sided test for write paths of ProtectSystem=strict units (T-1139); checks the state dirs are writable and that any StateDirectory= owner/mode agrees with tmpfiles.d.",
       "related": [
         "usr/lib/systemd/system/mios-agents.service",
         "usr/lib/systemd/system/mios-cron-director.service",
+        "usr/lib/tmpfiles.d/mios-agents.conf",
+        "usr/lib/tmpfiles.d/mios-cron-director.conf",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
