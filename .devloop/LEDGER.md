@@ -1744,3 +1744,10 @@ so long. Let a run finish.
 - next: this session takes only unclaimed rows, claiming each in its own commit first.
 - blockers: -
 - unverified: booted-host runtime for T-1139/T-1140/T-1141/T-1155; the --privileged CI tiers on GitHub. Branch claude/dazzling-lovelace-u7edfb on origin is stale (pre-rebase); main is authoritative.
+
+## 2026-10-03 05:50 · 8a7f3d19 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
