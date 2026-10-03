@@ -228,12 +228,8 @@ log "Test Group 3: Kernel Lockdown Mode & /dev/mem Access Lockdown (EPERM)"
 LOCKDOWN_PROBE="${ROOT}/usr/libexec/mios/sec/lockdown_probe.py"
 [[ -f "$LOCKDOWN_PROBE" ]] || die "lockdown_probe.py not found at ${LOCKDOWN_PROBE}"
 
-# 3.1 /dev/mem lockdown probe. The probe takes its device and lockdown-interface
-# paths as arguments so the SAME code runs against the live host and against
-# fixtures. Exit codes: 0 = access refused under an active lockdown,
-# 2 = UNLOCKED_ACCESS_VIOLATION, 3 = SKIP (this host cannot answer), 1 = error.
-# A skip is an ENVIRONMENT fact (no /dev/mem, no lockdown LSM, lockdown=[none]):
-# it is reported as SKIP and never counted as a pass.
+# 3.1 /dev/mem lockdown probe, same code for host and fixtures. Exit 0 refused under
+# lockdown, 2 violation, 3 SKIP (never a pass), 1 error.
 DEVMEM_PROBE="${TMP_DIR}/devmem_probe.py"
 cat > "$DEVMEM_PROBE" << 'PYEOF'
 import os, sys, errno

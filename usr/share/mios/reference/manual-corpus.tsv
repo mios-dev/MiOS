@@ -5270,11 +5270,11 @@ tests/test-blade-enroll.sh	425	427	3	2	98536d045b64	DROP	banner		0				0
 tests/test-blade-reachability.sh	1	3	3	31	db58a4ca0222	STAY	ai-header		0				0
 tests/test-blade-reachability.sh	14	16	3	35	87d0a9b33aca	STAY	midsize-why		0				0
 tests/test-blade-reachability.sh	20	22	3	42	1117548b250f	STAY	midsize-why		0				0
-tests/test-blade-reachability.sh	41	45	5	68	c6e460ab3652	MIGRATE	narrative-rationale		0				0
-tests/test-blade-reachability.sh	77	78	2	25	cef573b64e87	STAY	local-scoped		0				0
-tests/test-blade-reachability.sh	121	121	1	10	881cb54caea5	STAY	local-scoped		0				0
-tests/test-blade-reachability.sh	132	132	1	12	86926aa971f9	STAY	local-scoped		0				0
-tests/test-blade-reachability.sh	143	145	3	43	d59536022310	STAY	midsize-why		0				0
+tests/test-blade-reachability.sh	41	42	2	25	cc47f173c583	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	74	75	2	25	cef573b64e87	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	118	118	1	10	881cb54caea5	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	129	129	1	12	86926aa971f9	STAY	local-scoped		0				0
+tests/test-blade-reachability.sh	140	142	3	43	d59536022310	STAY	midsize-why		0				0
 tests/test-bootc-rollback-recovery.sh	1	3	3	22	800b36bada40	STAY	ai-header		0				0
 tests/test-bootc-rollback-recovery.sh	27	27	1	14	cf3c956bcf90	STAY	local-scoped		0				0
 tests/test-bootc-rollback-recovery.sh	34	34	1	20	8a73fb7e040c	STAY	local-scoped		0				0
@@ -6028,15 +6028,15 @@ tests/test-kernel-module-signature-enforce.sh	181	181	1	6	f653c538865b	STAY	loca
 tests/test-kernel-module-signature-enforce.sh	197	197	1	7	cac7d894a8e8	STAY	local-scoped		0				0
 tests/test-kernel-module-signature-enforce.sh	213	213	1	13	2062a710f528	STAY	local-scoped		0				0
 tests/test-kernel-module-signature-enforce.sh	223	225	3	9	de7a0225daff	STAY	midsize-why		0				0
-tests/test-kernel-module-signature-enforce.sh	231	236	6	69	886ada64caca	MIGRATE	narrative-rationale		0				0
-tests/test-kernel-module-signature-enforce.sh	283	284	2	22	49bd98a36436	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	296	297	2	23	c123b103f60b	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	306	306	1	4	353f14f2faa3	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	315	315	1	9	52d69869ea91	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	327	327	1	11	225da92cf00e	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	339	339	1	11	0a1a6dcc9f30	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	351	351	1	7	0270bed67f3b	STAY	local-scoped		0				0
-tests/test-kernel-module-signature-enforce.sh	362	364	3	2	7d8d6654961d	DROP	banner		0				0
+tests/test-kernel-module-signature-enforce.sh	231	232	2	24	c5c1d94d8823	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	279	280	2	22	49bd98a36436	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	292	293	2	23	c123b103f60b	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	302	302	1	4	353f14f2faa3	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	311	311	1	9	52d69869ea91	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	323	323	1	11	225da92cf00e	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	335	335	1	11	0a1a6dcc9f30	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	347	347	1	7	0270bed67f3b	STAY	local-scoped		0				0
+tests/test-kernel-module-signature-enforce.sh	358	360	3	2	7d8d6654961d	DROP	banner		0				0
 tests/test-knowledge-graph.py	1	3	3	17	3b215562b135	STAY	ai-header		0				0
 tests/test-knowledge-graph.py	4	8	4	33	7a7c73280cc5	STAY	midsize-why		0				0
 tests/test-knowledge-graph.py	31	31	1	11	0fa4150c6a53	STAY	local-scoped		0				0
@@ -6979,6 +6979,11 @@ tests/test-ptp-time.py	154	154	1	3	4cbf7d461469	DROP	banner		0				0
 tests/test-quadlet-prewarm-offline.py	1	2	2	13	9c8a5c16a949	STAY	ai-header		0				0
 tests/test-quadlet-prewarm-offline.py	4	4	1	10	0dc04cec741a	STAY	local-scoped		0				0
 tests/test-quadlet-prewarm-offline.py	10	10	1	11	8bd6e59e7292	STAY	local-scoped		0				0
+tests/test-quadlet-state-mounts.py	1	3	3	37	2379202a1b89	STAY	ai-header		0				0
+tests/test-quadlet-state-mounts.py	14	14	1	6	c9e81dd69c17	STAY	inline-scoped		0				0
+tests/test-quadlet-state-mounts.py	18	18	1	8	1562b9c85c85	STAY	local-scoped		0				0
+tests/test-quadlet-state-mounts.py	50	51	2	26	c6a58caa3258	STAY	midsize-why		0				0
+tests/test-quadlet-state-mounts.py	66	67	2	18	0b10aee31e01	STAY	local-scoped		0				0
 tests/test-quickshell-shell.sh	1	3	3	23	832230cc712d	STAY	ai-header		0				0
 tests/test-quickshell-shell.sh	24	24	1	9	a44e58f0b071	STAY	local-scoped		0				0
 tests/test-quickshell-shell.sh	45	45	1	4	b9a59844c9b2	STAY	local-scoped		0				0
@@ -7099,11 +7104,11 @@ tests/test-sample-tune.py	19	19	1	9	251dbc9f4bf8	STAY	local-scoped		0				0
 tests/test-sandbox-seccomp.sh	1	3	3	13	19fa05a290ea	STAY	ai-header		0				0
 tests/test-sandbox-seccomp.sh	22	22	1	2	98e90e436295	STAY	local-scoped		0				0
 tests/test-sandbox-seccomp.sh	39	40	2	16	9a3cffa28d33	STAY	local-scoped		0				0
-tests/test-sandbox-seccomp.sh	69	73	5	61	0e9043092c48	MIGRATE	narrative-rationale		0				0
-tests/test-sandbox-seccomp.sh	88	90	3	37	ce6a42daeab0	STAY	midsize-why		0				0
-tests/test-sandbox-seccomp.sh	100	102	3	22	fe3c1e1663b4	STAY	midsize-why		0				0
-tests/test-sandbox-seccomp.sh	118	119	2	25	6a928abc41c5	STAY	local-scoped		0				0
-tests/test-sandbox-seccomp.sh	132	132	1	12	1ac126316010	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	69	70	2	27	35203e2de080	STAY	midsize-why		0				0
+tests/test-sandbox-seccomp.sh	85	87	3	37	ce6a42daeab0	STAY	midsize-why		0				0
+tests/test-sandbox-seccomp.sh	97	99	3	22	fe3c1e1663b4	STAY	midsize-why		0				0
+tests/test-sandbox-seccomp.sh	115	116	2	25	6a928abc41c5	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	129	129	1	12	1ac126316010	STAY	local-scoped		0				0
 tests/test-sbom-export.py	1	3	3	20	a59bc9e27e7d	STAY	ai-header		0				0
 tests/test-sbom-export.py	20	20	1	7	df5eae341ee6	STAY	local-scoped		0				0
 tests/test-sbom-export.py	31	31	1	3	52715b5dfcbd	STAY	local-scoped		0				0
@@ -8048,12 +8053,12 @@ tests/test-uki-promote.py	64	64	1	4	0df71d5f8e85	STAY	local-scoped		0				0
 tests/test-ukify-stage.py	1	3	3	18	06f9af04cd08	STAY	ai-header		0				0
 tests/test-ukify-stage.py	23	23	1	8	6060a9792922	STAY	local-scoped		0				0
 tests/test-ukify-stage.py	37	37	1	6	57c6b5a93981	STAY	inline-scoped		0				0
-tests/test-ukify-stage.py	50	53	4	52	4381a1670f24	MIGRATE	midsize-narrative		0				0
-tests/test-ukify-stage.py	55	55	1	12	c543cc6d5406	STAY	local-scoped		0				0
-tests/test-ukify-stage.py	142	142	1	13	a92e3572f5f7	STAY	local-scoped		0				0
-tests/test-ukify-stage.py	168	168	1	8	6b90ea875796	STAY	local-scoped		0				0
-tests/test-ukify-stage.py	186	186	1	11	c52500434b95	STAY	local-scoped		0				0
-tests/test-ukify-stage.py	215	215	1	16	8807ba786a54	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	50	51	2	25	8359be3e1a69	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	53	53	1	12	c543cc6d5406	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	140	140	1	13	a92e3572f5f7	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	166	166	1	8	6b90ea875796	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	184	184	1	11	c52500434b95	STAY	local-scoped		0				0
+tests/test-ukify-stage.py	213	213	1	16	8807ba786a54	STAY	local-scoped		0				0
 tests/test-unattend.py	1	3	3	26	2393c6c5493d	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:2393c6c5493d	26	0
 tests/test-unattend.py	4	9	5	26	366e395f2af1	STAY	midsize-why		0				0
 tests/test-unattend.py	26	26	1	4	26f930979b0e	STAY	local-scoped		0				0
@@ -15252,6 +15257,7 @@ usr/lib/tmpfiles.d/mios-agents.conf	1	2	2	33	eb9fe332a267	STAY	ai-header		0	usr/
 usr/lib/tmpfiles.d/mios-backup.conf	1	1	1	23	b3e9e07651a5	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-backups.conf	1	2	2	25	8eec545d9af6	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-ceph.conf	1	2	2	26	634e1243b62b	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tmpfiles.d.md	mios-src:634e1243b62b	26	0
+usr/lib/tmpfiles.d/mios-ceph.conf	7	8	2	16	52613a86d040	STAY	local-scoped		0				0
 usr/lib/tmpfiles.d/mios-cephfs.conf	1	2	2	16	7ba178529052	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-codemode.conf	1	2	2	29	f32d62def7e5	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-cpu.conf	1	2	2	31	fe264ee85249	STAY	ai-header		0				0
@@ -22436,22 +22442,22 @@ usr/share/mios/mios.toml	12317	12318	2	21	2de4fbe6ac23	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	12320	12322	3	29	3aff27110871	STAY	midsize-why		0				0
 usr/share/mios/mios.toml	12326	12326	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	12335	12335	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12566	12566	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12572	12573	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12593	12594	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12606	12609	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	12611	12612	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12616	12618	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12624	12624	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12626	12628	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12694	12698	5	53	9ef4afec86f6	MIGRATE	midsize-narrative		0				0
-usr/share/mios/mios.toml	12702	12703	2	28	48026294ac12	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12724	12727	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12729	12729	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12808	12809	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12814	12818	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12820	12823	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12826	12831	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	12567	12567	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12573	12574	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12594	12595	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12607	12610	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	12612	12613	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12617	12619	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12625	12625	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12627	12629	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12695	12699	5	53	9ef4afec86f6	MIGRATE	midsize-narrative		0				0
+usr/share/mios/mios.toml	12703	12704	2	28	48026294ac12	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12725	12728	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12730	12730	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12809	12810	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12815	12819	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12821	12824	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12827	12832	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0

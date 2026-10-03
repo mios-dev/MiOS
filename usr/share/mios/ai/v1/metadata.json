@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3606,
-  "total_metadata_entries": 2972,
-  "total_hints": 2957,
-  "total_functions_indexed": 1378,
-  "total_related_links": 4684,
+  "total_files_scanned": 3607,
+  "total_metadata_entries": 2973,
+  "total_hints": 2958,
+  "total_functions_indexed": 1382,
+  "total_related_links": 4688,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -7570,6 +7570,25 @@
       "related": [],
       "functions": [
         "test_offline_container_startup_speed"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/test-quadlet-state-mounts.py",
+      "hint": "Two-sided test that every Quadlet bind of MiOS-owned state (/var/lib/mios, /srv) exists at boot: declared in usr/lib/tmpfiles.d or guarded by a ConditionPathExists at or under it.",
+      "related": [
+        "/usr/share/containers/systemd",
+        "/usr/lib/tmpfiles.d",
+        "/usr/share/mios/mios.toml",
+        "/tools/generate-pod-quadlets.py"
+      ],
+      "functions": [
+        "state_mounts",
+        "tmpfiles_declared",
+        "findings",
+        "main"
       ],
       "doc": null,
       "comment_style": "hash",

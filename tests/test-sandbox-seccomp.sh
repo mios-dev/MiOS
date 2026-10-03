@@ -66,11 +66,8 @@ ok "the SSOT list extends the floor"
 
 log "refusal tier: no generator => enforce must REFUSE, never run unfiltered"
 stub="${TMP}/bin"; mkdir -p "$stub"
-# The wrapper looks for its generator beside itself, then at the installed
-# vendor path. On an installed host that vendor path EXISTS, so the copy has
-# that one literal pointed at a path inside $TMP that is never created -- the
-# refusal branch under test is otherwise byte-for-byte the shipped wrapper, and
-# no environment override is needed (or honoured) to reach it.
+# The copy's vendor generator path points into $TMP (never created), so the refusal
+# branch is reached with no environment override; the rest is the shipped wrapper.
 VENDOR_GEN="/usr/libexec/mios/mios-seccomp-filter"
 ABSENT_GEN="${TMP}/absent/mios-seccomp-filter"
 n_vendor="$(grep -cF "\"${VENDOR_GEN}\"" "$EXEC" || true)"

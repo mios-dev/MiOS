@@ -38,11 +38,8 @@ stop_server() {
 cleanup() { stop_server; rm -rf "$FIXTURE"; }
 trap cleanup EXIT
 
-# A REAL socket on an EPHEMERAL port: a fixed port lets a stale listener from a
-# previous run fake a pass, which is exactly what happened while writing this.
-# The interpreter is started DIRECTLY -- no PATH shim, no pipe -- so $! is the
-# server itself and cleanup's kill reaps it. Its stdout/stderr go to /dev/null
-# so a caller capturing this suite with $(...) never waits on an inherited fd.
+# Ephemeral port (a stale fixed-port listener faked a pass); started directly so $! is
+# the server cleanup kills, output to /dev/null so a $(...) caller never hangs.
 "$PY" - "${FIXTURE}/port" >/dev/null 2>&1 <<'SRV' &
 import http.server, socketserver, sys
 

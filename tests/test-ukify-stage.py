@@ -47,10 +47,8 @@ class TestUkifyStage(unittest.TestCase):
             self.assertEqual(data["baked_kargs"], fh.read().strip())
         self.assertIn("console=tty0", data["baked_kargs"])
 
-    # The stage tool resolves `ukify` from PATH and nowhere else -- there is no
-    # environment override, so a test steers it the same way an operator would:
-    # by what is on PATH. The tool is always run with this interpreter directly,
-    # so PATH here only decides which `ukify` (if any) the tool finds.
+    # The tool finds `ukify` on PATH only (no env override), so a test steers it the
+    # way an operator would: by what is on PATH.
     def _fake_ukify_dir(self) -> str:
         """An explicit FAKE compiler: writes a marker to --output and exits 0."""
         bindir = os.path.join(self.tmpdir.name, "fakebin")
