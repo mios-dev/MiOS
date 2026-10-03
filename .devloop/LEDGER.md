@@ -1759,3 +1759,10 @@ so long. Let a run finish.
 - next: sessions holding branches that touch the retired files must re-apply their record changes through mios-task on tasks.jsonl after rebasing.
 - blockers: -
 - unverified: -
+
+## 2026-10-03 16:19 · 31718a5 · review
+- objective: mios-bootstrap llms.txt conforms to llmstxt.org, verified by `mios-template-conform --llms-txt`, and gated in bootstrap CI.
+- done: mios-dev/MiOS#59: `--llms-txt` mode added to tools/native/mios-template-conform (it did not exist anywhere; unknown flags were silently ignored, so the validate command exited 0 on any tree, even an empty dir). Unknown flags now exit 2. mios-dev/mios-bootstrap#25: llms.txt restructured (HTML-comment header, one H1, blockquote, bold-lead prose, ## Key files/Docs/Optional link lists), retired ports and swapped heavy lanes corrected, and validate-linux runs the validator fail-closed on its success line.
+- next: Merge MiOS#59 BEFORE mios-bootstrap#25 (bootstrap CI step fails closed until --llms-txt is on main), then re-run bootstrap validate-linux. Then fix mios.git's own root llms.txt: it fails --llms-txt with the same defects (48 violations); no branch on GitHub carries the "slice S5" fix.
+- blockers: MiOS main CI is red independently of this work: behavioural tier fails tests/powershell/run-pester.sh, tests/test-bootstrap-sync-parity.py, tests/test-video-encoder-probe.sh, tools/test_check-ssot.py, tools/test_sync-dotfiles.py (run 37131216752); smoke build fails; once those pass, workspace clippy fails on tools/native/mios-size-ceiling (octal_escapes at src/main.rs:253, "\0100755").
+- unverified: Bootstrap CI gate green path on GitHub runners (verified only by running the step's run: block locally against the pushed MiOS branch).
