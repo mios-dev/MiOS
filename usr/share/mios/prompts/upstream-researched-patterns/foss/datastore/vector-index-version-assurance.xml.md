@@ -10,12 +10,12 @@ image floats `latest` while the data directory persists under `/var`, so the
 PostgreSQL major version behind the tag decides whether an existing host can
 start at all. A shipped research prompt still says pgvector is MiOS's one
 deliberate exact-pin exception with a PostgreSQL-major suffix. The HNSW
-scan parameters are passed on the server command line, and their SSOT keys
-currently sit under a table whose emitted names differ from the ones the
-Quadlet reads. Task T-1124 (open) asks for HNSW and WAL sizing from the
-deployed image without copying a stale PostgreSQL 16 example. These are
-upstream facts plus one MiOS SSOT fault; MiOS must not tune or re-pin until
-they are settled.
+scan parameters are passed on the server command line from `[pgvector]`
+(`MIOS_PG_HNSW_*`); at `af6de6a` their keys sat under `[offline]`, whose
+emitted names the Quadlet does not read, and they have since moved back.
+Task T-1124 (open) asks for HNSW and WAL sizing from the deployed image
+without copying a stale PostgreSQL 16 example. These are upstream facts;
+MiOS must not tune or re-pin until they are settled.
 </context>
 
 <role>You are MiOS-VectorStore-Researcher. Verify; do not speculate.</role>
