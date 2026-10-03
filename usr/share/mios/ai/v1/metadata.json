@@ -4,7 +4,7 @@
   "total_metadata_entries": 2980,
   "total_hints": 2965,
   "total_functions_indexed": 1398,
-  "total_related_links": 4711,
+  "total_related_links": 4710,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -18958,19 +18958,6 @@
       "has_shebang": false
     },
     {
-      "path": "usr/lib/tmpfiles.d/mios-speech.conf",
-      "hint": "Persistent model storage for the mios-ai pod's streaming speech engines (Piper TTS; whisper.cpp loads the model baked into its image), bind-mounted read-only at /models.",
-      "related": [
-        "usr/share/containers/systemd/mios-whisper.container",
-        "usr/share/containers/systemd/mios-piper.container",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "usr/lib/tmpfiles.d/mios-theme.conf",
       "hint": "Declares /etc/mios/theme (Law 2: NO-MKDIR-IN-VAR / no ad-hoc mkdir at build or run time -- every /var and /etc runtime-writable path this repo creates is declared here so systemd-tmpfiles owns creation + permissions).",
       "related": [],
@@ -26006,10 +25993,10 @@
     },
     {
       "path": "usr/libexec/mios/test_mios_speech_storage.py",
-      "hint": "Two-sided controls for T-1140 -- the speech engines' model storage is persistent /var declared in tmpfiles, mounted from the SSOT model_dir, and asserted before start.",
+      "hint": "Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host /models bind, no [services] model_dir, no /var model store in tmpfiles, no AssertPathExists on one.",
       "related": [
         "usr/share/mios/mios.toml",
-        "usr/lib/tmpfiles.d/mios-speech.conf",
+        "usr/share/mios/piper/Containerfile",
         "usr/share/containers/systemd/mios-whisper.container",
         "usr/share/containers/systemd/mios-piper.container"
       ],
@@ -33363,6 +33350,18 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/piper/Containerfile",
+      "hint": "Defines the OCI build for localhost/mios-piper, the piper1-gpl (piper-tts) HTTP speech engine of the mios-ai pod: installs piper-tts[http] at the SSOT version, bakes the SSOT voice under /usr/share/piper/voices (Law 12) and runs piper.http_server as the [services.piper] uid/gid.",
+      "related": [
+        "mios-piper.container",
+        "57-mios-sys-build.sh"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

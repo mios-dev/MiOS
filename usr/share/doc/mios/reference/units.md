@@ -132,7 +132,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-pgvector-optimize.service` | `usr/lib/systemd/system` | MiOS pgvector Database Optimization Service |
 | `mios-pgvector-optimize.timer` | `usr/lib/systemd/system` | Weekly Automated pgvector Index & Table Maintenance Timer |
 | `mios-pgvector.container` | `usr/share/containers/systemd` | MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS) |
-| `mios-piper.container` | `usr/share/containers/systemd` | MiOS' Piper/Kokoro Streaming TTS Engine (piper-http) |
+| `mios-piper.container` | `usr/share/containers/systemd` | MiOS' Piper Streaming TTS Engine (piper1-gpl http_server) |
 | `mios-podman-gc.service` | `usr/lib/systemd/system` | MiOS' Podman Garbage Collection |
 | `mios-podman-gc.timer` | `usr/lib/systemd/system` | Weekly Podman Cleanup |
 | `mios-podman-ps.service` | `usr/lib/systemd/system` | MiOS' rootful podman snapshot for the agent-pipe portal/dashboard |

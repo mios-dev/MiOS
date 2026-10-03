@@ -101,15 +101,14 @@ In mock / accelerated mode, synthesis completes in under 50ms, achieving convers
 
 > Path Reference: `/usr/share/doc/mios/manual.md#79_quadlet_containerization`
 
-The Piper/Kokoro TTS engine is deployed as a systemd Quadlet container within the MiOS AI pod:
+The Piper TTS engine (piper1-gpl `http_server`) is deployed as a systemd Quadlet container within the MiOS AI pod:
 - **Unit File**: `/usr/share/containers/systemd/mios-piper.container`
 - **Pod**: `mios-ai.pod`
-- **Image**: `ghcr.io/rhasspy/piper:latest`
-- **Port**: `8179` (configurable via `MIOS_PORT_PIPER`).
-- **Volume Mounts**:
-  - `/usr/share/mios/piper/models:/models:ro,Z` (pre-cached ONNX voice weights)
-  - `/run/mios:/run/mios:Z` (shared runtime IPC)
-- **Health Check**: `curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1`
+- **Image**: `localhost/mios-piper:latest`, built at bake from `usr/share/mios/piper/Containerfile` with the `[services.piper]` version and voice.
+- **Port**: `[ports].piper` (`MIOS_PORT_PIPER`).
+- **Voice**: baked into the image at `/usr/share/piper/voices` and loaded with `-m ${MIOS_PIPER_VOICE} --data-dir /usr/share/piper/voices`; no host model bind.
+- **Volume Mounts**: `/run/mios:/run/mios:Z` (shared runtime IPC)
+- **Health Check**: a `python3` urllib GET of `/info` (the image has no curl and `http_server` has no `/health`).
 
 ---
 

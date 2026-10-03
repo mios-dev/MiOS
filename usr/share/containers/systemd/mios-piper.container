@@ -3,30 +3,29 @@
 # /usr/share/containers/systemd/mios-piper.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service
-AssertPathExists=/var/lib/mios/piper/models/en_US-lessac-medium.onnx
-Description='MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)
-Documentation=https://github.com/rhasspy/piper
+After=network-online.target mios-cdi-detect.service
+Description='MiOS' Piper Streaming TTS Engine (piper1-gpl http_server)
+Documentation=https://github.com/OHF-Voice/piper1-gpl
 Wants=network-online.target
 
 [Container]
 ContainerName=mios-piper
-Environment=PORT=${MIOS_PORT_PIPER:-8179}
 EnvironmentFile=/etc/mios/install.env
-Exec=--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0
+Exec=-m en_US-lessac-medium --data-dir /usr/share/piper/voices --host 0.0.0.0 --port ${MIOS_PORT_PIPER}
 GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 Group=831
-HealthCmd=curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1
+HealthCmd=python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${MIOS_PORT_PIPER}/info', timeout=5)" || exit 1
 HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=30s
 HealthTimeout=10s
-Image=ghcr.io/rhasspy/piper:latest
+Image=localhost/mios-piper:latest
 Label=org.opencontainers.image.title=mios-piper
-Label=org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"
+Label=org.opencontainers.image.description="Local piper1-gpl streaming server for MiOS real-time speech synthesis"
+Label=org.opencontainers.image.source=https://github.com/OHF-Voice/piper1-gpl
+Label=org.opencontainers.image.licenses=GPL-3.0-or-later
 Pod=mios-ai.pod
 User=831
-Volume=/var/lib/mios/piper/models:/models:ro,Z
 Volume=/run/mios:/run/mios:Z
 
 [Install]
