@@ -2,7 +2,6 @@
 # AI-hint: One-shot migration script that identifies Flatpaks from the flathub remote and reinstalls them from flathub-beta to update the origin while preserving user data.
 # AI-related: /usr/libexec/mios/mios-flatpak-beta-migrate, mios-flatpak
 set -euo pipefail
-set -u
 
 DRY=0
 if [ "${1:-}" = "--dry-run" ]; then

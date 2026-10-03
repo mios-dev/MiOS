@@ -500,7 +500,6 @@
     "_BUDGET_LEDGER_MAX",
     "_BUDGET_LOCK",
     "_BUDGET_TOML",
-    "_BYPASS_NEGATIVE_CHARS",
     "_CACHED_OS_INFO",
     "_CALLER_KEYS_CACHE",
     "_CALLER_KEYS_PATH",
@@ -772,7 +771,6 @@
     "_agent_card_signature",
     "_agent_contract",
     "_agent_dag_from_tasks",
-    "_agent_engines",
     "_agent_lane",
     "_agent_offload_engine",
     "_agent_sem",
@@ -981,7 +979,6 @@
     "_is_port_open",
     "_is_remote_endpoint",
     "_is_slow_lane_ep",
-    "_is_trivial_bypass",
     "_is_warm",
     "_iter_answer_chunks",
     "_judge_answer_satisfied",
@@ -1459,6 +1456,6 @@
   ],
   "counts": {
     "routes": 95,
-    "provided": 1359
+    "provided": 1356
   }
 }

@@ -183,26 +183,11 @@ def _toml_val(v):
     return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 def unclassified_shared(root, boot, man):
-    import subprocess
-
-    def tracked(r):
-        # check=False let a refused git empty `shared`, retiring this
-        # direction silently. See ec94d4f3.
-        p = subprocess.run(["git", "-C", r, "ls-files"],
-                           capture_output=True, text=True, check=False)
-        if p.returncode != 0:
-            raise RuntimeError("git ls-files failed in %s (exit %d): %s"
-                               % (r, p.returncode, (p.stderr or "").strip()))
-        names = {l.strip().replace(os.sep, "/")
-                 for l in p.stdout.splitlines() if l.strip()}
-        if not names:
-            raise RuntimeError("git ls-files listed no tracked file in %s, so no "
-                               "undeclared shared file could be found" % r)
-        return names
+    from mios_tracked import tracked
 
     declared = set(man.get("mirror_files") or ()) | set(man.get("not_mirrored") or ())
     try:
-        shared = tracked(root) & tracked(boot)
+        shared = set(tracked(root)) & set(tracked(boot))
     except RuntimeError as exc:
         return ["the undeclared-shared-file scan did not run: %s" % exc]
     return [f"{f}: tracked in both repos but declared in neither "

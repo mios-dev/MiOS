@@ -4,8 +4,6 @@
 # AI-functions: _app_paths_resolve, _start_menu_resolve, _startapps_resolve, _mios_executor_endpoint, _mios_launch_via_executor, _mios_arm_autocenter, usage, do_ssh_ps, _build_uri_center_ps
 set -euo pipefail
 
-set -eu
-
 _app_paths_resolve() {  # <name> -> WSL path of the registered exe, or empty
     local name="$1" reg="/mnt/c/Windows/System32/reg.exe" win hive
     [ -x "$reg" ] || return 1

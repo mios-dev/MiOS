@@ -3,7 +3,6 @@
 # AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-ttyd-launch, mios-ttyd-bash, mios-ttyd-expose.service, mios-ttyd-bash.service
 # AI-functions: _toml_get
 set -euo pipefail
-set -u
 
 PORT="${MIOS_PORT_TTYD_BASH:-8310}"
 

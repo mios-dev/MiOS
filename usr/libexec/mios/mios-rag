@@ -47,26 +47,22 @@ _PGQ = "/usr/libexec/mios/mios-pg-query"
 def _embed(text: str) -> "list[float]":
     import time
     base = EMBED_ENDPOINT if EMBED_ENDPOINT.endswith("/v1") else EMBED_ENDPOINT + "/v1"
-    endpoints = [
-        (base, EMBED_MODEL),
-    ]
-    for attempt in range(3):
-        for ep, model in endpoints:
-            try:
-                payload = {"model": model, "input": text[:4000]}
-                req = urllib.request.Request(
-                    f"{ep}/embeddings",
-                    data=json.dumps(payload).encode(),
-                    headers={"Content-Type": "application/json"},
-                )
-                r = json.loads(urllib.request.urlopen(req, timeout=15).read())
-                data = r.get("data") or []
-                if data:
-                    return data[0].get("embedding") or []
-                if r.get("embedding"):
-                    return r.get("embedding")
-            except Exception:
-                continue
+    for _attempt in range(3):
+        try:
+            payload = {"model": EMBED_MODEL, "input": text[:4000]}
+            req = urllib.request.Request(
+                f"{base}/embeddings",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            r = json.loads(urllib.request.urlopen(req, timeout=15).read())
+            data = r.get("data") or []
+            if data:
+                return data[0].get("embedding") or []
+            if r.get("embedding"):
+                return r.get("embedding")
+        except Exception:
+            pass
         time.sleep(1)
     return []
 

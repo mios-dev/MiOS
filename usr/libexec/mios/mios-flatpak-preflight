@@ -3,7 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-flatpak-preflight, mios-fp-pre-XXXXXX, mios-wsl-flatpak-heal
 # AI-functions: _probe
 set -euo pipefail
-set -u
 
 APP_ID="${1:-}"
 if [[ -z "$APP_ID" ]] || [[ "$APP_ID" == "-h" ]] || [[ "$APP_ID" == "--help" ]]; then

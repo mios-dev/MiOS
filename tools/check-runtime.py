@@ -750,11 +750,9 @@ def vi_structural(root, ssot, viol):
                         " format the all target builds is one the verifier does"
                         " not require" % name)
 
-def vi_behavioural(root, viol):
-    floor = 0
-    with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-        floor = int(((tomllib.load(fh).get("deploy") or {})
-                     .get("verify") or {}).get("min_bytes", 1048576))
+def vi_behavioural(root, ssot, viol):
+    floor = int(((ssot.get("deploy") or {})
+                 .get("verify") or {}).get("min_bytes", 1048576))
     size = floor + 4096
 
     with tempfile.TemporaryDirectory(prefix="mios-verify-images-") as tmp:
@@ -813,7 +811,7 @@ def vi_main():
         viol.append("tools/verify-images.py is absent, so the publish gate has"
                     " no implementation")
     else:
-        vi_behavioural(root, viol)
+        vi_behavioural(root, ssot, viol)
 
     print("\n".join(viol))
     if viol:

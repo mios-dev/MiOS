@@ -4,8 +4,6 @@
 # AI-functions: _resolve_browser_chain, _parse_summary, _derive_verify_pattern
 set -euo pipefail
 
-set -eu
-
 if [ "$#" -lt 1 ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     cat <<'USAGE'
 usage: mios-open-url <url> [<browser-override>]

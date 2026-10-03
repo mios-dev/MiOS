@@ -196,7 +196,6 @@ NON_FATAL_SCRIPTS="
   39-moby-engine.sh
   76-uki-render.sh
   22-akmod-guards.sh
-  37-aichat.sh
   62-oh-my-posh.sh
   61-flatpak-bake.sh
   49-cosign-policy.sh

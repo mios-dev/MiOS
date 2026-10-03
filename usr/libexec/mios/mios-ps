@@ -2,7 +2,6 @@
 # AI-hint: Displays a list of all MiOS containers by reading the root-owned podman-ps.json snapshot, allowing non-root users to view container status and images without direct podman socket access.
 # AI-related: /usr/libexec/mios/mios-ps, mios-podman-ps, mios-podman-ps.timer
 set -euo pipefail
-set -u
 SNAP="${MIOS_PODMAN_PS_SNAPSHOT:-/var/lib/mios/podman-ps.json}"
 if [ -r "$SNAP" ]; then
     python3 - "$SNAP" <<'PY'

@@ -414,13 +414,6 @@ def _get_pool(env: "Optional[dict]" = None, cfg: "Optional[dict]" = None):
         _POOL = AsyncConnPool(min_size=pc["min"], max_size=pc["max"], cfg=cfg)
     return _POOL
 
-async def _reset_pool() -> None:
-    """Close + drop the process pool (graceful teardown / test hook)."""
-    global _POOL
-    p, _POOL = _POOL, None
-    if p is not None:
-        await p.closeall()
-
 @asynccontextmanager
 async def _conn(cfg: "Optional[dict]" = None):
     import psycopg  # lazy; execute()/recall() already guarded its presence

@@ -185,17 +185,6 @@ _PG_PRIMARY = DB_BACKEND == "postgres"
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
-def _pg_exec(sql: str) -> None:
-    if not _PG_ENABLED:
-        return
-    try:
-        import subprocess
-        subprocess.run([_MIOS_DB, "--pg", sql],
-                       capture_output=True, text=True, timeout=15)
-    except Exception:  # noqa: BLE001
-        pass
-
-
 def _pg_run(envelope: dict) -> str:
     """WS-A3: run a PARAMETERIZED statement/batch via `mios-db --pg-json`, which
     binds values OUT-OF-BAND through mios-pg-query's extended protocol (no value
@@ -2462,7 +2451,7 @@ def _pg_replace_directory_entries(root_label: str,
     writer bypasses _db_create (datetime literal shaping), so it never hit the
     _pg_insert chokepoint -- this is its dedicated pg path. DELETE the root's
     rows then batch-INSERT (ON CONFLICT(path) update). Runs in dual+postgres
-    modes. Degrade-open via _pg_exec (mios-db --pg)."""
+    modes. Degrade-open via _pg_run (mios-db --pg-json)."""
     if not _PG_ENABLED:
         return
     cols = ("path", "parent", "basename", "kind", "size",

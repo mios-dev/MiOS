@@ -3859,11 +3859,8 @@ def check_value_aliases() -> int:
 def check_negatives_are_effective() -> int:
     import sys, re, os
 
-    if len(sys.argv) >= 2 and sys.argv[1] != "negatives-are-effective":
-        neg_path = sys.argv[1]
-    else:
-        root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-        neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
 
     _rc = _absent(root, neg_path)
     if _rc is not None:
@@ -3914,11 +3911,8 @@ def check_negatives_are_effective() -> int:
 def check_pipefail_grep_lint() -> int:
     import sys, re, os
 
-    if len(sys.argv) >= 2 and sys.argv[1] != "pipefail-grep-lint":
-        neg_path = sys.argv[1]
-    else:
-        root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-        neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
 
     _rc = _absent(root, neg_path)
     if _rc is not None:
@@ -4337,10 +4331,7 @@ def check_unit_security() -> int:
     import os, sys
     import tomllib as _toml
 
-    if len(sys.argv) >= 2 and sys.argv[1] != "unit-security":
-        root = sys.argv[1]
-    else:
-        root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 
     systemd_dir = os.path.join(root, 'usr/lib/systemd/system')
     toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
@@ -4380,10 +4371,7 @@ def check_unit_security() -> int:
 def check_unit_dependency_closure() -> int:
     import os, sys, glob
 
-    if len(sys.argv) >= 2 and sys.argv[1] != "unit-dependency-closure":
-        root = sys.argv[1]
-    else:
-        root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 
     systemd_dir = os.path.join(root, 'usr/lib/systemd/system')
     quadlet_dir = os.path.join(root, 'usr/share/containers/systemd')

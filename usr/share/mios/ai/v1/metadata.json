@@ -3,7 +3,7 @@
   "total_files_scanned": 3620,
   "total_metadata_entries": 2986,
   "total_hints": 2971,
-  "total_functions_indexed": 1399,
+  "total_functions_indexed": 1393,
   "total_related_links": 4741,
   "entries": [
     {
@@ -21984,7 +21984,6 @@
         "mios-build-driver"
       ],
       "functions": [
-        "_run_as",
         "ok",
         "fail",
         "warn",
@@ -22566,9 +22565,7 @@
       ],
       "functions": [
         "_log",
-        "_mios_toml_layers",
         "_mios_toml_value",
-        "_mios_toml_catalog",
         "_sync_discord_env_var",
         "_op_cfg_should_reseed",
         "_soul_should_seed",
@@ -22678,8 +22675,6 @@
         "mios-hermes"
       ],
       "functions": [
-        "_red",
-        "_green",
         "_dim",
         "_bold",
         "_have_winget",
@@ -24163,8 +24158,7 @@
         "/usr/share/mios/templates/"
       ],
       "functions": [
-        "main",
-        "_scaffold_via_mios_new"
+        "main"
       ],
       "doc": null,
       "comment_style": "hash",

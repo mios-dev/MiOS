@@ -119,7 +119,7 @@ sourcing still wins.
 
 !/usr/bin/env bash
 AI-hint: Provides helper functions for identifying, registering, and masking sensitive credentials (like GH_TOKEN or MIOS_PASSWORD) in logs and stdout, and provides a secure scurl wrapper for credential-aware requests.
-AI-functions: add_mask, register_common_masks, mask_filter, ensure_cred, scurl
+AI-functions: add_mask, register_common_masks, mask_filter, scurl
 
 <!-- mios-src:fdb6be2b4488 from automation/lib/masking.sh:1-3 -->
 

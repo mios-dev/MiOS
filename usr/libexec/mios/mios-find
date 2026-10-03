@@ -3,8 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-find, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-apps, mios-everything, mios-gui, mios-windows, mios-find-err, mios-hermes-browser, mios-shim
 set -euo pipefail
 
-set -u
-
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat <<'USAGE'
 usage: mios-find [--json] <query>

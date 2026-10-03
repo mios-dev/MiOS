@@ -45,18 +45,6 @@ _MCP_CLIENT_LOCK: asyncio.Lock = asyncio.Lock()
 _mcp_embed_new_tools: Optional[Callable] = None
 _invalidate_worker_cache: Callable = lambda: None
 
-def _default_client_factory():
-    return httpx.AsyncClient(timeout=30.0)
-
-async def _resolve_http_client() -> httpx.AsyncClient:
-    global _get_client
-    if _get_client is not None:
-        c = _get_client()
-        if asyncio.iscoroutine(c):
-            return await c
-        return c
-    return _default_client_factory()
-
 def configure(
     *,
     get_client: Optional[Callable] = None,

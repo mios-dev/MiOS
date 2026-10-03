@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # AI-hint: Initializes the Hermes gateway and web-ui components by generating /etc/mios/hermes/api.env and seeding /var/lib/mios/hermes/config.yaml based on mios.toml configurations during first boot.
 # AI-related: /etc/mios/hermes/api.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-dashboard.sh, /etc/mios/hermes, /etc/mios/hermes/discord.env, /usr/lib/mios/agents/.venv., /usr/lib/mios/agents/.venv/bin/hermes, /usr/lib/mios/hermes-agent/.venv/bin/hermes, /usr/libexec/mios/mios-pc-vision
-# AI-functions: _log, _mios_toml_layers, _mios_toml_value, _mios_toml_catalog, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
+# AI-functions: _log, _mios_toml_value, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
 set -euo pipefail
-
-HERMES_HOME="/var/lib/mios/hermes"
 
 ENV_FILE="/etc/mios/hermes/api.env"
 
@@ -16,55 +14,8 @@ if [[ -f "$_FIRSTBOOT_SENTINEL" ]]; then
     exit 0
 fi
 
-_mios_toml_layers() {
-    local home="${HOME:-/root}"
-    printf '%s\n' \
-        "$home/.config/mios/mios.toml" \
-        "/etc/mios/mios.toml" \
-        "/usr/share/mios/mios.toml"
-}
-
 _MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
 _mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
-
-_mios_toml_catalog() {
-    local toml
-    while IFS= read -r toml; do
-        [[ -r "$toml" ]] || continue
-        local out
-        out="$(awk '
-            BEGIN { in_t = 0; id = ""; label = ""; ram = "" }
-            /^\[\[ai\.catalog\]\]/ {
-                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
-                in_t = 1; id = ""; label = ""; ram = ""
-                next
-            }
-            /^\[/ {
-                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
-                in_t = 0; id = ""; label = ""; ram = ""
-                next
-            }
-            in_t && /^[[:space:]]*[A-Za-z_]+[[:space:]]*=/ {
-                line = $0
-                sub(/[[:space:]]*#.*$/, "", line)
-                eq = index(line, "=")
-                if (eq == 0) next
-                k = substr(line, 1, eq - 1)
-                v = substr(line, eq + 1)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-                gsub(/^"|"$/, "", v)
-                if (k == "id") id = v
-                else if (k == "label") label = v
-                else if (k == "ram_gb") ram = v
-            }
-            END {
-                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
-            }
-        ' "$toml")"
-        if [[ -n "$out" ]]; then printf '%s' "$out"; return; fi
-    done < <(_mios_toml_layers)
-}
 
 _AI_MODEL_DEFAULT="$(_mios_toml_value 'ai' 'model' 'granite4.1:3b')"
 
@@ -896,8 +847,8 @@ _wait_for_owui() {
             port="$env_port"
         fi
     fi
-    local i
-    for i in $(seq 1 45); do
+    local _
+    for _ in $(seq 1 45); do
         if curl -fsS --max-time 2 "http://host.containers.internal:${port}/health" \
                 >/dev/null 2>&1 \
            || curl -fsS --max-time 2 "http://127.0.0.1:${port}/api/version" \

@@ -93,10 +93,6 @@ def extract_ai_header_metadata(content: str, rel_path: str) -> Optional[Dict[str
     }
 
 
-def get_tracked_files(root: str) -> List[str]:
-    return list(tracked_file_modes(root))
-
-
 def build_metadata_catalog(root: str) -> Dict[str, Any]:
     tracked = tracked_file_modes(root)
     entries: List[Dict[str, Any]] = []

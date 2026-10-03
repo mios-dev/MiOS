@@ -74,10 +74,6 @@ def _wsl_to_windows(path: str) -> str:
         return path
 
 
-def _winquote(s: str) -> str:
-    return '"' + s.replace('"', '""') + '"'
-
-
 _PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
@@ -139,27 +135,6 @@ def _build_argv(
             argv.append(interpolated)
         display_cmd = " ".join(shlex.quote(a) for a in argv)
         return argv, display_cmd
-
-
-def _expand(template: str, params: dict, *, windows: bool) -> str:
-    missing: list[str] = []
-
-    def _sub(m):
-        key = m.group(1)
-        if key not in params:
-            missing.append(key)
-            return m.group(0)
-        v = str(params[key])
-        return _winquote(v) if windows else shlex.quote(v)
-
-    out = _PLACEHOLDER.sub(_sub, template)
-    if missing:
-        print(
-            f"mios-os-recipe: missing required arg(s): {','.join(missing)}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    return out
 
 
 def _parse_kv(args: list[str]) -> dict:

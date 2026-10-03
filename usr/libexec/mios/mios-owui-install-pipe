@@ -3,8 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-owui-install-pipe, /usr/share/mios/owui/pipes/mios_agent_pipe.py, /usr/share/mios/owui/pipes/mios_antimeta_filter.py, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/owui/pipes/mios_swarm_council_filter.py, /usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py, /usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py, mios-owui-pipe-payload, mios-agent
 set -euo pipefail
 
-set -eu
-
 PIPE_SRC=/usr/share/mios/owui/pipes/mios_agent_pipe.py
 PIPE_ID="mios_agent"
 PIPE_NAME="MiOS AI"

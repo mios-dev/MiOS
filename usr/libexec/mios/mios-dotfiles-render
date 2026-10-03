@@ -34,11 +34,6 @@ _Surface = collections.namedtuple("_Surface", "name template target section kind
 _EdgeProp = collections.namedtuple("_EdgeProp", "name regex pin scope")
 
 
-def _resolve():
-    """token -> hex, from the shared layered SSOT resolver (SSOT over canonical defaults)."""
-    return mios_toml.colors(mios_toml.load_merged(mios_toml.layer_paths()))
-
-
 def _fmt_conf(v):
     """Format a TOML scalar for a btop-style conf: bool -> capitalized
     True/False (btop's on-disk form), ints bare, strings verbatim (the
@@ -661,9 +656,7 @@ def _derive_json_merge(surface, merged):
 
 def _apply_live_template(surface, merged, current):
     """template apply: today's whole-file overwrite (ignores the live content)."""
-    return _render_text(_read(os.path.join(ROOT, surface.template)),
-                        _resolved_for(merged, surface.section),
-                        merged)
+    return _derive_template(surface, merged)
 
 
 def _apply_live_json_merge(surface, merged, current):

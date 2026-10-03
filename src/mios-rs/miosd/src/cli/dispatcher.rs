@@ -66,10 +66,6 @@ impl CliDispatcher {
         None
     }
 
-    pub fn list_verbs() -> Vec<&'static str> {
-        KNOWN_VERBS.iter().map(|(v, _)| *v).collect()
-    }
-
     pub fn resolve_target(target: &str) -> PathBuf {
         let path = Path::new(target);
         if path.is_file() {

@@ -358,9 +358,6 @@ class PsiSampler:
             return False
         return self._current_level in ("WARNING", "CRITICAL")
 
-    def get_level(self) -> str:
-        return self._current_level
-
     def get_shed_reason(self) -> Optional[str]:
         """Descriptive reason string if critical pressure threshold is breached."""
         if not self.is_critical():
@@ -391,29 +388,15 @@ class PsiSampler:
         d["history"] = [s.to_dict() for s in list(self._history)[-10:]]
         return d
 
-    def get_last_sample(self) -> Optional[PsiSample]:
-        return self._last_sample
-
-    def get_last_event(self) -> Optional[Dict[str, Any]]:
-        return self._last_event
-
     def add_listener(self, callback: Callable[..., Any]) -> None:
         """Register a callback for PSI transition events."""
         if callback not in self._listeners:
             self._listeners.append(callback)
 
-    def remove_listener(self, callback: Callable[..., Any]) -> None:
-        if callback in self._listeners:
-            self._listeners.remove(callback)
-
     def register_throttle_callback(self, callback: Callable[[bool, Dict[str, Any]], Any]) -> None:
         """Register a callback invoked when throttling state is signaled."""
         if callback not in self._throttle_callbacks:
             self._throttle_callbacks.append(callback)
-
-    def remove_throttle_callback(self, callback: Callable[[bool, Dict[str, Any]], Any]) -> None:
-        if callback in self._throttle_callbacks:
-            self._throttle_callbacks.remove(callback)
 
     def set_mock_pressure(
         self,
@@ -444,10 +427,6 @@ class PsiSampler:
             some=some_metric,
             full=full_metric,
         )
-
-    def clear_mock(self) -> None:
-        """Clear all mock data."""
-        self._mock_data.clear()
 
     def read_resource(self, resource: str) -> PsiResourcePressure:
         """Read pressure metrics for one resource, using mock, procfs, or fallback."""
@@ -740,26 +719,3 @@ def get_psi_monitor() -> PsiSampler:
         )
     return _GLOBAL_MONITOR
 
-
-def set_psi_monitor(monitor: Optional[PsiSampler]) -> None:
-    """Set the global PSI monitor singleton."""
-    global _GLOBAL_MONITOR
-    _GLOBAL_MONITOR = monitor
-
-
-def is_throttled() -> bool:
-    """Return True if the global PSI monitor is in a CRITICAL throttled state."""
-    global _GLOBAL_MONITOR
-    if _GLOBAL_MONITOR is not None:
-        return _GLOBAL_MONITOR.is_throttled()
-    return False
-
-
-def register_throttle_callback(callback: Callable[[bool, Dict[str, Any]], Any]) -> None:
-    """Register a callback with the global PSI monitor."""
-    get_psi_monitor().register_throttle_callback(callback)
-
-
-def add_listener(callback: Callable[..., Any]) -> None:
-    """Register an event listener with the global PSI monitor."""
-    get_psi_monitor().add_listener(callback)

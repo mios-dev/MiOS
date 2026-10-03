@@ -578,7 +578,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Subcommand: status
     p_status = subparsers.add_parser("status", help="Query Core Scheduling support, SMT state, and task cookies.")
     p_status.add_argument("--pid", type=int, help="Query cookie for specific PID (default: self).")
-    p_status.add_argument("--json", action="action_store_true" if False else "store_true", help="Output status in JSON format.")
+    p_status.add_argument("--json", action="store_true", help="Output status in JSON format.")
 
     # Subcommand: create (alias for creating unique cookie)
     p_create = subparsers.add_parser("create", help="Create a unique Core Scheduling cookie.")

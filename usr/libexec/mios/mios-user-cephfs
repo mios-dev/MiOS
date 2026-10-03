@@ -116,19 +116,6 @@ def parse_quota_bytes(val: str | int | float) -> int:
     return int(number_part * units.get(unit_part, 1024**3))
 
 
-def format_bytes(bytes_count: int) -> str:
-    """Format byte count into human-readable string."""
-    if bytes_count <= 0:
-        return "0 B"
-    units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-    val = float(bytes_count)
-    unit_idx = 0
-    while val >= 1024.0 and unit_idx < len(units) - 1:
-        val /= 1024.0
-        unit_idx += 1
-    return f"{val:.1f}{units[unit_idx]}"
-
-
 class CephFSUserStorageManager:
     """Manages encrypted per-user CephFS subvolumes, fscrypt keys, snapshots, and replication."""
 

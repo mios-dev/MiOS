@@ -487,24 +487,6 @@ class TaskFailoverEngine:
         self._sync()
         return task
 
-    def complete_task(self, task_id: str, result_summary: Optional[str] = None) -> bool:
-        """Mark an in-flight task as completed and decrement node load."""
-        if task_id not in self.tasks:
-            return False
-
-        task = self.tasks[task_id]
-        if task.node_id and task.node_id in self.nodes:
-            self.nodes[task.node_id].active_tasks = max(0, self.nodes[task.node_id].active_tasks - 1)
-            if not self.dry_run:
-                self.storage.save_node(self.nodes[task.node_id])
-
-        task.status = "completed"
-        task.updated_at = time.time()
-        if not self.dry_run:
-            self.storage.save_task(task)
-        self._sync()
-        return True
-
     def audit_nodes(self, now: Optional[float] = None) -> List[Tuple[NodeRecord, str]]:
         """Audit all nodes and detect state transitions based on heartbeat timeout."""
         current = now if now is not None else time.time()

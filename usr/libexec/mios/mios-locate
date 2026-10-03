@@ -4,8 +4,6 @@
 # AI-functions: usage, _filter_results
 set -euo pipefail
 
-set -u
-
 usage() {
     cat <<'USAGE'
 usage: mios-locate <query> [-n <max>] [-ext <csv>] [-path <subtree>] [-type f|d]

@@ -15,11 +15,6 @@ from typing import Any, Dict, Optional, Tuple
 log = logging.getLogger("mios-webhook")
 
 
-class WebhookAuthError(Exception):
-    """Raised when webhook signature verification fails."""
-    pass
-
-
 class WebhookReceiver:
     """Ingests and queues incoming webhooks with HMAC-SHA256 verification and deduplication."""
 

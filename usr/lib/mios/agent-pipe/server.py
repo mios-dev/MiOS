@@ -1306,10 +1306,6 @@ def _host_stats_cached(ttl: float = 1.0) -> dict:
 
 _OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
 
-def _agent_engines(cfg: dict) -> list:
-    """The compute engines an agent has a binding for (sorted)."""
-    return sorted((cfg.get("engines") or {}).keys())
-
 _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
     "MIOS_CPU_LANE_HINTS",
     str(_DISPATCH_TOML.get("cpu_lane_hints", "8458,8450"))).split(",")
@@ -1775,22 +1771,6 @@ _RECIPE_CATALOG = _load_recipe_catalog()
 _RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
 
 _AGENT_CATALOG_RENDERED = _render_agent_catalog(_AGENT_REGISTRY)
-
-_BYPASS_NEGATIVE_CHARS = set("?/\\:@$~")
-
-def _is_trivial_bypass(s: str) -> bool:
-    if not s:
-        return False
-    s = s.strip()
-    if not s or len(s) > REFINE_BYPASS_CHARS:
-        return False
-    if any(c in _BYPASS_NEGATIVE_CHARS for c in s):
-        return False
-    if any(c.isdigit() for c in s):
-        return False
-    if len(s.split()) > 4:
-        return False
-    return True
 
 _AGENT_CONTRACT_PATHS = (
     os.path.expanduser("~/.config/mios/MiOS.md"),

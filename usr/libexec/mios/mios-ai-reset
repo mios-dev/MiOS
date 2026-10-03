@@ -4,8 +4,6 @@
 # AI-functions: _check_safe, _do
 set -euo pipefail
 
-set -u
-
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 

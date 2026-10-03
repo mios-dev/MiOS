@@ -4,8 +4,6 @@
 # AI-functions: usage
 set -euo pipefail
 
-set -eu
-
 usage() {
     cat <<'USAGE'
 usage: mios-everything <query> [-n <max>] [-ext <csv>]

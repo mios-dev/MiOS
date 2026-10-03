@@ -4,8 +4,6 @@
 # AI-functions: usage, _cfg_bool, _ps_squote, _win_path, _flatten_prologue, _wrap_call, _truncate
 set -euo pipefail
 
-set -u
-
 for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
     if [ -r "$_ue" ]; then
         # shellcheck disable=SC1090

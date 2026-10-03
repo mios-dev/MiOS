@@ -109,19 +109,6 @@ class BladeRecord:
         }
         self.raw_config = raw_config or {}
 
-    def to_dict(self) -> dict:
-        return {
-            "blade_id": self.blade_id,
-            "architecture": self.architecture,
-            "mac_address": self.mac_address,
-            "chassis_serial": self.chassis_serial,
-            "wireguard_ip": self.wireguard_ip,
-            "ek_fingerprint": self.ek_fingerprint,
-            "wireguard_pubkey": self.wireguard_pubkey,
-            "roles": self.roles,
-            "pcr_baselines": self.pcr_baselines,
-        }
-
     def generate_manifest(self) -> dict:
         """Create hardware admission policy manifest dictionary for cluster coordinator."""
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()

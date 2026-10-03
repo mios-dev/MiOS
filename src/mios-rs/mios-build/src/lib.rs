@@ -1079,15 +1079,6 @@ impl PhaseRegistry {
     }
 }
 
-pub fn run_build_profile(
-    phase: &str,
-    plan_only: bool,
-    list_only: bool,
-    profile: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    run_build_selected(phase, plan_only, list_only, false, profile)
-}
-
 /// `miosd build`: phases (or, with `sections_only`, package sections) for a
 /// profile. With no profile named, `[profiles].default` applies when the SSOT
 /// declares `[profiles]`; a tree without it keeps the full registry.

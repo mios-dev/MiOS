@@ -93,6 +93,7 @@ def main(argv):
             valid_ssot_keys.add(m.group(1))
 
     toml_path = os.path.join(ROOT, "usr/share/mios/mios.toml")
+    toml_data = {}
     if os.path.exists(toml_path):
         with open(toml_path, "rb") as f:
             toml_data = tomllib.load(f)
@@ -194,13 +195,9 @@ def main(argv):
     # The law set is the SSOT's, not a literal: this was pinned at 13 and went
     # stale when the registry grew, so no workstream could cite Laws 14-16.
     valid_law_ids = set()
-    try:
-        with open(os.path.join(ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
-            for law in (tomllib.load(fh).get("laws", {}) or {}).get("laws", []) or []:
-                if isinstance(law.get("id"), int):
-                    valid_law_ids.add(law["id"])
-    except (OSError, tomllib.TOMLDecodeError):
-        valid_law_ids = set()
+    for law in (toml_data.get("laws", {}) or {}).get("laws", []) or []:
+        if isinstance(law.get("id"), int):
+            valid_law_ids.add(law["id"])
 
     validation_errors = []
     for ws in workstreams:

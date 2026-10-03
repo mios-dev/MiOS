@@ -19,11 +19,6 @@ warn() {
     echo "[mios-vendor-refresh] WARN: $*" >&2
 }
 
-die() {
-    echo "[mios-vendor-refresh] ERROR: $*" >&2
-    exit 1
-}
-
 resolve_k3s() {
     log "Resolving latest k3s release tag via git ls-remote"
     local k3s_tag

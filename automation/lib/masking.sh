@@ -46,17 +46,6 @@ mask_filter() {
     sed -u "$sed_script"
 }
 
-ensure_cred() {
-    local var_name="$1"
-    local prompt_msg="$2"
-    if [[ -z "${!var_name:-}" ]]; then
-        read -rsp "$prompt_msg: " val
-        echo >&2 # Newline after silent read
-        export "$var_name"="$val"
-    fi
-    add_mask "${!var_name}"
-}
-
 scurl() {
     local args=(--retry 5 --retry-delay 3 --connect-timeout 20)
     local url=""

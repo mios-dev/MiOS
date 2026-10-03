@@ -3,8 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-wsl-flatpak-heal, mios-wsl-flatpak-heal.timer, dbus-broker.service, xdg-desktop-portal.service, xdg-document-portal.service, flatpak-portal.service
 set -euo pipefail
 
-set -u
-
 SERVICES=(
     "dbus-broker.service"
     "xdg-desktop-portal.service"

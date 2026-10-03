@@ -4,8 +4,6 @@
 # AI-functions: _urlenc
 set -euo pipefail
 
-set -u
-
 VIEWER_PATH="${MIOS_MD_VIEWER:-/usr/share/mios/markdown/index.html}"
 TEXT=""
 FILE=""

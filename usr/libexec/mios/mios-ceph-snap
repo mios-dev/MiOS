@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import hashlib
 import json
 import os
 import shutil
@@ -17,18 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple
 DEFAULT_HOURLY_RETENTION = 12
 DEFAULT_DAILY_RETENTION = 7
 DEFAULT_WEEKLY_RETENTION = 4
-
-
-def compute_file_sha256(path: str) -> str:
-    """Computes SHA-256 hash of a file."""
-    h = hashlib.sha256()
-    try:
-        with open(path, "rb") as f:
-            while chunk := f.read(65536):
-                h.update(chunk)
-        return h.hexdigest()
-    except Exception:
-        return ""
 
 
 def get_snap_dir(volume_path: str) -> str:

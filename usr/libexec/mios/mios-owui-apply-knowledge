@@ -114,12 +114,6 @@ def _content_type_for(path: str) -> str:
     return "text/plain"
 
 
-def _existing(conn: sqlite3.Connection, table: str, key: str, val: str):
-    return conn.execute(
-        f"SELECT * FROM {table} WHERE {key} = ? LIMIT 1", (val,)
-    ).fetchone()
-
-
 def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
     return [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
 

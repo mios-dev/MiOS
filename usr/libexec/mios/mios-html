@@ -3,8 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-html, /usr/share/mios/configurator/mios.html, /usr/share/mios/configurator/., mios-windows, mios-find
 set -euo pipefail
 
-set -u
-
 HTML_PATH="${MIOS_HTML_PATH:-/usr/share/mios/configurator/mios.html}"
 SECTION="${1:-}"
 

@@ -3,7 +3,6 @@
 # AI-related: mios-icon-stage
 # AI-functions: resolve_icon
 set -euo pipefail
-set -u
 
 TARGET_DIR=/tmp/mios-icon-stage
 mkdir -p "$TARGET_DIR"

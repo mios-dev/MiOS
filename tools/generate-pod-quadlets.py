@@ -72,8 +72,6 @@ def _sidecar_image(var_name: str):
     val = _SIDECARS.get(m.group(1).lower())
     return val if isinstance(val, str) and val else None
 
-_PLACEHOLDER_VARS: set[str] = {"FEDORA_VERSION", "MIOS_VERSION"}
-
 def load_placeholders(toml_path: str) -> set[str]:
     try:
         with open(toml_path, "rb") as f:
@@ -85,7 +83,7 @@ def load_placeholders(toml_path: str) -> set[str]:
 
 # The preserve-as-placeholder var set is operator-defined in [generator].
 # Resolve it here (TOML is known) rather than leaving the renderer hardcoded.
-_PLACEHOLDER_VARS = load_placeholders(TOML)
+_PLACEHOLDER_VARS: set[str] = load_placeholders(TOML)
 
 def _resolve_one(inner: str) -> str:
     """One ${inner}: SSOT export, then sidecar pin, then the inline default."""
@@ -520,12 +518,9 @@ def main(argv: "list[str]") -> int:
         return _selftest()
     check = "--check" in argv
     list_mode = "--list" in argv
-    global _SIDECARS, _SSOT_EXPORTS, _PRIVILEGED_ROOT, _GRANDFATHERED_CREDS, _SECRET_KEYS
+    global _SIDECARS, _SSOT_EXPORTS
     _SSOT_EXPORTS = load_vendor_exports(TOML)
     _SIDECARS = load_sidecars(TOML)
-    _PRIVILEGED_ROOT = load_privileged_root(TOML)
-    _GRANDFATHERED_CREDS = load_grandfathered_credentials(TOML)
-    _SECRET_KEYS = load_secret_keys(TOML)
     enabled_map = load_enabled_quadlets(TOML)
     user_scope = load_user_scope(TOML)
     pods = load_pods(TOML)

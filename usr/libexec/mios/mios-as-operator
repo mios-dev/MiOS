@@ -3,7 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-as-operator, /usr/share/mios/mios.toml, /etc/mios/wsl-distro, mios-launcher, mios-hermes, 1000.service, mios-launcher.socket, mios-launcher.service, socket.socket
 # AI-functions: _quote
 set -euo pipefail
-set -eu
 
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat <<'USAGE'
@@ -36,13 +35,14 @@ fi
 [ -z "$_op_uid" ] && _op_uid="$(id -u mios 2>/dev/null)"
 [ -z "$_op_uid" ] && _op_uid=992
 
+_quote() {
+    printf "'"
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+
 _BROKER_SOCK="${MIOS_LAUNCHER_SOCK:-/run/mios-launcher/launcher.sock}"
 if [ -S "$_BROKER_SOCK" ]; then
-    _quote() {
-        printf "'"
-        printf '%s' "$1" | sed "s/'/'\\\\''/g"
-        printf "'"
-    }
     _line=""
     for arg in "$@"; do
         _line="${_line} $(_quote "$arg")"
@@ -101,11 +101,6 @@ if [ ! -e "$WSL_EXE" ]; then
     exit 1
 fi
 
-_quote() {
-    printf "'"
-    printf '%s' "$1" | sed "s/'/'\\\\''/g"
-    printf "'"
-}
 quoted=""
 for arg in "$@"; do
     quoted="${quoted} $(_quote "$arg")"

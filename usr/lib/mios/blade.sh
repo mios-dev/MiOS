@@ -287,24 +287,13 @@ _resolve_placement_failover() {
         printf '%s\n' "$p_info" >&2
         return 1
     fi
-    local order dwell rec_dwell fail_c
+    local order rec_dwell fail_c
     order="$(printf '%s\n' "$p_info" | sed -n 's/^failover_order=//p')"
-    dwell="$(printf '%s\n' "$p_info" | sed -n 's/^dwell_s=//p')"
     rec_dwell="$(printf '%s\n' "$p_info" | sed -n 's/^recover_dwell_s=//p')"
     fail_c="$(printf '%s\n' "$p_info" | sed -n 's/^fail_checks=//p')"
 
-    if [[ -z "$order" ]]; then
-        printf 'ERROR: empty failover_order\n' >&2
-        return 1
-    fi
-
-    local -a order_arr=($order)
-    for t in "${order_arr[@]}"; do
-        case "$t" in
-            local|localhost|cluster) ;;
-            *) printf 'ERROR: unknown tier: %s\n' "$t" >&2; return 1 ;;
-        esac
-    done
+    local -a order_arr
+    read -ra order_arr <<< "$order"
 
     local state_dir="${FAILOVER_STATE_DIR:-/run/mios/failover}"
     mkdir -p "$state_dir" 2>/dev/null || true

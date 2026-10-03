@@ -149,12 +149,6 @@ _get_package_closure() {
 
 _get_raw_packages() {
     local category="$1"
-    local file="${2:-}"
-
-    if [[ -n "$file" ]]; then
-        _get_pkgs_from_single_toml "$category" "$file"
-        return $?
-    fi
 
     local cand
     for cand in \
@@ -249,11 +243,7 @@ _is_section_enabled() {
                     exit
                 }
             ' "$cand" 2>/dev/null)
-            if [[ "$result" == "false" ]]; then
-                return 1
-            elif [[ "$result" == "true" ]]; then
-                return 0
-            fi
+            [[ "$result" == "false" ]] && return 1
             return 0
         fi
     done

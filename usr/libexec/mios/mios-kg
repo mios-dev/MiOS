@@ -56,11 +56,6 @@ def _pg_json(envelope: dict) -> str:
         return ""
 
 
-def _pg_exec(sql: str, params: "list | None" = None) -> None:
-    """One parameterized statement (values bound out-of-band, never spliced)."""
-    _pg_json({"sql": sql, "params": params or []})
-
-
 def _pg_batch(statements: list) -> None:
     """Several parameterized statements run ATOMICALLY (one BEGIN/COMMIT) -- for
     the delete-then-insert upserts. Each item is {"sql","params"}."""

@@ -4,8 +4,6 @@
 # AI-functions: query_apps_use_light_theme, apply
 set -euo pipefail
 
-set -u
-
 INTERVAL="${MIOS_THEME_POLL_INTERVAL:-15}"
 last_scheme=""
 
@@ -38,7 +36,6 @@ apply() {
     case "$scheme" in
         prefer-dark) gtk_theme="adw-gtk3-dark" ;;
         default)     gtk_theme="adw-gtk3" ;;
-        *) return 0 ;;
     esac
     gsettings set org.gnome.desktop.interface color-scheme "$scheme" 2>/dev/null || true
     gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" 2>/dev/null || true

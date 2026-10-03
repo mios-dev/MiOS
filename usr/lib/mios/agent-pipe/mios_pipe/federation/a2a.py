@@ -270,11 +270,7 @@ def _build_agent_card() -> dict:
 
 AGENT_PASSPORT_VERSION = "0.1.0"
 
-def _canonical_json(obj) -> bytes:
-    """Canonical JSON for signing: sorted keys at every depth, no whitespace,
-    UTF-8 -- deterministic bytes for cross-implementation Ed25519 verification."""
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=False).encode("utf-8")
+_canonical_json = _jcs_canonicalize  # one RFC-8785 canonicaliser
 
 def _build_agent_passport() -> dict:
     """Render the Open Agent Passport (v0.1.0) from MiOS SSOT, Ed25519-signed when

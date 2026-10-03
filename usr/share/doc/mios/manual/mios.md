@@ -1768,16 +1768,6 @@ Batch-upsert directory_entry rows via the legacy DB.
 
 <!-- mios-src:2590494ac9b9 from usr/libexec/mios/mios-daemon:2402-2414 -->
 
-### R15
-
-R15: mirror the directory index into pgvector. The directory_entry
-    writer bypasses _db_create (datetime literal shaping), so it never hit the
-    _pg_insert chokepoint -- this is its dedicated pg path. DELETE the root's
-    rows then batch-INSERT (ON CONFLICT(path) update). Runs in dual+postgres
-    modes. Degrade-open via _pg_exec (mios-db --pg).
-
-<!-- mios-src:5370723845d5 from usr/libexec/mios/mios-daemon:2461-2465 -->
-
 ### Delete all directory_entry rows for this root_label, then...
 
 Delete all directory_entry rows for this root_label, then
@@ -4906,3 +4896,13 @@ the way generated globals are excluded from the shell/PowerShell counts -- is
 recorded in T-1051 with the numbers.
 
 <!-- mios-src:406e7f65ceb5 from usr/share/mios/mios.toml:11355-11385 -->
+
+### R15
+
+R15: mirror the directory index into pgvector. The directory_entry
+    writer bypasses _db_create (datetime literal shaping), so it never hit the
+    _pg_insert chokepoint -- this is its dedicated pg path. DELETE the root's
+    rows then batch-INSERT (ON CONFLICT(path) update). Runs in dual+postgres
+    modes. Degrade-open via _pg_run (mios-db --pg-json).
+
+<!-- mios-src:8f958af7e20c from usr/libexec/mios/mios-daemon:2450-2454 -->

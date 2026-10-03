@@ -4,8 +4,6 @@
 # AI-functions: _alias_resolve, _pf_flatpak, _broker_dispatch, _launcher_override
 set -euo pipefail
 
-set -eu
-
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat <<'USAGE'
 usage: mios-launch <name> [args...]

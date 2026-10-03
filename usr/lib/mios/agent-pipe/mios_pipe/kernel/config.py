@@ -70,22 +70,8 @@ def _dispatch_toml() -> dict:
 _DISPATCH_TOML = _dispatch_toml()
 
 def _dispatch_num(env: str, key: str, default, cast=int):
-    """Resolve a numeric tunable: env override -> mios.toml [dispatch].<key> ->
-    literal default. Unlike a bare `a or b or default` chain this PRESERVES a
-    legitimate 0 (e.g. dag_node_retry = 0 = no retry)."""
-    v = os.environ.get(env)
-    if v not in (None, ""):
-        try:
-            return cast(v)
-        except (ValueError, TypeError):
-            pass
-    v = _DISPATCH_TOML.get(key)
-    if v is not None:
-        try:
-            return cast(v)
-        except (ValueError, TypeError):
-            pass
-    return default
+    """env override -> mios.toml [dispatch].<key> -> default; keeps a legitimate 0."""
+    return _cfg_num(_DISPATCH_TOML, env, key, default, cast)
 
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
