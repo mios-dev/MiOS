@@ -4,7 +4,7 @@
   "total_metadata_entries": 2987,
   "total_hints": 2972,
   "total_functions_indexed": 1393,
-  "total_related_links": 4741,
+  "total_related_links": 4747,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -6174,6 +6174,19 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-audit-image-provisioning.py",
+      "hint": "Two-sided test for tools/audit-image-provisioning.py -- passes on the shipped mios.toml, fails naming the item for each planted breakage.",
+      "related": [
+        "tools/audit-image-provisioning.py",
+        "usr/share/mios/mios.toml",
+        "Justfile"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-bake-group.sh",
       "hint": "Tests mios-bake-group against a stubbed podman and a throwaway image store, checking what it pulls.",
       "related": [],
@@ -8527,7 +8540,11 @@
     {
       "path": "tools/audit-image-provisioning.py",
       "hint": "Post-build image-audit validator asserting provisioning status (AGY / T-286).",
-      "related": [],
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tests/test-audit-image-provisioning.py",
+        "Justfile"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",

@@ -12465,6 +12465,7 @@ unit = [
     "tests/test-refine-guards.py",
     "tests/test-context-processing.py",
     "tests/test-atomic-writes.py",
+    "tests/test-audit-image-provisioning.py",
     "tests/test-path-normalization.py",
     "tests/test-bootstrap-sync-parity.py",
     "tests/test-install-fhs.py",
