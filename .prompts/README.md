@@ -40,6 +40,16 @@ in the prompt:
   - [`tracing-backend-lifecycle.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/observability/tracing-backend-lifecycle.xml.md)
 - FOSS/supply-chain:
   - [`telemetry-claim-corroboration.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/supply-chain/telemetry-claim-corroboration.xml.md)
+- FOSS/protocol:
+  - [`mcp-streamable-http-conformance.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/protocol/mcp-streamable-http-conformance.xml.md)
+- FOSS/image:
+  - [`logically-bound-image-lifecycle.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/image/logically-bound-image-lifecycle.xml.md)
+- FOSS/model:
+  - [`model-swap-proxy-lifecycle.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/model-swap-proxy-lifecycle.xml.md)
+- FOSS/datastore:
+  - [`vector-index-version-assurance.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/datastore/vector-index-version-assurance.xml.md)
+- FOSS/packaging:
+  - [`rpm-scriptlet-offline-manager.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/packaging/rpm-scriptlet-offline-manager.xml.md)
 
 Use those contracts for focused upstream research. Use
 `.mios/system-prompt.md` when the output must be a formal architecture,

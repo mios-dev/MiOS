@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3615,
-  "total_metadata_entries": 2981,
-  "total_hints": 2966,
+  "total_files_scanned": 3620,
+  "total_metadata_entries": 2986,
+  "total_hints": 2971,
   "total_functions_indexed": 1399,
-  "total_related_links": 4712,
+  "total_related_links": 4741,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -33526,6 +33526,37 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/datastore/vector-index-version-assurance.xml.md",
+      "hint": "Primary-source prompt for the pgvector datastore: what the floating",
+      "related": [
+        "usr/share/mios/mios.toml [image.sidecars] [containers.mios-pgvector]",
+        "usr/share/mios/postgres/schema-init.sql",
+        "usr/share/mios/prompts/upstream-research.xml.md",
+        "TASKS.jsonl T-1124",
+        ".prompts/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/image/logically-bound-image-lifecycle.xml.md",
+      "hint": "Primary-source prompt for the bootc logically bound image lifecycle:",
+      "related": [
+        "usr/share/mios/mios.toml [build.bake]",
+        "usr/share/containers/storage.conf",
+        "automation/01-system-files-overlay.sh",
+        "automation/99-postcheck.sh",
+        "TASKS.jsonl T-1120",
+        ".prompts/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/mesh/self-hosted-mesh-coordinator.xml.md",
       "hint": "Primary-source prompt for the self-hosted mesh-VPN coordinator that T-986",
       "related": [
@@ -33593,6 +33624,21 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/model/model-swap-proxy-lifecycle.xml.md",
+      "hint": "Primary-source prompt for the model-swap proxy behind mios-llm-light:",
+      "related": [
+        "usr/share/mios/llamacpp/mios-llm-light.yaml",
+        "usr/share/mios/mios.toml [image.sidecars] [ports]",
+        "usr/share/containers/systemd/mios-llm-light.container",
+        "TASKS.jsonl T-1122",
+        ".prompts/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/model/upstream-foss-patterns.xml.md",
       "hint": "Primary-source research prompt for evaluating FOSS upstream",
       "related": [],
@@ -33607,6 +33653,39 @@
       "related": [
         "usr/share/mios/mios.toml [image.sidecars] [containers.mios-otelcol] [observability]",
         "TASKS.md",
+        ".prompts/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/packaging/rpm-scriptlet-offline-manager.xml.md",
+      "hint": "Primary-source prompt for RPM scriptlets that call systemd when no",
+      "related": [
+        "automation/build.sh",
+        "CONTRIBUTING.md",
+        "usr/libexec/mios/install-nvidia-wsl-userland.sh",
+        "usr/libexec/mios/automation/35-xrdp-enhanced-session.sh",
+        "usr/share/doc/mios/manual/root.md",
+        "TASKS.jsonl T-1143",
+        ".prompts/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/prompts/upstream-researched-patterns/foss/protocol/mcp-streamable-http-conformance.xml.md",
+      "hint": "Primary-source prompt for MCP transport conformance: whether the",
+      "related": [
+        "usr/share/mios/mios.toml [mcp]",
+        "usr/libexec/mios/mios-mcp-server",
+        "usr/lib/mios/agent-pipe/mios_mcp_transport.py",
+        "usr/lib/mios/agent-pipe/mios_mcp_schema.py",
+        "TASKS.jsonl T-1123",
         ".prompts/README.md"
       ],
       "functions": [],
