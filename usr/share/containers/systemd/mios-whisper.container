@@ -3,8 +3,7 @@
 # /usr/share/containers/systemd/mios-whisper.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service
-AssertPathExists=/var/lib/mios/whisper/models/ggml-base.en.bin
+After=network-online.target mios-cdi-detect.service
 Description='MiOS' Whisper Streaming STT Engine (whisper.cpp)
 Documentation=https://github.com/ggml-org/whisper.cpp
 Wants=network-online.target
@@ -13,7 +12,7 @@ Wants=network-online.target
 ContainerName=mios-whisper
 Environment=PORT=${MIOS_PORT_WHISPER:-8178}
 EnvironmentFile=/etc/mios/install.env
-Exec='whisper-server --model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'
+Exec='whisper-server --model /app/models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'
 GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 Group=832
 HealthCmd=curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1
@@ -26,7 +25,6 @@ Label=org.opencontainers.image.title=mios-whisper
 Label=org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"
 Pod=mios-ai.pod
 User=832
-Volume=/var/lib/mios/whisper/models:/models:ro,Z
 Volume=/run/mios:/run/mios:Z
 
 [Install]

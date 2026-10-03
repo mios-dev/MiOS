@@ -117,8 +117,16 @@ class TestSpeechStorage(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(text.replace(old, new))
 
-    def test_both_speech_engines_are_covered(self) -> None:
-        self.assertEqual(sorted(self.engines), ["piper", "whisper"])
+    def test_host_store_engines(self) -> None:
+        # whisper loads the model baked into its bound image, so only piper
+        # carries a host model_dir.
+        self.assertEqual(sorted(self.engines), ["piper"])
+
+    def test_whisper_loads_its_in_image_model(self) -> None:
+        q = _quadlet(_ROOT, "whisper")
+        self.assertFalse([v for v in q.get("Container", {}).get("Volume", []) if ":/models" in v],
+                         "mios-whisper must not bind a host /models")
+        self.assertIn("--model /app/models/", " ".join(q.get("Container", {}).get("Exec", [])))
 
     def test_positive_shipped_tree(self) -> None:
         for engine, spec in self.engines.items():
@@ -126,11 +134,11 @@ class TestSpeechStorage(unittest.TestCase):
 
     def test_negative_pre_fix_usr_mount(self) -> None:
         """The pre-fix shape: a /usr bind source nothing creates."""
-        self._plant(os.path.join(_QUADLETS, "mios-whisper.container"),
-                    "Volume=/var/lib/mios/whisper/models:", "Volume=/usr/share/mios/whisper/models:")
-        errs = check_engine(self.scratch, "whisper", self.engines["whisper"])
-        self.assertIn("mios-whisper.container mounts /usr/share/mios/whisper/models at /models, "
-                      "not model_dir /var/lib/mios/whisper/models", errs)
+        self._plant(os.path.join(_QUADLETS, "mios-piper.container"),
+                    "Volume=/var/lib/mios/piper/models:", "Volume=/usr/share/mios/piper/models:")
+        errs = check_engine(self.scratch, "piper", self.engines["piper"])
+        self.assertIn("mios-piper.container mounts /usr/share/mios/piper/models at /models, "
+                      "not model_dir /var/lib/mios/piper/models", errs)
 
     def test_negative_storage_undeclared(self) -> None:
         self._plant(os.path.join(_TMPFILES, "mios-speech.conf"),
@@ -139,11 +147,11 @@ class TestSpeechStorage(unittest.TestCase):
                       check_engine(self.scratch, "piper", self.engines["piper"]))
 
     def test_negative_no_prerequisite_assert(self) -> None:
-        self._plant(os.path.join(_QUADLETS, "mios-whisper.container"),
+        self._plant(os.path.join(_QUADLETS, "mios-piper.container"),
                     "AssertPathExists=", "ConditionPathExists=")
-        self.assertIn("mios-whisper.container does not AssertPathExists="
-                      "/var/lib/mios/whisper/models/ggml-base.en.bin",
-                      check_engine(self.scratch, "whisper", self.engines["whisper"]))
+        self.assertIn("mios-piper.container does not AssertPathExists="
+                      "/var/lib/mios/piper/models/en_US-lessac-medium.onnx",
+                      check_engine(self.scratch, "piper", self.engines["piper"]))
 
     def test_negative_model_drift(self) -> None:
         spec = dict(self.engines["piper"], model="en_US-other.onnx")

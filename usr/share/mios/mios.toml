@@ -7447,8 +7447,7 @@ model     = "en_US-lessac-medium.onnx"
 user = "mios-whisper"
 uid  = 832
 gid  = 832
-model_dir = "/var/lib/mios/whisper/models"
-model     = "ggml-base.en.bin"
+# No model_dir: whisper loads the model baked into its bound image (Law 12).
 
 [adguard]
 # Upstream resolvers -- DoH for privacy (no plaintext :53 to the ISP). The agent
@@ -10187,19 +10186,18 @@ RestartSec = "5s"
 TimeoutStartSec = "300s"
 
 [containers.mios-whisper.Unit]
-After = "network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service"
+After = "network-online.target mios-cdi-detect.service"
 Description = "'MiOS' Whisper Streaming STT Engine (whisper.cpp)"
 Documentation = "https://github.com/ggml-org/whisper.cpp"
 Wants = "network-online.target"
-# The model is provisioned into [services.whisper].model_dir; without it the
-# unit fails here, naming the file, rather than looping on podman statfs.
-AssertPathExists = "/var/lib/mios/whisper/models/ggml-base.en.bin"
 
 [containers.mios-whisper.Container]
 ContainerName = "mios-whisper"
 Environment = "PORT=${MIOS_PORT_WHISPER:-8178}"
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "'whisper-server --model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'"
+# The model ships inside the bound image (/app/models/ggml-base.en.bin), so no
+# host bind: a read-only vendor model is image content (Law 12), not /var state.
+Exec = "'whisper-server --model /app/models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'"
 Group = "${MIOS_WHISPER_GID:-832}"
 HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1"
 HealthInterval = "30s"
@@ -10213,10 +10211,7 @@ Label = [
 ]
 Pod = "mios-ai.pod"
 User = "${MIOS_WHISPER_UID:-832}"
-Volume = [
-  "/var/lib/mios/whisper/models:/models:ro,Z",
-  "/run/mios:/run/mios:Z"
-]
+Volume = "/run/mios:/run/mios:Z"
 
 [containers.mios-whisper.Install]
 WantedBy = "multi-user.target default.target"

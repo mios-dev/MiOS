@@ -86,7 +86,7 @@ The Whisper inference service runs as an isolated systemd Quadlet container:
 - **Pod Association**: Joins `Pod=mios-ai.pod` sharing host networking with `mios-llm-light` and `mios-open-webui`.
 - **Image**: `ghcr.io/ggml-org/whisper.cpp:main` (upstream moved from `ggerganov`; that path stopped updating in 2025-04)
 - **Port**: `8178` (configurable via `MIOS_PORT_WHISPER`).
-- **Models**: the file named by `[services.whisper].model` (default `ggml-base.en.bin`), read from `[services.whisper].model_dir` (`/var/lib/mios/whisper/models`, declared by `usr/lib/tmpfiles.d/mios-speech.conf`) and mounted read-only at `/models`. The unit carries `AssertPathExists=` on that file: until a model is provisioned there, `systemctl status mios-whisper` reports the failed assertion by path instead of restart-looping on a missing bind source. Piper follows the same shape under `[services.piper]`.
+- **Models**: `ggml-base.en.bin` ships inside the bound `whisper.cpp` image at `/app/models/`, so the unit needs no host model bind and the model is lifecycled with the image (`bootc upgrade`/`rollback`). Piper keeps a host store under `[services.piper].model_dir` until its voice is baked into its own image.
 
 #### Streaming HTTP API
 

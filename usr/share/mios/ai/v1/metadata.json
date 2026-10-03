@@ -18917,7 +18917,7 @@
     },
     {
       "path": "usr/lib/tmpfiles.d/mios-speech.conf",
-      "hint": "Persistent model storage for the mios-ai pod's streaming speech engines (whisper.cpp STT, Piper TTS), bind-mounted read-only at /models.",
+      "hint": "Persistent model storage for the mios-ai pod's streaming speech engines (Piper TTS; whisper.cpp loads the model baked into its image), bind-mounted read-only at /models.",
       "related": [
         "usr/share/containers/systemd/mios-whisper.container",
         "usr/share/containers/systemd/mios-piper.container",
