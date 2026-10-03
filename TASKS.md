@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1616 |
+| pending | 1617 |
 | in_progress | 45 |
 | completed | 1807 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3505 |
+| total | 3506 |
 
 0 record(s) carry at least one override.
 
@@ -443,6 +443,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2573` Automated distributed 70B layer-split forward pass and network failover test suite -- pending · P2 · size S · depends_on AGY-2572
 - `T-1135` Define MIOS_PORTS_MCP for mcp-server-runner (unbound variable under set -u) -- in_progress · owner claude-code · P1 · size S
 - `T-1140` Provision persistent speech model storage before its service starts -- in_progress · owner claude-code · P1 · size S
+- `T-1213` MiOS-MCP runs out of the box in every image: executable relay, no port literals, no retired-port peer, started by the dev/cloud lifecycle (WS-AI | P1 | S) -- pending · P1 · size S
 
 ## WS-AIOS
 
