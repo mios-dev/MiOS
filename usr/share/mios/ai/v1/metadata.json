@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3638,
-  "total_metadata_entries": 2998,
-  "total_hints": 2983,
+  "total_files_scanned": 3634,
+  "total_metadata_entries": 2997,
+  "total_hints": 2982,
   "total_functions_indexed": 1446,
-  "total_related_links": 4791,
+  "total_related_links": 4787,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -9899,7 +9899,7 @@
     },
     {
       "path": "tools/native/mios-task/src/overrides.rs",
-      "hint": "The TASKS.md operator-overrides block in the dev-loop toolkit's format -- '# TASKS' banner, overrides:begin/end markers, one {\"id\": ..., field: value} JSON line per override -- validated against the record schema and applied on top of tasks.jsonl.",
+      "hint": "TASKS.md -- the operator-overrides block in the dev-loop toolkit's format ({\"id\": ..., field: value} lines under '# TASKS'), validated and applied on top of tasks.jsonl, and the deterministic render around it.",
       "related": [
         "TASKS.md",
         "tasks.jsonl",
@@ -9911,7 +9911,10 @@
         "validate",
         "apply",
         "Effective",
-        "override_value"
+        "override_value",
+        "render",
+        "empty_block",
+        "line"
       ],
       "doc": null,
       "comment_style": "slash",
@@ -9934,24 +9937,6 @@
         "lane_word",
         "today",
         "is_iso_date"
-      ],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-task/src/render.rs",
-      "hint": "TASKS.md renderer -- byte-deterministic documentation of tasks.jsonl under the '# TASKS' banner, around the verbatim operator-overrides block; no dates, no timestamps.",
-      "related": [
-        "tasks.jsonl",
-        "TASKS.md",
-        "/usr/share/mios/mios.toml [tasks.store]",
-        "tools/native/mios-task/src/overrides.rs"
-      ],
-      "functions": [
-        "render",
-        "empty_block",
-        "line"
       ],
       "doc": null,
       "comment_style": "slash",
