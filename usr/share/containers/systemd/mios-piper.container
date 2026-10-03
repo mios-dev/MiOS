@@ -3,7 +3,8 @@
 # /usr/share/containers/systemd/mios-piper.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service
+After=network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service
+AssertPathExists=/var/lib/mios/piper/models/en_US-lessac-medium.onnx
 Description='MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)
 Documentation=https://github.com/rhasspy/piper
 Wants=network-online.target
@@ -25,7 +26,7 @@ Label=org.opencontainers.image.title=mios-piper
 Label=org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"
 Pod=mios-ai.pod
 User=831
-Volume=/usr/share/mios/piper/models:/models:ro,Z
+Volume=/var/lib/mios/piper/models:/models:ro,Z
 Volume=/run/mios:/run/mios:Z
 
 [Install]

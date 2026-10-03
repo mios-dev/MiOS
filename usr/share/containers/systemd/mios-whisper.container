@@ -3,7 +3,8 @@
 # /usr/share/containers/systemd/mios-whisper.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service
+After=network-online.target mios-cdi-detect.service systemd-tmpfiles-setup.service
+AssertPathExists=/var/lib/mios/whisper/models/ggml-base.en.bin
 Description='MiOS' Whisper Streaming STT Engine (whisper.cpp)
 Documentation=https://github.com/ggml-org/whisper.cpp
 Wants=network-online.target
@@ -25,7 +26,7 @@ Label=org.opencontainers.image.title=mios-whisper
 Label=org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"
 Pod=mios-ai.pod
 User=832
-Volume=/usr/share/mios/whisper/models:/models:ro,Z
+Volume=/var/lib/mios/whisper/models:/models:ro,Z
 Volume=/run/mios:/run/mios:Z
 
 [Install]
