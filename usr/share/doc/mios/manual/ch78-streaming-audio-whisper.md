@@ -188,7 +188,10 @@ shipped tree must hold:
 
 * [services.<engine>] carries no model_dir/model key (no host model store);
 * usr/lib/tmpfiles.d declares nothing under /var/lib/mios/<engine>;
-* the rendered Quadlet binds nothing at /models and asserts no path under
+* the rendered Quadlet mounts no Volume whose source is under
+  /var/lib/mios/<engine> or /srv (a host model store by another name), and no
+  Volume whose target is /models or the engine's in-image model path (a bind
+  there shadows the baked model), and asserts no path under
   /var/lib/mios/<engine>;
 * its Exec= loads the model from the in-image path, and for an image MiOS
   builds, the Containerfile bakes that model at that path.
@@ -196,4 +199,4 @@ shipped tree must hold:
 Each negative control plants one defect in a scratch copy and requires the
 same check to name it.
 
-<!-- mios-src:a0f47090065d from usr/libexec/mios/test_mios_speech_storage.py:5-21 -->
+<!-- mios-src:83a55d19ec28 from usr/libexec/mios/test_mios_speech_storage.py:5-24 -->

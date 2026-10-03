@@ -67,11 +67,15 @@ To ensure audio playback begins before later sentences are synthesized:
 | Engine | Default Voice | Sample Rate | Profile / Characteristics |
 | :--- | :--- | :--- | :--- |
 | **Piper** | `en_US-lessac-medium` | 24,000 Hz / 22,050 Hz | Lightweight VITS model, low CPU footprint, ONNX runtime accelerated. |
-| **Kokoro** | `af_heart` | 24,000 Hz | High-fidelity style-TTS architecture, expressive natural prosody. |
 
 Additional supported voices include:
 - Piper: `en_US-lessac-high`, `en_US-lessac-low`, `en_US-amy-medium`, `en_US-ryan-medium`, `en_GB-alan-medium`.
-- Kokoro: `af_bella`, `af_nicole`, `af_sarah`, `af_sky`, `am_adam`, `am_michael`, `bf_emma`, `bm_george`.
+
+Piper is the only engine: nothing on the box serves an OpenAI `/v1/audio/speech`
+TTS route, so the client has no Kokoro path. `HttpSynthesisEngine` POSTs
+piper1-gpl's own request shape, `{"text": ..., "voice": ...}`, to
+`<piper url>/synthesize` (the `http_server` index route is GET-only) and decodes
+the WAV it returns. A voice the image does not carry falls back to the `-m` voice.
 
 ---
 
@@ -128,7 +132,7 @@ The Piper TTS engine (piper1-gpl `http_server`) is deployed as a systemd Quadlet
 
 | Flag | Description |
 | :--- | :--- |
-| `--engine <piper\|kokoro>` | Selects synthesis engine (default: `piper`). |
+| `--engine <piper>` | Selects synthesis engine (only `piper`). |
 | `--voice <voice>` | Specifies voice model identifier (default: `en_US-lessac-medium`). |
 | `--sample-rate <hz>` | Configures audio sample rate (default: `24000`). |
 | `--output <file>` | Writes synthesized audio to `.wav` or `.pcm` file. |

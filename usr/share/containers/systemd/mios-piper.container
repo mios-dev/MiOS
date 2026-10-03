@@ -3,7 +3,7 @@
 # /usr/share/containers/systemd/mios-piper.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service
+After=network-online.target mios-cdi-detect.service mios-webtools-firstboot.service
 Description='MiOS' Piper Streaming TTS Engine (piper1-gpl http_server)
 Documentation=https://github.com/OHF-Voice/piper1-gpl
 Wants=network-online.target

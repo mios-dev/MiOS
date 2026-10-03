@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# AI-hint: Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).
+# AI-hint: Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).
 # AI-doc: usr/share/doc/mios/manual/ch79-streaming-tts-piper.md
-"""Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder.
+"""Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder.
 
 Buffers incoming LLM text tokens, detects sentence and clause boundaries in real time,
-synthesizes text chunks concurrently via local Piper/Kokoro ONNX or HTTP server,
+synthesizes text chunks concurrently via the local piper1-gpl HTTP server (mios-piper),
 and feeds raw PCM audio frames directly into low-latency PipeWire playback buffers
 with sub-300ms time-to-first-sound latency.
 """
@@ -45,14 +45,17 @@ DEFAULT_BUFFER_SECONDS = 5.0
 LATENCY_SLA_TARGET_MS = 300.0
 
 DEFAULT_PIPER_URL = f"http://localhost:{os.environ.get('MIOS_PORT_PIPER', '8179')}"
-DEFAULT_KOKORO_URL = f"{DEFAULT_PIPER_URL}/v1/audio/speech"  # [ports].piper serves Piper/Kokoro
+# piper1-gpl's http_server (localhost/mios-piper on [ports].piper) answers POST
+# only on /synthesize (and /download); its index route is GET-only, so a POST to
+# "/" is a 405. Nothing on the box serves an OpenAI /v1/audio/speech TTS route,
+# so this client speaks piper1-gpl's own request shape and nothing else.
+PIPER_SYNTHESIZE_PATH = "/synthesize"
 DEFAULT_SOCKET_PATH = "/run/mios/audio-tts.sock"
 
-SUPPORTED_ENGINES = ("piper", "kokoro")
+SUPPORTED_ENGINES = ("piper",)
 
 DEFAULT_VOICES: Dict[str, str] = {
     "piper": "en_US-lessac-medium",
-    "kokoro": "af_heart",
 }
 
 KNOWN_VOICES: Dict[str, List[str]] = {
@@ -66,19 +69,6 @@ KNOWN_VOICES: Dict[str, List[str]] = {
         "en_US-ryan-high",
         "en_GB-alan-medium",
         "en_GB-southern_english_female-low",
-    ],
-    "kokoro": [
-        "af_heart",
-        "af_bella",
-        "af_nicole",
-        "af_sarah",
-        "af_sky",
-        "am_adam",
-        "am_michael",
-        "bf_emma",
-        "bf_isabella",
-        "bm_george",
-        "bm_lewis",
     ],
 }
 
@@ -516,7 +506,7 @@ class MockSynthesisEngine(BaseSynthesisEngine):
 
 
 class HttpSynthesisEngine(BaseSynthesisEngine):
-    """Bridges synthesis to local Piper / Kokoro HTTP service."""
+    """Bridges synthesis to the local piper1-gpl http_server (mios-piper)."""
 
     def __init__(
         self,
@@ -527,41 +517,43 @@ class HttpSynthesisEngine(BaseSynthesisEngine):
         verbose: bool = False,
     ):
         self.endpoint_url = endpoint_url
-        self.engine = engine
+        self.engine = validate_engine(engine)
         self.sample_rate = sample_rate
         self.timeout = timeout
         self.verbose = verbose
 
-    def synthesize_chunk(self, text: str, voice: str) -> bytes:
-        headers = {"Content-Type": "application/json"}
-        if self.engine == "piper":
-            # Piper HTTP accepts raw text in query or JSON
-            url = f"{self.endpoint_url.rstrip('/')}/"
-            payload = json.dumps({"text": text, "voice": voice}).encode("utf-8")
-        else:
-            # Kokoro / OpenAI-compatible /v1/audio/speech
-            url = self.endpoint_url
-            payload = json.dumps({
-                "model": "kokoro",
-                "input": text,
-                "voice": voice,
-                "response_format": "pcm",
-            }).encode("utf-8")
+    def synthesize_url(self) -> str:
+        """POST target: <piper base url>/synthesize (piper1-gpl http_server)."""
+        return f"{self.endpoint_url.rstrip('/')}{PIPER_SYNTHESIZE_PATH}"
 
-        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    def build_payload(self, text: str, voice: str) -> bytes:
+        """piper1-gpl /synthesize body: {"text": ..., "voice": <model id>}.
+
+        The server falls back to the voice it loaded with -m when "voice" names a
+        model it does not have, so sending the requested id is always safe.
+        """
+        return json.dumps({"text": text, "voice": voice}).encode("utf-8")
+
+    def synthesize_chunk(self, text: str, voice: str) -> bytes:
+        url = self.synthesize_url()
+        req = urllib.request.Request(
+            url,
+            data=self.build_payload(text, voice),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 data = resp.read()
-                # Check if WAV and strip header if needed, or raw PCM
-                if data.startswith(b"RIFF"):
-                    # Extract raw PCM from WAV
-                    with wave.open(io.BytesIO(data), "rb") as wf:
-                        return wf.readframes(wf.getnframes())
-                return data
         except (urllib.error.URLError, OSError) as err:
             if self.verbose:
                 print(f"[mios-audio-tts] HTTP synthesis failed: {err}", file=sys.stderr)
             raise RuntimeError(f"HTTP synthesis failed connecting to {url}: {err}")
+        # /synthesize answers audio/wav; anything else is not audio this client can play.
+        if not data.startswith(b"RIFF"):
+            raise RuntimeError(f"HTTP synthesis at {url} returned non-WAV data ({len(data)} bytes)")
+        with wave.open(io.BytesIO(data), "rb") as wf:
+            return wf.readframes(wf.getnframes())
 
 
 # ==============================================================================
@@ -581,7 +573,6 @@ class StreamingTTSWorker:
         output_file: Optional[str] = None,
         verbose: bool = False,
         piper_url: str = DEFAULT_PIPER_URL,
-        kokoro_url: str = DEFAULT_KOKORO_URL,
     ):
         self.engine = validate_engine(engine)
         self.voice = validate_voice(voice, self.engine)
@@ -604,9 +595,8 @@ class StreamingTTSWorker:
         if mock_mode or dry_run:
             self.synthesis_engine: BaseSynthesisEngine = MockSynthesisEngine(sample_rate=sample_rate)
         else:
-            url = piper_url if self.engine == "piper" else kokoro_url
             self.synthesis_engine = HttpSynthesisEngine(
-                endpoint_url=url,
+                endpoint_url=piper_url,
                 engine=self.engine,
                 sample_rate=sample_rate,
                 verbose=verbose,
@@ -801,13 +791,13 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--dry-run", action="store_true", default=argparse.SUPPRESS, help="Validate configuration and parameters without executing audio")
     common.add_argument("--mock", action="store_true", default=argparse.SUPPRESS, help="Enable mock audio synthesis and playback loopback")
     common.add_argument("--sample-rate", type=int, default=argparse.SUPPRESS, help=f"Audio sample rate in Hz (default: {DEFAULT_SAMPLE_RATE})")
-    common.add_argument("--engine", choices=list(SUPPORTED_ENGINES), default=argparse.SUPPRESS, help="TTS synthesis engine (piper or kokoro)")
+    common.add_argument("--engine", choices=list(SUPPORTED_ENGINES), default=argparse.SUPPRESS, help="TTS synthesis engine (piper)")
     common.add_argument("--voice", default=argparse.SUPPRESS, help="Voice model identifier")
     common.add_argument("--output", default=argparse.SUPPRESS, help="Save synthesized audio to file (.wav or raw PCM)")
 
     parser = argparse.ArgumentParser(
         prog="mios_audio_tts.py",
-        description="Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
+        description="Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
         parents=[common],
     )
 

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3614,
-  "total_metadata_entries": 2980,
-  "total_hints": 2965,
-  "total_functions_indexed": 1398,
-  "total_related_links": 4710,
+  "total_files_scanned": 3615,
+  "total_metadata_entries": 2981,
+  "total_hints": 2966,
+  "total_functions_indexed": 1399,
+  "total_related_links": 4712,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -11494,7 +11494,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_audio_tts.py",
-      "hint": "Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
+      "hint": "Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/ch79-streaming-tts-piper.md",
@@ -14195,6 +14195,20 @@
         "usr/lib/mios/agent-pipe/server.py"
       ],
       "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/test_mios_audio_tts.py",
+      "hint": "Sibling unit test for the mios_audio_tts python module: the piper HTTP client must POST piper1-gpl's /synthesize request shape and decode the WAV it returns.",
+      "related": [
+        "/usr/lib/mios/agent-pipe/mios_audio_tts.py",
+        "/usr/lib/mios/agent-pipe/test_mios_audio_tts.py"
+      ],
+      "functions": [
+        "TestAudioTts"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": false
@@ -25993,7 +26007,7 @@
     },
     {
       "path": "usr/libexec/mios/test_mios_speech_storage.py",
-      "hint": "Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host /models bind, no [services] model_dir, no /var model store in tmpfiles, no AssertPathExists on one.",
+      "hint": "Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host model-store Volume, no [services] model_dir, no /var store in tmpfiles, no AssertPathExists on one.",
       "related": [
         "usr/share/mios/mios.toml",
         "usr/share/mios/piper/Containerfile",

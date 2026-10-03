@@ -143,7 +143,7 @@ install -d -m 0755 "$SBOM_DIR"
 printf '%s\t%s\t%s\n' "localhost/mios-base:latest" "${_base_digest:-local}" "base" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-sys:latest" "${_sys_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-cuda:latest" "${_cuda_digest:-local}" "cuda" >> "$SBOM_DIR/bound-images.tsv"
-printf '%s\t%s\t%s\n' "localhost/mios-piper:latest" "${_piper_digest:-local}" "piper" >> "$SBOM_DIR/bound-images.tsv"
+printf '%s\t%s\t%s\n' "localhost/mios-piper:latest" "${_piper_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 
 log "Pruning build-stage images from ${STORE}"
 while read -r _img; do

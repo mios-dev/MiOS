@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host /models bind, no [services] model_dir, no /var model store in tmpfiles, no AssertPathExists on one.
+# AI-hint: Two-sided controls for T-1140 -- both speech engines (piper, whisper) load a model baked into their bound image: no host model-store Volume, no [services] model_dir, no /var store in tmpfiles, no AssertPathExists on one.
 # AI-related: usr/share/mios/mios.toml, usr/share/mios/piper/Containerfile, usr/share/containers/systemd/mios-whisper.container, usr/share/containers/systemd/mios-piper.container
 # AI-functions: speech_engines, check_engine, TestSpeechStorage
 """T-1140: the speech engines bound a host model store nothing populated.
@@ -11,7 +11,10 @@ shipped tree must hold:
 
 * [services.<engine>] carries no model_dir/model key (no host model store);
 * usr/lib/tmpfiles.d declares nothing under /var/lib/mios/<engine>;
-* the rendered Quadlet binds nothing at /models and asserts no path under
+* the rendered Quadlet mounts no Volume whose source is under
+  /var/lib/mios/<engine> or /srv (a host model store by another name), and no
+  Volume whose target is /models or the engine's in-image model path (a bind
+  there shadows the baked model), and asserts no path under
   /var/lib/mios/<engine>;
 * its Exec= loads the model from the in-image path, and for an image MiOS
   builds, the Containerfile bakes that model at that path.
@@ -38,6 +41,13 @@ _PIPER_CF = os.path.join("usr", "share", "mios", "piper", "Containerfile")
 
 # Every speech engine; each must load an in-image model.
 IN_IMAGE = ("piper", "whisper")
+
+# Where each engine's image carries its model. A Volume targeting this path
+# (or anything under it) replaces the baked model with host content.
+MODEL_PATH = {"piper": "/usr/share/piper/voices", "whisper": "/app/models"}
+
+# Host roots that are model stores whatever the in-container target is.
+HOST_STORE_ROOTS = ("/srv",)
 
 
 def speech_engines(root: str) -> dict[str, dict]:
@@ -104,6 +114,24 @@ def _in_image_model(root: str, engine: str, spec: dict, argv: list[str]) -> list
     return errs
 
 
+def _under(path: str, root: str) -> bool:
+    path, root = path.rstrip("/") or "/", root.rstrip("/") or "/"
+    return path == root or path.startswith(root + "/")
+
+
+def _model_targets(engine: str, argv: list[str]) -> list[str]:
+    targets = ["/models", MODEL_PATH[engine]]
+    if engine == "piper":
+        data_dir = _flag(argv, "--data-dir")
+        if data_dir:
+            targets.append(data_dir)
+    else:
+        model = _flag(argv, "--model", "-m")
+        if model and "/" in model:
+            targets.append(os.path.dirname(model))
+    return sorted({t.rstrip("/") for t in targets if t})
+
+
 def check_engine(root: str, engine: str, spec: dict) -> list[str]:
     errors: list[str] = []
     unit = f"mios-{engine}.container"
@@ -115,15 +143,22 @@ def check_engine(root: str, engine: str, spec: dict) -> list[str]:
         if p == store or p.startswith(store + "/"):
             errors.append(f"tmpfiles.d declares {p}, a host model store for {engine}")
     q = _quadlet(root, engine)
+    execs = q.get("Container", {}).get("Exec", [])
+    argv = shlex.split(" ".join(execs).replace("'", "")) if execs else []
+    targets = _model_targets(engine, argv)
     for v in q.get("Container", {}).get("Volume", []):
         parts = v.split(":")
-        if len(parts) >= 2 and parts[1].rstrip("/") == "/models":
-            errors.append(f"{unit} binds host {parts[0]} at /models")
+        src = parts[0]
+        dst = parts[1] if len(parts) >= 2 else parts[0]
+        if src.startswith("/") and (_under(src, store) or any(_under(src, h) for h in HOST_STORE_ROOTS)):
+            errors.append(f"{unit} mounts host model store {src} (at {dst})")
+        for t in targets:
+            if _under(dst, t):
+                errors.append(f"{unit} mounts {src} over in-image model path {dst}")
+                break
     for a in q.get("Unit", {}).get("AssertPathExists", []):
         if a.startswith(store):
             errors.append(f"{unit} asserts host model path {a}")
-    execs = q.get("Container", {}).get("Exec", [])
-    argv = shlex.split(" ".join(execs).replace("'", "")) if execs else []
     if not argv:
         errors.append(f"{unit} has no Exec=")
     else:
@@ -173,7 +208,48 @@ class TestSpeechStorage(unittest.TestCase):
             self._plant(rel, "Volume=/run/mios:/run/mios:Z",
                         f"Volume=/var/lib/mios/{engine}/models:/models:ro,Z\nVolume=/run/mios:/run/mios:Z")
             errs = check_engine(self.scratch, engine, self.engines[engine])
-            self.assertIn(f"mios-{engine}.container binds host /var/lib/mios/{engine}/models at /models", errs)
+            self.assertIn(f"mios-{engine}.container mounts host model store /var/lib/mios/{engine}/models (at /models)", errs)
+            self.assertIn(f"mios-{engine}.container mounts /var/lib/mios/{engine}/models over in-image model path /models", errs)
+
+    def test_negative_var_store_at_other_target_planted(self) -> None:
+        """A host /var/lib/mios/<engine> source is a model store wherever it lands."""
+        for engine in IN_IMAGE:
+            rel = os.path.join(_QUADLETS, f"mios-{engine}.container")
+            self._plant(rel, "Volume=/run/mios:/run/mios:Z",
+                        f"Volume=/var/lib/mios/{engine}:/data:ro,Z\nVolume=/run/mios:/run/mios:Z")
+            errs = check_engine(self.scratch, engine, self.engines[engine])
+            self.assertIn(f"mios-{engine}.container mounts host model store /var/lib/mios/{engine} (at /data)", errs)
+
+    def test_negative_srv_source_planted(self) -> None:
+        for engine in IN_IMAGE:
+            rel = os.path.join(_QUADLETS, f"mios-{engine}.container")
+            self._plant(rel, "Volume=/run/mios:/run/mios:Z",
+                        f"Volume=/srv/mios/{engine}:/data:ro,Z\nVolume=/run/mios:/run/mios:Z")
+            errs = check_engine(self.scratch, engine, self.engines[engine])
+            self.assertIn(f"mios-{engine}.container mounts host model store /srv/mios/{engine} (at /data)", errs)
+
+    def test_negative_var_store_over_model_path_planted(self) -> None:
+        """The evasion the /models-only check let through: the host store bound
+        straight over the path the image carries its model at."""
+        for engine in IN_IMAGE:
+            rel = os.path.join(_QUADLETS, f"mios-{engine}.container")
+            path = MODEL_PATH[engine]
+            self._plant(rel, "Volume=/run/mios:/run/mios:Z",
+                        f"Volume=/var/lib/mios/{engine}/models:{path}:ro,Z\nVolume=/run/mios:/run/mios:Z")
+            errs = check_engine(self.scratch, engine, self.engines[engine])
+            self.assertIn(f"mios-{engine}.container mounts host model store /var/lib/mios/{engine}/models (at {path})", errs)
+            self.assertIn(f"mios-{engine}.container mounts /var/lib/mios/{engine}/models over in-image model path {path}", errs)
+
+    def test_negative_any_source_over_model_path_planted(self) -> None:
+        """Any Volume (named volume or another host dir) over the in-image model
+        path shadows the baked model."""
+        for engine in IN_IMAGE:
+            rel = os.path.join(_QUADLETS, f"mios-{engine}.container")
+            path = MODEL_PATH[engine]
+            self._plant(rel, "Volume=/run/mios:/run/mios:Z",
+                        f"Volume=mios-{engine}-models:{path}/sub:Z\nVolume=/run/mios:/run/mios:Z")
+            errs = check_engine(self.scratch, engine, self.engines[engine])
+            self.assertIn(f"mios-{engine}.container mounts mios-{engine}-models over in-image model path {path}/sub", errs)
 
     def test_negative_var_store_planted(self) -> None:
         for engine in IN_IMAGE:

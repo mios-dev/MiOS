@@ -7787,7 +7787,10 @@ firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
 "firecrawl" = "Webtools heavy crawl runtime deferred from Day-0 bake"
 
 [build.bake.group_members]
-sys = ["sys"]
+# localhost/mios-piper is built by 57-mios-sys-build.sh with mios-sys, so it
+# belongs to the builder-owned sys group: in extra, mios-bake-group would try to
+# PULL a localhost/* ref and exit 1.
+sys = ["sys", "piper"]
 cuda = ["cuda"]
 heavy = ["open-webui", "ceph"]
 extra = []
@@ -10143,7 +10146,9 @@ Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
 
 [containers.mios-piper.Unit]
-After = "network-online.target mios-cdi-detect.service"
+# Image=localhost/: ordered behind the firstboot that guarantees local images
+# are present, like every other local-image system Quadlet (check_dag_integrity).
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
 Description = "'MiOS' Piper Streaming TTS Engine (piper1-gpl http_server)"
 Documentation = "https://github.com/OHF-Voice/piper1-gpl"
 Wants = "network-online.target"
