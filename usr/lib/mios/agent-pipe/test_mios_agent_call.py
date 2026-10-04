@@ -378,6 +378,125 @@ async def _rr_run_single_slice():
 
 asyncio.run(_rr_run_single_slice())
 
+print("[T-1190: Lock order Gate -> Endpoint -> Lane across mixed RR/non-RR]")
+
+async def _test_t1190_mixed_rr_non_rr_deadlock_free():
+    import mios_preempt
+    from mios_pipe.scheduler.sched import PriorityGate
+    gate = PriorityGate(permits=1)
+    ep_sem = asyncio.Semaphore(1)
+    lane_sem = asyncio.Semaphore(1)
+
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def _priority_gate_cm(prio):
+        await gate.acquire(prio)
+        try:
+            yield
+        finally:
+            gate.release()
+
+    @asynccontextmanager
+    async def _ep_sem_cm(ep):
+        async with ep_sem:
+            yield
+
+    @asynccontextmanager
+    async def _l_sem_cm(key):
+        async with lane_sem:
+            yield
+
+    async def _anoop_admit(*a, **k):
+        return None
+
+    _conv_var = contextvars.ContextVar("conv_t1190", default="")
+    _disp_var = contextvars.ContextVar("disp_t1190", default="")
+
+    T.configure(
+        healthgate_connect_timeout=6.0,
+        healthgate_read_timeout=120.0,
+        secondary_tool_loop=False,
+        kv_fork_enable=False,
+        src_turn_header="X-MiOS-Turn",
+        agent_registry={},
+        sloshed=type("_SloShed", (Exception,), {}),
+        admit=_anoop_admit,
+        agent_binding=lambda cfg, eng: ("http://fake-ep/v1", "m"),
+        agent_offload_engine=lambda cfg: None,
+        apply_outbound_auth=lambda hdrs, ep: None,
+        conv_key_var=_conv_var,
+        current_trace_id=lambda: "",
+        dispatch_agent_var=_disp_var,
+        dispatch_priority=lambda cfg: 5.0,
+        endpoint_sem=lambda ep: _ep_sem_cm(ep),
+        harvest_sub_sources=lambda rj, content: None,
+        hop_via_headers=lambda: {},
+        kv_fork_parent_var=contextvars.ContextVar("kvp_t1190", default=""),
+        lane_sem=lambda key: _l_sem_cm(key),
+        lane_sem_key=lambda cfg: "cpu",
+        model_active=_anoop_admit,
+        opt_int_mb=lambda v: 0,
+        priority_gate=_priority_gate_cm,
+        is_slow_lane_ep=lambda ep: False,
+        llm_num_predict_cap=512,
+        llm_num_predict_cap_cpu=512,
+        node_live={},
+        should_health_probe=lambda cfg: False,
+        src_turn_key=lambda: "",
+        strip_agent_chrome=lambda t: t,
+        strip_think_tags=lambda t: t,
+        v1_secondary_tool_loop=lambda *a, **k: None,
+        rr_enable=True,
+        priority_queue_enable=True,
+        global_priority_gate=gate,
+        preempt=mios_preempt.PreemptScheduler(max_suspended=10),
+    )
+    T._endpoint_is_llamacpp = lambda ep, cfg, eng=None: True
+
+    old_slice_tokens = T.RR_SLICE_TOKENS
+    old_quantum = T.RR_QUANTUM_S
+    T.RR_SLICE_TOKENS = 5
+    T.RR_QUANTUM_S = 0.001
+
+    class _T1190Client:
+        async def post(self, url, *, content=None, headers=None, timeout=None):
+            await asyncio.sleep(0.02)
+            b = json.loads(content.decode("utf-8")) if content else {}
+            is_last = b.get("max_tokens", 5) > 10
+            return type("_Resp", (), {
+                "status_code": 200,
+                "text": '{"choices": [{"message": {"content": "ok"}}]}',
+                "json": lambda self: {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop" if is_last else "length"}]},
+                "raise_for_status": lambda self: None,
+            })()
+
+    client = _T1190Client()
+    cfg_low = {"endpoint": "http://fake-ep/v1", "model": "m"}
+    cfg_high = {"endpoint": "http://fake-ep/v1", "model": "m"}
+
+    rr_body = {"messages": [{"role": "user", "content": "rr request"}], "max_tokens": 20}
+    non_rr_body = {"messages": [{"role": "user", "content": "non-rr request"}], "tools": [{"type": "function"}]}
+
+    async def _dispatch_low():
+        return await T._call_agent_complete("agent_low", cfg_low, rr_body.copy(), {}, client, prefer_cpu=True, priority=1.0)
+
+    async def _dispatch_high():
+        await asyncio.sleep(0.005)
+        return await T._call_agent_complete("agent_high", cfg_high, non_rr_body.copy(), {}, client, prefer_cpu=True, priority=9.0)
+
+    try:
+        t1 = asyncio.create_task(_dispatch_low())
+        t2 = asyncio.create_task(_dispatch_high())
+        done, pending = await asyncio.wait([t1, t2], timeout=2.0)
+        ok(len(pending) == 0, "T-1190: mixed RR and non-RR dispatches against 1-permit endpoint complete without deadlock")
+        ok(len(done) == 2, "T-1190: both dispatches completed successfully")
+    finally:
+        T.RR_SLICE_TOKENS = old_slice_tokens
+        T.RR_QUANTUM_S = old_quantum
+        _configure()
+
+asyncio.run(_test_t1190_mixed_rr_non_rr_deadlock_free())
+
 print("[_record_cost cost accounting]")
 import time as _time
 import mios_cost
