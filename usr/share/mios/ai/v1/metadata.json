@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3626,
-  "total_metadata_entries": 2989,
-  "total_hints": 2976,
-  "total_functions_indexed": 1455,
-  "total_related_links": 4779,
+  "total_metadata_entries": 2990,
+  "total_hints": 2977,
+  "total_functions_indexed": 1457,
+  "total_related_links": 4780,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -5541,6 +5541,15 @@
       "has_shebang": false
     },
     {
+      "path": "tests/powershell/Challenge_Export_M2.Tests.ps1",
+      "hint": "Exercises export failure cleanup, process disposal and error propagation.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/GlobalsProjection.Tests.ps1",
       "hint": "Pester characterization test for automation/lib/globals.ps1 constants.",
       "related": [],
@@ -8342,10 +8351,11 @@
     },
     {
       "path": "tests/test-wallpaper-service.py",
-      "hint": "Automated unit test suite for WS-LANG mios-wallpaperd native living wallpaper service.",
+      "hint": "Automated unit test suite for WS-LANG mios-wallpaperd native living wallpaper service (T-1132).",
       "related": [
         "tools/native/mios-wallpaperd/src/main.rs",
-        "usr/share/mios/branding/living-wallpaper.html"
+        "usr/share/mios/branding/living-wallpaper.html",
+        "build-mios.ps1"
       ],
       "functions": [],
       "doc": null,

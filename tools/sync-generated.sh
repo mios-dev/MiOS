@@ -82,38 +82,43 @@ _register_new_files() {
 }
 
 main() {
-    step "0/7 registering untracked files (the census reads the git index)"
+    # 1. Untracked file registration for index visibility
+    step "1/23 [index.untracked] register new files in git index"
     _register_new_files
 
-    step "1/6 ports  -- [ports.categories] projection + fallbacks"
+    # 2. Port allocation schema projection
+    step "2/23 [ports.projection] render category port definitions"
     "$PY" tools/render-ports.py
 
-    step "2/6 globals -- automation/lib/globals.{sh,ps1}"
+    # 3. System-wide environment globals and constants
+    step "3/23 [globals.projection] render shell and powershell constants"
     "$PY" tools/render-globals.py
 
-    step "2b/6 desktop -- usr/share/applications/*.desktop"
+    # 4. Freedesktop application entries
+    step "4/23 [desktop.projection] render desktop application entries"
     "$PY" tools/render-desktop.py
 
-    step "2c/6 man    -- usr/share/man (native roff, man(1) reads it directly)"
+    # 5. Native manual roff pages
+    step "5/23 [manpages.projection] validate and render roff documentation"
     "$PY" tools/render-manpages.py --validate
 
-    step "2d/6 dotfiles -- .dotfiles SSOT projection"
+    # 6. User and system dotfile SSOT projection
+    step "6/23 [dotfiles.projection] synchronize editor and environment dotfiles"
     "$PY" tools/sync-dotfiles.py
 
-    step "2e/6 wsl.conf mirror (etc/wsl.conf SSOT -> usr/lib/wsl.conf reference)"
+    # 7. WSL host configuration mirror
+    step "7/23 [wsl.reference] mirror etc/wsl.conf to usr/lib/wsl.conf"
     if [[ -f "${ROOT}/etc/wsl.conf" ]]; then
         mkdir -p "${ROOT}/usr/lib"
         cp "${ROOT}/etc/wsl.conf" "${ROOT}/usr/lib/wsl.conf"
     fi
 
-    step "3/6 quadlets"
+    # 8. Systemd container Quadlets
+    step "8/23 [quadlets.projection] render container unit specifications"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 
-    step "4/6 names registry"
-    # The native twin, with the Python leg as the fallback. Both are held to
-    # byte-identical output by check_names_registry_equivalence, which is what
-    # makes preferring either one safe; before that gate existed the twin
-    # emitted 3486 lines where this leg emits 1229 (T-1056).
+    # 9. Canonical system name registry
+    step "9/23 [names.registry] synchronize canonical system names"
     _nr="$(native_bin generate-names-registry || true)"
     if [ -n "$_nr" ]; then
         MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
@@ -121,27 +126,27 @@ main() {
         "$PY" tools/generate-names-registry.py >/dev/null
     fi
 
-    # Index generators. Both were missing here, so adding a drift check or a
-    # numbered automation phase left their index stale and the gate red on a
-    # tree that otherwise looked synced.
-    step "4a/6 seat-vs-blade comparison (derived from [blade.*])"
+    # 10. Topology comparison matrix
+    step "10/23 [topology.matrix] compare seat versus blade capabilities"
     MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
 
-    step "4b/6 gate + pipeline + ADR + roadmap indexes"
+    # 11. Core system and governance indexes
+    step "11/23 [indexes.projection] generate gate, pipeline, adr, and roadmap indexes"
     "$PY" tools/generate-gate-index.py >/dev/null
     "$PY" tools/generate-pipeline-index.py >/dev/null
     "$PY" tools/generate-adr-index.py >/dev/null
     "$PY" tools/roadmap-index.py >/dev/null
 
-    step "4b1/6 agent module boundaries"
+    # 12. Agent-pipe module boundary manifest
+    step "12/23 [boundaries.manifest] project agent-pipe boundary manifest"
     "$PY" tools/gen-pipe-boundary-manifest.py >/dev/null
 
-    # Declares itself generated but was invoked nowhere, so its member list
-    # drifted two crates behind the tree with no gate to say so.
-    step "4b2/6 native workspace manifest (members = the crate dirs on disk)"
+    # 13. Cargo native workspace members
+    step "13/23 [workspace.manifest] synchronize cargo workspace member manifests"
     "$PY" tools/generate-cargo-manifests.py >/dev/null
 
-    step "4c/6 native deployment projections (blade + UKI + service configuration)"
+    # 14. Native deployment units (blade, UKI, and services)
+    step "14/23 [deployment.projection] generate blade, uki, and service drop-ins"
     _unit_gen="$(native_bin mios-unit-gen || true)"
     if [[ -z "$_unit_gen" ]]; then
         echo "[sync-generated] FATAL: mios-unit-gen is required; build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen" >&2
@@ -152,25 +157,21 @@ main() {
             echo "[sync-generated] FATAL: mios-unit-gen does not advertise $_projection; rebuild it from this checkout" >&2
             return 1
         fi
-        # The cmdline follows every kargs.d producer above.
         "$_unit_gen" "$_projection" --root "$ROOT" >/dev/null
     done
 
-    # policy.json is derived from [security.sigstore] but was never regenerated
-    # here, so its tracked form (compact) had drifted from what the generator
-    # writes (indented) without anything noticing -- the generator's --check
-    # compared parsed JSON, which is blind to exactly that.
-    step "4e/6 container signature policy (derived from [security.sigstore])"
+    # 15. Container image signature verification policy
+    step "15/23 [security.policy] generate container image signature policy"
     "$PY" tools/generate-cosign-policy.py >/dev/null
 
-    step "4f2/6 daily artifact prompt -- ARTIFACT-PROMPT.md (from [artifacts.daily])"
+    # 16. Daily artifact release prompt template
+    step "16/23 [artifacts.prompt] generate daily release prompt template"
     _ap="$(native_bin xtask || true)"
     if [ -n "$_ap" ]; then "$_ap" artifact-prompt --root "$ROOT" >/dev/null
     else echo "[sync-generated]      xtask not built; ARTIFACT-PROMPT.md NOT regenerated (check_artifact_prompt fails there)." >&2; fi
 
-    step "4g/6 rust toolchain pin (from [build.toolchain])"
-    # Before the size ceiling, which must stay last: this writes a root file and
-    # so changes what the index measures.
+    # 17. Rust toolchain version pin
+    step "17/23 [toolchain.pin] project rust toolchain version pin"
     _tp="$(native_bin mios-toolchain-pin || true)"
     if [ -n "$_tp" ]; then
         "$_tp" >/dev/null
@@ -179,7 +180,8 @@ main() {
         echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
     fi
 
-    step "4g2/6 AI client config -- etc/mios/ai/config.json + usr/share/mios/ai/v1/config.json (from [ai] + [ports])"
+    # 18. AI client endpoint configurations
+    step "18/23 [ai.config] project client and runtime ai endpoint configurations"
     _ac="$(native_bin mios-ai-config || true)"
     if [ -n "$_ac" ]; then
         "$_ac" --root "$ROOT" >/dev/null
@@ -188,10 +190,8 @@ main() {
         echo "[sync-generated]      check_ai_config_projection still validates it, so this fails there, not here." >&2
     fi
 
-    step "4f/6 tracked-size ceiling (measurement + [legibility].tracked_mb_headroom)"
-    # Last of the generators on purpose: it measures the git INDEX, so it must
-    # run after everything else has been staged, and its own one-line edit
-    # cannot move a MiB boundary.
+    # 19. Tracked repository size ceiling
+    step "19/23 [metrics.ceiling] record tracked repository size ceiling"
     _sc="$(native_bin mios-size-ceiling || true)"
     if [ -n "$_sc" ]; then
         "$_sc" >/dev/null
@@ -200,7 +200,8 @@ main() {
         echo "[sync-generated]      check_size_ceiling still validates it, so this fails there, not here." >&2
     fi
 
-    step "5/6 env-baseline (clean env)"
+    # 20. Clean system environment baseline
+    step "20/23 [env.baseline] snapshot clean system environment variables"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then
         env -i PATH="$PATH" HOME="${HOME:-/root}" \
             MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
@@ -211,24 +212,17 @@ main() {
         step "     (mios-env-snapshot absent -- skipped)"
     fi
 
-    step "6/7 AI manifests (they embed automation/ + tools/ content)"
+    # 21. AI repository and tool manifests
+    step "21/23 [ai.manifests] compile ai repository and tool manifests"
     "$PY" tools/generate-ai-manifest.py >/dev/null
 
-    # After every generator that writes an AI-* header, before the manual
-    # corpus census. It reads the headers of every TRACKED file, so it was
-    # the one projection nothing refreshed and it drifted thousands of lines
-    # behind main; check_ai_metadata_fresh now holds it byte-identical.
-    step "6b/7 AI header metadata -- usr/share/mios/ai/v1/metadata.json"
+    # 22. AI header metadata and strict schema catalog
+    step "22/23 [ai.metadata] catalog ai header metadata and strict schema"
     "$PY" usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --export "$ROOT/usr/share/mios/ai/v1/metadata.json" >/dev/null
 
-    # LAST: it censuses every TRACKED source file, so anything above moves it.
-    # `git add` a new file BEFORE syncing, or its blocks land only once
-    # committed -- green locally, red in CI.
-    step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
+    # 23. Manual documentation corpus and ledger
+    step "23/23 [corpus.ledger] compile manual documentation corpus and ledger"
     if [ -r usr/libexec/mios/mios-manual ]; then
-        # MIOS-GEN marker blocks first: api.md, ports-and-laws.md and tool-index.md
-        # are DERIVED and gated, but `render` lived outside this pipeline, so any
-        # SSOT or tools/ change left them stale and the gate red on a synced tree.
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" render >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" coverage --write-floor >/dev/null
