@@ -2,9 +2,9 @@
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3634,
   "total_metadata_entries": 2997,
-  "total_hints": 2982,
+  "total_hints": 2983,
   "total_functions_indexed": 1455,
-  "total_related_links": 4781,
+  "total_related_links": 4782,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -2310,7 +2310,7 @@
     },
     {
       "path": "build-mios.ps1",
-      "hint": null,
+      "hint": "PowerShell entry point for MiOS installation that configures the MiOS-DEV podman-machine, handles initial licensing, and manages the SSH handoff to the Linux-side build driver ...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -8408,10 +8408,11 @@
     },
     {
       "path": "tests/test-wallpaper-service.py",
-      "hint": "Automated unit test suite for WS-LANG mios-wallpaperd native living wallpaper service.",
+      "hint": "Automated unit test suite for WS-LANG mios-wallpaperd native living wallpaper service (T-1132).",
       "related": [
         "tools/native/mios-wallpaperd/src/main.rs",
-        "usr/share/mios/branding/living-wallpaper.html"
+        "usr/share/mios/branding/living-wallpaper.html",
+        "build-mios.ps1"
       ],
       "functions": [],
       "doc": null,
