@@ -525,6 +525,7 @@ impl NodeCryptoSession {
         chacha20_poly1305_decrypt(&self.rx_key, &nonce, &aad, ciphertext)
     }
 
+    /// Parity twin: usr/libexec/mios/node/crypto.py (SessionCipher.encrypt_frame)
     pub fn encrypt_frame(&mut self, frame: &Frame) -> Result<Frame> {
         let encrypted_payload = self.encrypt_payload(&frame.payload);
         Ok(Frame::new(
@@ -534,6 +535,7 @@ impl NodeCryptoSession {
         ))
     }
 
+    /// Parity twin: usr/libexec/mios/node/crypto.py (SessionCipher.decrypt_frame)
     pub fn decrypt_frame(&mut self, frame: &Frame) -> Result<Frame> {
         let decrypted_payload = self.decrypt_payload(&frame.payload)?;
         Ok(Frame::new(

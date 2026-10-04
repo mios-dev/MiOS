@@ -2,6 +2,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not $env:MIOS_BOOTSTRAP_ROOT -or -not (Test-Path $env:MIOS_BOOTSTRAP_ROOT)) {
+    $env:MIOS_BOOTSTRAP_ROOT = 'C:\mios-bootstrap'
+}
+
 Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
     Context "Suite 1: Pipe Deadlock Handling (Positive & Negative Controls)" {
@@ -117,16 +121,10 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
     }
 
     Context "Suite 2: Intermediate NTFS Unpacking Prevention & POSIX Preservation" {
-        It "Merge-LayersToTar throws deprecation exception forbidding NTFS extraction" {
+        It "Merge-LayersToTar is removed and intermediate NTFS extraction is forbidden" {
             $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../mios-windows-export.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Merge-LayersToTar' }, $true)
-            $funcAst | Should -Not -BeNullOrEmpty
-
-            function global:Write-Warn { param([string]$msg) }
-            . ([scriptblock]::Create($funcAst.Extent.Text))
-
-            { Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'unused' -OutTar 'unused.tar' } | `
-                Should -Throw "*intermediate extraction to NTFS strips Linux POSIX file modes*"
+            $funcAst | Should -BeNullOrEmpty
         }
 
         It "Export-WslTar in all scripts streams directly from container storage without NTFS extraction" {

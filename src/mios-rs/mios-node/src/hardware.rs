@@ -91,6 +91,7 @@ impl MockHardwareDriver {
         regs.insert((bus, addr, reg), val);
     }
 
+    /// Parity twin: usr/libexec/mios/node/hardware.py (MockHardwareDriver.get_mock_i2c_register)
     pub fn get_mock_i2c_register(&self, bus: u8, addr: u16, reg: u8) -> Option<u8> {
         let regs = self.i2c_registers.lock().unwrap();
         regs.get(&(bus, addr, reg)).copied()
@@ -159,6 +160,7 @@ impl LinuxSysfsHardwareDriver {
         }
     }
 
+    /// Parity twin: usr/libexec/mios/node/hardware.py (LinuxSysfsHardwareDriver roots)
     pub fn with_custom_roots(sysfs_gpio_root: &str, dev_i2c_root: &str) -> Self {
         Self {
             sysfs_gpio_root: sysfs_gpio_root.to_string(),

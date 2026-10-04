@@ -701,30 +701,6 @@ from mios_pipe.vram_scheduler import (
     _ADMIT_SEQ,
 )
 
-_configure_vram_scheduler(
-    log=log,
-    _toml_section=_toml_section,
-    _DISPATCH_TOML=_DISPATCH_TOML,
-    AGENT_CONCURRENCY=AGENT_CONCURRENCY,
-    ENDPOINT_CONCURRENCY=ENDPOINT_CONCURRENCY,
-    SLO_SHED_ENABLE=SLO_SHED_ENABLE,
-    ADMIT_ENABLE=ADMIT_ENABLE,
-    ADMIT_MAX_WAIT=ADMIT_MAX_WAIT,
-    MULTIBLADE_ENABLE=MULTIBLADE_ENABLE,
-    _over_blade_ceiling=globals().get('_over_blade_ceiling'),
-    _over_global_ceiling=globals().get('_over_global_ceiling'),
-    _is_warm=globals().get('_is_warm'),
-    _blade_vram_budget=globals().get('_blade_vram_budget'),
-    VRAM_BUDGET_MB=globals().get('VRAM_BUDGET_MB'),
-    _resident_cached=globals().get('_resident_cached'),
-    _norm_model_tag=globals().get('_norm_model_tag'),
-    VRAM_COLOAD_EST_MB=globals().get('VRAM_COLOAD_EST_MB'),
-    VRAM_COLOAD_ENABLE=globals().get('VRAM_COLOAD_ENABLE'),
-    VRAM_COLOAD_RESERVE_MB=globals().get('VRAM_COLOAD_RESERVE_MB'),
-    _reclaim_idle_vram=globals().get('_reclaim_idle_vram'),
-    _dispatch_num=globals().get('_dispatch_num'),
-)
-
 RUNAWAY_REAP_ENABLE = str(os.environ.get("MIOS_RUNAWAY_REAP")
                           or _DISPATCH_TOML.get("runaway_reap", "true")
                           ).strip().lower() in {"1", "true", "yes"}
@@ -1295,6 +1271,30 @@ def _host_stats_cached(ttl: float = 1.0) -> dict:
         pass
     return stats
 
+_configure_vram_scheduler(
+    log=log,
+    _toml_section=_toml_section,
+    _DISPATCH_TOML=_DISPATCH_TOML,
+    AGENT_CONCURRENCY=AGENT_CONCURRENCY,
+    ENDPOINT_CONCURRENCY=ENDPOINT_CONCURRENCY,
+    SLO_SHED_ENABLE=SLO_SHED_ENABLE,
+    ADMIT_ENABLE=ADMIT_ENABLE,
+    ADMIT_MAX_WAIT=ADMIT_MAX_WAIT,
+    MULTIBLADE_ENABLE=MULTIBLADE_ENABLE,
+    _over_blade_ceiling=_over_blade_ceiling,
+    _over_global_ceiling=_over_global_ceiling,
+    _is_warm=_is_warm,
+    _blade_vram_budget=_blade_vram_budget,
+    VRAM_BUDGET_MB=VRAM_BUDGET_MB,
+    _resident_cached=_resident_cached,
+    _norm_model_tag=_norm_model_tag,
+    VRAM_COLOAD_EST_MB=VRAM_COLOAD_EST_MB,
+    VRAM_COLOAD_ENABLE=VRAM_COLOAD_ENABLE,
+    VRAM_COLOAD_RESERVE_MB=VRAM_COLOAD_RESERVE_MB,
+    _reclaim_idle_vram=_reclaim_idle_vram,
+    _dispatch_num=_dispatch_num,
+)
+
 
 _OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
 
@@ -1452,10 +1452,6 @@ sys.modules["mios_agentreg"].configure(
     catalog_fail_mode=CATALOG_FAIL_MODE,
     nodes_research_only=_vram_scheduler.NODES_RESEARCH_ONLY,
 )
-_configure_sched_vram(
-    lane_priority=_vram_scheduler._LANE_PRIORITY,
-    agent_lane=_agent_lane,
-)
 
 _AGENT_REGISTRY = _load_agent_registry()
 try:
@@ -1476,10 +1472,31 @@ def _rebuild_blade_topology() -> None:
             _LOCAL_BLADE, VRAM_BUDGET_MB, ADMIT_LOAD_CEIL)
         _ENDPOINT_BLADE = mios_blades.endpoint_blade_map(
             _AGENT_REGISTRY, _endpoint_key, _LOCAL_BLADE)
+        _configure_sched_vram(
+            blade_pool=_BLADE_POOL,
+            endpoint_blade=_ENDPOINT_BLADE,
+            local_blade=_LOCAL_BLADE,
+        )
     except Exception as _e:  # noqa: BLE001 -- the admission helpers already degrade-open
         log.warning("blade topology build failed: %s; local-scalar fallback", _e)
 
 _rebuild_blade_topology()
+
+_configure_sched_vram(
+    lane_priority=_vram_scheduler._LANE_PRIORITY,
+    agent_lane=_agent_lane,
+    host_stats=_host_stats_cached,
+    endpoint_key=_endpoint_key,
+    blade_pool=_BLADE_POOL,
+    endpoint_blade=_ENDPOINT_BLADE,
+    local_blade=_LOCAL_BLADE,
+    vram_budget_mb=VRAM_BUDGET_MB,
+    vram_turn_headroom_mb=VRAM_TURN_HEADROOM_MB,
+    admit_load_ceil=ADMIT_LOAD_CEIL,
+    admit_mem_pct=ADMIT_MEM_PCT,
+    multiblade_enable=MULTIBLADE_ENABLE,
+    vram_reclaim_idle=_vram_scheduler.VRAM_RECLAIM_IDLE,
+)
 
 def _load_dispatch_cfg() -> dict:
     cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,

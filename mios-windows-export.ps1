@@ -1,4 +1,4 @@
-﻿# AI-hint: A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.
+# AI-hint: A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.
 # AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
@@ -131,68 +131,6 @@ function Resolve-ImageRef([string]$ImageRef) {
     return @{ Registry = $registry; Repo = $repo; Ref = $tagOrDig }
 }
 
-function Get-ImageManifest([hashtable]$Ref, [string]$Token) {
-    # Request the FAT manifest first so multi-arch images are unambiguous.
-    $headers = @{
-        'Authorization' = "Bearer $Token"
-        'Accept'        = 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
-    }
-    $url = "https://$($Ref.Registry)/v2/$($Ref.Repo)/manifests/$($Ref.Ref)"
-    $resp = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
-    # If it's a list/index, pick amd64+linux. MiOS only ships x86_64 for now.
-    if ($resp.manifests) {
-        $picked = $resp.manifests | Where-Object {
-            $_.platform.architecture -eq 'amd64' -and $_.platform.os -eq 'linux'
-        } | Select-Object -First 1
-        if (-not $picked) {
-            throw "No linux/amd64 manifest in the index for $($Ref.Repo):$($Ref.Ref)"
-        }
-        Write-Ok "Manifest index resolved -> $($picked.digest) (linux/amd64)"
-        $headers['Accept'] = 'application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
-        $url = "https://$($Ref.Registry)/v2/$($Ref.Repo)/manifests/$($picked.digest)"
-        $resp = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
-    }
-    return $resp
-}
-
-# Pull every layer blob into a flat dir on disk. GHCR layers are gzipped
-# tarballs (mediaType application/vnd.oci.image.layer.v1.tar+gzip).
-function Save-ImageLayers([hashtable]$Ref, [string]$Token, [object]$Manifest, [string]$Dest) {
-    if (-not (Test-Path -LiteralPath $Dest)) {
-        New-Item -ItemType Directory -Path $Dest -Force | Out-Null
-    }
-    $headers = @{ 'Authorization' = "Bearer $Token" }
-    $layerFiles = @()
-    foreach ($layer in $Manifest.layers) {
-        $digest = $layer.digest        # sha256:<hex>
-        $url    = "https://$($Ref.Registry)/v2/$($Ref.Repo)/blobs/$digest"
-        $sha    = $digest -replace '^sha256:',''
-        $out    = Join-Path $Dest ("layer-{0}.tar.gz" -f $sha.Substring(0,12))
-        if (Test-Path -LiteralPath $out) {
-            Write-Ok "Layer cached: $($out | Split-Path -Leaf) ($($layer.size) bytes)"
-        } else {
-            Write-Step "Pull layer $($sha.Substring(0,12)) ($([Math]::Round($layer.size/1MB,1)) MiB)"
-            Invoke-WebRequest -Uri $url -Headers $headers -OutFile $out -ErrorAction Stop
-        }
-        $layerFiles += $out
-    }
-    return $layerFiles
-}
-
-# DEPRECATED: Extracting OCI layers to NTFS with Windows tar.exe strips Linux POSIX
-# permissions, file modes, UID/GID ownership, and symlinks. Replaced by direct
-# container storage export via podman export below.
-function Merge-LayersToTar([string[]]$LayerFiles, [string]$StagingDir, [string]$OutTar) {
-    Write-Warn "DEPRECATED: Merge-LayersToTar strips POSIX permissions and symlinks on NTFS."
-    throw "Merge-LayersToTar is deprecated and disabled: intermediate extraction to NTFS strips Linux POSIX file modes, ownership, and symlinks. Use direct container storage streaming via Export-WslTar."
-}
-
-# DEPRECATED: wsl --import does NOT support .tar.zst archives and fails with error 0x80070057 (E_INVALIDARG).
-# WSL2 requires either a standard uncompressed .tar rootfs or a native .vhdx disk (via --vhd).
-function Compress-WithZstd([string]$InTar, [string]$OutZst, [int]$Level = 19) {
-    Write-Warn "DEPRECATED: .tar.zst compression is incompatible with 'wsl --import' (causes error 0x80070057)."
-    throw "Compress-WithZstd is deprecated: .tar.zst compression is incompatible with 'wsl --import' (causes error 0x80070057). Target uncompressed mios.wsl.tar directly."
-}
 
 # ── Output directory resolver ─────────────────────────────────────────────
 function Resolve-OutputBase {
@@ -322,6 +260,9 @@ function Export-WslTar([string]$ImageRef, [string]$OutDir) {
     }
 }
 
+# DEPRECATED: wsl --import does NOT support .tar.zst archives and fails with error 0x80070057 (E_INVALIDARG).
+# WSL2 requires either a standard uncompressed .tar rootfs or a native .vhdx disk (via --vhd).
+# DEPRECATED: .tar.zst compression is incompatible with 'wsl --import' (causes error 0x80070057). Target uncompressed mios.wsl.tar directly.
 
 function Convert-ToVhdx([string]$OutDir) {
     Write-Step "Surface: vhdx  (qemu-img convert -O vhdx,subformat=dynamic)"
@@ -399,8 +340,6 @@ $outDir  = Join-Path $outBase $Tag
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 Write-Ok "Output dir: $outDir"
 
-# Anonymous bearer for optional registry queries. Container streaming resolves through podman.
-$token = try { Get-GhcrToken -Repo $ref.Repo } catch { $null }
 
 foreach ($t in $Targets) {
     switch ($t.ToLower()) {

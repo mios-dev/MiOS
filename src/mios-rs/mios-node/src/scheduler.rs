@@ -21,6 +21,7 @@ pub enum TaskPriority {
 }
 
 impl TaskPriority {
+    /// Parity twin: usr/libexec/mios/node/scheduler.py (TaskPriority.as_u8 / int value)
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }

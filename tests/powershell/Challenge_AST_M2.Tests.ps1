@@ -3,6 +3,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not $env:MIOS_BOOTSTRAP_ROOT -or -not (Test-Path $env:MIOS_BOOTSTRAP_ROOT)) {
+    $env:MIOS_BOOTSTRAP_ROOT = 'C:\mios-bootstrap'
+}
+
 Describe "Adversarial Challenge: AST Syntax Validation" {
     $targetFiles = @(
         @{ File = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'); Name = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1') },

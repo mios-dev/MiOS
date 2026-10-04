@@ -435,18 +435,14 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                 return name, ""
 
             if _rr_eligible(body, _ep, cfg, _engine):
-                async with _endpoint_sem(_ep):
-                    async with _lane_sem(_engine or _lane_sem_key(cfg)):
-                        await _model_active(_ep, _adm_model, 1, _est)
-                        try:
-                            _conv = _conv_key_var.get() or name
-                            _t = await _rr_run(client, _ep, _adm_model,
-                                               body.get("messages") or [], conv=_conv,
-                                               priority=_prio, max_tokens=body.get("max_tokens"),
-                                               headers=headers)
-                        finally:
-                            await _model_active(_ep, _adm_model, -1, _est)
-                        return name, _strip_agent_chrome(_t)
+                _conv = _conv_key_var.get() or name
+                _lane_key = _engine or _lane_sem_key(cfg)
+                _t = await _rr_run(client, _ep, _adm_model,
+                                   body.get("messages") or [], conv=_conv,
+                                   priority=_prio, max_tokens=body.get("max_tokens"),
+                                   headers=headers, lane_key=_lane_key, est_vram=_est,
+                                   cfg=cfg)
+                return name, _strip_agent_chrome(_t)
 
             async with _priority_gate(_prio):
                 async with _endpoint_sem(_ep):
@@ -982,79 +978,115 @@ async def _rr_slice(client, ep: str, model, messages, max_tokens, headers, slot_
     return text, finished
 
 async def _rr_run(client, ep: str, model, messages, *, conv: str,
-                  priority: float, max_tokens, headers=None) -> str:
-    """Interruptible chunked decode (WS-A12). SINGLE-OWNER of the global priority
-    gate: acquires once, releases once in `finally`, and across a preemption does
-    a balanced release->re-acquire (held tracked precisely) so permit accounting
-    can never drift. Returns the full assistant text. Degrade-open: ANY failure
+                  priority: float, max_tokens, headers=None,
+                  lane_key: str = "", est_vram: int = 0,
+                  cfg: Optional[dict] = None) -> str:
+    """Interruptible chunked decode (WS-A12). Enforces unified lock order
+    _GLOBAL_PRIORITY_GATE -> endpoint semaphore -> lane semaphore.
+    Across preemption, releases lane + endpoint semaphores before yielding the
+    priority gate, ensuring no dispatch holds an endpoint permit while waiting
+    on the gate (T-1190). Returns the full assistant text. Degrade-open: ANY failure
     falls back to one completion of the whole budget; the partial is never lost."""
     held = False
     partial, produced = "", 0
     total = int(max_tokens or RR_SLICE_TOKENS)
+
+    @contextlib.asynccontextmanager
+    async def _ep_lane_scope():
+        sem = _endpoint_sem(ep) if _endpoint_sem else contextlib.nullcontext()
+        lkey = lane_key or (_lane_sem_key(cfg) if (_lane_sem_key and cfg) else "")
+        lsem = _lane_sem(lkey) if (_lane_sem and lkey) else contextlib.nullcontext()
+        async with sem:
+            async with lsem:
+                if _model_active and est_vram:
+                    try:
+                        await _model_active(ep, model, 1, est_vram)
+                    except Exception:
+                        pass
+                try:
+                    yield
+                finally:
+                    if _model_active and est_vram:
+                        try:
+                            await _model_active(ep, model, -1, est_vram)
+                        except Exception:
+                            pass
+
     try:
         n_slots = await _get_slot_count(client, ep, model)
         slot_id = _stable_hash(conv) % n_slots
-        await _GLOBAL_PRIORITY_GATE.acquire(priority)
-        held = True
+        if _GLOBAL_PRIORITY_GATE is not None:
+            await _GLOBAL_PRIORITY_GATE.acquire(priority)
+            held = True
         q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)
         while produced < total:
-            msgs = list(messages)
-            if partial:                       # continue the assistant turn
-                msgs.append({"role": "assistant", "content": partial})
-            want = min(RR_SLICE_TOKENS, total - produced)
-            text, finished = await _rr_slice(client, ep, model, msgs, want, headers, slot_id)
-            partial += text
-            produced += want
-            if finished or not text:
-                break
-            try:
-                head = _GLOBAL_PRIORITY_GATE.head_priority()
-            except Exception:  # noqa: BLE001
-                head = None
-            action = mios_preempt.decide(
-                finished=False,
-                quantum_expired=q.expired(time.monotonic()),
-                higher_priority_waiting=(head is not None and head > priority),
-                can_suspend=_PREEMPT.can_admit())
-            if action != mios_preempt.PREEMPT:
-                continue
-            slot = _PREEMPT.acquire_slot()
-            if slot is None:                  # lost the slot race -> keep running
-                continue
-            await _kv_slot_action(client, ep, "save", conv, model, slot_id)
-            _PREEMPT.suspend(mios_preempt.Snapshot(conv, priority, produced, partial, slot))
-            _GLOBAL_PRIORITY_GATE.release()
-            held = False
-            try:
-                await _GLOBAL_PRIORITY_GATE.acquire(priority)  # blocks till we're next
-                held = True
-            finally:
-                _PREEMPT.discharge(conv)      # free our snapshot slot
-            await _kv_slot_action(client, ep, "restore", conv, model, slot_id)
-            q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)  # fresh quantum
+            preempted = False
+            async with _ep_lane_scope():
+                msgs = list(messages)
+                if partial:                       # continue the assistant turn
+                    msgs.append({"role": "assistant", "content": partial})
+                want = min(RR_SLICE_TOKENS, total - produced)
+                text, finished = await _rr_slice(client, ep, model, msgs, want, headers, slot_id)
+                partial += text
+                produced += want
+                if finished or not text:
+                    break
+                try:
+                    head = _GLOBAL_PRIORITY_GATE.head_priority() if _GLOBAL_PRIORITY_GATE else None
+                except Exception:  # noqa: BLE001
+                    head = None
+                action = mios_preempt.decide(
+                    finished=False,
+                    quantum_expired=q.expired(time.monotonic()),
+                    higher_priority_waiting=(head is not None and head > priority),
+                    can_suspend=_PREEMPT.can_admit() if _PREEMPT else False)
+                if action != mios_preempt.PREEMPT:
+                    continue
+                slot = _PREEMPT.acquire_slot() if _PREEMPT else None
+                if slot is None:                  # lost the slot race -> keep running
+                    continue
+                await _kv_slot_action(client, ep, "save", conv, model, slot_id)
+                _PREEMPT.suspend(mios_preempt.Snapshot(conv, priority, produced, partial, slot))
+                preempted = True
+
+            if preempted:
+                if held and _GLOBAL_PRIORITY_GATE is not None:
+                    _GLOBAL_PRIORITY_GATE.release()
+                    held = False
+                try:
+                    if _GLOBAL_PRIORITY_GATE is not None:
+                        await _GLOBAL_PRIORITY_GATE.acquire(priority)  # blocks till we're next
+                        held = True
+                finally:
+                    if _PREEMPT:
+                        _PREEMPT.discharge(conv)      # free our snapshot slot
+                async with _ep_lane_scope():
+                    await _kv_slot_action(client, ep, "restore", conv, model, slot_id)
+                q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)  # fresh quantum
         return partial
     except asyncio.CancelledError:
         raise
     except Exception:  # noqa: BLE001 -- degrade-open: one shot for the whole budget
         log.warning("RR preemptible decode failed; single-completion fallback",
                     exc_info=True)
-        if _PREEMPT.is_suspended(conv):
+        if _PREEMPT and _PREEMPT.is_suspended(conv):
             _PREEMPT.discharge(conv)
-        if not held:
+        if not held and _GLOBAL_PRIORITY_GATE is not None:
             try:
                 await _GLOBAL_PRIORITY_GATE.acquire(priority)
                 held = True
             except Exception:  # noqa: BLE001
                 pass
         try:
-            n_slots = await _get_slot_count(client, ep, model)
-            slot_id = _stable_hash(conv) % n_slots
-            text, _ = await _rr_slice(client, ep, model, list(messages), total, headers, slot_id)
-            return (partial + text) if partial else text
+            async with _ep_lane_scope():
+                n_slots = await _get_slot_count(client, ep, model)
+                slot_id = _stable_hash(conv) % n_slots
+                text, _ = await _rr_slice(client, ep, model, list(messages), total, headers, slot_id)
+                return (partial + text) if partial else text
         except Exception:  # noqa: BLE001
             return partial
     finally:
-        if held:
+        if held and _GLOBAL_PRIORITY_GATE is not None:
             try:
                 _GLOBAL_PRIORITY_GATE.release()
             except Exception:  # noqa: BLE001
