@@ -240,6 +240,72 @@ def _check_scheduler_wiring(server):
     check("priority gate released every permit", gate.stats()["in_flight"] == 0,
           str(gate.stats()))
 
+    # T-1191: vram_scheduler dependency injection checks
+    vram_deps = [
+        ("_over_blade_ceiling", True),
+        ("_over_global_ceiling", True),
+        ("_is_warm", True),
+        ("_blade_vram_budget", True),
+        ("VRAM_BUDGET_MB", False),
+        ("_resident_cached", True),
+        ("_norm_model_tag", True),
+        ("VRAM_COLOAD_EST_MB", False),
+        ("VRAM_COLOAD_ENABLE", False),
+        ("VRAM_COLOAD_RESERVE_MB", False),
+        ("_reclaim_idle_vram", True),
+        ("_dispatch_num", True),
+    ]
+    for dep_name, must_be_callable in vram_deps:
+        val = getattr(vs, dep_name, None)
+        ok = val is not None and (not must_be_callable or callable(val))
+        check(f"vram_scheduler.{dep_name} injected and {'callable' if must_be_callable else 'non-None'}",
+              ok, f"got {val!r}")
+
+    # T-1191: scheduler.vram configuration checks
+    from mios_pipe.scheduler import vram as sv
+    check("scheduler.vram received host_stats via configure", sv._host_stats is server._host_stats_cached)
+    check("scheduler.vram received endpoint_key via configure", sv._endpoint_key is server._endpoint_key)
+    check("scheduler.vram received blade_pool via configure", sv._BLADE_POOL is server._BLADE_POOL)
+    check("scheduler.vram received endpoint_blade via configure", sv._ENDPOINT_BLADE is server._ENDPOINT_BLADE)
+    check("scheduler.vram received local_blade via configure", sv._LOCAL_BLADE == server._LOCAL_BLADE)
+    check("scheduler.vram received vram_budget_mb via configure", sv.VRAM_BUDGET_MB == server.VRAM_BUDGET_MB)
+    check("scheduler.vram received admit_load_ceil via configure", sv.ADMIT_LOAD_CEIL == server.ADMIT_LOAD_CEIL)
+    check("scheduler.vram received admit_mem_pct via configure", sv.ADMIT_MEM_PCT == server.ADMIT_MEM_PCT)
+    check("scheduler.vram received multiblade_enable via configure", sv.MULTIBLADE_ENABLE == server.MULTIBLADE_ENABLE)
+    check("scheduler.vram received vram_reclaim_idle via configure", sv.VRAM_RECLAIM_IDLE == vs.VRAM_RECLAIM_IDLE)
+
+    # T-1191: vram_scheduler.configure fail-loud checks on missing/None dependencies
+    try:
+        vs.configure(_over_global_ceiling=None)
+        check("vram_scheduler.configure fails loudly on None callable", False, "no TypeError raised")
+    except TypeError:
+        check("vram_scheduler.configure fails loudly on None callable", True)
+
+    try:
+        vs.configure(VRAM_BUDGET_MB=None)
+        check("vram_scheduler.configure fails loudly on None value", False, "no TypeError raised")
+    except TypeError:
+        check("vram_scheduler.configure fails loudly on None value", True)
+
+    # T-1191: test admission ceiling backpressure with admit_enable=True
+    import time
+    orig_admit_enable = vs.ADMIT_ENABLE
+    orig_admit_max_wait = vs.ADMIT_MAX_WAIT
+    orig_over_ceil = vs._over_global_ceiling
+    try:
+        vs.ADMIT_ENABLE = True
+        vs.ADMIT_MAX_WAIT = 0.05
+        vs._over_global_ceiling = lambda: True
+        t0 = time.monotonic()
+        asyncio.run(vs._admit("http://localhost:8500", "test-model", "gpu"))
+        elapsed = time.monotonic() - t0
+        check("admit observes backpressure when over ceiling with admit_enable=True",
+              elapsed >= 0.04, f"elapsed={elapsed:.4f}s want >= 0.04s")
+    finally:
+        vs.ADMIT_ENABLE = orig_admit_enable
+        vs.ADMIT_MAX_WAIT = orig_admit_max_wait
+        vs._over_global_ceiling = orig_over_ceil
+
 def main():
     _resolve_toml()
     _install_stubs()
