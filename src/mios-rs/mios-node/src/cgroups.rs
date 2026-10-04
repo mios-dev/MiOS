@@ -179,6 +179,7 @@ impl CgroupV2Controller {
     }
 
     /// Initializes and applies cgroup limits
+    /// Parity twin: usr/libexec/mios/node/cgroups.py (CgroupController.apply_limits)
     pub fn apply_limits(&self, limits: &NodeResourceLimits) -> Result<(), String> {
         let path = Path::new(&self.cgroup_root);
         if !path.exists() {
@@ -212,6 +213,7 @@ impl CgroupV2Controller {
     }
 
     /// Attaches thread or process ID to cgroup.procs / cgroup.threads
+    /// Parity twin: usr/libexec/mios/node/cgroups.py (CgroupController.attach_pid)
     pub fn attach_pid(&self, pid: u32) -> Result<(), String> {
         let procs_path = Path::new(&self.cgroup_root).join("cgroup.procs");
         if procs_path.exists() {

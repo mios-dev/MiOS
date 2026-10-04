@@ -175,6 +175,7 @@ fn num_cpus_detected() -> u32 {
 }
 
 /// Probes the local operating environment for hardware, VRAM, and peripheral interfaces.
+/// Parity twin: usr/libexec/mios/node/capabilities.py (probe_node_capabilities)
 pub fn probe_node_capabilities() -> NodeCapabilities {
     let mut caps = NodeCapabilities::default();
 
@@ -242,6 +243,7 @@ impl CapabilityRegistry {
         map.get(&node_id).map(|(p, _)| p.capabilities.clone())
     }
 
+    /// Parity twin: usr/libexec/mios/node/capabilities.py (CapabilityRegistry.get_announce)
     pub fn get_announce(&self, node_id: u32) -> Option<NodeAnnouncePayload> {
         let map = self.peers.lock().unwrap();
         map.get(&node_id).map(|(p, _)| p.clone())

@@ -1,4 +1,4 @@
-﻿# AI-hint: Exercises export failure cleanup, process disposal and error propagation.
+# AI-hint: Exercises export failure cleanup, process disposal and error propagation.
 # Adversarial Challenge: Export Failure and Cleanup Harness
 # Tests:
 # 1. Partial file deletion on export failure
@@ -288,30 +288,10 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
             $script:exportScript = (Join-Path $PSScriptRoot '../../mios-windows-export.ps1')
         }
 
-        It "Throws deprecation error on Merge-LayersToTar to protect POSIX permissions" {
+        It "Merge-LayersToTar is removed to protect POSIX permissions" {
             $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:exportScript, [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq "Merge-LayersToTar" }, $true)
-            
-            $testScript = @"
-                function Write-Warn(`$msg) {}
-                $($funcAst.Extent.Text)
-                `$thrown = `$false
-                `$msg = ''
-                try {
-                    Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'unused' -OutTar 'unused.tar'
-                } catch {
-                    `$thrown = `$true
-                    `$msg = `$_.Exception.Message
-                }
-                [PSCustomObject]@{
-                    Thrown = `$thrown
-                    Message = `$msg
-                } | ConvertTo-Json -Compress
-"@
-            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
-            $res = $raw | ConvertFrom-Json
-            $res.Thrown | Should -Be $true
-            $res.Message | Should -Match 'Merge-LayersToTar is deprecated and disabled'
+            $funcAst | Should -BeNullOrEmpty
         }
 
         It "Warns on Compress-WithZstd to prevent WSL error 0x80070057" {

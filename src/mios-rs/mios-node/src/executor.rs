@@ -31,6 +31,7 @@ impl ExecutionEngine {
         }
     }
 
+    /// Parity twin: usr/libexec/mios/node/hardware.py (ExecutionEngine with hardware controller)
     pub fn with_hardware(
         state_store: Arc<Mutex<StateStore>>,
         hardware: Arc<SandboxedHardwareController>,
@@ -41,6 +42,7 @@ impl ExecutionEngine {
         }
     }
 
+    /// Parity twin: usr/libexec/mios/node/hardware.py (ExecutionEngine.hardware_controller)
     pub fn hardware_controller(&self) -> &Arc<SandboxedHardwareController> {
         &self.hardware
     }

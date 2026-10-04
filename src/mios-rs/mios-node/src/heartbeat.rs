@@ -94,6 +94,7 @@ impl HeartbeatMonitor {
         }
     }
 
+    /// Parity twin: usr/libexec/mios/node/discovery.py (HeartbeatMonitor.__init__ thresholds)
     pub fn with_thresholds(
         local_node_id: u32,
         heartbeat_interval_secs: u64,
@@ -145,6 +146,7 @@ impl HeartbeatMonitor {
     }
 
     /// Records a peer upon receiving an Announce frame (Opcode 0x02).
+    /// Parity twin: usr/libexec/mios/node/discovery.py (HeartbeatMonitor.record_announce)
     pub fn record_announce(&mut self, node_id: u32, addr: SocketAddr, current_time_secs: u64) {
         if node_id == self.local_node_id {
             return;
@@ -162,6 +164,7 @@ impl HeartbeatMonitor {
     }
 
     /// Evaluates peer health and strike count given the elapsed seconds since last heartbeat.
+    /// Parity twin: usr/libexec/mios/node/discovery.py (HeartbeatMonitor.assess_peer_health)
     pub fn assess_peer_health(&self, elapsed_secs: u64) -> (PeerHealth, u32) {
         Self::calculate_peer_health(
             elapsed_secs,
@@ -238,6 +241,7 @@ impl HeartbeatMonitor {
     }
 
     /// Manually evicts a peer from the routing table.
+    /// Parity twin: usr/libexec/mios/node/discovery.py (HeartbeatMonitor.evict_peer)
     pub fn evict_peer(
         &mut self,
         node_id: u32,
@@ -262,6 +266,7 @@ impl HeartbeatMonitor {
         self.routing_table.get(&node_id)
     }
 
+    /// Parity twin: usr/libexec/mios/node/discovery.py (HeartbeatMonitor.get_active_peers)
     pub fn active_peers(&self) -> Vec<&PeerRoutingEntry> {
         self.routing_table
             .values()

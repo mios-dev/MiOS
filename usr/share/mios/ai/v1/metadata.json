@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3634,
-  "total_metadata_entries": 2997,
-  "total_hints": 2982,
+  "total_files_scanned": 3626,
+  "total_metadata_entries": 2989,
+  "total_hints": 2976,
   "total_functions_indexed": 1455,
-  "total_related_links": 4781,
+  "total_related_links": 4779,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -1662,15 +1662,6 @@
       "has_shebang": true
     },
     {
-      "path": "automation/lib/MiOS.Build/Bake.psm1",
-      "hint": "OCI image bake and export helper functions extracted from build-mios.ps1.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "automation/lib/MiOS.Build/Branding.psm1",
       "hint": "Windows branding and launcher installation helper functions extracted from build-mios.ps1.",
       "related": [],
@@ -1680,35 +1671,8 @@
       "has_shebang": false
     },
     {
-      "path": "automation/lib/MiOS.Build/Dashboard.psm1",
-      "hint": "Dashboard state & phase tracking functions extracted from build-mios.ps1.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "automation/lib/MiOS.Build/Provision.psm1",
-      "hint": "Builder distro and WSL machine provisioning helper functions extracted from build-mios.ps1.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "automation/lib/MiOS.Console.psm1",
       "hint": "Console palette and VT100 formatting module resolving from mios.toml [colors] SSOT.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "automation/lib/MiOS.Install/Agreement.psm1",
-      "hint": "Agreement gate UI functions extracted from Get-MiOS.ps1.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -1745,27 +1709,6 @@
     {
       "path": "automation/lib/MiOS.Install/WinTools.psm1",
       "hint": "Windows tool installation helper functions extracted from Get-MiOS.ps1.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "automation/lib/MiOS.Log.psm1",
-      "hint": "Shared PowerShell logging module for MiOS scripts (Write-Step, Write-Ok, Write-Warn, Write-Bad, Info, Ok, Warn, Fail).",
-      "related": [
-        "automation/lib/MiOS.Console.psm1",
-        "installation/mios-common.ps1"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "automation/lib/MiOS.Toml.psm1",
-      "hint": "Single-sourced PowerShell module for resolving mios.toml values across Windows PowerShell scripts.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -2310,7 +2253,7 @@
     },
     {
       "path": "build-mios.ps1",
-      "hint": null,
+      "hint": "PowerShell entry point for MiOS installation that configures the MiOS-DEV podman-machine, handles initial licensing, and manages the SSH handoff to the Linux-side build driver ...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -4056,7 +3999,7 @@
     },
     {
       "path": "mios-windows-export.ps1",
-      "hint": null,
+      "hint": "A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -4935,6 +4878,18 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-node/tests/parity_stubs_test.rs",
+      "hint": "Parity tests for mios-node Rust methods mirroring usr/libexec/mios/node/*.py twins (T-1188).",
+      "related": [
+        "src/mios-rs/mios-node/src/lib.rs",
+        "usr/libexec/mios/node/"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-probe/Cargo.toml",
       "hint": "Crate manifest for mios-probe -- the native host-readiness prober (ADR-0021 category: probe).",
       "related": [
@@ -5622,29 +5577,8 @@
       "has_shebang": false
     },
     {
-      "path": "tests/powershell/MiOSLog.Tests.ps1",
-      "hint": "Pester characterization tests for MiOS.Log.psm1 -- asserts the module loads, exposes its logging functions, and that they execute without throwing.",
-      "related": [
-        "automation/lib/MiOS.Log.psm1",
-        "tests/powershell/run-pester.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "tests/powershell/MiOSWin.Tests.ps1",
       "hint": "Pester characterization tests for MiOS.Win.psm1 Windows helper module.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/powershell/TomlResolver.Tests.ps1",
-      "hint": "Pester characterization tests for MiOS.Toml.psm1 TOML reader module.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -9012,15 +8946,6 @@
       "doc": "usr/share/doc/mios/manual/lib.md",
       "comment_style": "hash",
       "has_shebang": true
-    },
-    {
-      "path": "tools/lib/install-env.ps1",
-      "hint": "Powershell helper for MiOS Windows installers that generates the /etc/mios/install.env file in a WSL2 distro to inject the operator's hostname and sha512crypt passwo...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/lib.md",
-      "comment_style": "hash",
-      "has_shebang": false
     },
     {
       "path": "tools/lib/path-refactor.py",

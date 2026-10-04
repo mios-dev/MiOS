@@ -260,6 +260,7 @@ impl BleMeshBootstrap {
         *self.state.lock().unwrap()
     }
 
+    /// Parity twin: usr/libexec/mios/node/ble.py (BleProvisioningSession.get_credentials)
     pub fn get_credentials(&self) -> Option<ProvisioningPayload> {
         self.provisioned_credentials.lock().unwrap().clone()
     }
