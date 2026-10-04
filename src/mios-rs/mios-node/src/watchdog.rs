@@ -35,7 +35,11 @@ impl Default for WatchdogConfig {
 pub trait WatchdogDriver: Send + Sync {
     fn arm(&mut self) -> Result<(), String>;
     fn ping(&mut self) -> Result<(), String>;
+    /// Sets watchdog timeout in seconds.
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (set_timeout)
     fn set_timeout(&mut self, timeout_secs: u32) -> Result<u32, String>;
+    /// Gets watchdog timeout in seconds.
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (get_timeout)
     fn get_timeout(&self) -> Result<u32, String>;
     fn disarm_and_close(&mut self) -> Result<(), String>;
     fn is_hardware_present(&self) -> bool;
@@ -91,11 +95,13 @@ impl WatchdogDriver for LinuxHardwareWatchdog {
         }
     }
 
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (set_timeout)
     fn set_timeout(&mut self, timeout_secs: u32) -> Result<u32, String> {
         self.timeout_secs = timeout_secs;
         Ok(self.timeout_secs)
     }
 
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (get_timeout)
     fn get_timeout(&self) -> Result<u32, String> {
         Ok(self.timeout_secs)
     }
@@ -168,11 +174,13 @@ impl WatchdogDriver for MockWatchdogDriver {
         Ok(())
     }
 
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (set_timeout)
     fn set_timeout(&mut self, timeout_secs: u32) -> Result<u32, String> {
         self.timeout_secs = timeout_secs;
         Ok(self.timeout_secs)
     }
 
+    /// Parity twin: usr/libexec/mios/node/watchdog.py (get_timeout)
     fn get_timeout(&self) -> Result<u32, String> {
         Ok(self.timeout_secs)
     }

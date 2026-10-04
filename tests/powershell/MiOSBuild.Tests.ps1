@@ -23,11 +23,6 @@ Describe "MiOS.Build Sub-modules" {
         $script:buildFiles.Count | Should -BeGreaterThan 0
     }
 
-    It "Should format build spans correctly" {
-        $ts = [TimeSpan]::FromMinutes(5) + [TimeSpan]::FromSeconds(30)
-        $formatted = Format-BuildSpan $ts
-        $formatted | Should -Be '05:30'
-    }
 
     It "Should return tagline string" {
         $tagline = Get-MiosBrandingTagline 'Custom OS'

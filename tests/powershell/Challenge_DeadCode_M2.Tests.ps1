@@ -4,6 +4,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not $env:MIOS_BOOTSTRAP_ROOT -or -not (Test-Path $env:MIOS_BOOTSTRAP_ROOT)) {
+    $env:MIOS_BOOTSTRAP_ROOT = 'C:\mios-bootstrap'
+}
+
 Describe "Adversarial Challenge: Dead-Code Parameter & Scoping" {
     $targetFiles = @(
         @{ File = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'); Name = 'mios-bootstrap' },
