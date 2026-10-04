@@ -13,10 +13,11 @@ Describe "MiOS.Win.psm1 Module" {
         Import-Module $winModulePath -Force -Global
     }
 
+    $isWin = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { $IsWindows } else { $true }
     # Resolving a Windows interpreter is meaningless on Linux, where CI runs
     # pwsh -- there is no pwsh.exe and no %WINDIR%. Assert the real contract on
     # Windows; on Linux only assert the function does not throw.
-    It "Should resolve concrete interpreter path avoiding WindowsApps alias" -Skip:(-not $IsWindows) {
+    It "Should resolve concrete interpreter path avoiding WindowsApps alias" -Skip:(-not $isWin) {
         $exe = Get-MiosPowerShellExe
         $exe | Should -Not -BeNullOrEmpty
         ($exe -like '*\WindowsApps\*') | Should -Be $false

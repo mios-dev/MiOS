@@ -92,8 +92,15 @@ def _configure():
     mr.configure(
         logger=_Log(),
         agent_registry={},
-        verb_catalog={"open_url": {}, "launch_app": {}, "remember": {},
-                      "web_search": {}, "focus_window": {}},
+        verb_catalog={
+            "open_url": {"sig": "url, mode?"},
+            "launch_app": {"sig": "name"},
+            "launch_verified": {"sig": "name"},
+            "pc_type": {"params": {"text": {"type": "str"}}},
+            "remember": {"sig": "fact, scope?", "params": {"fact": {"type": "str"}}},
+            "web_search": {"sig": "query", "params": {"query": {"type": "str"}}},
+            "focus_window": {"sig": "name, position?"},
+        },
         routed_domain_var=contextvars.ContextVar("routed_domain", default=None),
         over_global_ceiling=lambda: False,
         resolve_verb_key=lambda name: name,
@@ -104,7 +111,7 @@ def _configure():
         refine_enabled=True,
         refine_model="test-refine",
         refine_endpoint="http://stub.local",
-        refine_max_tokens=700,
+        refine_max_tokens=200,
         refine_timeout_s=5,
         refine_attempts=1,
         os_control_verbs_rendered="",
@@ -141,6 +148,16 @@ def t_salvage_corpus():
     check("salvage.bare_positional", isinstance(d, dict)
           and d.get("tool") == "focus_window"
           and (d.get("args") or {}).get("name") == "Forza", repr(d))
+
+    d = mr._salvage_refine_dispatch("open_url(https://news.ycombinator.com)")
+    check("salvage.bare_positional_url_from_sig", isinstance(d, dict)
+          and d.get("tool") == "open_url"
+          and (d.get("args") or {}).get("url") == "https://news.ycombinator.com", repr(d))
+
+    d = mr._salvage_refine_dispatch("pc_type('hello world')")
+    check("salvage.bare_positional_text_from_params", isinstance(d, dict)
+          and d.get("tool") == "pc_type"
+          and (d.get("args") or {}).get("text") == "hello world", repr(d))
 
     d = mr._salvage_refine_dispatch("Running launch_verified(Steam) next.")
     check("salvage.longest_first", isinstance(d, dict)

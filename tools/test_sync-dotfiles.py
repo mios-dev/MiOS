@@ -50,9 +50,16 @@ def check(name, got, want):
 FWD_KEYS = '["web", "api"]'
 PORTS = "[ports]\nstack_id = 0\nweb = 9100\napi = 9200\n[ai]\nendpoint = \"http://localhost:${MIOS_PORT_API}/v1\"\n"
 ENV_KEYS = '["MIOS_AI_ENDPOINT"]'
+WORKSPACE = (
+    "[workspace]\n"
+    'root = "/workspaces"\n'
+    'primary = "MiOS"\n'
+    'devcontainer = ".devcontainer/devcontainer.json"\n'
+    'repos = [{ name = "MiOS", url = "https://github.com/mios-dev/MiOS.git" }]\n'
+)
 
 
-def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS, edge=EDGE):
+def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS, edge=EDGE, workspace=WORKSPACE):
     keys = "".join(f'    "{k}",\n' for k in desktop_only)
     unreg = "".join(f'    "{k}",\n' for k in UNREGISTERED)
     return ("[dotfiles.vscode]\n"
@@ -64,7 +71,7 @@ def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS, edge=
             + "[dotfiles.devcontainer]\n"
             + (f"forward_port_keys = {fwd_keys}\n" if fwd_keys is not None else "")
             + (f"container_env_keys = {env_keys}\n" if env_keys is not None else "")
-            + ports + edge)
+            + ports + edge + workspace)
 
 
 def _write(path, text):
@@ -79,6 +86,7 @@ def _fixture(root, desktop_only=DESKTOP_ONLY):
     _write(os.path.join(root, "usr/share/mios/mios.toml"), _toml(desktop_only))
     _write(os.path.join(root, ".dotfiles/vscode/settings.json"), json.dumps(SSOT, indent=2) + "\n")
     _write(os.path.join(root, ".dotfiles/code-server/settings.json"), json.dumps(SSOT, indent=2) + "\n")
+    _write(os.path.join(root, "usr/share/mios/keybindings/vscode-settings.json"), "{}\n")
     stale = dict(SSOT, **{"vscode_custom_css.policy": True, "zenMode.showTabs": "none"})
     dev = {"name": "fx", "containerEnv": {"MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1", "MIOS_AI_ROLE": "builder"},
            "customizations": {"vscode": {"settings": stale}}, "forwardPorts": [8080, 11450]}

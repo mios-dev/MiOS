@@ -412,7 +412,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_ROLE_ALIASES_HA:=ha-node}"
 : "${MIOS_BLADE_ROLE_ALIASES_K3S:=k3s-master}"
 : "${MIOS_BLADE_SEAT_SIDE:=mios-agent-pipe,hermes-dashboard,mios-hermes-browser,mios-hermes-tail,mios-ttyd-bash,mios-ttyd-powershell}"
-: "${MIOS_BLADE_SOFT_OK:=hermes-worker,mios-hermes-browser}"
+: "${MIOS_BLADE_SOFT_OK:=hermes-worker,mios-hermes-browser,mios-ai-firstboot}"
 : "${MIOS_BLADE_STORAGE_AT_REST:=dmcrypt}"
 : "${MIOS_BLADE_STORAGE_REPLICATION:=all}"
 : "${MIOS_BLADE_TYPE:=hybrid}"

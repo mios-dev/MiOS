@@ -10512,7 +10512,7 @@ ungated = []
 optional_planes = ["radio"]
 
 # Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
-soft_ok = ["hermes-worker", "mios-hermes-browser"]
+soft_ok = ["hermes-worker", "mios-hermes-browser", "mios-ai-firstboot"]
 
 # Units a seat DELIBERATELY runs: what the PERSON touches. A blade runs what
 # the WORK needs. See ADR-0016 D4.

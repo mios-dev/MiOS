@@ -1,5 +1,6 @@
 # AI-hint: Configures the Oh-My-Posh interactive shell prompt for bash and zsh by mapping the MiOS theme JSON to the shell's initialization sequence.
 # AI-related: /usr/libexec/mios/oh-my-posh/oh-my-posh, /usr/share/mios/oh-my-posh/mios.omp.json, mios-prompt
+# shellcheck shell=bash
 
 [ -n "${PS1:-}" ] || [ -n "${ZSH_VERSION:-}" ] || return 0
 [ -t 0 ] && [ -t 1 ] || return 0
