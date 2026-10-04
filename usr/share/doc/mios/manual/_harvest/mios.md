@@ -472,9 +472,9 @@ AI-functions: _describe, emit_index
 !/bin/bash
 AI-hint: A diagnostic tool for identifying system-level failures in MiOS, checking sudo permissions, hermes-agent status, and mount-namespace escapability to troubleshoot environment issues.
 AI-related: /usr/libexec/mios/mios-doctor, /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-build-driver, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/cron-rules.toml, /usr/share/mios/hermes/skills, /usr/share/mios/hermes/skills/, /usr/share/mios/ai/hermes-soul.md, mios-build-driver
-AI-functions: _run_as, ok, fail, warn, info
+AI-functions: ok, fail, warn, info
 
-<!-- mios-src:f9c7374516f3 from usr/libexec/mios/mios-doctor:1-4 -->
+<!-- mios-src:c5b312029eb0 from usr/libexec/mios/mios-doctor:1-4 -->
 
 ### !/usr/bin/env python3 AI-hint: The operator-facing `mios...
 
@@ -588,14 +588,14 @@ AI-functions: _resolve_remote_for
 
 <!-- mios-src:a7873543db48 from usr/libexec/mios/mios-flatpak-install:1-4 -->
 
-### !/bin/sh AI-hint: Executes `flatpak override` to apply...
+### !/bin/bash AI-hint: Executes `flatpak override` to apply...
 
-!/bin/sh
+!/bin/bash
 AI-hint: Executes `flatpak override` to apply global theme, portal, and cursor settings from `mios.toml` to all flatpak applications, ensuring consistent UI styling across the system.
 AI-related: /usr/libexec/mios/mios-flatpak-overrides-apply, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-hermes-firstboot, mios-flatpak-init, mios-cursor-ensure
 AI-functions: _toml_get
 
-<!-- mios-src:782cd58a5ac9 from usr/libexec/mios/mios-flatpak-overrides-apply:1-4 -->
+<!-- mios-src:4368b5774d12 from usr/libexec/mios/mios-flatpak-overrides-apply:1-4 -->
 
 ### !/bin/bash AI-hint: Validates if a flatpak app can...
 
@@ -680,9 +680,9 @@ AI-related: /usr/lib/mios/agents/.venv/lib64/python3.14/site-packages, /usr/lib/
 !/usr/bin/env bash
 AI-hint: Initializes the Hermes gateway and web-ui components by generating /etc/mios/hermes/api.env and seeding /var/lib/mios/hermes/config.yaml based on mios.toml configurations during first boot.
 AI-related: /etc/mios/hermes/api.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-dashboard.sh, /etc/mios/hermes, /etc/mios/hermes/discord.env, /usr/lib/mios/agents/.venv., /usr/lib/mios/agents/.venv/bin/hermes, /usr/lib/mios/hermes-agent/.venv/bin/hermes, /usr/libexec/mios/mios-pc-vision
-AI-functions: _log, _mios_toml_layers, _mios_toml_value, _mios_toml_catalog, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
+AI-functions: _log, _mios_toml_value, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
 
-<!-- mios-src:c9d10fa8b5da from usr/libexec/mios/mios-hermes-firstboot:1-4 -->
+<!-- mios-src:e62cc6f467c2 from usr/libexec/mios/mios-hermes-firstboot:1-4 -->
 
 ### !/usr/bin/env python3 AI-hint: Python hook that executes...
 
@@ -738,9 +738,9 @@ AI-related: mios-summarize, mios-pg-query
 !/bin/bash
 AI-hint: Unified cross-platform package manager entry point that abstracts winget, dnf, and flatpak into a single interface for installing, searching, and listing software across Windows and Linux environments.
 AI-related: /usr/libexec/mios/mios-installer, mios-windows, mios-hermes
-AI-functions: _red, _green, _dim, _bold, _have_winget, _have_dnf, _have_flatpak, _detect_backend, _search_winget, _search_dnf, _search_flatpak, _install_winget
+AI-functions: _dim, _bold, _have_winget, _have_dnf, _have_flatpak, _detect_backend, _search_winget, _search_dnf, _search_flatpak, _install_winget
 
-<!-- mios-src:fd09cc164984 from usr/libexec/mios/mios-installer:1-4 -->
+<!-- mios-src:a42a8d6eecc9 from usr/libexec/mios/mios-installer:1-4 -->
 
 ### !/usr/bin/env bash AI-hint: A dual-mode helper that unlocks...
 
@@ -825,9 +825,9 @@ AI-functions: _db_name, main
 !/usr/bin/env python3
 AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Only `prune` edits source, and only where the landing predicate proves the knowledge is already in a doc.
 AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/design/doc-generative-documentation.md
-AI-functions: cmd_ledger, cmd_audit, cmd_coverage, cmd_harvest, cmd_prune, cmd_landing, cmd_render, landed, main
+AI-functions: cmd_ledger, cmd_audit, cmd_coverage, cmd_harvest, cmd_prune, cmd_landing, cmd_check_functions, cmd_render, check_harvested_functions, landed, main
 
-<!-- mios-src:56e73a16fa03 from usr/libexec/mios/mios-manual:1-4 -->
+<!-- mios-src:c84942bfd78e from usr/libexec/mios/mios-manual:1-4 -->
 
 ### !/bin/bash AI-hint: A shim script that constructs and opens...
 
@@ -841,10 +841,10 @@ AI-functions: usage, urlencode
 ### !/usr/bin/env python3 AI-hint: Provides a Model Context...
 
 !/usr/bin/env python3
-AI-hint: Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe.
+AI-hint: Provides a Model Context Protocol (MCP) server that exposes MiOS verbs and resources through the upstream dual-era FOSS SDK.
 AI-related: mios-daemon-agent, mios-mcp, mios-mcp.service, agent-pipe (port key `agent_pipe`)
 
-<!-- mios-src:9347d1ea633a from usr/libexec/mios/mios-mcp-server:1-3 -->
+<!-- mios-src:ddcc821acb68 from usr/libexec/mios/mios-mcp-server:1-3 -->
 
 ### !/bin/bash AI-hint: A CLI shim that launches a local...
 
@@ -1234,9 +1234,9 @@ AI-related: random.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-daem
 !/usr/bin/env bash
 AI-hint: Parses mios.toml to arm concurrent llama-server instances in swarm mode, enforcing vram_budget_mb limits to prevent OOM on shared GPUs and generating per-worker environment files in /run/mios/swarm/.
 AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-llm-worker, mios-swarm-pack
-AI-functions: log
+AI-functions: log, arm_worker
 
-<!-- mios-src:3fa0c85bade9 from usr/libexec/mios/mios-swarm-pack-firstboot:1-4 -->
+<!-- mios-src:db06aabcf927 from usr/libexec/mios/mios-swarm-pack-firstboot:1-4 -->
 
 ### !/usr/bin/env bash AI-hint: Applies the code-server /...
 
@@ -1276,9 +1276,9 @@ AI-related: mios-system-status, mios-podman-ps, mios-podman-ps.service
 !/usr/bin/env python3
 AI-hint: Thin shim delegating template rendering to the mios-new canonical generator, preserving the legacy <kind> <target_filepath> [description] contract.
 AI-related: /usr/libexec/mios/mios-new, /usr/share/mios/templates/
-AI-functions: main, _scaffold_via_mios_new
+AI-functions: main
 
-<!-- mios-src:0cf6245daf6f from usr/libexec/mios/mios-template-engine:1-4 -->
+<!-- mios-src:b126857f5771 from usr/libexec/mios/mios-template-engine:1-4 -->
 
 ### !/usr/bin/env python3 AI-hint: Provides a robust...
 
@@ -1439,10 +1439,10 @@ AI-functions: log, warn
 
 !/usr/bin/env python3
 AI-hint: MiOS system and orchestration module providing seed-db-config capabilities.
-AI-related: /usr/share/mios/mios.toml, /usr/share/mios/automation, mios-find, mios-bootstrap, mios-debloat, mios-xbox-features
+AI-related: /usr/share/mios/mios.toml, automation/, mios-find, mios-bootstrap, https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-debloat.json, https://github.com/mios-dev/mios-bootstrap/blob/main/field/autounattend/mios-xbox-features.txt
 AI-functions: get_seeded_sections, get_pg_config, main
 
-<!-- mios-src:f8dd5169902c from usr/libexec/mios/seed-db-config.py:1-4 -->
+<!-- mios-src:abd3a2e7a366 from usr/libexec/mios/seed-db-config.py:1-4 -->
 
 ### !/usr/bin/env bash AI-hint: Initializes MiOS-specific...
 
