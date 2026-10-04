@@ -1,0 +1,39 @@
+[
+  {
+    "command": "workbench.action.terminal.toggleTerminal",
+    "key": "ctrl+b t",
+    "when": "!terminalFocus"
+  },
+  {
+    "args": {
+      "commands": [
+        "workbench.action.terminal.new",
+        {
+          "args": {
+            "text": "/usr/libexec/mios/mios-ai-terminal\r"
+          },
+          "command": "workbench.action.terminal.sendSequence"
+        }
+      ]
+    },
+    "command": "runCommands",
+    "key": "ctrl+b a",
+    "when": "!terminalFocus"
+  },
+  {
+    "args": {
+      "commands": [
+        "workbench.action.terminal.new",
+        {
+          "args": {
+            "text": "mios mon\r"
+          },
+          "command": "workbench.action.terminal.sendSequence"
+        }
+      ]
+    },
+    "command": "runCommands",
+    "key": "ctrl+b m",
+    "when": "!terminalFocus"
+  }
+]

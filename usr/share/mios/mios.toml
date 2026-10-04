@@ -1212,6 +1212,10 @@ comment2 = "# Security hardening: isolate the MCP server from writing to the cor
 ProtectSystem = "strict"
 ProtectHome = "read-only"
 ReadWritePaths = "/var/lib/mios/mcp /var/log/mios/mcp"
+RuntimeDirectory = "mios-tmux"
+RuntimeDirectoryMode = "0700"
+KillMode = "control-group"
+UMask = "0077"
 comment3 = "# Hardening parity with sibling mios-* daemons (log-watcher, cron-\n# director, hermes-browser) -- consolidation pass 2026-05-15."
 PrivateTmp = "true"
 NoNewPrivileges = "true"
@@ -1913,7 +1917,7 @@ compat_dirs = []
 
 [build.native.categories.services]
 # Service-facing programs; systemd Type= independently defines their lifecycle.
-binaries = []
+binaries = ["mios-agent-relay"]
 install_dir = "/usr/libexec/mios"
 expose_bin = false
 compat_dirs = []
@@ -3579,6 +3583,142 @@ mdns_refresh_sec   = 300                # minimum seconds between live mDNS brow
 
 [mcp]
 protocol_version = "2026-07-28"
+python = "/usr/lib/mios/mcp/.venv/bin/python3"
+wheelhouse = "usr/share/mios/vendored/wheels"
+python_packages = ["mcp", "uvicorn", "openai"]
+
+# One mandatory management catalog for Windows hosts and every Linux image.
+# Versions float under Law 7; installed versions are recorded in the image SBOM.
+[mcp.agents]
+enabled = true
+binary = "/usr/libexec/mios/mios-agent-relay"
+state_directory = "mios/agent-relay"
+lease_s = 3600
+max_agents = 64
+max_pending = 1024
+max_message_bytes = 32768
+max_receipts = 4096
+
+[agent_cli]
+enabled = true
+linux_prefix = "/usr/lib/mios/agent-cli"
+windows_directory = "MiOS\\agents"
+node_min_major = 22
+windows_node_package = "OpenJS.NodeJS.LTS"
+windows_uv_installer = "https://astral.sh/uv/install.ps1"
+python = "python3.12"
+uv_package = "uv"
+aider_package = "aider-chat"
+antigravity_linux_installer = "https://antigravity.google/cli/install.sh"
+antigravity_windows_installer = "https://antigravity.google/cli/install.ps1"
+tools = [
+  { name = "claude", package = "@anthropic-ai/claude-code", kind = "npm", mcp = true },
+  { name = "codex", package = "@openai/codex", kind = "npm", mcp = true },
+  { name = "gemini", package = "@google/gemini-cli", kind = "npm", mcp = true },
+  { name = "copilot", package = "@github/copilot", kind = "npm", mcp = true },
+  { name = "opencode", package = "opencode-ai", kind = "npm", mcp = true },
+  { name = "agy", kind = "native", mcp = true },
+  { name = "aider", kind = "python", mcp = false },
+]
+
+# Native terminal tools are served by the SAME MiOS MCP endpoint. Each MCP
+# session owns a private tmux server; no operator/default socket is adopted.
+[mcp.tmux]
+enabled = true
+binary = "/usr/libexec/mios/tmux-mcp"
+max_slots = 32
+timeout_s = 300
+history_limit = 50000
+max_sessions = 8
+session_idle_s = 1800
+allowed_tools = ["open-pane", "execute-command", "send-keys", "run-in-repl", "start-and-watch", "capture-pane", "pane-state", "watch-pane", "list-slots", "close-pane"]
+upstream = "https://github.com/MadAppGang/tmux-mcp"
+version = "v2.0.0"
+revision = "d9e45cfe72cff75f7ba923c32ac35a19f424effb"
+
+[mcp.tmux.assets.x86_64]
+path = "usr/share/mios/vendored/tmux-mcp/tmux-mcp_linux_amd64.tar.gz"
+sha256 = "44e8f5749e98230b87585b60131d2116ae00d8e8ceb57348a84b6c8dfd93cd20"
+
+[mcp.tmux.assets.aarch64]
+path = "usr/share/mios/vendored/tmux-mcp/tmux-mcp_linux_arm64.tar.gz"
+sha256 = "10ca7af43fa0c83ae0e4e892171bad260a7055caee43507aa5b56f1a1a7e997f"
+
+# Agent-pipe consumes the terminal subset of the SAME server. Keeping its
+# catalog terminal-only prevents a recursive re-import of agent-pipe tools.
+[mcp.servers.mios_terminal]
+enabled = true
+transport = "stdio"
+command = "/usr/lib/mios/mcp/.venv/bin/python3"
+args = ["/usr/libexec/mios/mios-mcp-server", "--tmux-only"]
+tier = "common"
+namespace = "terminal_"
+note = "Native MiOS terminal component; installed in every MiOS image."
+
+# Shared human interface. SSH receives plain Ctrl-b + one ordinary key;
+# Desktop shortcuts use Ctrl+Alt+Shift plus the same letter, avoiding OS Super shortcuts.
+[keybindings]
+enabled = true
+tmux_prefix = "C-b"
+vscode_prefix = "ctrl+b"
+desktop_modifier = "CTRL ALT SHIFT"
+desktop_accelerator = "<Control><Alt><Shift>"
+windows_hotkey_modifier = "CTRL+ALT+SHIFT"
+vscode_allow_chords = false
+vscode_allow_mnemonics = false
+vscode_passthrough_commands = ["workbench.action.toggleSidebarVisibility"]
+terminal_session = "mios"
+socket_name = "mios-human"
+escape_time_ms = 50
+repeat_time_ms = 500
+history_limit = 50000
+mouse = true
+[[keybindings.actions]]
+id = "terminal"
+label = "MiOS Terminal"
+key = "t"
+command = "/usr/libexec/mios/mios-terminal"
+desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal"
+tmux_command = "new-window"
+vscode_command = "workbench.action.terminal.toggleTerminal"
+
+[[keybindings.actions]]
+id = "ai"
+label = "MiOS AI"
+key = "a"
+command = "/usr/libexec/mios/mios-ai-terminal"
+desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai"
+tmux_command = "new-window -n MiOS-AI /usr/libexec/mios/mios-ai-terminal"
+vscode_command = "runCommands"
+vscode_shell = "/usr/libexec/mios/mios-ai-terminal"
+
+[[keybindings.actions]]
+id = "system"
+label = "MiOS System Monitor"
+key = "m"
+command = "mios mon"
+desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system"
+tmux_command = "new-window -n MiOS-System mios mon"
+vscode_command = "runCommands"
+vscode_shell = "mios mon"
+
+[keybindings.tmux]
+bindings = [
+  { key = "h", command = "select-pane -L" },
+  { key = "j", command = "select-pane -D" },
+  { key = "k", command = "select-pane -U" },
+  { key = "l", command = "select-pane -R" },
+  { key = "s", command = "split-window -v" },
+  { key = "v", command = "split-window -h" },
+  { key = "n", command = "next-window" },
+  { key = "p", command = "previous-window" },
+  { key = "w", command = "choose-tree -Zw" },
+  { key = "z", command = "resize-pane -Z" },
+  { key = "y", command = "copy-mode" },
+  { key = "d", command = "detach-client" },
+  { key = "Tab", command = "send-keys BTab" },
+  { key = "b", command = "send-prefix" },
+]
 
 [routing]
 router_enable = true   # master switch; false = legacy full-surface behaviour
@@ -6143,7 +6283,7 @@ unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixT
 
 [packages]
 sections = [
-    "base", "security", "utils", "build-toolchain", "containers",
+    "base", "mcp", "security", "utils", "build-toolchain", "containers",
     "cockpit", "storage", "virt", "guests",
     "gpu-mesa", "gpu-nvidia", "gpu-amd-compute", "gpu-intel-compute",
     "gnome", "gnome-core-apps", "phosh",
@@ -6159,6 +6299,7 @@ pkgs = [
     # ── Critical runtime / toolchain ─────────────────────────────
     "Git.Git",                       # git for clone + fetch + reset
     "Microsoft.PowerShell",          # pwsh 7 (trampoline target)
+    "chrisant996.Clink",             # native CMD prompt integration
     "Microsoft.WSL",                 # Windows Subsystem for Linux 2
     "Microsoft.WindowsTerminal",     # WT (also installed earlier; idempotent)
     "7zip.7zip",                     # archive support
@@ -6256,7 +6397,7 @@ pkgs = [
 enable = true
 # The development image shares the self-build dependency closure with MiOS.
 # Section dependencies are resolved and deduplicated by automation/lib/packages.sh.
-requires_sections = ["self-build"]
+requires_sections = ["self-build", "mcp"]
 pkgs = [
     "just",
     "podman", "podman-compose", "buildah", "skopeo",
@@ -6307,6 +6448,7 @@ pkgs = [
 
 [packages.base]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+requires_sections = ["mcp"]
 pkgs = [
     "policycoreutils-python-utils",
     "selinux-policy-targeted",
@@ -6322,6 +6464,16 @@ pkgs = [
     # unreachable on the running system.
     "man-db",
 ]
+
+# Global native interface dependency, independent of optional AI/GPU packages.
+[packages.mcp]
+enable = true
+requires_sections = ["agent_cli"]
+pkgs = ["tmux", "bash", "coreutils", "python3.13", "python3-pip", "fontconfig", "oh-my-posh", "python3-rich", "python3-textual", "python3-psutil"]
+
+[packages.agent_cli]
+enable = true
+pkgs = ["nodejs", "npm", "python3.12", "git", "ripgrep", "curl", "tar", "gzip", "openssl", "libatomic"]
 
 [packages.crowdsec]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
@@ -6953,10 +7105,7 @@ pkgs = [
     "npm",
     "nano",             # baseline text editor for operator config edits (operator-flagged: "nano: command not found")
 ]
-npm_globals = [
-    "@anthropic-ai/claude-code",     # Anthropic Claude Code CLI
-    "@google/gemini-cli",            # Google Gemini CLI
-]
+# Global CLI packages and installer kinds come from [agent_cli].tools.
 
 [packages.critical]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
@@ -7436,7 +7585,7 @@ uid  = 831
 gid  = 831
 # localhost/mios-piper build args (usr/share/mios/piper/Containerfile): piper-tts[http]
 # version and the voice baked into the image (Law 12) -- no host model_dir.
-base    = "docker.io/library/python:3.13-slim"
+base    = "localhost/mios-base:latest"
 version = "1.8.0"
 voice   = "en_US-lessac-medium"
 
@@ -8020,6 +8169,7 @@ podman_cli_pkg      = "RedHat.Podman"                   # Podman CLI MSI (lays d
 terminal_pkg        = "Microsoft.WindowsTerminal"       # Windows Terminal (Install-MiOSWindowsTerminal)
 pwsh_pkg            = "Microsoft.PowerShell"            # pwsh 7+ (Install-MiOSPwsh7)
 ohmyposh_pkg        = "JanDeDobbeleer.OhMyPosh"         # oh-my-posh prompt (Install-MiOSOhMyPoshTheme)
+clink_pkg           = "chrisant996.Clink"               # CMD prompt engine, installed separately (GPL-3.0)
 fastfetch_pkg       = "fastfetch-cli.fastfetch"         # fastfetch (Install-MiOSFastfetch)
 appinstaller_pkg    = "Microsoft.AppInstaller"          # winget itself (bootstrap winget on truly bare Win 11 ≤ 21H2)
 # Direct-download URL for the App Installer MSIXBUNDLE. Used by
@@ -8098,6 +8248,8 @@ url                 = "https://github.com/ryanoasis/nerd-fonts/releases/latest/d
 vercel_repo         = "https://github.com/vercel/geist-font.git"                                         # Vercel Geist (sans + mono, no glyphs)
 symbols_url         = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip"   # Nerd Symbols Only (icon glyphs the omp theme uses)
 install_scope       = "auto"
+native_archive      = "usr/share/mios/vendored/fonts/geist-nerd.zip"
+native_sha256       = "4799a6c340f3993cea7f59c256c723afb3e70233471ea9042d92f153b87ef83e"
 # Cell metrics at 100% DPI (used to compute window pixel size for
 # centering): cell_w * cols + chrome_w, cell_h * rows + chrome_h.
 cell_w_px           = 10
@@ -8113,8 +8265,21 @@ hub_target_profile  = "MiOS-DEV"    # WT profile launched by the hub .lnk
 # Global summon keybinding (toggle MiOS WT window open/close from
 # anywhere on the desktop).  The summoned window is the dev VM
 # (MiOS-DEV) per the consolidation -- one MiOS, one chord.
-summon_keys         = "win+space"
+summon_keys         = "ctrl+alt+shift+space"
 summon_window_name  = "MiOS-DEV"
+windows_codepage    = 65001
+
+[theme.tmux]
+style = "rounded"
+status_position = "bottom"
+status_interval_s = 2
+glyph_mode = "auto"   # auto follows theme.font; ascii works with any SSH font
+remote_glyph_mode = "auto"
+icon_os = ""
+icon_terminal = ""
+icon_time = ""
+icon_date = ""
+icon_user = ""
 
 # [theme.edge] -- edge-to-edge terminals on every surface MiOS configures. The
 # insets themselves are [theme].padding / [theme].scrollbar_state; this table
@@ -8172,6 +8337,8 @@ rich-tuis                = { reach = "n/a", why = "Rich panels draw inside the t
 
 [theme.prompt]
 omp_path                = "/usr/share/mios/oh-my-posh/mios.omp.json"
+glyph_mode              = "auto"
+remote_glyph_mode       = "auto"
 
 # Powerline separators between segments. Rounded by default.
 powerline_right         = ""   #  rounded right (segment ends on right side)
@@ -8187,6 +8354,14 @@ trailing_diamond        = ""   #  rounded trailing diamond
 # Prompt cursor symbol (rendered after the last segment).
 prompt_symbol           = "❯"   # ❯ heavy right angle (default user)
 prompt_symbol_root      = "⚠"   # ⚠  warning (default root)
+
+[theme.prompt.ascii]
+leader = "+-"
+closer = "\\- > "
+separator = "|"
+git_change = "~"
+git_branch = "git "
+git_commit = "@"
 
 # ----------------------------------------------------------------------------
 # [branding] -- assets the dashboard / fastfetch / splash screens use.
@@ -9097,7 +9272,7 @@ cold_zstd_level        = 10       # zstd compression level (1-19)
 
 [converge.image]
 distroless_enable      = false    # true = agent-pipe built from distroless base
-distroless_base        = "gcr.io/distroless/python3-debian13"
+distroless_base        = "localhost/mios-base:latest" # native tmux/MCP is mandatory even in the compact agent image
 rechunk_enable         = false    # true = apply rechunk in CI post-build step
 rechunk_format_version = 1
 mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorker
@@ -12271,7 +12446,7 @@ max_tracked_files = 3434
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 233
+max_tracked_mb    = 323
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.

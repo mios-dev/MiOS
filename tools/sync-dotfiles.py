@@ -337,6 +337,16 @@ def main() -> int:
     pol = load_policy()
     dc_owned = devcontainer_projection()
     drift.extend(project_edge_settings(args.check))
+    # Terminal shortcuts are a native MiOS projection. Both editor profiles
+    # must pass tmux's prefix through when the integrated terminal has focus.
+    mobile = json.load(open(os.path.join(REPO_ROOT, "usr/share/mios/keybindings/vscode-settings.json"), encoding="utf-8"))
+    for source in (VSCODE_SETTINGS_SRC, CODESERVER_SETTINGS_SRC):
+        profile = json.load(open(source, encoding="utf-8"))
+        updated = dict(profile, **mobile)
+        if updated != profile:
+            drift.append((source, "terminal shortcut settings differ from [keybindings] projection"))
+            if not args.check:
+                _write_atomic(source, json.dumps(updated, indent=2) + "\n")
     with open(VSCODE_SETTINGS_SRC, "r", encoding="utf-8") as f:
         vscode_ssot = json.load(f)
     with open(CODESERVER_SETTINGS_SRC, "r", encoding="utf-8") as f:

@@ -1,0 +1,125 @@
+<!-- AI-hint: Native MiOS-MCP and tmux-mcp architecture, packaging, runtime theme projection and verification contract. -->
+<!-- AI-related: /usr/share/mios/mios.toml [mcp], [packages.mcp], [keybindings], [theme]; /usr/libexec/mios/mios-mcp-server -->
+
+# Native MiOS terminal and MCP
+
+The native MiOS-MCP server publishes the existing MiOS verbs, promoted skills,
+recipes and read-only resources, alongside `mios_tmux_*` terminal tools. Existing
+dispatch and resource handlers remain intact. The same stdio server is registered
+with the agent-pipe consumer in terminal-only mode, preventing recursive MiOS
+catalog discovery. Local coordinating clients use the full combined endpoint.
+
+`[packages.mcp]` is mandatory in the workstation, dev environment and shared
+`mios-base` service image. Every MiOS-owned final service image inherits this
+base. Upstream build stages and third-party OCI dependencies keep their original
+bases. The SDK installs offline from the declared wheelhouse; architecture-specific
+tmux-mcp archives and patched font assets are checked against SSOT SHA-256 values
+before installation. A source change does not deploy already published images:
+the native image pipeline must build and publish the new revision.
+
+## Process boundaries and completion
+
+MadAppGang's slot-based tools run behind the SDK's protocol negotiation and
+framing. The adapter publishes the SSOT allowlist with bounded slots and timeouts.
+It does not invent raw `split-pane` tools that this upstream does not expose.
+Each stdio connection owns a private `0700` runtime directory, HOME and tmux
+socket hierarchy. Automation uses `mcp-headless`; human sessions use the separate
+SSOT `mios-human` socket. Personal shell startup hooks and ambient API keys are
+excluded from worker environments.
+
+HTTP clients must call `mios_tmux_session_open`, keep its opaque capability
+private, and supply `session` on terminal calls. This is explicit because modern
+stateless MCP HTTP requests share the application's lifespan. Capabilities expire
+after the SSOT idle interval and are reclaimed on shutdown. Session count, busy
+slots, cancellation, closed capabilities and command timeouts fail explicitly.
+The loopback service is intended for trusted local clients. Its capability is
+session separation, not a security boundary against another process with the same
+UID. Arbitrary shell tools retain the caller's filesystem permissions.
+
+Batch execution requires an upstream exit receipt. Nonzero status, missing
+receipts and timeouts report MCP errors; timed-out/cancelled panes are retired.
+Wait-channel inspection indicates interactive input readiness and cannot prove
+that an agent's turn is complete. Generator/verifier lanes still need independent
+worktrees, explicit completion receipts and the existing two-sided verification
+ladder. Avoid installing blanket approval bypasses as system defaults.
+
+Terminal screen capture is a display transcript, not a byte-exact artifact log.
+Verification commands must write original output to files and compute hashes and
+byte counts from those files. Keep positive and planted-negative logs separately;
+revert mutations and audit the pre-mutation snapshot, including untracked files.
+Resolve Git metadata with `git rev-parse --git-path` or `--git-dir`, and retain the
+existing shared-ref locking/backoff adapter.
+
+## Addressed agent sessions
+
+`[mcp.agents]` configures the native `mios-agent-relay` transaction engine.
+The combined endpoint adds six `mios_agent_*` tools without removing the legacy
+catalog. Each participating running CLI or chat registers a session ID and keeps
+its returned lease private. Registered sessions share a caller-owned state
+directory; nested tmux workers inherit only the directory pointer, not leases.
+
+Use `mios_agent_list` for live session discovery, `mios_agent_send` for addressed
+tasks or replies, `mios_agent_receive` to read the recipient's inbox, and
+`mios_agent_ack` after reading. Reusing a message ID makes retries idempotent and
+returns its current receipt. A queued message is not delivery, and a received
+receipt is not completion. `mios_agent_unregister` marks a session offline.
+Leases expire; queue, message, session and retained receipt limits come from SSOT.
+
+A local live CLI test used an Antigravity head in an MCP tmux pane to launch
+another Antigravity CLI, send it a task, and receive its reply through these
+mailboxes. The worker queried the seven installed SSOT CLIs and observed
+`codex-cli 0.160.0` in a nested pane. Both task and reply acquired recipient
+acknowledgments. This tests the local Linux CLI path; it does not certify every
+harness, a published image generation, or an existing desktop conversation.
+Headless clients need an explicit permission policy for the tools their task
+requires. An exit-zero CLI result with `denied_actions` is a failed task, even
+when its wrapper labels the result `SUCCESS`.
+
+Both participants must actually consume the MCP tools. This mailbox does not
+inject a user turn into an unrelated desktop chat, register an installed binary
+as a running session, or convert an A2A model-service card into a CLI address.
+Peer messages remain context inside the human-authorized task. They do not
+grant new permission or override the receiving agent's instructions.
+
+## Theme projection at build and runtime
+
+The vendor TOML, `/etc/mios` overrides and caller's `~/.config/mios` overrides
+form the theme contract. Build-time generators emit shipped terminal, tmux,
+compositor, prompt and keybinding files. Native `mios-terminal`, MCP pane startup
+and interactive login startup re-render the prompt and tmux configuration into a
+caller-owned runtime directory. `/usr` remains immutable during runtime.
+
+Windows startup invokes the native WSL resolver through the installed dispatcher.
+It atomically projects the palette, font and settings for Windows Terminal and
+the Oh My Posh prompt from the same layered TOML. The launcher reads current
+dimensions and profile names from that projection. The native Windows launcher
+uses per-monitor DPI awareness, measures visible window bounds, fits oversized
+windows to the current work area and centers only its own newly opened window.
+Synthetic tests cover negative monitor origins, portrait layouts, large scaling
+factors and oversized windows; physical display verification remains specific
+to hardware tested.
+
+Use `mios terminal`, `mios terminal --action ai`, `mios mcp` or, on Windows CMD,
+`mios ssh [OpenSSH options] user@host`. Windows installation preserves existing
+verb dispatch, unrelated MCP client configuration and editor settings, with
+backups when owned files change. See [mobile shortcuts](guides/mobile-keybindings.md).
+
+## Licensing and validation
+
+MiOS's repository license is Apache-2.0. Upstream tmux-mcp's README declares MIT;
+the release lacks a separate root license file. The vendored README and verbatim
+Go dependency notices are retained under `/usr/share/licenses/tmux-mcp`.
+Font licenses remain with the installed archive. Do not infer blanket copyleft
+obligations merely from IPC or claim legal approval from an architecture diagram.
+
+`test_mios_mcp_aio.py` exercises real upstream tmux processes, stdio/HTTP protocol
+eras, persistent private HOME state, concurrent slots, exit receipts, cancellation,
+timeouts, policy rejection, resource/dispatch parity and corrupt-archive rejection.
+The `--negative-receipt` mode must exit 23 with `DEVLOOP-PLANTED-EXIT`.
+Rust keybinding tests plant duplicates and committed-file drift; theme gates
+reject invalid projections and compare shipped files with SSOT output.
+
+Sources: [tmux-mcp upstream](https://github.com/MadAppGang/tmux-mcp),
+[tmux manual](https://man7.org/linux/man-pages/man1/tmux.1.html),
+[Windows Terminal CLI](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments),
+[per-monitor DPI](https://learn.microsoft.com/en-us/windows/win32/hidpi/dpi-awareness-context).

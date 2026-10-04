@@ -215,6 +215,10 @@ async def _run():
        "A2: hyphenated read recipe runs on a read-only turn (not dropped)")
     ok(("os_recipe", {"name": "disk-usage", "params": {}}) in _DISPATCHED,
        "A2: read recipe dispatched via os_recipe with the canonical hyphenated name")
+    await T._exec_tool_calls([{"id": "r-os", "function": {
+        "name": "mios_recipe__disk_usage", "arguments": '{"os":"windows","path":"C:\\\\MiOS"}'}}], _push, allow_write=False)
+    ok(("os_recipe", {"name": "disk-usage", "os": "windows", "params": {"path": "C:\\MiOS"}}) in _DISPATCHED,
+       "Recipe OS selector reaches dispatch while path remains a recipe parameter")
     tcs_wrecipe = [{"id": "r2", "function": {
         "name": "mios_recipe__shutdown", "arguments": "{}"}}]
     msgs4, ran4 = await T._exec_tool_calls(tcs_wrecipe, _push, allow_write=False)

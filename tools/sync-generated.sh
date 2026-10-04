@@ -147,7 +147,7 @@ main() {
         echo "[sync-generated] FATAL: mios-unit-gen is required; build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen" >&2
         return 1
     fi
-    for _projection in blade-dropins blade-karg uki-cmdline cockpit ipa-enroll bootc-install; do
+    for _projection in blade-dropins blade-karg uki-cmdline cockpit ipa-enroll bootc-install keybindings; do
         if ! "$_unit_gen" --list-projections | tr -d '\r' | grep -Fxq "$_projection"; then
             echo "[sync-generated] FATAL: mios-unit-gen does not advertise $_projection; rebuild it from this checkout" >&2
             return 1

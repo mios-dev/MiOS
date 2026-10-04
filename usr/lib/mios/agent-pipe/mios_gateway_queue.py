@@ -69,7 +69,10 @@ class DispatchTool(Tool):
         elif self.kind == "recipe":
             from mios_dispatch import dispatch_mios_verb
             rkey = self.name[len("mios_recipe__"):].replace("_", "-")
-            coro = dispatch_mios_verb("os_recipe", {"name": rkey, "params": kwargs})
+            recipe_args = {"name": rkey, "params": {key: value for key, value in kwargs.items() if key != "os"}}
+            if kwargs.get("os") is not None:
+                recipe_args["os"] = kwargs["os"]
+            coro = dispatch_mios_verb("os_recipe", recipe_args)
         elif self.kind == "skill":
             from mios_skills import execute_skill
             real = self.name[len("mios_skill__"):]

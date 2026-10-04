@@ -19,6 +19,11 @@ import argparse
 import json
 import os
 import sys
+import subprocess
+import tempfile
+import re
+import importlib.machinery
+import importlib.util
 from typing import Any, Dict, Optional
 
 _TREE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
@@ -34,17 +39,35 @@ class TmuxThemeEngine:
 
     def __init__(
         self,
-        style: str = "rounded",
-        status_position: str = "bottom",
+        style: Optional[str] = None,
+        status_position: Optional[str] = None,
         mock: bool = False,
         dry_run: bool = False,
         data: Optional[Dict[str, Any]] = None,
     ):
-        self.style = style
-        self.status_position = status_position
+        self.data = data if data is not None else mios_toml.load_merged()
+        self.settings = self.data["theme"]["tmux"]
+        self.style = style or self.settings["style"]
+        self.status_position = status_position or self.settings["status_position"]
+        if self.style not in {"rounded", "powerline", "minimal"}:
+            raise ValueError("[theme.tmux].style must be rounded, powerline or minimal")
+        if self.status_position not in {"top", "bottom"}:
+            raise ValueError("[theme.tmux].status_position must be top or bottom")
+        mode = self.settings["remote_glyph_mode"] if is_remote_terminal() else self.settings["glyph_mode"]
+        if mode not in {"auto", "nerd", "ascii"}:
+            raise ValueError("[theme.tmux].glyph_mode must be auto, nerd or ascii")
+        self.font = self.data["theme"]["font"]["family"]
+        if mode == "ascii" or (mode == "auto" and "nerd" not in self.font.lower()):
+            self.style = "minimal"
+        interval = self.settings["status_interval_s"]
+        if type(interval) is not int or interval <= 0:
+            raise ValueError("[theme.tmux].status_interval_s must be positive")
         self.mock = mock
         self.dry_run = dry_run
-        self.palette = mios_toml.colors(data)
+        self.palette = mios_toml.colors(self.data)
+        for key, value in self.palette.items():
+            if not isinstance(value, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+                raise ValueError(f"[colors].{key}: expected #rrggbb")
 
     def generate_config(self) -> str:
         """Render complete .tmux.conf theme snippet."""
@@ -62,13 +85,16 @@ class TmuxThemeEngine:
             "# =====================================================================",
             "# MiOS Canonical Tmux Theme",
             f"# Generated from mios.toml SSOT (Style: {self.style})",
+            f"# Client font: {self.font}; font size is controlled by the SSH/terminal client.",
             "# =====================================================================",
             "",
             "# Status Bar Placement & Refresh Interval",
             "set -g status on",
-            "set -g status-interval 2",
+            f"set -g status-interval {self.settings['status_interval_s']}",
             f"set -g status-position {self.status_position}",
             f'set -g status-style "bg={bg},fg={fg}"',
+            f'set -g window-style "bg={bg},fg={fg}"',
+            f'set -g window-active-style "bg={bg},fg={fg}"',
             "",
             "# Window Status Alignment & Separation",
             "set -g status-justify left",
@@ -124,8 +150,20 @@ class TmuxThemeEngine:
                 f'set -g status-right "#[fg={subtle}]%Y-%m-%d %H:%M #[fg={fg},bold]#H"',
             ])
 
-        lines.append("")
-        return "\n".join(lines)
+        # The prompt and tmux share separators and icons, not a second palette.
+        prompt = self.data["theme"]["prompt"]
+        substitutions = {"": prompt["powerline_left"], "": prompt["powerline_right"],
+                         "": prompt["powerline_right_soft"],
+                         "": prompt["powerline_right"], "": prompt["powerline_left"]}
+        substitutions.update({glyph: self.settings[key] for glyph, key in
+                              (("", "icon_os"), ("", "icon_terminal"), ("", "icon_time"),
+                               ("", "icon_date"), ("", "icon_user"))})
+        for value in substitutions.values():
+            if not isinstance(value, str) or any(ch in value for ch in '\n\r\0"\\'):
+                raise ValueError("[theme.tmux]/[theme.prompt] unsafe tmux glyph")
+        rendered = "\n".join(lines) + "\n"
+        # One translation avoids replacing characters introduced by a value.
+        return rendered.translate(str.maketrans(substitutions))
 
     def write_output(self, path: str, content: str) -> None:
         """Write content to disk if not in mock or dry-run mode."""
@@ -151,15 +189,83 @@ class TmuxThemeEngine:
             "mock": self.mock,
         }
 
+def is_remote_terminal():
+    return any(os.environ.get(key) for key in ("SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "MIOS_REMOTE_TERMINAL"))
+
+
+def render_prompt(data, remote=False):
+    """Render desktop or portable prompt glyphs with the same layered palette."""
+    loader = importlib.machinery.SourceFileLoader("mios_terminal_dotfiles", os.path.join(_TREE, "usr/libexec/mios/mios-dotfiles-render"))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    renderer = importlib.util.module_from_spec(spec)
+    loader.exec_module(renderer)
+    template = os.path.join(_TREE, data["dotfiles"]["registry"]["oh-my-posh"]["template"])
+    with open(template, encoding="utf-8") as handle:
+        omp = renderer._render_text(handle.read(), renderer._resolved_for(data, None), data)
+    settings = data["theme"]["prompt"]
+    mode = settings["remote_glyph_mode"] if remote else settings["glyph_mode"]
+    if mode not in {"auto", "nerd", "ascii"}:
+        raise ValueError("[theme.prompt] glyph modes must be auto, nerd or ascii")
+    prompt = json.loads(omp)
+    if mode == "ascii" or (mode == "auto" and "nerd" not in data["theme"]["font"]["family"].lower()):
+        ascii_style = settings["ascii"]
+        for block in prompt["blocks"]:
+            for segment in block["segments"]:
+                if segment["style"] == "powerline":
+                    segment["style"] = "plain"
+                    segment.pop("powerline_symbol", None)
+                if segment["type"] == "text":
+                    segment["template"] = ascii_style["leader"]
+                elif segment["type"] == "status":
+                    segment["template"] = ascii_style["closer"]
+                elif segment["type"] == "git":
+                    properties = segment.setdefault("properties", {})
+                    properties.update(fetch_upstream_icon=False, branch_icon=ascii_style["git_branch"], commit_icon=ascii_style["git_commit"])
+                    segment["template"] = segment["template"].replace("{{ .UpstreamIcon }}", "").replace("✎", ascii_style["git_change"])
+                if segment["style"] == "plain" and segment["type"] not in {"text", "status"}:
+                    segment["template"] += ascii_style["separator"]
+    return json.dumps(prompt, ensure_ascii=True, indent=2) + "\n"
+
+
+def project_runtime(directory, data=None):
+    """Project a caller-owned tmux config and Oh My Posh config from all SSOT tiers."""
+    if data is None:
+        mios_toml.clear_cache()
+    data = data if data is not None else mios_toml.load_merged()
+    directory = os.path.abspath(directory)
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    if os.stat(directory).st_uid != os.getuid():
+        raise ValueError("tmux projection directory must belong to the caller")
+    os.chmod(directory, 0o700)
+    omp = render_prompt(data, remote=is_remote_terminal())
+    native = next((path for path in (
+        os.path.join(_TREE, "usr/libexec/mios/mios-unit-gen"),
+        os.path.join(_TREE, "tools/native/target/debug/mios-unit-gen"),
+        os.path.join(_TREE, "tools/native/target/release/mios-unit-gen"),
+        "/usr/libexec/mios/mios-unit-gen",
+    ) if os.path.isfile(path)), "/usr/libexec/mios/mios-unit-gen")
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory) as source:
+        json.dump({"keybindings": data["keybindings"]}, source)
+        source.flush()
+        result = subprocess.run([native, "keybindings", "--from-json", source.name, "--emit-json"],
+                                check=True, capture_output=True, text=True, timeout=30)
+    keys = json.loads(result.stdout)["usr/share/mios/tmux/mios-keys.tmux.conf"]
+    theme = TmuxThemeEngine(data=data).generate_config()
+    mios_toml.write_atomic(os.path.join(directory, "mios.omp.json"), omp)
+    mios_toml.write_atomic(os.path.join(directory, "tmux.conf"), theme + "\n" + keys)
+    return directory
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Tmux Theme & Status Line Generator"
     )
     parser.add_argument("--render", action="store_true", help="Render tmux configuration")
     parser.add_argument("--output", "--out", dest="out", help="Output path for tmux configuration file")
-    parser.add_argument("--style", default="rounded", choices=["powerline", "rounded", "minimal"],
+    parser.add_argument("--runtime", metavar="DIRECTORY", help="Project layered tmux keys, theme and prompt to a private runtime directory")
+    parser.add_argument("--style", choices=["powerline", "rounded", "minimal"],
                         help="Visual styling format for status line segments")
-    parser.add_argument("--position", default="bottom", choices=["bottom", "top"],
+    parser.add_argument("--position", choices=["bottom", "top"],
                         help="Status bar screen position")
     parser.add_argument("--dry-run", action="store_true", help="Simulate execution without writing files")
     parser.add_argument("--mock", action="store_true", help="Deterministic mock execution for CI")
@@ -169,6 +275,9 @@ def main() -> int:
     fixture.add_argument("--write-fixture", metavar="ROOT", help=f"Regenerate ROOT/{GOLDEN} from the vendor tier")
 
     args = parser.parse_args()
+    if args.runtime:
+        project_runtime(args.runtime)
+        return 0
     if args.check_fixture or args.write_fixture:
         try:
             rendered = TmuxThemeEngine(mock=True, data=mios_toml.vendor_tree(_TREE)).generate_config()

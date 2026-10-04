@@ -44,6 +44,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-ai-metadata.py` | Extracts, aggregates, and validates native MiOS AI header metadata (hint, related, functions, doc) across all tracked source files and units into strict OpenAI-compatible schemas. |
 | `usr/libexec/mios/mios-ai-reset` | Wipes all non-persistent AI state (chat history, kanban, memory, and browser profiles) while preserving core configs and models to provide a clean slate for testing or new sessions. |
 | `usr/libexec/mios/mios-ai-tag` | Codebase tagger -- writes a rich, structured AI header on every file. |
+| `usr/libexec/mios/mios-ai-terminal` | Mobile text frontend for the existing MiOS AI CLI; reads prompts literally and delegates to mios without shell evaluation. |
 | `usr/libexec/mios/mios-app-default` | Mutates /etc/mios/mios.toml to switch the default application for a given type. |
 | `usr/libexec/mios/mios-app-search` | Provides semantic search over the mios-apps inventory via the agent-pipe endpoint to resolve ambiguous natural-language queries into specific app metadata for agent-driven actions. |
 | `usr/libexec/mios/mios-app-type` | Resolves an abstract application type (e.g. browser, editor) into a concrete app name using the [[desktop.app_types]] SSOT in mios.toml. |
@@ -247,6 +248,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-system-status` | Provides a single JSON blob of hardware (CPU, GPU, RAM, Disk), service status, and model data (via the mios-llm-light API) to the `system_status` verb to prevent the LLM from hallucinating system... |
 | `usr/libexec/mios/mios-sysview` | Provides a unified system inspection tool for agents to query journalctl, process lists, and podman containers by abstracting complex command construction and flag validation into a single interface. |
 | `usr/libexec/mios/mios-template-engine` | Thin shim delegating template rendering to the mios-new canonical generator, preserving the legacy <kind> <target_filepath> [description] contract. |
+| `usr/libexec/mios/mios-terminal` | Human tmux entrypoint for local terminals and SSH, using the shared MiOS keybinding profile and a socket separate from automation. |
 | `usr/libexec/mios/mios-text-edit` | Provides a robust, filesystem-direct text editing primitive for agents to view, create, and mutate files via atomic str_replace or line-based insertion, bypassing unreliable UI-driven keystroke... |
 | `usr/libexec/mios/mios-theme-broadcast` | Theme event emitter synchronizing GNOME settings and living wallpaper via DBus and Unix domain sockets (T-500). |
 | `usr/libexec/mios/mios-theme-render` | Multi-surface live theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator (T-499). |
@@ -285,7 +287,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 255 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 257 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -710,6 +712,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_manifest.py` | Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog -> ai/v1 manifest projection; drift-check 8 depend... |
 | `usr/lib/mios/agent-pipe/test_mios_manifest_rag.py` | Unit test for mios_manifest_rag.py |
 | `usr/lib/mios/agent-pipe/test_mios_mcp.py` | Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP). |
+| `usr/lib/mios/agent-pipe/test_mios_mcp_aio.py` | Two-sided native AIO MCP tests: real upstream process, private tmux sockets, protocol negotiation, exit receipts and negative controls. |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_schema.py` | Stdlib unit test for the strict OpenAI function-schema conversion of MCP tools (mios_mcp_schema). |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_transport.py` | Checks the SDK-backed MCP transport adapters and secret-safe header rendering. |
 | `usr/lib/mios/agent-pipe/test_mios_memguard.py` | Standalone assert-script unit test for mios_memguard (WS-MEM-VALIDATE / OWASP ASI08 write-time memory-poisoning guard, de-h... |
@@ -812,7 +815,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 437 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 438 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

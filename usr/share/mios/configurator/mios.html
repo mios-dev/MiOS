@@ -1839,6 +1839,18 @@
             <input type="text" id="f-a2a-mdns-refresh-sec" data-key="a2a.mdns_refresh_sec" data-type="int" placeholder="300">
             <label for="f-mcp-proto">mcp.protocol_version (MCP revision token declared on the initialize handshake)</label>
             <input type="text" id="f-mcp-proto" data-key="mcp.protocol_version" placeholder="2025-11-25">
+            <label for="f-mcp-tmux-enabled">mcp.tmux.enabled (native terminal tools in MiOS MCP)</label>
+            <input type="text" id="f-mcp-tmux-enabled" data-key="mcp.tmux.enabled" data-type="bool">
+            <label for="f-mcp-tmux-binary">mcp.tmux.binary (installed upstream executable)</label>
+            <input type="text" id="f-mcp-tmux-binary" data-key="mcp.tmux.binary">
+            <label for="f-mcp-tmux-slots">mcp.tmux.max_slots (private slots per client)</label>
+            <input type="text" id="f-mcp-tmux-slots" data-key="mcp.tmux.max_slots" data-type="int">
+            <label for="f-mcp-tmux-timeout">mcp.tmux.timeout_s (maximum command duration)</label>
+            <input type="text" id="f-mcp-tmux-timeout" data-key="mcp.tmux.timeout_s" data-type="int">
+            <label for="f-mcp-tmux-history">mcp.tmux.history_limit (terminal scrollback lines)</label>
+            <input type="text" id="f-mcp-tmux-history" data-key="mcp.tmux.history_limit" data-type="int">
+            <label for="f-mcp-tmux-tools">mcp.tmux.allowed_tools (upstream tool allowlist)</label>
+            <input type="text" id="f-mcp-tmux-tools" data-key="mcp.tmux.allowed_tools" data-array="csv">
           </fieldset>
         </div>
       </div>
@@ -2977,12 +2989,29 @@
         <label for="f-tt-devprofile">dev_profile_name (the MiOS.lnk target)</label>
         <input type="text" id="f-tt-devprofile" data-key="theme.terminal.dev_profile_name" placeholder="MiOS-DEV">
         <label for="f-tt-summon-keys">summon_keys (toggle MiOS app from anywhere)</label>
-        <input type="text" id="f-tt-summon-keys" data-key="theme.terminal.summon_keys" placeholder="win+space">
+        <input type="text" id="f-tt-summon-keys" data-key="theme.terminal.summon_keys" placeholder="ctrl+alt+shift+space">
         <label for="f-tt-summon-name">summon_window_name</label>
         <input type="text" id="f-tt-summon-name" data-key="theme.terminal.summon_window_name" placeholder="MiOS-DEV">
+        <label>Windows code page <input type="number" data-key="theme.terminal.windows_codepage" data-type="int"></label>
+      </fieldset>
+      <fieldset>
+        <legend>theme.tmux</legend>
+        <label>Style <select data-key="theme.tmux.style"><option>rounded</option><option>powerline</option><option>minimal</option></select></label>
+        <label>Status position <select data-key="theme.tmux.status_position"><option>bottom</option><option>top</option></select></label>
+        <label>Glyph mode <select data-key="theme.tmux.glyph_mode"><option>auto</option><option>nerd</option><option>ascii</option></select></label>
+        <label>SSH glyph mode <select data-key="theme.tmux.remote_glyph_mode"><option>auto</option><option>nerd</option><option>ascii</option></select></label>
+        <label>Refresh seconds <input type="number" data-key="theme.tmux.status_interval_s" data-type="int" min="1"></label>
       </fieldset>
       <fieldset>
         <legend>theme.prompt — additional powerline glyphs</legend>
+        <label>Glyph mode <select data-key="theme.prompt.glyph_mode"><option>auto</option><option>nerd</option><option>ascii</option></select></label>
+        <label>SSH glyph mode <select data-key="theme.prompt.remote_glyph_mode"><option>auto</option><option>nerd</option><option>ascii</option></select></label>
+        <label>ASCII leader <input data-key="theme.prompt.ascii.leader"></label>
+        <label>ASCII closer <input data-key="theme.prompt.ascii.closer"></label>
+        <label>ASCII separator <input data-key="theme.prompt.ascii.separator"></label>
+        <label>ASCII Git change <input data-key="theme.prompt.ascii.git_change"></label>
+        <label>ASCII Git branch <input data-key="theme.prompt.ascii.git_branch"></label>
+        <label>ASCII Git commit <input data-key="theme.prompt.ascii.git_commit"></label>
         <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
           Primary prompt symbol and powerline left/right are in the
           Personal zone above. These remaining tokens fine-tune the

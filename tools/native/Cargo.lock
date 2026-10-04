@@ -1468,6 +1468,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-agent-relay"
+version = "0.3.0"
+dependencies = [
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "mios-ai-config"
 version = "0.3.0"
 dependencies = [
@@ -1614,6 +1623,7 @@ name = "mios-unit-gen"
 version = "0.3.0"
 dependencies = [
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "toml",

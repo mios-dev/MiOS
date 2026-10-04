@@ -45,6 +45,14 @@ class TestWtProfileInject(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="mios-test-wt-")
         self.settings_path = os.path.join(self.temp_dir.name, "settings.json")
 
+    def test_scheme_uses_ssot_ansi_and_rejects_planted_missing_color(self):
+        import copy
+        data = copy.deepcopy(wt_profile_inject.mios_toml.load_merged())
+        data["colors"]["ansi_0_black"] = "#123456"
+        self.assertEqual(wt_profile_inject.color_scheme(data)["black"], "#123456")
+        data["colors"]["ansi_0_black"] = "DEVLOOP-PLANTED-NOT-A-COLOR"
+        with self.assertRaisesRegex(ValueError, "black is invalid"):
+            wt_profile_inject.color_scheme(data)
     def tearDown(self):
         self.temp_dir.cleanup()
 
@@ -103,7 +111,7 @@ class TestWtProfileInject(unittest.TestCase):
 
         # Scheme injected
         scheme_names = [s["name"] for s in updated["schemes"]]
-        self.assertIn("MiOS Dark", scheme_names)
+        self.assertIn(wt_profile_inject.mios_toml.load_merged()["theme"]["terminal"]["scheme_name"], scheme_names)
 
     def _write_user(self, body):
         path = os.path.join(self.temp_dir.name, "user.toml")
@@ -154,7 +162,7 @@ class TestWtProfileInject(unittest.TestCase):
             text = f.read()
         pad, bar = wt_profile_inject.wt_edge(wt_profile_inject.mios_toml.vendor_tree(_ROOT))
         self.assertEqual(json.loads(text)["profiles"], [{
-            "colorScheme": "MiOS Dark",
+            "colorScheme": wt_profile_inject.mios_toml.vendor_tree(_ROOT)["theme"]["terminal"]["scheme_name"],
             "font": {
                 "face": "GeistMono Nerd Font Mono",
                 "size": 12,

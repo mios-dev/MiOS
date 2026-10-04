@@ -154,10 +154,11 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/guides/inference-consolidation.md` | MiOS architectural documentation: Inference consolidation (WS-CONV-07). |
 | `usr/share/doc/mios/guides/install.md` | Documentation for ingesting the 'MiOS' knowledge base into any OpenAI-API-compatible runtime; procedures for local inference (mios-llm-light, port key `llm_light`), pgvector RAG ingestion, and evals... |
 | `usr/share/doc/mios/guides/memory-tiering.md` | MiOS architectural documentation: Memory Tiering Guide (WS-CONV-11). |
+| `usr/share/doc/mios/guides/mobile-keybindings.md` | Shared SSOT shortcut contract for MiOS desktop, editor, native tmux and mobile SSH. |
 | `usr/share/doc/mios/guides/security.md` | Documentation of MiOS security hardening posture, mapping kernel boot parameters, sysctl values, SELinux modules/booleans, firewalld ports, and supply-chain controls to the exact files that enforce... |
 | `usr/share/doc/mios/guides/self-build.md` | Documentation for the MiOS self-build lifecycle, detailing the build chain, CI/CD workflows, and local build modes (Bootstrap, CI/CD, Windows, Linux/Justfile, in-place self-build, Ignition appliance)... |
 
-<!-- derived from the AI-hint headers of 13 file(s) matching usr/share/doc/mios/guides/*.md -->
+<!-- derived from the AI-hint headers of 14 file(s) matching usr/share/doc/mios/guides/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/guides/*.md -->
 
 ## upstream

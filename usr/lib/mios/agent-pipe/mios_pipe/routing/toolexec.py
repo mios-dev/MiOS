@@ -370,11 +370,13 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             ran_read = True
             _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
             push(f" 🔧 recipe:{real}{_args_str}")
+            recipe_args = {"name": rkey, "params": {key: value for key, value in args.items() if key != "os"}}
+            if args.get("os") is not None:
+                recipe_args["os"] = args["os"]
             try:
                 with _tool_span(vname, _sess):
                     res = await asyncio.wait_for(
-                        dispatch_mios_verb("os_recipe",
-                                           {"name": rkey, "params": args}),
+                        dispatch_mios_verb("os_recipe", recipe_args),
                         timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}

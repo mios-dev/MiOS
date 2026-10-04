@@ -17,11 +17,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 | Status | Records |
 |---|---|
 | pending | 1617 |
-| in_progress | 45 |
+| in_progress | 47 |
 | completed | 1807 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3506 |
+| total | 3508 |
 
 0 record(s) carry at least one override.
 
@@ -4438,3 +4438,5 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `MON-027` tools/drift-checks.py no-duplicate-value-key fails: MIOS_FINETUNE_MICRO_* keys duplicate MIOS_FINETUNE_* values and the ledger is stale by 1 group (404 live vs 403 declared, plus grown/gone groups) -- completed
 - `MON-028` tools/drift-checks.py docs-ratchet fails: 496 unmigrated narrative comment blocks (ceiling 0) and 41 over-cap AI-hint headers (ceiling 0) need harvesting into docs/, not a raised ceiling -- completed
 - `T-1118` Retire MiOS-Cat and /cat/; fold all behavior into canonical MiOS-Field componentry -- completed · owner Codex
+- `T-1214` Converge MiOS-MCP and native tmux across every MiOS image and localhost -- in_progress · owner codex · P1 · size L
+- `T-1215` Global MiOS mobile SSH keybindings across terminal desktop editor and AI -- in_progress · owner codex · P1 · size L

@@ -121,6 +121,9 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     /usr/libexec/mios/miosd drift-check --root /tmp/build; \
     MIOS_ROOT=/tmp/build bash /tmp/build/tools/sync-generated.sh; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
+    install_packages_strict mcp; \
+    python3.13 /tmp/build/usr/libexec/mios/mios-mcp-server --install-native --source-root /tmp/build; \
+    /usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --agent-cli --install; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
     CTX=/tmp/build /tmp/build/automation/build.sh; \

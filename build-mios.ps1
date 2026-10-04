@@ -5575,7 +5575,7 @@ function Resolve-MiosDevDistro {
 $devResolveBlock
 `$distro = Resolve-MiosDevDistro
 if (`$args.Count -eq 0) {
-    wsl.exe -d `$distro --user mios --cd / -- bash -l
+    & (Join-Path `$PSScriptRoot 'mios.cmd') terminal
 } else {
     wsl.exe -d `$distro @args
 }
@@ -6010,6 +6010,12 @@ if ($args.Count -gt 0) {
 '@
     Set-Content -Path $hubPath -Value $hubScript -Encoding UTF8
     Log-Ok "MiOS app staged at $hubPath"
+    # CMD is also the default Windows OpenSSH shell. A machine-PATH .cmd must
+    # exist independently of the user's PowerShell profile, including Xbox.
+    $_nativeSetup = Join-Path $PSScriptRoot 'usr\share\mios\windows\mios-native-client-setup.ps1'
+    if (-not (Test-Path -LiteralPath $_nativeSetup)) { throw "Native MiOS CMD setup missing: $_nativeSetup" }
+    & $_nativeSetup -Distro $DevDistro -BinDirectory $MiosBinDir -SourceRoot $PSScriptRoot
+    if (-not $?) { throw 'Native MiOS CMD/client setup failed' }
 
     # mios-code.ps1 -- `mios code` verb. Opens code-server in the
     # operator's default browser.
@@ -6637,6 +6643,7 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
                 '/optimize+',
                 '/reference:System.Drawing.dll',
                 '/reference:System.Windows.Forms.dll',
+                '/reference:System.Web.Extensions.dll',
                 ('/out:' + $miosLauncherExe),
                 $_launcherCs
             )

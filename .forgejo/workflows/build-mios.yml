@@ -77,7 +77,12 @@ jobs:
           echo "MIOS_BOOTSTRAP_ROOT=${RUNNER_TEMP}/mios-bootstrap" >> "$GITHUB_ENV"
 
       - name: Build the native gate binaries
-        run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
+        run: |
+          cd ./tools/native && cargo build -p mios-unit-gen -p mios-agent-relay -p mios-resolver
+          install -Dm0755 target/debug/mios-unit-gen /usr/libexec/mios/mios-unit-gen
+          install -Dm0755 target/debug/mios-agent-relay /usr/libexec/mios/mios-agent-relay
+          cd ../..
+          python3.13 ./usr/libexec/mios/mios-mcp-server --install-native --source-root .
 
       - name: Static analysis tier
         run: bash ./tests/run-suites.sh lint

@@ -45,7 +45,7 @@
 51	script	hardening	automation/51-hardening.sh	MIOS_APPLY_CLASS=universal
 52	script	apply-boot-fixes	automation/52-apply-boot-fixes.sh	MIOS_APPLY_CLASS=universal
 53	script	enable-log-copy-service	automation/53-enable-log-copy-service.sh	MIOS_APPLY_CLASS=bake-only
-54	script	bake-coderun-sandbox	automation/54-bake-coderun-sandbox.sh	bake coderun sandbox
+54	script	bake-coderun-sandbox	automation/54-bake-coderun-sandbox.sh	The sandbox now shares the global native terminal/MCP base. This phase runs
 55	script	native-build	automation/55-native-build.sh	The image bake reuses the rust-builder artifacts; build.sh excludes this phase.
 56	script	fonts	automation/56-fonts.sh	MIOS_APPLY_CLASS=universal
 57	script	gnome	automation/57-gnome.sh	MIOS_APPLY_CLASS=universal

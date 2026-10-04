@@ -435,6 +435,7 @@ bootstrap.prereqs.podman_cli_pkg  MIOS_BOOTSTRAP_PREREQS_PODMAN_CLI_PKG
 bootstrap.prereqs.terminal_pkg  MIOS_BOOTSTRAP_PREREQS_TERMINAL_PKG
 bootstrap.prereqs.pwsh_pkg  MIOS_BOOTSTRAP_PREREQS_PWSH_PKG
 bootstrap.prereqs.ohmyposh_pkg  MIOS_BOOTSTRAP_PREREQS_OHMYPOSH_PKG
+bootstrap.prereqs.clink_pkg  MIOS_BOOTSTRAP_PREREQS_CLINK_PKG
 bootstrap.prereqs.fastfetch_pkg  MIOS_BOOTSTRAP_PREREQS_FASTFETCH_PKG
 bootstrap.prereqs.appinstaller_pkg  MIOS_BOOTSTRAP_PREREQS_APPINSTALLER_PKG
 bootstrap.prereqs.appinstaller_url  MIOS_BOOTSTRAP_PREREQS_APPINSTALLER_URL

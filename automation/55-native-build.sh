@@ -13,7 +13,7 @@ fi
 # The image bake reuses the rust-builder artifacts; build.sh excludes this phase.
 # A direct invocation from an incomplete source context requires prebuilt tools.
 if [[ ! -f "${ROOT_DIR}/src/mios-rs/Cargo.toml" ]]; then
-    for bin in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-render-quadlets mios-bake-plan; do
+    for bin in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-agent-relay mios-render-quadlets mios-bake-plan; do
         [[ -x "${DEST_DIR}/${bin}" ]] || {
             echo "[55-native-build] FATAL: incomplete source context and missing prebuilt ${DEST_DIR}/${bin}" >&2
             exit 1

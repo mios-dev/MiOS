@@ -1548,15 +1548,70 @@ class tt_TestTmuxTheme(unittest.TestCase):
         cfg = engine.generate_config()
         self.assertIn("# MiOS Canonical Tmux Theme", cfg)
         self.assertIn("set -g status on", cfg)
+        self.assertIn(f'set -g window-style "bg={engine.palette["bg"]},fg={engine.palette["fg"]}"', cfg)
         self.assertIn("set -g pane-active-border-style", cfg)
-        self.assertIn("", cfg)
-        self.assertIn("", cfg)
+        self.assertIn(engine.data["theme"]["prompt"]["powerline_right"], cfg)
+        self.assertIn(engine.data["theme"]["prompt"]["powerline_left"], cfg)
 
     def test_generate_rounded_config(self):
         engine = tmux_theme.TmuxThemeEngine(style="rounded", mock=True)
         cfg = engine.generate_config()
         self.assertIn("", cfg)
         self.assertIn("", cfg)
+
+    def test_ssot_layout_and_ascii_font_fallback(self):
+        import copy
+        data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
+        data["theme"]["tmux"].update(status_position="top", status_interval_s=7)
+        data["theme"]["font"]["family"] = "SSH Plain Mono"
+        cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+        self.assertIn("set -g status-position top", cfg)
+        self.assertIn("set -g status-interval 7", cfg)
+        self.assertIn("# Minimal Status Line Formatting", cfg)
+        self.assertNotIn("", cfg)
+        data["theme"]["tmux"]["glyph_mode"] = "DEVLOOP-PLANTED-INVALID"
+        with self.assertRaisesRegex(ValueError, "glyph_mode"):
+            tmux_theme.TmuxThemeEngine(data=data)
+
+    def test_runtime_projection_changes_with_ssot_and_rejects_collision(self):
+        import copy, tempfile, subprocess
+        data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
+        data["colors"]["bg"] = "#123456"
+        data["theme"]["tmux"]["status_position"] = "top"
+        data["keybindings"]["actions"][0]["key"] = "u"
+        with tempfile.TemporaryDirectory() as directory:
+            tmux_theme.project_runtime(directory, data)
+            with open(os.path.join(directory, "tmux.conf")) as handle:
+                config = handle.read()
+            self.assertIn("bg=#123456", config)
+            self.assertIn("set -g status-position top", config)
+            self.assertIn("bind-key u new-window", config)
+            with open(os.path.join(directory, "mios.omp.json")) as handle:
+                prompt = handle.read()
+            self.assertIn("#123456", prompt)
+            data["keybindings"]["actions"][1]["key"] = "u"
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                tmux_theme.project_runtime(directory, data)
+            self.assertIn("duplicate or non-mobile key: u", raised.exception.stderr)
+            with open(os.path.join(directory, "tmux.conf")) as handle:
+                self.assertEqual(handle.read(), config)
+            with open(os.path.join(directory, "mios.omp.json")) as handle:
+                self.assertEqual(handle.read(), prompt)
+
+    def test_mobile_prompt_and_tmux_drop_font_dependencies(self):
+        data = tmux_theme.mios_toml.vendor_tree(tt__ROOT)
+        self.assertEqual(tmux_theme.render_prompt(data, remote=True), tmux_theme.render_prompt(data))
+        data["theme"]["tmux"]["remote_glyph_mode"] = "ascii"
+        data["theme"]["prompt"]["remote_glyph_mode"] = "ascii"
+        with patch.dict(os.environ, {"SSH_CONNECTION": "127.0.0.1 5000 127.0.0.1 22"}):
+            config = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+            self.assertNotIn("", config)
+            prompt = json.loads(tmux_theme.render_prompt(data, remote=True))
+        segments = [s for b in prompt["blocks"] for s in b["segments"]]
+        self.assertTrue(all(s["style"] == "plain" for s in segments))
+        self.assertTrue(all(s["template"].isascii() for s in segments))
+        self.assertEqual(segments[-1]["template"], data["theme"]["prompt"]["ascii"]["closer"])
+        self.assertEqual(segments[1]["background"], data["colors"]["accent"])
 
     def test_generate_minimal_config(self):
         engine = tmux_theme.TmuxThemeEngine(style="minimal", mock=True)
@@ -2030,7 +2085,7 @@ class wcg_TestWmConfigGen(unittest.TestCase):
         conf = engine.generate_sway_config()
         self.assertIn("# MiOS Sway Configuration", conf)
         self.assertIn("set $mod Mod4", conf)
-        self.assertIn("font pango:DejaVu Sans Mono 10", conf)
+        self.assertIn(f"font pango:{engine.data['theme']['font']['family']} {engine.data['theme']['font']['size']}", conf)
         edge = wcg_vendor_edge()
         self.assertIn(f"gaps inner {edge['wm_gaps_inner_px']}\n", conf)
         self.assertIn(f"gaps outer {edge['wm_gaps_outer_px']}\n", conf)

@@ -2205,6 +2205,12 @@ param(
 )
 $ErrorActionPreference = 'SilentlyContinue'
 
+$_nativeLauncher = Join-Path $PSScriptRoot 'mios-launch.exe'
+if (Test-Path -LiteralPath $_nativeLauncher) {
+    & $_nativeLauncher $Profile
+    exit $LASTEXITCODE
+}
+
 try {
     Add-Type -Namespace 'MiOSLaunch.Native' -Name 'Dpi' -MemberDefinition '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(System.IntPtr context);'
     [MiOSLaunch.Native.Dpi]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null
@@ -3730,7 +3736,11 @@ function mios-dev {
         Write-Host '  [!] No MiOS-DEV / podman-MiOS-DEV WSL distro registered. Run irm|iex one-liner to provision.' -ForegroundColor Yellow
         return
     }
-    & wsl.exe -d `$_devDistro --cd / --user mios @Args
+    if (`$Args.Count -eq 0) {
+        & (Join-Path `$Global:MiosBin 'mios.cmd') terminal
+    } else {
+        & wsl.exe -d `$_devDistro --cd / --user mios @Args
+    }
 }
 
 function mios-mini {
@@ -3929,6 +3939,17 @@ if (-not `$Global:MiosStartupVerbFired -and `$Host.UI.RawUI -and (-not `$env:MIO
     }
 }
 "@
+    $miosScriptBody += @'
+
+# >>> MiOS native SSOT runtime >>>
+$_miosNativeBin = if ($Global:MiosBin) { $Global:MiosBin } elseif ($env:MIOS_NATIVE_BIN) { $env:MIOS_NATIVE_BIN } else { Join-Path $env:ProgramData 'MiOS\bin' }
+if (Test-Path (Join-Path $_miosNativeBin 'mios-native-client-setup.ps1')) {
+    & (Join-Path $_miosNativeBin 'mios-native-client-setup.ps1') -RuntimeOnly -BinDirectory $_miosNativeBin
+    $env:MIOS_OMP_JSON = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios.omp.json'
+    oh-my-posh init pwsh --config $env:MIOS_OMP_JSON | Invoke-Expression
+}
+# <<< MiOS native SSOT runtime <<<
+'@
     $_utf8Bom = New-Object System.Text.UTF8Encoding($true)
     [System.IO.File]::WriteAllText($miosProfileScript, $miosScriptBody, $_utf8Bom)
 

@@ -306,6 +306,9 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
 
 
 KNOWN_VERBS = {
+    "terminal": ["/usr/libexec/mios/mios-terminal"],
+    "ai-terminal": ["/usr/libexec/mios/mios-ai-terminal"],
+    "mcp": ["/usr/lib/mios/mcp/.venv/bin/python3", "/usr/libexec/mios/mios-mcp-server"],
     "build":  ["/usr/libexec/mios/mios-build-driver"],
     "dash":   ["/usr/libexec/mios/mios-dashboard.sh", "--dash"],
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
@@ -465,10 +468,22 @@ def _cli_launch_target(prompt: str):
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) >= 2 and argv[1] in ("agents", "agent"):
+        if argv[1] == "agent" and len(argv) > 2 and sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TMUX"):
+            os.execv("/usr/libexec/mios/mios-terminal", ["mios-terminal", "--agent", *argv[2:]])
+        option = "--agent-cli" if argv[1] == "agents" else "--launch-agent"
+        os.execv(sys.executable, [sys.executable, "/usr/libexec/mios/mios-mcp-server", option, *argv[2:]])
+    if len(argv) < 2 and sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TMUX"):
+        os.execv("/usr/libexec/mios/mios-terminal", ["mios-terminal"])
     if len(argv) < 2 or argv[1] in ("-h", "--help") or (len(argv) >= 2 and argv[1] == "help"):
         sys.stderr.write(
             "mios -- MiOS verb dispatcher + locally-hosted OpenAI agent shell.\n\n"
             "Verbs:\n"
+            "  mios terminal                        native tmux interface (local or SSH)\n"
+            "  mios ai-terminal                     mobile text interface to MiOS AI\n"
+            "  mios mcp                             combined MiOS + terminal MCP stdio\n"
+            "  mios agents [--install]              global SSOT agent CLI catalog / installation\n"
+            "  mios agent NAME [ARGS...]            launch a globally installed agent with native MCP\n"
             "  mios build                           run the MiOS OCI build pipeline (unattended on a non-TTY)\n"
             "  mios dash                            framed dashboard snapshot (services + telemetry)\n"
             "  mios mini                            compact framed static dashboard snapshot\n"

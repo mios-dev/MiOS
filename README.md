@@ -41,6 +41,37 @@ Every OpenAI-compatible client resolves through `MIOS_AI_ENDPOINT`, `MIOS_AI_MOD
 
 No hosted model account is required for the local runtime. Actual acceleration and enabled services depend on the host hardware and operator selections.
 
+## Global MiOS keybindings
+
+The vendor [`[keybindings]` table](usr/share/mios/mios.toml) defines one action map for MiOS systems, MiOS-DEV, Windows hosts, editors and SSH. `mios-unit-gen keybindings` projects it at build time; native terminal startup resolves the layered SSOT again at runtime. Terminal colors, Oh My Posh separators and fonts come from `[colors]` and `[theme]` in that same SSOT.
+
+| Action | Windows / Hyprland / Sway / GNOME desktop | VS Code / code-server, outside terminal | tmux / mobile SSH |
+| --- | --- | --- | --- |
+| Open terminal | Ctrl+Alt+Shift+T | Ctrl+B, then T | Ctrl+B, then T |
+| Open MiOS AI | Ctrl+Alt+Shift+A | Ctrl+B, then A | Ctrl+B, then A |
+| Open system monitor | Ctrl+Alt+Shift+M | Ctrl+B, then M | Ctrl+B, then M |
+| Summon MiOS window | Ctrl+Alt+Shift+Space on Windows | — | — |
+
+Press and release **Ctrl+B**, then press one key:
+
+| Key | tmux action |
+| --- | --- |
+| H / J / K / L | Select pane left / down / up / right |
+| S / V | Split into top and bottom / left and right panes |
+| N / P | Next / previous window |
+| W | Select a window from the tree |
+| Z | Zoom / restore the active pane |
+| Y | Enter copy mode |
+| D | Detach; running agents keep their session |
+| Tab | Send Shift+Tab to the focused agent |
+| B, or Ctrl+B again | Send Ctrl+B through to the application |
+
+The editor actions apply only when its terminal is unfocused. When a terminal is focused, Ctrl+B reaches tmux: chord interception is disabled and the editor sidebar binding passes through. The desktop chords use a separate modifier set, so the compositor does not intercept terminal sequences. Generation rejects duplicate action and utility keys; Windows installation checks existing shortcut registrations before assigning its global hotkeys. Operator extensions and third-party hotkeys still require their own conflict checks.
+
+From an SSH connection with a PTY, run `mios` or `mios terminal` to attach to the native session. In Windows CMD, `mios` enters MiOS; `mios agent NAME` opens a globally installed agent with the combined MiOS-MCP/tmux-mcp configuration. `mios agents` lists the installed catalog. Use `mios ssh user@host` to enter a remote MiOS system. Termius and Blink users need Ctrl, Esc and Tab on their keyboard bar; no function keys or Super key are required. Client fonts control glyph rendering; `[theme.tmux].remote_glyph_mode` and `[theme.prompt].remote_glyph_mode` allow an explicit ASCII projection while retaining the SSOT palette.
+
+See the [mobile SSH and shortcut guide](usr/share/doc/mios/guides/mobile-keybindings.md) and [native terminal / MCP contract](usr/share/doc/mios/mcp-tmux.md) for session separation, message receipts and projection details.
+
 ## Build and installation
 
 ### Windows entry
@@ -137,5 +168,111 @@ A session's first prompt for live debugging:
 ```
 /dev-loop:goal Develop MiOS live in this cloud session. Run every gate inside the MiOS dev image (`mios-dev <cmd>`, same $PWD): tests/run-suites.sh lint, python3 tools/ci-suites.py --check, python3 tools/sync-bootstrap.py --check. Take the highest-value open task from the MiOS task list, reproduce its failure, fix it in code, prove it with a positive and a negative control, and push to main. Repeat until the task list's acceptance criteria hold.
 ```
+
+### Codex Cloud environment
+
+Create or edit a Codex Cloud environment and paste the following blocks into the matching fields. The [official environment guide](https://learn.chatgpt.com/docs/environments/cloud-environments) describes **Install script**, **Start skill**, network access, secrets and publishing. This setup runs the canonical Fedora MiOS devcontainer through Podman; it does not replace the cloud provider's host kernel or turn that host into a booted bootc system. A cloud host must permit Podman containers. If it does not, installation fails and that environment cannot serve as this MiOS builder.
+
+**Environment name:**
+
+```text
+MiOS
+```
+
+**Repositories:** select these repositories in the editor. The first four are the public workspace catalog in `[workspace].repos`; select the private credential repository only when this environment is authorized to access it.
+
+```text
+mios-dev/MiOS
+mios-dev/mios-bootstrap
+mios-dev/-dev-loop
+mios-dev/mios-micro
+mios-dev/.secrets
+```
+
+**Install script:** paste the entire block. It uses the checked-out version when available, otherwise the published `main` script. Keep failures visible; do not append `exit 0`.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -n "$repo" && -f "$repo/.devcontainer/cloud-shell/codex-cloud.sh" ]]; then
+    export MIOS_CLOUD_ROOT="$repo"
+    bash "$repo/.devcontainer/cloud-shell/codex-cloud.sh" install
+else
+    curl -fsSL https://raw.githubusercontent.com/mios-dev/MiOS/main/.devcontainer/cloud-shell/codex-cloud.sh -o /tmp/mios-codex-cloud.sh
+    bash /tmp/mios-codex-cloud.sh install
+fi
+```
+
+The [versioned installer](.devcontainer/cloud-shell/codex-cloud.sh) applies `.devcontainer/devcontainer.json`, including its features and create/start lifecycle. Packages resolve from `[packages.devcontainer]` and its dependency closure, including `[packages.self-build]`, `[packages.mcp]` and `[packages.agent_cli]`. Global agent binaries come from `[agent_cli].tools`: Claude Code, Codex, Gemini, Copilot, OpenCode, Antigravity and Aider. The same image supplies the native MiOS dispatcher, combined MiOS-MCP/tmux-mcp server, session relay, tmux, Oh My Posh, fonts, keybindings, Rust toolchain, image tools and Python environments. It renders terminal and prompt configuration from the layered SSOT on startup. CLI installation does not authenticate a provider account; Aider is a worker CLI and has no native MCP client.
+
+**Start skill:** this field takes instructions, not a shell script. Paste:
+
+```text
+Start this task in the MiOS Fedora development environment.
+
+1. Find the checked-out MiOS system repository (it contains usr/share/mios/mios.toml). If needed, set MIOS_CLOUD_ROOT to its absolute host path. Run /usr/local/libexec/mios-codex-cloud start, then /usr/local/libexec/mios-codex-cloud check. Stop and report the actual failure if either fails; do not continue on the cloud host as though it were MiOS.
+2. Execute all repository, build, test and agent commands through mios-dev <command>. The wrapper runs as the devcontainer user. Selected public sibling repositories are mounted beneath /workspaces; the primary checkout is /workspaces/MiOS. Verify mios-dev id, mios-dev cat /etc/os-release, mios-dev mios agents and mios-dev mios-agent-pipe-dev check before making changes.
+3. Read AGENTS.md and the repository's task list inside MiOS. Resolve packages, ports, tool paths, themes, fonts and shortcuts through usr/share/mios/mios.toml and its host/user layers. Re-render projections; do not maintain an independent cloud palette or package list.
+4. For an interactive terminal, run mios-dev mios terminal. For an agent head, run mios-dev mios agent NAME with a supported authenticated MCP-capable CLI. Use its combined mios-control connection for native tmux worker panes, system tools and messages. Keep providers' credentials in approved private credential stores; do not copy them into images or publish logs containing them.
+5. Register each participating running session with mios_agent_register and retain its lease privately. Discover peers with mios_agent_list. Use mios_agent_send, mios_agent_receive and mios_agent_ack for addressed messages. Poll the inbox at task boundaries. Queued messages, system_status and A2A peer cards are not evidence that another CLI or desktop chat received a message. Report delivery only after the addressed recipient acknowledges it; report completion only after a substantive reply.
+6. Verify each change with a passing candidate and a planted negative control that fails for the intended reason. Preserve the working tree and unrelated changes. Use separate worktrees for concurrent workers. Run required repository gates inside MiOS and report results, limitations and remaining work accurately.
+```
+
+**Internet access:** enable **Allow Codex to access internet**, choose **Package managers**, and paste these additional build destinations into **Additional allowed domains**. Fedora mirrors and registry download redirects may need additional domains; a denied destination must be added explicitly and the failed step retried.
+
+```text
+github.com
+api.github.com
+raw.githubusercontent.com
+objects.githubusercontent.com
+release-assets.githubusercontent.com
+codeload.github.com
+ghcr.io
+pkg-containers.githubusercontent.com
+quay.io
+cdn.quay.io
+registry.fedoraproject.org
+mirrors.fedoraproject.org
+download.fedoraproject.org
+dl.fedoraproject.org
+static.rust-lang.org
+sh.rustup.rs
+crates.io
+index.crates.io
+static.crates.io
+registry.npmjs.org
+pypi.org
+files.pythonhosted.org
+astral.sh
+antigravity.google
+```
+
+Provider inference destinations depend on the accounts and SSOT endpoints you actually use; allow those separately. Do not paste the localhost's loopback URL into cloud settings and expect it to reach MiOS-Xbox.
+
+**Environment variables:** add the following non-secret entry. Source and image defaults are handled by the installer; set `MIOS_CLOUD_ROOT` only if checkout discovery needs an explicit absolute path. Ports and theme values stay in TOML.
+
+```text
+PYTHONUNBUFFERED=1
+```
+
+**Network secrets:** use **Manage** to attach only the private registry or provider credentials required for the task, scoped to their destinations. Leave it empty for public dependency installation. Do not paste API keys, OAuth tokens or `.secrets` contents into these README blocks or ordinary environment variables. Private credential files and proxy secrets are different mechanisms; provision the required approved credential reference before claiming a CLI can use an account.
+
+**Privacy / Who can use:**
+
+```text
+Only me
+```
+
+**Advanced:**
+
+```text
+VPN: none for public builds; attach an authorized connection only for private MiOS services.
+OIDC: none for public builds; attach a scoped identity only when a private registry or deployment requires it.
+```
+
+Use the configured private networking path to connect cloud sessions to MiOS-Xbox or another MiOS host. Keep the local MCP server on stdio and local sockets; remote tmux access goes through SSH. The private `.secrets` repository is not an image layer, a public build dependency or a source of automatic credentials.
+
+**Validation before publishing:** run the installation and Start skill in the environment editor. Verify Fedora userspace, all catalog CLIs, the projected prompt/tmux theme, gateway readiness, MCP tool/resource preservation and a real two-session message/acknowledgement. Save a draft if a check fails; publish only a verified environment. These blocks configure an environment when pasted and run; this README edit alone does not create or publish one. See [cloud setup details](.devcontainer/cloud-shell/README.md).
 
 The image equivalence work is still in progress. One Containerfile with one stage per profile, plus a gate that proves every image carries the same floor, is tracked as T-1164 and T-1170 to T-1181.

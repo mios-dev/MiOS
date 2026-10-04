@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3634,
-  "total_metadata_entries": 2997,
-  "total_hints": 2982,
-  "total_functions_indexed": 1455,
-  "total_related_links": 4781,
+  "total_files_scanned": 3667,
+  "total_metadata_entries": 3013,
+  "total_hints": 2998,
+  "total_functions_indexed": 1466,
+  "total_related_links": 4817,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -84,6 +84,27 @@
       "has_shebang": true
     },
     {
+      "path": ".devcontainer/cloud-shell/codex-cloud.sh",
+      "hint": "Codex Cloud installation and startup using the canonical Fedora MiOS devcontainer, its lifecycle, SSOT dependencies and an unprivileged mios-dev command wrapper. Incomplete provisioning fails closed.",
+      "related": [
+        "README.md",
+        ".devcontainer/devcontainer.json",
+        ".devcontainer/Containerfile",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [
+        "main",
+        "install_host",
+        "find_source",
+        "write_wrapper",
+        "start",
+        "check"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": ".devcontainer/fetch-installer.sh",
       "hint": "Downloads a shell installer to a file and refuses anything that is not a shell script, so devcontainer setup never pipes an unverified transfer into bash.",
       "related": [],
@@ -106,8 +127,11 @@
     },
     {
       "path": ".devcontainer/mios-agent-pipe-dev",
-      "hint": "Starts the agent-pipe gateway by hand inside the devcontainer, where the host-oriented systemd units stay disabled.",
-      "related": [],
+      "hint": "Start and verify the unprivileged devcontainer gateway on the SSOT agent-pipe port without requiring the host-oriented systemd service.",
+      "related": [
+        ".devcontainer/boot-mios-systems.sh",
+        "usr/share/mios/mios.toml [ports]"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -543,7 +567,7 @@
     },
     {
       "path": "Containerfile.hummingbird",
-      "hint": "Lightweight Python distroless container for agent-pipe microservice.",
+      "hint": "Agent-pipe container inheriting the mandatory native MiOS tmux/MCP interface.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -3054,6 +3078,15 @@
       "has_shebang": false
     },
     {
+      "path": "etc/dconf/db/local.d/10-mios-keybindings",
+      "hint": "Generated from mios.toml [keybindings] by mios-unit-gen keybindings.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "etc/fapolicyd/fapolicyd.rules",
       "hint": "Defines the fapolicyd security policy to enforce a \"deny-by-default\" execution model, allowing only RPM-signed binaries (trust=1) and specific trusted binaries for root to prevent execution of unauthorized scripts in volatile paths.",
       "related": [],
@@ -3749,6 +3782,15 @@
     {
       "path": "etc/sysusers.d/cephadm.conf",
       "hint": "Systemd sysusers override to force cephadm account to use nologin shell, securing it from dbus user session initialization issues.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "etc/tmux.conf",
+      "hint": "Generated from mios.toml [keybindings] by mios-unit-gen keybindings.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -9233,6 +9275,33 @@
       "hint": "Rust SSOT names registry generator (check 30 generator).",
       "related": [],
       "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-agent-relay/Cargo.toml",
+      "hint": "Cargo manifest for mios-agent-relay crate.",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-agent-relay/src/main.rs",
+      "hint": "Transactional caller-owned agent mailboxes with leases, idempotent sends and recipient receipts.",
+      "related": [
+        "usr/libexec/mios/mios-mcp-server",
+        "usr/share/mios/mios.toml [mcp.agents]"
+      ],
+      "functions": [
+        "main",
+        "dispatch"
+      ],
       "doc": null,
       "comment_style": "slash",
       "has_shebang": false
@@ -14897,6 +14966,23 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/agent-pipe.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/test_mios_mcp_aio.py",
+      "hint": "Two-sided native AIO MCP tests: real upstream process, private tmux sockets, protocol negotiation, exit receipts and negative controls.",
+      "related": [
+        "/usr/libexec/mios/mios-mcp-server",
+        "/usr/share/mios/mios.toml [mcp.tmux]",
+        "/usr/share/doc/mios/mcp-tmux.md"
+      ],
+      "functions": [
+        "TestMcpAio",
+        "load_relay",
+        "payload"
+      ],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -21293,6 +21379,19 @@
       "has_shebang": true
     },
     {
+      "path": "usr/libexec/mios/mios-ai-terminal",
+      "hint": "Mobile text frontend for the existing MiOS AI CLI; reads prompts literally and delegates to mios without shell evaluation.",
+      "related": [
+        "/usr/bin/mios",
+        "/usr/share/mios/mios.toml [keybindings]",
+        "mios-terminal"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "usr/libexec/mios/mios-app-default",
       "hint": "Mutates /etc/mios/mios.toml to switch the default application for a given type.",
       "related": [],
@@ -24358,6 +24457,19 @@
       "functions": [
         "main"
       ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/libexec/mios/mios-terminal",
+      "hint": "Human tmux entrypoint for local terminals and SSH, using the shared MiOS keybinding profile and a socket separate from automation.",
+      "related": [
+        "/usr/share/mios/mios.toml [keybindings]",
+        "/etc/tmux.conf",
+        "mios-ai-terminal"
+      ],
+      "functions": [],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
@@ -28939,6 +29051,19 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/doc/mios/guides/mobile-keybindings.md",
+      "hint": "Shared SSOT shortcut contract for MiOS desktop, editor, native tmux and mobile SSH.",
+      "related": [
+        "/usr/share/mios/mios.toml [keybindings]",
+        "mios-unit-gen",
+        "mios-terminal"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/doc/mios/guides/security.md",
       "hint": "Documentation of MiOS security hardening posture, mapping kernel boot parameters, sysctl values, SELinux modules/booleans, firewalld ports, and supply-chain controls to the exact files that enforce them; frames hardening as the trust layer beneath the immutable bootc image and the local agentic AI stack.",
       "related": [
@@ -31067,6 +31192,20 @@
       "path": "usr/share/doc/mios/manual/xdg-desktop-portal.md",
       "hint": "Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/doc/mios/mcp-tmux.md",
+      "hint": "Native MiOS-MCP and tmux-mcp architecture, packaging, runtime theme projection and verification contract.",
+      "related": [
+        "/usr/share/mios/mios.toml [mcp]",
+        "[packages.mcp]",
+        "[keybindings]",
+        "[theme]; /usr/libexec/mios/mios-mcp-server"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
@@ -33345,6 +33484,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/hyprland/mios-keys.conf",
+      "hint": "Generated from mios.toml [keybindings] by mios-unit-gen keybindings.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/k3s/README.md",
       "hint": "MiOS k3s manifests -- how the generated/ k8s manifests are produced from the pod SSOT (WS-7 #61), how to regenerate, and the k3s adaptation caveats before they can deploy.",
       "related": [],
@@ -34069,6 +34217,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/sway/mios-keys.conf",
+      "hint": "Generated from mios.toml [keybindings] by mios-unit-gen keybindings.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/sys/Containerfile",
       "hint": "Containerfile to build the unified localhost/mios-sys image (WS-MIOSSYS).",
       "related": [
@@ -34636,6 +34793,28 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/tmux/mios-bashrc",
+      "hint": "MiOS-owned interactive tmux startup; layered SSOT prompt without sourcing personal shell hooks.",
+      "related": [
+        "/etc/profile.d/mios-prompt.sh",
+        "/usr/libexec/mios/ux/tmux_theme.py",
+        "/usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/tmux/mios-keys.tmux.conf",
+      "hint": "Generated from mios.toml [keybindings] by mios-unit-gen keybindings.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/tmux/mios-theme.tmux.conf",
       "hint": "tmux theme rendered by tmux_theme.py from mios.toml [colors]; tmux has no outer padding",
       "related": [],
@@ -34756,6 +34935,18 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/windows/mios-agent-cli-setup.ps1",
+      "hint": "Install every SSOT agent CLI globally on a Windows management host, with machine PATH and native MCP client configuration.",
+      "related": [
+        "/usr/share/mios/mios.toml [agent_cli]",
+        "mios-native-client-setup.ps1"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/windows/mios-ai-node.ps1",
       "hint": null,
       "related": [],
@@ -34779,6 +34970,21 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/windows.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/windows/mios-native-client-setup.ps1",
+      "hint": "Native Windows/CMD and MCP entrypoints into the unprivileged MiOS WSL runtime; shared mobile shortcuts and SSOT fonts, preserving other client settings.",
+      "related": [
+        "/usr/share/mios/mios.toml",
+        "mios-terminal",
+        "mios-mcp-server",
+        "build-mios.ps1",
+        "mobile-keybindings.md"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

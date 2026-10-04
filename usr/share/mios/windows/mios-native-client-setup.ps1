@@ -1,0 +1,411 @@
+# AI-hint: Native Windows/CMD and MCP entrypoints into the unprivileged MiOS WSL runtime; shared mobile shortcuts and SSOT fonts, preserving other client settings.
+# AI-related: /usr/share/mios/mios.toml, mios-terminal, mios-mcp-server, build-mios.ps1, mobile-keybindings.md
+
+[CmdletBinding()]
+param(
+    [string]$Distro,
+    [string]$LinuxUser,
+    [string]$BinDirectory = (Join-Path $env:ProgramData 'MiOS\bin'),
+    [string]$SourceRoot = (Join-Path $PSScriptRoot '..\..\..\..'),
+    [switch]$SkipClients,
+    [switch]$SkipAgentInstall,
+    [switch]$RuntimeOnly
+)
+$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'MiOS native client setup requires PowerShell 7' }
+$installedBinding = Join-Path $BinDirectory 'native-binding.json'
+if ($RuntimeOnly -and (Test-Path -LiteralPath $installedBinding)) {
+    $binding = Get-Content -Raw -LiteralPath $installedBinding | ConvertFrom-Json
+    if (-not $Distro) { $Distro = $binding.distro }
+    if (-not $LinuxUser) { $LinuxUser = $binding.linuxUser }
+}
+if (-not $RuntimeOnly) { $SourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path }
+if (-not $Distro) {
+    $Distro = Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss' |
+        ForEach-Object { (Get-ItemProperty $_.PSPath).DistributionName } |
+        Where-Object { $_ -match 'MiOS' } | Select-Object -First 1
+}
+if (-not $Distro) { throw 'No MiOS WSL distribution found; pass -Distro explicitly' }
+$registered = @(Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss' | ForEach-Object { (Get-ItemProperty $_.PSPath).DistributionName })
+if ($Distro -notin $registered) {
+    if ("podman-$Distro" -in $registered) { $Distro = "podman-$Distro" }
+    elseif ($Distro.StartsWith('podman-') -and $Distro.Substring(7) -in $registered) { $Distro = $Distro.Substring(7) }
+    else { throw "MiOS image '$Distro' is not registered in WSL" }
+}
+# Windows owns mirrored NIC addresses. NetworkManager in a long-lived WSL
+# guest can clear them when a new host adapter appears (for example tethering).
+# Reconcile only the active host adapter, only when the guest has no default route.
+$wslConfig = Join-Path $env:USERPROFILE '.wslconfig'
+if ((Test-Path -LiteralPath $wslConfig) -and (Get-Content -Raw -LiteralPath $wslConfig) -match '(?im)^networkingMode\s*=\s*mirrored\s*$') {
+    $guestRoute = & wsl.exe -d $Distro -u root -- ip -j route show default
+    if ($LASTEXITCODE -eq 0 -and -not @($guestRoute | ConvertFrom-Json).Count) {
+        $hostRoute = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1
+        if ($hostRoute) {
+            $hostAdapter = Get-NetAdapter -InterfaceIndex $hostRoute.InterfaceIndex
+            $hostAddress = Get-NetIPAddress -InterfaceIndex $hostRoute.InterfaceIndex -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1
+            $guestLinks = (& wsl.exe -d $Distro -u root -- ip -j link show) | ConvertFrom-Json
+            $guestAdapter = $guestLinks | Where-Object { $_.address -eq $hostAdapter.MacAddress.Replace('-', ':').ToLowerInvariant() } | Select-Object -First 1
+            if ($guestAdapter -and $hostAddress) {
+                & wsl.exe -d $Distro -u root -- nmcli device set $guestAdapter.ifname managed no | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw 'Could not release the mirrored adapter from NetworkManager' }
+                & wsl.exe -d $Distro -u root -- ip addr replace "$($hostAddress.IPAddress)/$($hostAddress.PrefixLength)" dev $guestAdapter.ifname
+                if ($LASTEXITCODE -ne 0) { throw 'Could not reconcile the mirrored host address' }
+                & wsl.exe -d $Distro -u root -- ip route replace default via $hostRoute.NextHop dev $guestAdapter.ifname
+                if ($LASTEXITCODE -ne 0) { throw 'Could not reconcile the mirrored host route' }
+            }
+        }
+    }
+}
+if (-not $LinuxUser) {
+    $LinuxUser = (& wsl.exe -d $Distro -u root -- python3 -c 'import pwd; print(pwd.getpwuid(1000).pw_name)').Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $LinuxUser) { throw 'No UID 1000 MiOS user; pass an unprivileged -LinuxUser explicitly' }
+}
+$resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_toml; d=mios_toml.load_merged(); print(json.dumps({"font":d["theme"]["font"],"theme":d["theme"],"terminal":d["terminal"],"colors":mios_toml.colors(d),"keybindings":d["keybindings"],"mcp":d["mcp"],"agent_cli":d["agent_cli"],"clinkPackage":d["bootstrap"]["prereqs"]["clink_pkg"]}))'
+$configJson = & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $resolve
+if ($LASTEXITCODE -ne 0) { throw 'Could not resolve native MiOS theme SSOT' }
+$config = $configJson | ConvertFrom-Json -AsHashtable
+$mcpPython = $config['mcp']['python']
+$check = & wsl.exe -d $Distro -u $LinuxUser -- $mcpPython -c 'import os; from mcp import Client; assert os.getuid()!=0; assert os.access("/usr/libexec/mios/tmux-mcp",os.X_OK); print("native-ready")'
+if ($LASTEXITCODE -ne 0 -or $check -notcontains 'native-ready') { throw 'Install native MiOS-MCP in this WSL distribution first' }
+foreach ($value in $config['colors'].Values) {
+    if ($value -notmatch '^#[0-9a-fA-F]{6}$') { throw 'Invalid SSOT terminal color; existing projections preserved' }
+}
+$renderPrompt = 'import sys,json;sys.path.insert(0,"/usr/lib/mios");sys.path.insert(0,"/usr/libexec/mios/ux");import mios_toml,tmux_theme;d=mios_toml.load_merged();print(json.dumps({"local":tmux_theme.render_prompt(d),"remote":tmux_theme.render_prompt(d,remote=True)}))'
+$promptBundle = ((& wsl.exe -d $Distro -u $LinuxUser -- python3 -c $renderPrompt) -join "`n") | ConvertFrom-Json
+$promptJson = $promptBundle.local
+if ($LASTEXITCODE -ne 0) { throw 'Could not project the native Oh My Posh theme' }
+$null = $promptJson | ConvertFrom-Json
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+$changed = [Collections.Generic.List[string]]::new()
+function Write-MiosFile([string]$Path, [string]$Text) {
+    if ((Test-Path -LiteralPath $Path) -and [IO.File]::ReadAllText($Path) -ceq $Text) { return }
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $Path)) | Out-Null
+    if (Test-Path -LiteralPath $Path) { Copy-Item -LiteralPath $Path -Destination "$Path.mios-backup-$stamp" }
+    $pending = "$Path.mios-pending-$([guid]::NewGuid().ToString('N'))"
+    [IO.File]::WriteAllText($pending, $Text, [Text.UTF8Encoding]::new($false))
+    [IO.File]::Move($pending, $Path, $true)
+    $changed.Add($Path)
+}
+function Read-MiosJson([string]$Path) {
+    if (Test-Path -LiteralPath $Path) { return (Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json -AsHashtable) }
+    return @{}
+}
+function Save-MiosJson([string]$Path, $Value) {
+    Write-MiosFile $Path (((Convert-MiosOrdered $Value) | ConvertTo-Json -Depth 100) + "`n")
+}
+function Convert-MiosOrdered($Value) {
+    if ($Value -is [Collections.IDictionary]) {
+        $ordered = [ordered]@{}
+        foreach ($key in @($Value.Keys | Sort-Object -CaseSensitive)) { $ordered[$key] = Convert-MiosOrdered $Value[$key] }
+        return $ordered
+    }
+    if ($Value -is [Collections.IList]) { return ,@($Value | ForEach-Object { Convert-MiosOrdered $_ }) }
+    return $Value
+}
+Save-MiosJson (Join-Path $env:LOCALAPPDATA 'MiOS\themes\ssot.json') $config
+if ($RuntimeOnly -and $binding) {
+    $binding.distro = $Distro
+    $binding.linuxUser = $LinuxUser
+    $binding | Add-Member -NotePropertyName mcpPython -NotePropertyValue $mcpPython -Force
+    Save-MiosJson (Join-Path $env:LOCALAPPDATA 'MiOS\native-binding.json') ($binding | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable)
+}
+foreach ($path in @(
+    (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios.omp.json'),
+    'M:\MiOS\themes\mios.omp.json'
+)) {
+    if ($path -like 'M:*' -and -not (Test-Path -LiteralPath 'M:\MiOS')) { continue }
+    Write-MiosFile $path ($promptJson + "`n")
+}
+Write-MiosFile (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-remote.omp.json') $promptBundle.remote
+# Refresh the cache used by sessions opened before the remote-theme migration.
+$legacyRemote = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-ascii.omp.json'
+if (Test-Path -LiteralPath $legacyRemote) { Write-MiosFile $legacyRemote $promptBundle.remote }
+
+if (-not $RuntimeOnly) {
+# A real .cmd on machine PATH works from cmd.exe, SSH's default CMD shell, and
+# scripts, without a PowerShell alias or a Command Processor AutoRun hook.
+[IO.Directory]::CreateDirectory($BinDirectory) | Out-Null
+$engine = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
+if (-not (Test-Path -LiteralPath $engine)) {
+    $pwshPackage = Get-AppxPackage Microsoft.PowerShell | Select-Object -First 1
+    if ($pwshPackage) { $engine = Join-Path $pwshPackage.InstallLocation 'pwsh.exe' }
+}
+if (-not (Test-Path -LiteralPath $engine)) { $engine = (Get-Command pwsh.exe -ErrorAction Stop).Source }
+$hub = @((Join-Path $BinDirectory 'mios.ps1'), 'M:\MiOS\bin\mios.ps1', 'C:\MiOS\bin\mios.ps1') |
+    Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+$entry = @'
+# AI-hint: CMD-accessible native MiOS dispatcher, retaining the installed Windows verb hub.
+param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
+$ErrorActionPreference = 'Stop'
+$binding = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'native-binding.json') | ConvertFrom-Json
+$verb = if ($Arguments.Count) { $Arguments[0] } else { 'terminal' }
+[string[]]$rest = @()
+if ($Arguments.Count -gt 1) { $rest = $Arguments[1..($Arguments.Count-1)] }
+if ($verb -notin @('mcp','ssh')) { & (Join-Path $PSScriptRoot 'mios-native-client-setup.ps1') -RuntimeOnly -BinDirectory $PSScriptRoot }
+$userBinding = Join-Path $env:LOCALAPPDATA 'MiOS\native-binding.json'
+if (Test-Path -LiteralPath $userBinding) { $binding = Get-Content -Raw -LiteralPath $userBinding | ConvertFrom-Json }
+$remote = @()
+if ($env:SSH_CONNECTION -or $env:SSH_CLIENT -or $env:SSH_TTY) { $remote = @('/usr/bin/env','MIOS_REMOTE_TERMINAL=1') }
+switch ($verb) {
+    'project' { exit 0 }
+    'terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/libexec/mios/mios-terminal @rest; exit $LASTEXITCODE }
+    'ai-terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/libexec/mios/mios-ai-terminal @rest; exit $LASTEXITCODE }
+    'agent' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/bin/mios agent @rest; exit $LASTEXITCODE }
+    'agents' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios agents @rest; exit $LASTEXITCODE }
+    'mcp' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- $binding.mcpPython /usr/libexec/mios/mios-mcp-server @rest; exit $LASTEXITCODE }
+    'ssh' {
+        if (-not $rest.Count) { Write-Error 'Usage: mios ssh [OpenSSH options] user@host'; exit 64 }
+        & ssh.exe -t @rest mios terminal
+        exit $LASTEXITCODE
+    }
+    default {
+        if ($binding.windowsHub -and (Test-Path -LiteralPath $binding.windowsHub)) { & $binding.windowsHub @Arguments }
+        else { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios @Arguments }
+        if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }
+    }
+}
+'@
+Write-MiosFile (Join-Path $BinDirectory 'mios-native-entry.ps1') ($entry + "`n")
+Write-MiosFile (Join-Path $BinDirectory 'mios-native-client-setup.ps1') ([IO.File]::ReadAllText($PSCommandPath))
+Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
+$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n"
+Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
+$devEntry = @'
+# AI-hint: Resolve the installed MiOS image through its native CMD dispatcher.
+param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
+if (-not $Arguments.Count) { & '__CMD__' terminal; exit $LASTEXITCODE }
+$binding = Get-Content -Raw -LiteralPath '__BINDING__' | ConvertFrom-Json
+& wsl.exe -d $binding.distro @Arguments
+exit $LASTEXITCODE
+'@
+if ($hub) {
+    Write-MiosFile (Join-Path (Split-Path -Parent $hub) 'mios-dev.ps1') ($devEntry.Replace('__CMD__',(Join-Path $BinDirectory 'mios.cmd').Replace("'","''")).Replace('__BINDING__',$installedBinding.Replace("'","''")) + "`n")
+}
+$machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+if (-not (($machinePath -split ';') -contains $BinDirectory)) {
+    [Environment]::SetEnvironmentVariable('Path', "$machinePath;$BinDirectory", 'Machine')
+}
+if (-not (($env:Path -split ';') -contains $BinDirectory)) { $env:Path += ";$BinDirectory" }
+[Environment]::SetEnvironmentVariable('MIOS_NATIVE_BIN', $BinDirectory, 'Machine')
+$env:MIOS_NATIVE_BIN = $BinDirectory
+if (-not (Get-Command ssh.exe -ErrorAction SilentlyContinue)) {
+    Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0' | Out-Null
+}
+$clink = @((Join-Path ${env:ProgramFiles(x86)} 'clink\clink_x64.exe'),(Join-Path $env:ProgramFiles 'clink\clink_x64.exe')) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $clink) {
+    & winget.exe install --id $config['clinkPackage'] --exact --scope machine --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+    if ($LASTEXITCODE -ne 0) { throw 'Native MiOS CMD dependency installation failed' }
+    $clink = @((Join-Path ${env:ProgramFiles(x86)} 'clink\clink_x64.exe'),(Join-Path $env:ProgramFiles 'clink\clink_x64.exe')) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+}
+$clinkDirectory = Split-Path -Parent $clink
+$cmdPrompt = @'
+-- AI-hint: MiOS CMD startup resolves the native layered SSOT before loading the prompt.
+-- Services already running can retain PATH from before MiOS installation.
+local bin = __BIN__
+os.setenv("PATH", __AGENTPATH__ .. ";" .. bin .. ";" .. (os.getenv("PATH") or ""))
+os.setenv("MIOS_NATIVE_BIN", bin)
+local autorun = os.getenv("CLINK_NOAUTORUN")
+os.setenv("CLINK_NOAUTORUN", "1")
+local encoding = io.popen("chcp __CODEPAGE__ >nul")
+if encoding then encoding:read("*a"); encoding:close() end
+local p = io.popen(__COMMAND__)
+if p then p:read("*a"); p:close() end
+os.setenv("CLINK_NOAUTORUN", autorun)
+settings.set("clink.customprompt", __PROMPT__)
+'@
+$cmdPrompt = $cmdPrompt.Replace('__BIN__', ($BinDirectory | ConvertTo-Json -Compress)).Replace('__COMMAND__',(('call "' + (Join-Path $BinDirectory 'mios.cmd') + '" project') | ConvertTo-Json -Compress)).Replace('__PROMPT__',((Join-Path $clinkDirectory 'themes\mios-ssot.clinkprompt') | ConvertTo-Json -Compress)).Replace('__CODEPAGE__', [string][int]$config['theme']['terminal']['windows_codepage'])
+$agentRoot = Join-Path $env:ProgramData $config['agent_cli']['windows_directory']
+$agentPaths = @((Join-Path $env:ProgramFiles 'nodejs'),(Join-Path $agentRoot 'npm'),(Join-Path $agentRoot 'native'),(Join-Path $agentRoot 'bin')) -join ';'
+$cmdPrompt = $cmdPrompt.Replace('__AGENTPATH__', ($agentPaths | ConvertTo-Json -Compress))
+Write-MiosFile (Join-Path $clinkDirectory 'mios-ssot.lua') ($cmdPrompt + "`n")
+$cmdTheme = @'
+-- AI-hint: Native MiOS prompt loads the caller's runtime SSOT projection.
+-- Oh My Posh owns its Lua filters; Clink owns prompt activation.
+local theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios.omp.json"
+if os.getenv("SSH_CONNECTION") or os.getenv("SSH_CLIENT") or not os.getenv("WT_SESSION") then
+    theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios-remote.omp.json"
+end
+local p = assert(io.popen('oh-my-posh init cmd --config "' .. theme .. '"'))
+local script = p:read("*a")
+p:close()
+assert(load(script, "MiOS SSOT prompt"))()
+return {}
+'@
+Write-MiosFile (Join-Path $clinkDirectory 'themes\mios-ssot.clinkprompt') ($cmdTheme + "`n")
+& $clink autorun install --allusers
+if ($LASTEXITCODE -ne 0) { throw 'Could not enable native CMD startup' }
+& $clink config prompt use mios-ssot | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not enable native MiOS CMD prompt' }
+
+# The existing profile retains its dashboard and verbs; the final owned block
+# resolves theme overrides on every PowerShell startup before initializing OMP.
+$profilePath = if (Test-Path -LiteralPath 'M:\MiOS\powershell\profile.ps1') { 'M:\MiOS\powershell\profile.ps1' } else { [string]$PROFILE.CurrentUserAllHosts }
+$profileText = if (Test-Path -LiteralPath $profilePath) { [IO.File]::ReadAllText($profilePath) } else { '' }
+$profileText = [regex]::Replace($profileText, '(?ms)^# >>> MiOS native SSOT runtime >>>.*?^# <<< MiOS native SSOT runtime <<<\r?\n?', '').TrimEnd()
+$hook = @'
+# >>> MiOS native SSOT runtime >>>
+$_miosNativeBin = '__BIN__'
+& (Join-Path $_miosNativeBin 'mios-native-client-setup.ps1') -RuntimeOnly -BinDirectory $_miosNativeBin
+$env:MIOS_OMP_JSON = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios.omp.json'
+$_miosOmp = Get-Command oh-my-posh.exe -ErrorAction SilentlyContinue
+if ($_miosOmp) { & $_miosOmp.Source init pwsh --config $env:MIOS_OMP_JSON | Invoke-Expression }
+# <<< MiOS native SSOT runtime <<<
+'@
+Write-MiosFile $profilePath ($profileText + "`n`n" + $hook.Replace('__BIN__', $BinDirectory.Replace("'", "''")) + "`n")
+Write-MiosFile (Join-Path $BinDirectory 'mios-agent-cli-setup.ps1') ([IO.File]::ReadAllText((Join-Path $SourceRoot 'usr\share\mios\windows\mios-agent-cli-setup.ps1')))
+if (-not $SkipAgentInstall) { & (Join-Path $BinDirectory 'mios-agent-cli-setup.ps1') -Distro $Distro -LinuxUser $LinuxUser }
+}
+
+if (-not $SkipClients) {
+    $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+    $argsMcp = @('-d', $Distro, '-u', $LinuxUser, '--', $mcpPython, '/usr/libexec/mios/mios-mcp-server')
+    $mcpEntry = @{command=$wsl; args=$argsMcp}
+    foreach ($path in @(
+        (Join-Path $env:USERPROFILE '.claude.json'),
+        (Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'),
+        (Join-Path $env:USERPROFILE '.gemini\settings.json'),
+        (Join-Path $env:USERPROFILE '.gemini\config\mcp_config.json'),
+        (Join-Path $env:USERPROFILE '.gemini\antigravity-cli\mcp_config.json'),
+        (Join-Path $env:USERPROFILE '.cursor\mcp.json')
+    )) {
+        $object = Read-MiosJson $path
+        if (-not $object.Contains('mcpServers')) { $object['mcpServers'] = @{} }
+        $object['mcpServers']['mios-control'] = $mcpEntry
+        Save-MiosJson $path $object
+    }
+    $codexPath = Join-Path $env:USERPROFILE '.codex\config.toml'
+    $codex = if (Test-Path -LiteralPath $codexPath) { Get-Content -Raw -LiteralPath $codexPath } else { '' }
+    # Replace only the owned server and its subtables; preserve every other section.
+    $codex = [regex]::Replace($codex, '(?ms)^\[mcp_servers\.mios-control(?:\.[^\]]+)?\]\r?\n.*?(?=^\[|\z)', '')
+    $codex = $codex.TrimEnd() + "`n`n[mcp_servers.mios-control]`ncommand = " + ($wsl | ConvertTo-Json -Compress) + "`nargs = " + ($argsMcp | ConvertTo-Json -Compress) + "`nenabled = true`n"
+    Write-MiosFile $codexPath $codex
+
+    $copilot = Join-Path $env:USERPROFILE '.copilot\mcp-config.json'
+    $object = Read-MiosJson $copilot
+    if (-not $object.Contains('mcpServers')) { $object['mcpServers'] = @{} }
+    $object['mcpServers']['mios-control'] = @{type='local';command=$wsl;args=$argsMcp;tools=@('*')}
+    Save-MiosJson $copilot $object
+    $opencode = Join-Path $env:USERPROFILE '.config\opencode\opencode.json'
+    $object = Read-MiosJson $opencode
+    if (-not $object.Contains('mcp')) { $object['mcp'] = @{} }
+    $ocCommand = Join-Path (Join-Path $env:ProgramData $config['agent_cli']['windows_directory']) 'npm\opencode.cmd'
+    $v2 = (Test-Path -LiteralPath $ocCommand) -and ((& $ocCommand --version) -match '^2\.')
+    if ($v2) {
+        if (-not $object['mcp'].Contains('servers')) { $object['mcp']['servers'] = @{} }
+        $object['mcp'].Remove('mios-control')
+        $object['mcp']['servers']['mios-control'] = @{type='local';command=@($wsl)+$argsMcp}
+    } else { $object['mcp']['mios-control'] = @{type='local';command=@($wsl)+$argsMcp;enabled=$true} }
+    Save-MiosJson $opencode $object
+
+    if (-not $RuntimeOnly) {
+    $profileRoot = Join-Path $SourceRoot 'usr\share\mios\keybindings'
+    $bindings = @(Get-Content -Raw (Join-Path $profileRoot 'vscode-keybindings.json') | ConvertFrom-Json -AsHashtable)
+    foreach ($directory in @((Join-Path $env:APPDATA 'Code\User'), (Join-Path $env:APPDATA 'Code - Insiders\User'))) {
+        if ($directory -like '*Insiders*' -and -not (Test-Path -LiteralPath $directory)) { continue }
+        $keyPath = Join-Path $directory 'keybindings.json'
+        $prior = if (Test-Path -LiteralPath $keyPath) { @(Get-Content -Raw -LiteralPath $keyPath | ConvertFrom-Json -AsHashtable) } else { @() }
+        $keys = @($bindings | ForEach-Object { $_['key'] })
+        $merged = @($prior | Where-Object { $_['key'] -notin $keys }) + $bindings
+        # Editor shortcuts launch Windows shims; terminal input still passes through to tmux.
+        foreach ($row in $merged) {
+            if ($row['key'] -in $keys -and $row['command'] -eq 'runCommands') {
+                foreach ($action in $row['args']['commands']) {
+                    if ($action -is [Collections.IDictionary] -and $action['command'] -eq 'workbench.action.terminal.sendSequence') {
+                        $text = $action['args']['text']
+                        $action['args']['text'] = $text.Replace('/usr/libexec/mios/mios-ai-terminal', 'mios.cmd ai-terminal').Replace('mios mon', 'mios.cmd mon')
+                    }
+                }
+            }
+        }
+        Save-MiosJson $keyPath $merged
+        $settingsPath = Join-Path $directory 'settings.json'
+        $settings = Read-MiosJson $settingsPath
+        $settings['terminal.integrated.allowChords'] = $config['keybindings']['vscode_allow_chords']
+        $settings['terminal.integrated.allowMnemonics'] = $config['keybindings']['vscode_allow_mnemonics']
+        $settings['terminal.integrated.commandsToSkipShell'] = @($config['keybindings']['vscode_passthrough_commands'] | ForEach-Object { "-$_" })
+        $settings['terminal.integrated.fontFamily'] = $config['font']['family']
+        $settings['terminal.integrated.fontSize'] = $config['font']['size']
+        if (-not $settings.Contains('terminal.integrated.env.windows')) { $settings['terminal.integrated.env.windows'] = @{} }
+        $settings['terminal.integrated.env.windows']['PATH'] = '${env:PATH};' + $BinDirectory
+        Save-MiosJson $settingsPath $settings
+    }
+}
+}
+
+# A CMD profile uses the same terminal font and named palette as the existing
+# SSOT projection, rather than assigning a separate console theme.
+$terminalPaths = @(
+    (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'),
+    (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\settings.json')
+)
+foreach ($path in $terminalPaths) {
+    if (-not (Test-Path -LiteralPath $path)) { continue }
+    $terminal = Read-MiosJson $path
+    $palette = $config['colors']
+    $scheme = @{name=$config['theme']['terminal']['scheme_name']; background=$palette['bg']; foreground=$palette['fg']; cursorColor=$palette['cursor']; selectionBackground=$palette['muted']}
+    $colors = @('black','red','green','yellow','blue','magenta','cyan','white')
+    for ($index = 0; $index -lt $colors.Count; $index++) {
+        $color = $colors[$index]
+        $field = if ($color -eq 'magenta') { 'purple' } else { $color }
+        $scheme[$field] = $palette["ansi_${index}_$color"]
+        $scheme['bright' + (Get-Culture).TextInfo.ToTitleCase($field)] = $palette["ansi_$($index+8)_bright_$color"]
+    }
+    foreach ($key in $scheme.Keys) { if ($key -ne 'name' -and $scheme[$key] -notmatch '^#[0-9a-fA-F]{6}$') { throw "SSOT terminal palette color $key is invalid" } }
+    $terminal['schemes'] = @($terminal['schemes'] | Where-Object { $_['name'] -ne $scheme['name'] }) + @($scheme)
+    $terminal['actions'] = @($terminal['actions'] | Where-Object { -not ($_['command'] -is [Collections.IDictionary] -and $_['command']['action'] -eq 'globalSummon' -and $_['command']['name'] -like 'MiOS*') }) + @(@{keys=$config['theme']['terminal']['summon_keys'];command=@{action='globalSummon';name=$config['theme']['terminal']['summon_window_name'];dropdownDuration=0}})
+    if (-not $terminal.Contains('profiles')) { $terminal['profiles'] = @{list=@()} }
+    $profile = @{name='MiOS-CMD'; commandline='cmd.exe'; font=@{face=$config['font']['family']; size=$config['font']['size']}; colorScheme=$config['theme']['terminal']['scheme_name']; padding=$config['theme']['padding']; scrollbarState=$config['theme']['scrollbar_state']}
+    $terminal['profiles']['list'] = @($terminal['profiles']['list'] | Where-Object { $_['name'] -ne 'MiOS-CMD' }) + @($profile)
+    if (-not $terminal['profiles'].Contains('defaults')) { $terminal['profiles']['defaults'] = @{} }
+    $terminal['profiles']['defaults']['colorScheme'] = $scheme['name']
+    $terminal['profiles']['defaults']['font'] = @{face=$config['font']['family'];size=$config['font']['size']}
+    $terminal['profiles']['defaults']['padding'] = $config['theme']['padding']
+    $terminal['profiles']['defaults']['scrollbarState'] = $config['theme']['scrollbar_state']
+    foreach ($item in $terminal['profiles']['list']) {
+        if ($item['name'] -notmatch '^MiOS') { continue }
+        $item['font'] = @{face=$config['font']['family']; size=$config['font']['size']}
+        $item['colorScheme'] = $config['theme']['terminal']['scheme_name']
+        $item['padding'] = $config['theme']['padding']
+        $item['scrollbarState'] = $config['theme']['scrollbar_state']
+        $item['cursorShape'] = $config['theme']['cursor_shape']
+        $item['opacity'] = $config['theme']['opacity']
+        $item['useAcrylic'] = $config['theme']['acrylic']
+        $item['suppressApplicationTitle'] = $config['theme']['suppress_app_title']
+        if ($item['name'] -eq $config['theme']['terminal']['dev_profile_name']) {
+            $enginePath = if ($RuntimeOnly) { $binding.engine } else { $engine }
+            $item['commandline'] = "`"$enginePath`" -NoLogo -NoProfile -File `"$(Join-Path $BinDirectory 'mios-native-entry.ps1')`" terminal"
+        }
+        if ($item['source'] -eq 'Windows.Terminal.Wsl' -and $item['name'] -notin $registered) { $item['hidden'] = $true }
+    }
+    $default = @($terminal['profiles']['list'] | Where-Object { $_['name'] -eq $config['theme']['terminal']['hub_target_profile'] })[0]
+    if ($default -and $default['guid']) { $terminal['defaultProfile'] = $default['guid'] }
+    Save-MiosJson $path $terminal
+}
+if (-not $RuntimeOnly) {
+    $shell = New-Object -ComObject WScript.Shell
+    $menu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\MiOS'
+    [IO.Directory]::CreateDirectory($menu) | Out-Null
+    $reserved = @{}
+    $roots = @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('CommonDesktopDirectory'),[Environment]::GetFolderPath('StartMenu'),[Environment]::GetFolderPath('CommonStartMenu')) | Select-Object -Unique
+    foreach ($root in $roots) {
+        foreach ($link in Get-ChildItem -LiteralPath $root -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue) {
+            if ($link.DirectoryName -eq $menu) { continue }
+            $hotkey = $shell.CreateShortcut($link.FullName).Hotkey
+            if ($hotkey) { $reserved[(($hotkey.ToUpperInvariant() -split '\+' | Sort-Object) -join '+')] = $link.FullName }
+        }
+    }
+    foreach ($action in $config['keybindings']['actions']) {
+        $hotkey = $config['keybindings']['windows_hotkey_modifier'] + '+' + $action['key'].ToUpperInvariant()
+        $canonical = (($hotkey -split '\+' | Sort-Object) -join '+')
+        if ($reserved.ContainsKey($canonical)) { throw "MiOS shortcut $hotkey conflicts with $($reserved[$canonical])" }
+        $link = $shell.CreateShortcut((Join-Path $menu ($action['label'] + '.lnk')))
+        $link.TargetPath = Join-Path $BinDirectory 'mios-launch.exe'
+        $link.Arguments = $config['theme']['terminal']['dev_profile_name'] + ' --action ' + $action['id']
+        $link.Hotkey = $hotkey
+        $link.WorkingDirectory = $BinDirectory
+        $link.Description = $action['label'] + ' — projected from MiOS SSOT'
+        $link.Save()
+    }
+    Write-Host "Installed CMD entrypoint: $(Join-Path $BinDirectory 'mios.cmd')"
+    Write-Host "Native runtime: $Distro / $LinuxUser; $($changed.Count) changed files with backups."
+}

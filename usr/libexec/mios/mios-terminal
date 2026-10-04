@@ -1,0 +1,56 @@
+#!/bin/bash
+# AI-hint: Human tmux entrypoint for local terminals and SSH, using the shared MiOS keybinding profile and a socket separate from automation.
+# AI-related: /usr/share/mios/mios.toml [keybindings], /etc/tmux.conf, mios-ai-terminal
+
+set -euo pipefail
+
+_mios_action=""
+_mios_head=""
+case "${1:-}" in
+    -h|--help) printf 'Usage: mios-terminal [--action terminal|ai|system] [--agent NAME ARGS...]\nAttach or create the MiOS human tmux session. Ctrl-b then t/a/m opens terminal/AI/system.\n'; exit 0 ;;
+    --action) [[ $# == 2 ]] || exit 64; _mios_action="$2" ;;
+    --agent) shift; [[ $# -ge 1 ]] || exit 64; printf -v _mios_head '%q ' /usr/bin/mios agent "$@" ;;
+    '') ;;
+    *) printf 'mios-terminal: unsupported option: %s\n' "$1" >&2; exit 64 ;;
+esac
+# Python is the existing layered resolver; this frontend only launches tmux.
+mapfile -t _mios_terminal_config < <(PYTHONPATH=/usr/lib/mios python3 -c '
+import sys
+import mios_toml
+c = mios_toml.load_merged()["keybindings"]
+for key in ("socket_name", "terminal_session"):
+    value = c[key]
+    if not isinstance(value, str) or not value or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in value):
+        raise ValueError("[keybindings]." + key + ": invalid tmux identifier")
+    print(value)
+if sys.argv[1]:
+    action = next((a for a in c["actions"] if a["id"] == sys.argv[1]), None)
+    if action is None:
+        raise ValueError("unknown MiOS terminal action")
+    print(action["command"])
+    print(action["label"])
+' "$_mios_action")
+[[ ${#_mios_terminal_config[@]} == 2 || ${#_mios_terminal_config[@]} == 4 ]] || { printf 'mios-terminal: keybinding configuration unresolved\n' >&2; exit 1; }
+if [[ -n "${TMUX:-}" ]]; then
+    if [[ -n "$_mios_head" ]]; then exec tmux new-window -n 'MiOS Agent' "$_mios_head"; fi
+    if [[ -n "$_mios_action" && "$_mios_action" != terminal ]]; then
+        exec tmux new-window -n "${_mios_terminal_config[3]}" "${_mios_terminal_config[2]}"
+    fi
+    exec tmux new-window
+fi
+_mios_runtime="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/mios-terminal"
+umask 077
+python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "$_mios_runtime"
+export MIOS_OMP_THEME="$_mios_runtime/mios.omp.json"
+tmux -L "${_mios_terminal_config[0]}" -f "$_mios_runtime/tmux.conf" new-session -d -A -s "${_mios_terminal_config[1]}" \
+    /bin/bash --noprofile --rcfile /usr/share/mios/tmux/mios-bashrc
+tmux -L "${_mios_terminal_config[0]}" source-file "$_mios_runtime/tmux.conf"
+tmux -L "${_mios_terminal_config[0]}" set-environment -g MIOS_OMP_THEME "$MIOS_OMP_THEME"
+tmux -L "${_mios_terminal_config[0]}" set-option -g default-command '/bin/bash --noprofile --rcfile /usr/share/mios/tmux/mios-bashrc'
+if [[ -n "$_mios_action" && "$_mios_action" != terminal ]]; then
+    tmux -L "${_mios_terminal_config[0]}" new-window -n "${_mios_terminal_config[3]}" "${_mios_terminal_config[2]}"
+fi
+if [[ -n "$_mios_head" ]]; then
+    tmux -L "${_mios_terminal_config[0]}" new-window -n 'MiOS Agent' "$_mios_head"
+fi
+exec tmux -L "${_mios_terminal_config[0]}" attach-session -t "${_mios_terminal_config[1]}"

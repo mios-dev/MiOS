@@ -102,8 +102,15 @@ build_image_with_retry() {
 }
 
 log "Building localhost/mios-base"
+_mcp_packages="$(python3 -c 'import mios_toml; p=mios_toml.load_merged()["packages"]; print(" ".join(dict.fromkeys(p["mcp"]["pkgs"] + p["agent_cli"]["pkgs"])))')"
+[[ -n "$_mcp_packages" ]] || { log "ERROR: [packages.mcp].pkgs is empty"; exit 1; }
 build_image_with_retry "localhost/mios-base:latest" "/usr/share/mios/base" \
-  --build-arg MIOS_BASE_IMAGE="$BASE"
+  --build-arg MIOS_BASE_IMAGE="$BASE" \
+  --build-arg "MIOS_MCP_PACKAGES=$_mcp_packages" --build-context mios=/
+
+if [[ "${1:-}" == "--base-only" ]]; then
+    exit 0
+fi
 
 log "Building localhost/mios-sys"
 build_image_with_retry "localhost/mios-sys" "/usr/share/mios/sys" \
