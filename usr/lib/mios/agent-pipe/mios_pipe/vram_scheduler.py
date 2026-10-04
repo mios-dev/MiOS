@@ -30,13 +30,47 @@ VRAM_COLOAD_RESERVE_MB = 1000
 _reclaim_idle_vram = None
 _dispatch_num = None
 
+REQUIRED_CALLABLES = (
+    "_over_blade_ceiling",
+    "_over_global_ceiling",
+    "_is_warm",
+    "_blade_vram_budget",
+    "_resident_cached",
+    "_norm_model_tag",
+    "_reclaim_idle_vram",
+    "_dispatch_num",
+)
+REQUIRED_VALUES = (
+    "VRAM_BUDGET_MB",
+    "VRAM_COLOAD_EST_MB",
+    "VRAM_COLOAD_ENABLE",
+    "VRAM_COLOAD_RESERVE_MB",
+)
+
 _LANE_SEMS = {}
 _ENDPOINT_SEMS = {}
 
 def configure(**kwargs):
     """Inject server state; values derived from [dispatch] follow the injected table."""
+    for k in REQUIRED_CALLABLES:
+        if k in kwargs and (kwargs[k] is None or not callable(kwargs[k])):
+            raise TypeError(f"Required callable dependency '{k}' cannot be None and must be callable")
+    for k in REQUIRED_VALUES:
+        if k in kwargs and kwargs[k] is None:
+            raise TypeError(f"Required value dependency '{k}' cannot be None")
+
     globals().update(kwargs)
     _apply_dispatch_toml()
+
+    if globals().get("ADMIT_ENABLE"):
+        for k in REQUIRED_CALLABLES:
+            val = globals().get(k)
+            if val is None or not callable(val):
+                raise TypeError(f"ADMIT_ENABLE is True but required dependency '{k}' is missing or not callable")
+        for k in REQUIRED_VALUES:
+            val = globals().get(k)
+            if val is None:
+                raise TypeError(f"ADMIT_ENABLE is True but required value dependency '{k}' is missing or None")
 
 class _SloShed(Exception):
     """Raised by _admit to SHED a best_effort dispatch under contention (WS-SCHED-
@@ -115,11 +149,21 @@ def _endpoint_sem(ep: str) -> asyncio.Semaphore:
 async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                  est_mb: int = 0, *, foreground: bool = True) -> None:
     if SLO_SHED_ENABLE:
+        if _over_global_ceiling is None or not callable(_over_global_ceiling):
+            raise TypeError("SLO_SHED_ENABLE is True but '_over_global_ceiling' is not callable")
         _slo = mios_slo.classify(foreground=foreground)
         if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling()):
             raise _SloShed(_slo)
     if not ADMIT_ENABLE:
         return
+    for k in REQUIRED_CALLABLES:
+        val = globals().get(k)
+        if val is None or not callable(val):
+            raise TypeError(f"ADMIT_ENABLE is True but required dependency '{k}' is missing or not callable")
+    for k in REQUIRED_VALUES:
+        val = globals().get(k)
+        if val is None:
+            raise TypeError(f"ADMIT_ENABLE is True but required value dependency '{k}' is missing or None")
     try:
         deadline = time.monotonic() + ADMIT_MAX_WAIT
         while (_over_blade_ceiling(ep) if MULTIBLADE_ENABLE
@@ -148,6 +192,8 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                             ep, model, est + VRAM_COLOAD_RESERVE_MB):
                         continue
                 await asyncio.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+    except TypeError:
+        raise
     except Exception:  # noqa: BLE001 -- admission must never block a turn
         log.warning("Admit check encountered unexpected error", exc_info=True)
         return
