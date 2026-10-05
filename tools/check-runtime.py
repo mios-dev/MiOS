@@ -47,11 +47,12 @@ def cn_ssot_containers(root: str) -> tuple:
 
 def cn_rendered_containers(root: str) -> dict:
     out = {}
-    for path in sorted(glob.glob(os.path.join(root, cn_QUADLET_GLOB))):
-        unit = os.path.basename(path)[: -len(".container")]
-        text = open(path, encoding="utf-8", errors="replace").read()
-        m = re.search(r"^ContainerName=(.*)$", text, re.M)
-        out[unit] = (m.group(1).strip() if m else "")
+    for g in (cn_QUADLET_GLOB, "usr/share/containers/systemd/users/*.container"):
+        for path in sorted(glob.glob(os.path.join(root, g))):
+            unit = os.path.basename(path)[: -len(".container")]
+            text = open(path, encoding="utf-8", errors="replace").read()
+            m = re.search(r"^ContainerName=(.*)$", text, re.M)
+            out[unit] = (m.group(1).strip() if m else "")
     return out
 
 def cn_main() -> int:

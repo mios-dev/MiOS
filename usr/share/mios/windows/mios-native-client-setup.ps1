@@ -1,5 +1,5 @@
 # AI-hint: Native Windows/CMD and MCP entrypoints into the unprivileged MiOS WSL runtime; shared mobile shortcuts and SSOT fonts, preserving other client settings.
-# AI-related: /usr/share/mios/mios.toml, mios-terminal, mios-mcp-server, build-mios.ps1, mobile-keybindings.md
+# AI-related: usr/share/mios/mios.toml, usr/libexec/mios/mios-terminal, usr/libexec/mios/mios-mcp-server, build-mios.ps1, usr/share/doc/mios/guides/mobile-keybindings.md
 
 [CmdletBinding()]
 param(
@@ -12,21 +12,14 @@ param(
     [switch]$RuntimeOnly
 )
 $ErrorActionPreference = 'Stop'
-function Test-MiosGuestDefaultRoute([string[]]$Json) {
-    $routes = ($Json -join "`n") | ConvertFrom-Json
-    return @($routes).Count -gt 0
-}
+function Test-MiosGuestDefaultRoute([string[]]$Json) { return @(($Json -join "`n") | ConvertFrom-Json).Count -gt 0 }
 function Set-MiosTerminalTransparency([Collections.IDictionary]$Appearance, [Collections.IDictionary]$Theme) {
     foreach ($key in @('opacity','unfocused_opacity')) {
-        if (($Theme[$key] -isnot [int] -and $Theme[$key] -isnot [long]) -or $Theme[$key] -lt 0 -or $Theme[$key] -gt 100) {
-            throw "[theme].$key must be an integer from 0 to 100"
-        }
+        if (($Theme[$key] -isnot [int] -and $Theme[$key] -isnot [long]) -or $Theme[$key] -lt 0 -or $Theme[$key] -gt 100) { throw "[theme].$key must be an integer from 0 to 100" }
     }
     $Appearance['opacity'] = $Theme['opacity']
     $Appearance['useAcrylic'] = $Theme['acrylic']
-    if ($Appearance['unfocusedAppearance'] -isnot [Collections.IDictionary]) {
-        $Appearance['unfocusedAppearance'] = @{}
-    }
+    if ($Appearance['unfocusedAppearance'] -isnot [Collections.IDictionary]) { $Appearance['unfocusedAppearance'] = @{} }
     $Appearance['unfocusedAppearance']['opacity'] = $Theme['unfocused_opacity']
     $Appearance['unfocusedAppearance']['useAcrylic'] = $Theme['unfocused_acrylic']
 }
@@ -161,11 +154,13 @@ foreach ($cPath in $consoleTargets) {
     if (-not (Test-Path -LiteralPath $cPath)) { New-Item -Path $cPath -Force | Out-Null }
     for ($i = 0; $i -lt $ansiConsoleKeys.Count; $i++) {
         $hex = $config['colors'][$ansiConsoleKeys[$i]].TrimStart('#')
-        $r = [Convert]::ToInt32($hex.Substring(0, 2), 16)
-        $g = [Convert]::ToInt32($hex.Substring(2, 2), 16)
-        $b = [Convert]::ToInt32($hex.Substring(4, 2), 16)
-        $dword = ($b -shl 16) -bor ($g -shl 8) -bor $r
+        $dword = ([Convert]::ToInt32($hex.Substring(4, 2), 16) -shl 16) -bor ([Convert]::ToInt32($hex.Substring(2, 2), 16) -shl 8) -bor [Convert]::ToInt32($hex.Substring(0, 2), 16)
         Set-ItemProperty -Path $cPath -Name ('ColorTable{0:D2}' -f $i) -Value $dword -Type DWord
+    }
+    foreach ($entry in @(@('bg','DefaultBackground'),@('fg','DefaultForeground'),@('cursor','CursorColor'))) {
+        $h = $config['colors'][$entry[0]].TrimStart('#')
+        $dw = ([Convert]::ToInt32($h.Substring(4, 2), 16) -shl 16) -bor ([Convert]::ToInt32($h.Substring(2, 2), 16) -shl 8) -bor [Convert]::ToInt32($h.Substring(0, 2), 16)
+        Set-ItemProperty -Path $cPath -Name $entry[1] -Value $dw -Type DWord
     }
     Set-ItemProperty -Path $cPath -Name 'ScreenColors' -Value 0x07 -Type DWord
     Set-ItemProperty -Path $cPath -Name 'PopupColors' -Value 0xF5 -Type DWord
@@ -173,6 +168,9 @@ foreach ($cPath in $consoleTargets) {
     Set-ItemProperty -Path $cPath -Name 'FaceName' -Value $config['font']['family'] -Type String
     Set-ItemProperty -Path $cPath -Name 'FontFamily' -Value 0x36 -Type DWord
     Set-ItemProperty -Path $cPath -Name 'FontSize' -Value ($fontSize -shl 16) -Type DWord
+}
+foreach ($cpPath in @('HKCU:\Software\Microsoft\Command Processor', 'HKLM:\Software\Microsoft\Command Processor')) {
+    if (Test-Path -LiteralPath $cpPath) { Set-ItemProperty -Path $cpPath -Name 'DefaultColor' -Value 0x07 -Type DWord -ErrorAction SilentlyContinue }
 }
 
 if (-not $RuntimeOnly) {
@@ -242,7 +240,7 @@ $nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'
 }
 Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
 Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
-$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`nif `"%~1`"==`"`" goto :terminal`r`nif `"%~1`"==`"terminal`" goto :terminal`r`nif `"%~1`"==`"ai-terminal`" goto :ai_terminal`r`nif `"%~1`"==`"project`" exit /b 0`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n:terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-terminal %*`r`nexit /b %ERRORLEVEL%`r`n:ai_terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-ai-terminal %*`r`nexit /b %ERRORLEVEL%`r`n"
+$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`nif `"%~1`"==`"`" goto :terminal`r`nif `"%~1`"==`"terminal`" goto :terminal`r`nif `"%~1`"==`"ai-terminal`" goto :ai_terminal`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n:terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-terminal %*`r`nexit /b %ERRORLEVEL%`r`n:ai_terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-ai-terminal %*`r`nexit /b %ERRORLEVEL%`r`n"
 Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
 $devEntry = @'
 # AI-hint: Resolve the installed MiOS image through its native CMD dispatcher.
@@ -288,6 +286,7 @@ os.setenv("CLINK_NOAUTORUN", autorun)
 if not os.getenv("MIOS_COLORS_APPLIED") then
     io.write(__OSC_COLORS__)
     io.flush()
+    os.execute("color 07")
     os.setenv("MIOS_COLORS_APPLIED", "1")
 end
 settings.set("clink.customprompt", __PROMPT__)
@@ -318,6 +317,7 @@ $cmdTheme = @'
 if not os.getenv("MIOS_COLORS_APPLIED") then
     io.write(__OSC_COLORS__)
     io.flush()
+    os.execute("color 07")
     os.setenv("MIOS_COLORS_APPLIED", "1")
 end
 local theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios.omp.json"
@@ -500,7 +500,7 @@ if (-not $RuntimeOnly) {
         $link.Arguments = $config['theme']['terminal']['dev_profile_name'] + ' --action ' + $action['id']
         $link.Hotkey = $hotkey
         $link.WorkingDirectory = $BinDirectory
-        $link.Description = $action['label'] + ' — projected from MiOS SSOT'
+        $link.Description = $action['label'] + ' -- projected from MiOS SSOT'
         $link.Save()
     }
     Write-Host "Installed CMD entrypoint: $(Join-Path $BinDirectory 'mios.cmd')"

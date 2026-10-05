@@ -29,6 +29,7 @@ fi
 _self="${BASH_SOURCE[0]}"
 _self_dir="$(cd "$(dirname "$_self")" && pwd)"
 ROOT="${MIOS_DRIFT_CHECK_ROOT:-$(cd "$_self_dir/.." && pwd)}"
+cd "$ROOT"
 export MIOS_TOML_ROOT="${MIOS_TOML_ROOT:-$ROOT}"
 _SOFT="${MIOS_DRIFT_CHECK_SOFT:-0}"
 

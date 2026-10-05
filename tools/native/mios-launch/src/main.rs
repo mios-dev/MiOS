@@ -1,5 +1,5 @@
 // AI-hint: Native Windows terminal launcher: render layered MiOS SSOT before launching and center the visible frame on the current monitor work area.
-// AI-related: mios-native-client-setup.ps1, mios.toml [theme.terminal], mios-pc-control.ps1
+// AI-related: usr/share/mios/windows/mios-native-client-setup.ps1, usr/share/mios/mios.toml, usr/share/mios/windows/mios-pc-control.ps1
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

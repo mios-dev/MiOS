@@ -59,7 +59,7 @@ past `FEDORA_SETUP_BUDGET_S` the lifecycle is deferred, `mios-dev` says so, and
 
 ## Codex Cloud environment
 
-The main [README's Codex Cloud section](../../../README.md#codex-cloud-environment)
+The main [README's Codex Cloud section](../../README.md#codex-cloud-environment)
 contains paste blocks for every environment-editor field. `codex-cloud.sh`
 installs the Dev Containers CLI, starts the canonical MiOS Fedora devcontainer
 through Podman, applies its create/start lifecycle and installs `mios-dev`.

@@ -9485,9 +9485,9 @@
       "path": "tools/native/mios-launch/src/main.rs",
       "hint": "Native Windows terminal launcher: render layered MiOS SSOT before launching and center the visible frame on the current monitor work area.",
       "related": [
-        "mios-native-client-setup.ps1",
-        "mios.toml [theme.terminal]",
-        "mios-pc-control.ps1"
+        "usr/share/mios/windows/mios-native-client-setup.ps1",
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/windows/mios-pc-control.ps1"
       ],
       "functions": [],
       "doc": null,
@@ -34959,11 +34959,11 @@
       "path": "usr/share/mios/windows/mios-native-client-setup.ps1",
       "hint": "Native Windows/CMD and MCP entrypoints into the unprivileged MiOS WSL runtime; shared mobile shortcuts and SSOT fonts, preserving other client settings.",
       "related": [
-        "/usr/share/mios/mios.toml",
-        "mios-terminal",
-        "mios-mcp-server",
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-terminal",
+        "usr/libexec/mios/mios-mcp-server",
         "build-mios.ps1",
-        "mobile-keybindings.md"
+        "usr/share/doc/mios/guides/mobile-keybindings.md"
       ],
       "functions": [],
       "doc": null,
