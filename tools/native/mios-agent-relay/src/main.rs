@@ -170,7 +170,7 @@ fn run(directory: &Path, request: &Value) -> Result<Value, Box<dyn std::error::E
         if fs::metadata(directory)?.uid() != fs::metadata("/proc/self")?.uid() {
             return Err("agent state belongs to another user".into());
         }
-        fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
+        fs::set_permissions(directory, fs::Permissions::from_mode(0o755))?;
     }
     let lock_path = directory.join("lock");
     if lock_path.is_symlink() {
@@ -201,7 +201,17 @@ fn run(directory: &Path, request: &Value) -> Result<Value, Box<dyn std::error::E
         let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
         serde_json::to_writer(temporary.as_file_mut(), &state)?;
         temporary.as_file_mut().sync_all()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o644));
+        }
         temporary.persist(&path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o644));
+        }
     }
     Ok(result)
 }
