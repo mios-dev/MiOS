@@ -58,11 +58,15 @@ fn test_parity_cgroups_stubs() -> Result<()> {
         memory_max_bytes: Some(1024 * 1024 * 128),
         ..Default::default()
     };
-    controller.apply_limits(&limits).map_err(|e| anyhow::anyhow!(e))?;
+    controller
+        .apply_limits(&limits)
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     let procs_file = dir.path().join("cgroup.procs");
     std::fs::write(&procs_file, "")?;
-    controller.attach_pid(1234).map_err(|e| anyhow::anyhow!(e))?;
+    controller
+        .attach_pid(1234)
+        .map_err(|e| anyhow::anyhow!(e))?;
     let content = std::fs::read_to_string(&procs_file)?;
     assert_eq!(content.trim(), "1234");
     Ok(())
@@ -101,7 +105,11 @@ fn test_parity_crypto_session_cipher_frame_stubs() -> Result<()> {
     let (resp, mut session_b) = CryptoHandshake::process_init_and_respond(&id_b, &eph_b, &init)?;
     let mut session_a = CryptoHandshake::finalize_init(&id_a, &eph_a, &resp)?;
 
-    let frame = Frame::new(MessageType::Heartbeat, 101, b"Payload for parity frame".to_vec());
+    let frame = Frame::new(
+        MessageType::Heartbeat,
+        101,
+        b"Payload for parity frame".to_vec(),
+    );
     let encrypted = session_a.encrypt_frame(&frame)?;
     let decrypted = session_b.decrypt_frame(&encrypted)?;
 

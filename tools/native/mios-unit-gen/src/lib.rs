@@ -186,7 +186,12 @@ pub fn render_keybindings(ssot: &str) -> Result<BTreeMap<String, String>, UnitGe
         .collect::<Result<Vec<_>, _>>()?;
     let settings = serde_json::json!({"terminal.integrated.allowChords": config_bool(config,"keybindings","vscode_allow_chords")?, "terminal.integrated.allowMnemonics": config_bool(config,"keybindings","vscode_allow_mnemonics")?, "terminal.integrated.commandsToSkipShell": passthrough});
     let encode = |value: &serde_json::Value| {
-        serde_json::to_string_pretty(value).expect("JSON value serializes") + "\n"
+        // Cargo can unify mios-task's preserve_order feature into a CI build.
+        // Canonicalize nested maps so standalone/runtime and workspace builds
+        // project the same bytes regardless of that unrelated feature.
+        let mut canonical = value.clone();
+        canonical.sort_all_objects();
+        serde_json::to_string_pretty(&canonical).expect("JSON value serializes") + "\n"
     };
     Ok(BTreeMap::from([
         ("usr/share/mios/tmux/mios-keys.tmux.conf".into(), tmux),

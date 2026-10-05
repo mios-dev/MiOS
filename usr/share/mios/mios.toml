@@ -8301,11 +8301,12 @@ code_server_modern_ui    = true   # workbench.experimental.modernUI in the same 
 
 # One entry per terminal surface MiOS knows about, printed by mios-edge-status.
 # { reach = "full|partial|none|n/a", why, artifact? (committed path measured),
+#   artifact_scope? ("bootstrap" for a bootstrap-only artifact),
 #   registry? (the edge = true [dotfiles.registry.*] surface it gates),
 #   pending? (the lane that still has to deliver it) }
 [theme.edge.reach]
 wt-installer             = { reach = "full", why = "Get-MiOS.ps1 Install-MiOSTerminalProfile writes padding/scrollbarState on every MiOS profile and profiles.defaults from [theme] on each install run", artifact = "Get-MiOS.ps1" }
-wt-backend               = { reach = "full", why = "field/lib/Get-MiOS-Backend.ps1 writes the same keys (bootstrap-only file)", artifact = "field/lib/Get-MiOS-Backend.ps1" }
+wt-backend               = { reach = "full", why = "field/lib/Get-MiOS-Backend.ps1 writes the same keys (bootstrap-only file)", artifact = "field/lib/Get-MiOS-Backend.ps1", artifact_scope = "bootstrap" }
 wt-projection            = { reach = "full", why = "Law 8 projection of the same keys, gated by mios-dotfiles-render check", artifact = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json", registry = "windows-terminal" }
 wt-profile-inject        = { reach = "partial", why = "the image ships the WSL terminal profile template wt_profile_inject.py renders (padding/scrollbarState from edge_insets()) and etc/wsl-distribution.conf names it, but WSL documents [windowsterminal].profileTemplate only for the .wsl/tar install while every MiOS installer runs wsl --import, so no install path is shown to apply it", artifact = "usr/share/mios/wsl/terminal-profile.json" }
 code-server-devcontainer = { reach = "partial", why = "stylesheet gutter 0; scrollbar reserve and 4px card perimeter removed by fail-loud bake patches; compact density; residual 1px transparent card border per edge; terminal-editor inset unverified", artifact = "usr/share/mios/themes/code-server-terminal.css", registry = "code-server-terminal" }

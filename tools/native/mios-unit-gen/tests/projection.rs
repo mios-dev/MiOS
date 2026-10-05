@@ -342,7 +342,7 @@ fn deployment_cli_advertises_modes_and_rejects_incomplete_options() {
     assert!(advertised.status.success());
     assert_eq!(
         String::from_utf8(advertised.stdout).unwrap(),
-        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install\n"
+        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install\nkeybindings\n"
     );
     let temp = tempfile::tempdir().unwrap();
     for options in [vec!["--root"], vec!["--toml", "--check"], vec!["--unknown"]] {
