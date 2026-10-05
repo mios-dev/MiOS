@@ -7,6 +7,7 @@ import json as _json
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 import types
 
 try:
@@ -113,7 +114,8 @@ def test_load_registry_layered():
         orig = mc._MCP_REGISTRY_PATHS
         mc._MCP_REGISTRY_PATHS = [p_vendor, p_user]
         try:
-            reg = mc._mcp_load_registry()
+            with patch.object(mc, "_toml_section", return_value={}):
+                reg = mc._mcp_load_registry()
         finally:
             mc._MCP_REGISTRY_PATHS = orig
         by_id = {s["id"]: s for s in reg}

@@ -17,7 +17,7 @@ mkdir -p "$TMP/bin"
 for b in dnf dnf5; do printf '#!/bin/sh\necho "$*" >> "%s/dnf.log"\nexit "${MIOS_TEST_DNF_RC:-0}"\n' "$TMP" > "$TMP/bin/$b"; chmod +x "$TMP/bin/$b"; done
 
 dependency_checks() {
-    local fixture="$TMP/fixture" got rc
+    local fixture="$TMP/fixture" got
     mkdir -p "$fixture/lib"
     cp "$ROOT/automation/lib/packages.sh" "$fixture/lib/packages.sh"
     cp "$ROOT/automation/91-strip-build-toolchain.sh" "$fixture/91-strip-build-toolchain.sh"
@@ -153,7 +153,7 @@ EOF
 }
 
 native_build_checks() {
-    local fixture="$TMP/native-fixture" output
+    local fixture="$TMP/native-fixture"
     mkdir -p "$fixture/automation" "$fixture/tools/native" "$fixture/src/mios-rs" "$fixture/out"
     cp "$ROOT/automation/55-native-build.sh" "$fixture/automation/55-native-build.sh"
     printf '[workspace]\n' > "$fixture/src/mios-rs/Cargo.toml"
@@ -227,7 +227,7 @@ EOF
         export PATH="$TMP/bin:$PATH" MIOS_NATIVE_DEST_DIR="$fixture/out" MIOS_TEST_CARGO_LOG="$TMP/cargo.log" CARGO_TARGET_DIR="$TMP/unrelated-output" MIOS_TEST_NATIVE_ROOT="$fixture"
         bash "$fixture/automation/55-native-build.sh"
     )
-    output="$(run_native)"
+    run_native
     if [[ -x "$fixture/out/mios-test-native" && -x "$fixture/out/mios-test-system" && ! -e "$fixture/out/mios-test-native.d" && ! -e "$fixture/out/mios-test-native.exe" ]]; then
         pass "native installation follows Cargo binaries and excludes executable sidecars"
     else fail "native artifact installation was incomplete or included foreign artifacts"; fi
@@ -258,7 +258,7 @@ EOF
     if run_native > "$TMP/native.log" 2>&1; then fail "partial bake context accepted missing prebuilt tools";
     elif grep -q 'missing prebuilt' "$TMP/native.log"; then pass "partial bake context requires installed native tools";
     else fail "partial bake failure lacked expected diagnostics"; fi
-    for name in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-render-quadlets mios-bake-plan; do
+    for name in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-agent-relay mios-render-quadlets mios-bake-plan; do
         printf '\177ELFfixture' > "$fixture/out/$name"; chmod +x "$fixture/out/$name"
     done
     if run_native > "$TMP/native.log" 2>&1 && grep -q 'required prebuilt' "$TMP/native.log"; then pass "partial bake context uses prebuilt native tools without rebuilding"; else fail "prebuilt bake context was rejected"; fi

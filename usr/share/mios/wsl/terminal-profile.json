@@ -11,6 +11,10 @@
             "scrollbarState": "hidden",
             "useAcrylic": true,
             "opacity": 50,
+            "unfocusedAppearance": {
+                "opacity": 50,
+                "useAcrylic": false
+            },
             "systemBackdrop": "acrylic"
         }
     ],

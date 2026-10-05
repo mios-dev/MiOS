@@ -28,6 +28,8 @@ else
 fi
 
 FIXTURE="$(mktemp -d)"
+export MIOS_PATHS_BLADE_ENV="${FIXTURE}/blade.env"
+printf '%s\n' 'MIOS_BLADE_TYPE=WS-BLADE' 'MIOS_BLADE_CAPS=service-plane' >"$MIOS_PATHS_BLADE_ENV"
 SRV_PID=""
 stop_server() {
     if [ -n "$SRV_PID" ]; then
@@ -94,6 +96,9 @@ run_status() {
 }
 
 OUT="$(run_status)"
+
+grep -q '^Blade Type:   WS-BLADE$' <<<"$OUT" \
+    || die "status ignored the selected runtime state fixture: $OUT"
 
 grep -q '^Offload targets:' <<<"$OUT" \
     || die "status does not report offload targets:

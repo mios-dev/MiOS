@@ -760,7 +760,6 @@ tests/powershell/*.exe
 !/etc/dconf/db/local.d/10-mios-keybindings
 !/usr/share/mios/vendored/fonts/geist-nerd.zip
 !/usr/share/mios/sway/mios-keys.conf
-!/src/mios-launch.cs
 !/etc/skel/.config/Code/User/keybindings.json
 !/etc/skel/.local/share/code-server/User/keybindings.json
 !/etc/skel/.config/Code/

@@ -1548,7 +1548,7 @@ class tt_TestTmuxTheme(unittest.TestCase):
         cfg = engine.generate_config()
         self.assertIn("# MiOS Canonical Tmux Theme", cfg)
         self.assertIn("set -g status on", cfg)
-        self.assertIn(f'set -g window-style "bg={engine.palette["bg"]},fg={engine.palette["fg"]}"', cfg)
+        self.assertIn(f'set -g window-style "bg=default,fg={engine.palette["fg"]}"', cfg)
         self.assertIn("set -g pane-active-border-style", cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_right"], cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_left"], cfg)
@@ -1558,6 +1558,19 @@ class tt_TestTmuxTheme(unittest.TestCase):
         cfg = engine.generate_config()
         self.assertIn("", cfg)
         self.assertIn("", cfg)
+
+    def test_pane_background_inherits_terminal_or_uses_ssot_color(self):
+        import copy
+        data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
+        data["colors"]["bg"] = "#123456"
+        cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+        self.assertIn('set -g window-active-style "bg=default,', cfg)
+        data["theme"]["tmux"]["pane_background"] = "theme"
+        cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+        self.assertIn('set -g window-active-style "bg=#123456,', cfg)
+        data["theme"]["tmux"]["pane_background"] = "DEVLOOP-PLANTED-INVALID"
+        with self.assertRaisesRegex(ValueError, "pane_background"):
+            tmux_theme.TmuxThemeEngine(data=data)
 
     def test_ssot_layout_and_ascii_font_fallback(self):
         import copy
@@ -1600,9 +1613,8 @@ class tt_TestTmuxTheme(unittest.TestCase):
 
     def test_mobile_prompt_and_tmux_drop_font_dependencies(self):
         data = tmux_theme.mios_toml.vendor_tree(tt__ROOT)
-        self.assertEqual(tmux_theme.render_prompt(data, remote=True), tmux_theme.render_prompt(data))
-        data["theme"]["tmux"]["remote_glyph_mode"] = "ascii"
-        data["theme"]["prompt"]["remote_glyph_mode"] = "ascii"
+        data["theme"]["tmux"]["remote_glyph_mode"] = "auto"
+        data["theme"]["prompt"]["remote_glyph_mode"] = "auto"
         with patch.dict(os.environ, {"SSH_CONNECTION": "127.0.0.1 5000 127.0.0.1 22"}):
             config = tmux_theme.TmuxThemeEngine(data=data).generate_config()
             self.assertNotIn("", config)
@@ -1612,6 +1624,11 @@ class tt_TestTmuxTheme(unittest.TestCase):
         self.assertTrue(all(s["template"].isascii() for s in segments))
         self.assertEqual(segments[-1]["template"], data["theme"]["prompt"]["ascii"]["closer"])
         self.assertEqual(segments[1]["background"], data["colors"]["accent"])
+        data["theme"]["tmux"]["remote_glyph_mode"] = "nerd"
+        data["theme"]["prompt"]["remote_glyph_mode"] = "nerd"
+        with patch.dict(os.environ, {"SSH_CONNECTION": "127.0.0.1 5000 127.0.0.1 22"}):
+            self.assertIn("", tmux_theme.TmuxThemeEngine(data=data).generate_config())
+        self.assertEqual(tmux_theme.render_prompt(data, remote=True), tmux_theme.render_prompt(data))
 
     def test_generate_minimal_config(self):
         engine = tmux_theme.TmuxThemeEngine(style="minimal", mock=True)

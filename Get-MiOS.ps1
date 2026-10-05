@@ -2397,7 +2397,7 @@ if ($hwnd -ne [IntPtr]::Zero) {
 
     # Prefer the compiled subsystem:Windows launcher (.exe -- zero pwsh
     # flash, proper window centering loop). Fall back to pwsh + .ps1
-    # only if the .exe wasn't compiled (csc.exe missing on the host).
+    # only for recovery of an older installation without the native launcher.
     $_launcherExe = Join-Path $miosRoot 'bin\mios-launch.exe'
     $_useExeLauncher = Test-Path -LiteralPath $_launcherExe
 

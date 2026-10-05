@@ -411,7 +411,7 @@ def containerfile_violations(text):
     if not cs:
         errs.append("agents/Containerfile: no FROM ghcr.io/coder/code-server")
     for i in cs:
-        if lines[i] != "FROM ghcr.io/coder/code-server:${MIOS_CODE_SERVER_VERSION}":
+        if not re.fullmatch(r"FROM ghcr\.io/coder/code-server:\$\{MIOS_CODE_SERVER_VERSION\}(?: AS [A-Za-z0-9_-]+)?", lines[i]):
             errs.append(f"agents/Containerfile: {lines[i]} (unpinned)")
         if "ARG MIOS_CODE_SERVER_VERSION" not in lines[:i]:
             errs.append("agents/Containerfile: ARG MIOS_CODE_SERVER_VERSION (no default) must precede the FROM")
@@ -460,6 +460,10 @@ class TestAgentsContainerfile(unittest.TestCase):
     def test_latest_is_named(self):
         text = re.sub(r"(?m)^FROM ghcr\.io/coder/code-server:.*$", "FROM ghcr.io/coder/code-server:latest", _read(CF))
         self.assertIn("agents/Containerfile: FROM ghcr.io/coder/code-server:latest (unpinned)", containerfile_violations(text))
+
+    def test_stage_alias_does_not_hide_an_unpinned_image(self):
+        text = re.sub(r"(?m)^FROM ghcr\.io/coder/code-server:.*$", "FROM ghcr.io/coder/code-server:latest AS editor", _read(CF))
+        self.assertIn("agents/Containerfile: FROM ghcr.io/coder/code-server:latest AS editor (unpinned)", containerfile_violations(text))
 
     def test_missing_verify_is_named(self):
         text = _read(CF).replace(f'{IMG_TOOL} verify "$@"', "true")

@@ -731,6 +731,7 @@ class SocketSwapper:
 
         # Acquire listening sockets
         tcp_sock, unix_sock = self._acquire_listening_sockets(old_pid)
+        self.port = tcp_sock.getsockname()[1]
 
         # Prepare candidate command
         if not candidate_cmd:

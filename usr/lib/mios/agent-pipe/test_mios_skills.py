@@ -312,6 +312,9 @@ def t_write_skill_md_fire(tmp_subdir):
 
 def main():
     import tempfile
+    # The unit fixture must not acquire an invocation row in an ambient DB.
+    # PG lifecycle cases below swap in their own explicit returning-row stub.
+    _with_pg(_PGStub())
     t_make_schema_strict()
     t_skill_to_openai_tool()
     t_execute_skill()

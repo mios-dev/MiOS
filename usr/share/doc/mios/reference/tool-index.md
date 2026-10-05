@@ -813,9 +813,10 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_db_config.py` | Peer of mios_toml.py resolving configuration settings from PostgreSQL config tables (WS-VECTOR V1 / T-243). |
 | `usr/lib/mios/mios_env.py` | Shared environment helper for stripping empty MIOS_* environment variables. |
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
+| `usr/lib/mios/mios_translate.py` | Pure Python translation engine for loop.v1 events, Responses items, and cross-harness frame normalization. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 438 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 439 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

@@ -6354,70 +6354,11 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
             Log-Warn "MiOS-Autostart staging failed: $($_.Exception.Message)"
         }
 
-    # Compile a tiny native .exe launcher with subsystem:Windows (no
-    # console flash + window-centering loop). Source code lives in
-    # src/mios-launch.cs at the repo root; build-mios.ps1 reads it from
-    # disk so AMSI heuristics don't see Win32-interop strings as part
-    # of the .ps1 script content.
+    # Native client setup builds the Rust Windows-subsystem launcher inside
+    # MiOS-DEV before creating shortcuts. Its startup renders the runtime SSOT.
     $miosLauncherExe = Join-Path $MiosBinDir 'mios-launch.exe'
-    $_csSrcCandidates = @(
-        (Join-Path $MiosRepoDir 'src\mios-launch.cs'),
-        (Join-Path $MiosBootstrapShadow 'src\mios-launch.cs')
-    )
-    $_csSrc = $null
-    foreach ($_c in $_csSrcCandidates) {
-        if (Test-Path -LiteralPath $_c) { $_csSrc = $_c; break }
-    }
-    $launcherCs = $null
-    if ($_csSrc) {
-        try { $launcherCs = [IO.File]::ReadAllText($_csSrc, (New-Object System.Text.UTF8Encoding($false))) } catch {
-            Log-Warn "mios-launch.cs read failed at ${_csSrc}: $($_.Exception.Message)"
-        }
-    } else {
-        Log-Warn "mios-launch.cs not found in repo (probed: $($_csSrcCandidates -join ', ')) -- mios-launch.exe will not be compiled"
-    }
-    # PS 5.1's Add-Type rejects -OutputType WindowsApplication. Invoke
-    # the .NET Framework C# compiler (csc.exe) directly. Ships with
-    # every Windows machine that has .NET 4.x installed (which is all
-    # supported Windows versions). The /target:winexe flag sets PE
-    # subsystem:Windows so the resulting .exe has no console.
-    $_csc = $null
-    foreach ($_cscCand in @(
-        "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
-        "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-    )) {
-        if (Test-Path -LiteralPath $_cscCand) { $_csc = $_cscCand; break }
-    }
-    if ($_csc -and $launcherCs) {
-        $_launcherCs = Join-Path $env:TEMP ('mios-launch-' + [guid]::NewGuid().Guid.Substring(0,8) + '.cs')
-        try {
-            Set-Content -LiteralPath $_launcherCs -Value $launcherCs -Encoding UTF8
-            $_cscArgs = @(
-                '/nologo',
-                '/target:winexe',                # subsystem:Windows -- no console host
-                '/optimize+',
-                '/reference:System.Drawing.dll',
-                '/reference:System.Windows.Forms.dll',
-                '/reference:System.Web.Extensions.dll',
-                ('/out:' + $miosLauncherExe),
-                $_launcherCs
-            )
-            $_cscOut = & $_csc @_cscArgs 2>&1
-            if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $miosLauncherExe)) {
-                Log-Ok "MiOS native .exe launcher compiled via csc.exe: $miosLauncherExe (subsystem:Windows -- zero pre-flash)"
-            } else {
-                Log-Warn ("mios-launch.exe csc compile failed (exit {0}): {1}" -f $LASTEXITCODE, (($_cscOut | Select-Object -Last 5) -join ' / '))
-                $miosLauncherExe = $null
-            }
-        } catch {
-            Log-Warn "mios-launch.exe csc compile failed: $($_.Exception.Message) -- falling back to pwsh launcher (will pre-flash)"
-            $miosLauncherExe = $null
-        } finally {
-            if (Test-Path -LiteralPath $_launcherCs) { Remove-Item -LiteralPath $_launcherCs -Force -ErrorAction SilentlyContinue }
-        }
-    } else {
-        Log-Warn "csc.exe not found under %WINDIR%\Microsoft.NET\Framework{,64}\v4.0.30319 -- mios-launch.exe not compiled"
-        $miosLauncherExe = $null
+    if (-not (Test-Path -LiteralPath $miosLauncherExe)) {
+        throw 'The native Rust Windows launcher was not staged by MiOS-DEV'
     }
 
     if ($miosLauncherExe -and (Test-Path -LiteralPath $miosLauncherExe)) {
@@ -8183,7 +8124,7 @@ foreach (`$wtPath in @(`$WT, `$WT_PREVIEW)) {
         }
         # profiles.defaults: only the keys MiOS writes
         if (`$j.profiles -and `$j.profiles.defaults) {
-            foreach (`$k in @('scrollbarState','padding','useAcrylic','opacity','systemBackdrop','suppressApplicationTitle','disableAnimations','useAtlasEngine','experimental.detectURLs','experimental.input.forceVT','experimental.rendering.forceFullRepaint')) {
+            foreach (`$k in @('scrollbarState','padding','useAcrylic','opacity','unfocusedAppearance','systemBackdrop','suppressApplicationTitle','disableAnimations','useAtlasEngine','experimental.detectURLs','experimental.input.forceVT','experimental.rendering.forceFullRepaint')) {
                 if (`$j.profiles.defaults.PSObject.Properties[`$k]) {
                     `$j.profiles.defaults.PSObject.Properties.Remove(`$k); `$changed = `$true
                 }

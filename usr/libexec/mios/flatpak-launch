@@ -54,7 +54,7 @@ if [ "$_NEED_REEXEC" = "1" ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
     export _MIOS_FLATPAK_REEXEC=1
     _mios_fire_autocenter
-    setsid /usr/libexec/mios/mios-as-operator flatpak run --system \
+    setsid /usr/libexec/mios/mios-as-operator /usr/libexec/mios/flatpak-launch \
         "$APP_ID" "$@" >/dev/null 2>&1 < /dev/null &
     echo "Flatpak-launch: dispatched $APP_ID via mios-as-operator" >&2
     exit 0
@@ -114,6 +114,10 @@ if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
 fi
 
 if [ "$IS_WSL" = "1" ]; then
+    # Retire the former MiOS WSLg shrink overrides from already-running shells.
+    # Other explicit operator scale choices remain intact.
+    [ "${GDK_DPI_SCALE:-}" != "0.60" ] || unset GDK_DPI_SCALE
+    [ "${QT_FONT_DPI:-}" != "58" ] || unset QT_FONT_DPI
     : "${WAYLAND_DISPLAY:=wayland-0}"
     : "${DISPLAY:=:0}"
     if [ -z "${PULSE_SERVER:-}" ]; then
@@ -148,6 +152,15 @@ fi
 
 if [ "$IS_WSL" = "1" ] && [ -x /usr/libexec/mios/mios-wsl-flatpak-heal ]; then
     /usr/libexec/mios/mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+fi
+
+# Existing accounts need the same projections as new image users. Keep assets
+# inside user paths exposed to the sandbox, including the cursor in app bodies.
+if [ -x /usr/libexec/mios/mios-cursor-ensure ]; then
+    /usr/libexec/mios/mios-cursor-ensure >/dev/null
+fi
+if [ -x /usr/libexec/mios/mios-theme-render ]; then
+    /usr/libexec/mios/mios-theme-render --gtk --flatpak "$APP_ID" >/dev/null
 fi
 
 EXTRA_FLAGS=""

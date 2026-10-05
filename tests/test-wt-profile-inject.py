@@ -70,6 +70,26 @@ class TestWtProfileInject(unittest.TestCase):
         self.assertIn(wt_profile_inject.SSH_GUID, guids)
         self.assertIn(wt_profile_inject.SERIAL_GUID, guids)
 
+    def test_global_opacity_projects_user_tier_over_opaque_profile_overrides(self):
+        user = self._write_user('[theme]\nopacity = 43\nunfocused_opacity = 37\nunfocused_acrylic = false\n')
+        with _env(user):
+            injector = wt_profile_inject.WindowsTerminalProfileInjector(mock=True)
+            settings = {"profiles": {"defaults": {"opacity": 100}, "list": [
+                {"name": "Command Prompt", "commandline": "cmd.exe", "opacity": 100,
+                 "unfocusedAppearance": {"opacity": 100, "cursorShape": "bar"}}]}}
+            injector.merge_profiles(settings, injector.build_mios_profiles())
+        for appearance in [settings["profiles"]["defaults"], *settings["profiles"]["list"]]:
+            self.assertEqual(appearance["opacity"], 43)
+            self.assertEqual(appearance["unfocusedAppearance"]["opacity"], 37)
+            self.assertIs(appearance["unfocusedAppearance"]["useAcrylic"], False)
+        self.assertEqual(settings["profiles"]["list"][0]["commandline"], "cmd.exe")
+        self.assertEqual(settings["profiles"]["list"][0]["unfocusedAppearance"]["cursorShape"], "bar")
+        import copy
+        data = copy.deepcopy(injector.data)
+        data["theme"]["unfocused_opacity"] = 101
+        with self.assertRaisesRegex(ValueError, "opacity"):
+            wt_profile_inject.WindowsTerminalProfileInjector(data=data)
+
     def test_merge_profiles_and_schemes_into_existing(self):
         initial_settings = {
             "$schema": "https://aka.ms/terminal-profiles-schema",
@@ -172,6 +192,7 @@ class TestWtProfileInject(unittest.TestCase):
             "scrollbarState": bar,
             "useAcrylic": True,
             "opacity": 50,
+            "unfocusedAppearance": {"opacity": 50, "useAcrylic": False},
             "systemBackdrop": "acrylic",
         }])
         with open(copy, "w", encoding="utf-8") as f:

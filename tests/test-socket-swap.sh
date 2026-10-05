@@ -80,7 +80,7 @@ echo "  [PASS] Socket unit directives validated (TCP ${AGENT_PIPE_PORT} from [po
 
 # Test 4: Mock end-to-end socket swap lifecycle (--mock)
 echo "--- Test 4: Mock end-to-end socket swap lifecycle ---"
-python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" swap --service agent-pipe --timeout 5.0
+python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" --port 0 swap --service agent-pipe --timeout 5.0
 STATUS_OUT="$(python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" status --json)"
 echo "${STATUS_OUT}" | grep -q '"transitions_count": 1'
 echo "  [PASS] Mock socket swap executed successfully with recorded transition"
@@ -88,7 +88,7 @@ echo "  [PASS] Mock socket swap executed successfully with recorded transition"
 # Test 5: Negative control - candidate startup crash triggers abort and rollback
 echo "--- Test 5: Negative control - candidate startup crash triggers abort ---"
 set +e
-python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" swap --service agent-pipe --candidate "false" --timeout 2.0 >/dev/null 2>&1
+python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" --port 0 swap --service agent-pipe --candidate "false" --timeout 2.0 >/dev/null 2>&1
 CRASH_EC=$?
 set -e
 [ "${CRASH_EC}" -ne 0 ] || { echo "ERROR: Expected non-zero exit on crashed candidate"; exit 1; }

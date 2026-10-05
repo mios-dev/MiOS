@@ -4,6 +4,18 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Distro, [Parameter(Mandatory)][string]$LinuxUser)
 $ErrorActionPreference = 'Stop'
+function Save-MiosVerifiedInstaller {
+    param([string]$Url, [string]$Path, [string]$Sha256)
+    if ($Sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'SSOT installer SHA-256 is missing or invalid' }
+    Invoke-WebRequest -Uri $Url -OutFile $Path
+    if (-not (Test-SHA256Integrity $Path $Sha256)) {
+        throw "Installer SHA-256 mismatch: $Url"
+    }
+}
+function Test-SHA256Integrity {
+    param([string]$Path, [string]$Sha256)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ieq $Sha256
+}
 $resolve = 'import sys,json;sys.path.insert(0,"/usr/lib/mios");import mios_toml;print(json.dumps(mios_toml.load_merged()["agent_cli"]))'
 $raw = & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $resolve
 if ($LASTEXITCODE -ne 0) { throw 'Could not read [agent_cli] from the native MiOS SSOT' }
@@ -33,7 +45,7 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('mios-agent-install-' + [guid
 try {
     if (-not (Test-Path -LiteralPath (Join-Path $native 'agy.exe'))) {
         $script = Join-Path $temporary 'antigravity.ps1'
-        Invoke-WebRequest $cfg.antigravity_windows_installer -OutFile $script
+        Save-MiosVerifiedInstaller $cfg.antigravity_windows_installer $script $cfg.antigravity_windows_installer_sha256
         & $script --dir $native --skip-aliases --skip-path
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $native 'agy.exe'))) { throw 'Native Antigravity CLI installation failed' }
     }
@@ -45,7 +57,7 @@ try {
         $env:UV_NO_MODIFY_PATH = '1'
         if (-not (Test-Path -LiteralPath (Join-Path $uvBin 'uv.exe'))) {
             $script = Join-Path $temporary 'uv.ps1'
-            Invoke-WebRequest $cfg.windows_uv_installer -OutFile $script
+            Save-MiosVerifiedInstaller $cfg.windows_uv_installer $script $cfg.windows_uv_installer_sha256
             & $script
         }
     } finally {

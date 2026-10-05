@@ -1539,6 +1539,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-launch"
+version = "0.3.0"
+dependencies = [
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mios-render-quadlets"
 version = "0.3.0"
 dependencies = [

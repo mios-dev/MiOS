@@ -27,8 +27,8 @@ install_host() {
 }
 
 find_source() {
-    local candidate root
-    candidate="${MIOS_CLOUD_ROOT:-}"
+    local candidate root cloud_uid="${MIOS_UID:-1000}" cloud_gid="${MIOS_GID:-1000}"
+    candidate="${MIOS_ROOT:-}"
     if [[ -z "$candidate" ]]; then
         local detected probe
         detected="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -41,12 +41,12 @@ find_source() {
         candidate="$CACHE/source/MiOS"
         if [[ ! -e "$candidate" ]]; then
             git clone --depth 1 --branch main https://github.com/mios-dev/MiOS.git "$candidate"
-            chown -R 1000:1000 "$candidate"
+            chown -R "$cloud_uid:$cloud_gid" "$candidate"
         fi
     fi
     root="$(cd "$candidate" && pwd -P)"
     [[ -f "$root/usr/share/mios/mios.toml" && -f "$root/.devcontainer/devcontainer.json" ]] \
-        || { echo "MIOS_CLOUD_ROOT must identify the MiOS system checkout: $root" >&2; return 1; }
+        || { echo "MIOS_ROOT must identify the MiOS system checkout: $root" >&2; return 1; }
     printf '%s\n' "$root" > "$CACHE/source-root.new"
     mv -f "$CACHE/source-root.new" "$CACHE/source-root"
 }

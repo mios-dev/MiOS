@@ -192,6 +192,13 @@ def setUpModule():
 
 class TestMiosBuildCatalog(unittest.TestCase):
 
+    def setUp(self):
+        # Folded suites share one interpreter: these parser fakes must not
+        # replace the real TOML parser used by VerbCatalogTest afterward.
+        self._modules = patch.dict(sys.modules)
+        self._modules.start()
+        self.addCleanup(self._modules.stop)
+
     def test_seeding_and_materializing(self):
         mock_conn = MagicMock()
         mock_cur = MagicMock()

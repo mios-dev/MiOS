@@ -75,6 +75,7 @@ class TerminalProfile:
     scrollbarState: Optional[str] = None
     useAcrylic: Optional[bool] = None
     opacity: Optional[int] = None
+    unfocusedAppearance: Optional[Dict[str, Any]] = None
     systemBackdrop: Optional[str] = None
     font: Optional[Dict[str, Any]] = None
 
@@ -101,6 +102,11 @@ class WindowsTerminalProfileInjector:
         theme = mios_toml.section(data, "theme")
         self.use_acrylic = bool(theme.get("acrylic", True))
         self.opacity = int(theme.get("opacity", 50))
+        self.unfocused_appearance = {"opacity": theme["unfocused_opacity"],
+                                     "useAcrylic": theme["unfocused_acrylic"]}
+        for value in (self.opacity, self.unfocused_appearance["opacity"]):
+            if type(value) is not int or not 0 <= value <= 100:
+                raise ValueError("[theme] opacity must be an integer from 0 to 100")
         self.system_backdrop = str(theme.get("system_backdrop", "acrylic"))
         font_cfg = mios_toml.section(data, "theme.font")
         self.font = {
@@ -233,6 +239,7 @@ class WindowsTerminalProfileInjector:
             p.padding, p.scrollbarState = self.padding, self.scrollbar_state
             p.useAcrylic = self.use_acrylic
             p.opacity = self.opacity
+            p.unfocusedAppearance = dict(self.unfocused_appearance)
             p.systemBackdrop = self.system_backdrop
         return profiles
 
@@ -271,6 +278,8 @@ class WindowsTerminalProfileInjector:
                 p_dict["useAcrylic"] = p.useAcrylic
             if p.opacity is not None:
                 p_dict["opacity"] = p.opacity
+            if p.unfocusedAppearance is not None:
+                p_dict["unfocusedAppearance"] = p.unfocusedAppearance
             if p.systemBackdrop is not None:
                 p_dict["systemBackdrop"] = p.systemBackdrop
 
@@ -290,6 +299,16 @@ class WindowsTerminalProfileInjector:
 
         if self.set_default:
             settings["defaultProfile"] = WSL_GUID
+
+        defaults = settings["profiles"].setdefault("defaults", {})
+        for appearance in [defaults, *target_list]:
+            appearance.update(colorScheme=self.color_scheme["name"], font=dict(self.font),
+                              padding=self.padding, scrollbarState=self.scrollbar_state,
+                              opacity=self.opacity, useAcrylic=self.use_acrylic)
+            unfocused = appearance.get("unfocusedAppearance")
+            if not isinstance(unfocused, dict):
+                unfocused = appearance["unfocusedAppearance"] = {}
+            unfocused.update(self.unfocused_appearance)
 
         return added, updated
 
@@ -349,6 +368,7 @@ def fixture_render() -> str:
         "scrollbarState": injector.scrollbar_state,
         "useAcrylic": injector.use_acrylic,
         "opacity": injector.opacity,
+        "unfocusedAppearance": injector.unfocused_appearance,
         "systemBackdrop": injector.system_backdrop,
     }
     return json.dumps({"profiles": [profile], "schemes": [injector.color_scheme]}, indent=4) + "\n"

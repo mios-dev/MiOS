@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3659,
-  "total_metadata_entries": 3006,
-  "total_hints": 2993,
+  "total_files_scanned": 3662,
+  "total_metadata_entries": 3010,
+  "total_hints": 2997,
   "total_functions_indexed": 1468,
-  "total_related_links": 4816,
+  "total_related_links": 4824,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -5637,6 +5637,15 @@
       "has_shebang": false
     },
     {
+      "path": "tests/powershell/VerifiedInstaller.Tests.ps1",
+      "hint": "Proves Windows agent installer downloads reject corrupted bytes and missing SSOT hashes before execution.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/challenger_m2_adversarial.ps1",
       "hint": "Milestone 2 Challenger 2 Empirical Adversarial Stress Test Suite",
       "related": [],
@@ -9464,6 +9473,28 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-launch/Cargo.toml",
+      "hint": "Native Windows launcher for runtime SSOT terminal projection and display-aware placement.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-launch/src/main.rs",
+      "hint": "Native Windows terminal launcher: render layered MiOS SSOT before launching and center the visible frame on the current monitor work area.",
+      "related": [
+        "mios-native-client-setup.ps1",
+        "mios.toml [theme.terminal]",
+        "mios-pc-control.ps1"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-render-quadlets/Cargo.toml",
       "hint": "Cargo manifest for mios-render-quadlets -- the SSOT-driven replacement for stage 34's envsubst renderer.",
       "related": [
@@ -10021,10 +10052,11 @@
     },
     {
       "path": "tools/native/mios-template-conform/src/main.rs",
-      "hint": "Compiled Rust implementation of template conformance checker.",
+      "hint": "Compiled Rust implementation of template conformance checker; --llms-txt instead validates <root>/llms.txt against the llmstxt.org format.",
       "related": [
         "/usr/libexec/mios/check-template-conformance",
-        "/usr/share/mios/mios.toml"
+        "/usr/share/mios/mios.toml",
+        "llms.txt"
       ],
       "functions": [],
       "doc": null,
@@ -16032,6 +16064,19 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/mios.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/mios_translate.py",
+      "hint": "Pure Python translation engine for loop.v1 events, Responses items, and cross-harness frame normalization.",
+      "related": [
+        "usr/libexec/mios/mios-mcp-server",
+        "usr/share/mios/mios.toml [mcp]",
+        "c:/-dev-loop/bridge/src/lib.rs"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -34954,9 +34999,10 @@
     },
     {
       "path": "usr/share/mios/windows/mios-uia-dump.ps1",
-      "hint": "Dumps the UI Automation control-view tree of the foreground window, a -ProcessId main window, or the desktop root as compact JSON; defers to the compiled mios-launch dump when present.",
+      "hint": "Dumps the real UI Automation control-view tree of the foreground window, a process window, or the desktop root as compact JSON.",
       "related": [
-        "mios-launch"
+        "mios-launch",
+        "mios-oscontrol-server.ps1"
       ],
       "functions": [],
       "doc": null,

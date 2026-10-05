@@ -1881,7 +1881,7 @@ components = ["clippy", "rustfmt"]
 # Category membership and installation are consumed by miosd native-targets.
 [build.native]
 workspaces = ["tools/native", "src/mios-rs"]
-windows_only = ["mios-wallpaperd"]
+windows_only = ["mios-launch", "mios-wallpaperd"]
 
 [build.native.linux]
 jobs = 2
@@ -1894,6 +1894,11 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # has no static-pie support upstream as of 1.99 (#158510 enabled gnu only), so
 # it links a non-PIE static executable; flip it when upstream does.
 pie = { x86_64 = true, aarch64 = false }
+
+[build.native.windows]
+target = "x86_64-pc-windows-gnu"
+linker = "x86_64-w64-mingw32-gcc"
+rustflags = ["-C", "target-feature=+crt-static"]
 
 [build.native.categories.cli]
 binaries = [
@@ -1909,8 +1914,8 @@ expose_bin = false
 compat_dirs = ["/usr/libexec/mios"]
 
 [build.native.categories.apps]
-# Rust terminal/GUI conversions enter here when implemented; none are claimed.
-binaries = []
+# Native Windows terminal launcher; Linux uses /usr/bin/mios terminal.
+binaries = ["mios-launch"]
 install_dir = "/usr/bin"
 expose_bin = false
 compat_dirs = []
@@ -3606,11 +3611,13 @@ windows_directory = "MiOS\\agents"
 node_min_major = 22
 windows_node_package = "OpenJS.NodeJS.LTS"
 windows_uv_installer = "https://astral.sh/uv/install.ps1"
+windows_uv_installer_sha256 = "536e6ebe00d41efc96b0ab1121bf6f969b0e9cbd88d1e19cfd09e63722e96160"
 python = "python3.12"
 uv_package = "uv"
 aider_package = "aider-chat"
 antigravity_linux_installer = "https://antigravity.google/cli/install.sh"
 antigravity_windows_installer = "https://antigravity.google/cli/install.ps1"
+antigravity_windows_installer_sha256 = "51c2cb4fada22ce0228da71b9506370383d6544bfebcec85fe7616a52b805344"
 tools = [
   { name = "claude", package = "@anthropic-ai/claude-code", kind = "npm", mcp = true },
   { name = "codex", package = "@openai/codex", kind = "npm", mcp = true },
@@ -5922,7 +5929,7 @@ gsk_renderer       = "ngl"        # modern GTK4 node-GL renderer (was cairo)
 force_software_gl  = false        # use real hardware GL via /dev/dri (was true)
 disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 (WSLg Vulkan still flaky)
 gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
-xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps"
+xcursor_path = "~/.local/share/icons:~/.icons:/run/host/user-share/icons:/run/host/share/icons:/usr/share/icons:/usr/share/pixmaps"
 
 [ai]
 vision_grounding_enable = true
@@ -7633,6 +7640,7 @@ admin_password_bcrypt = ""
 # install env, or first-boot sentinels live.
 # ----------------------------------------------------------------------------
 [paths]
+blade_env           = "/run/mios/blade.env"
 ai_dir              = "/usr/share/mios/ai"
 ai_models_dir       = "/srv/ai/models"
 ai_mcp_dir          = "/srv/ai/mcp"
@@ -7918,6 +7926,7 @@ core = [
   "ghcr.io/ggml-org/whisper.cpp:main",
   "ghcr.io/mostlygeek/llama-swap:cuda",
   "ghcr.io/mios-dev/mios-node:latest",
+  "ghcr.io/mios-dev/mios-micro:latest",
   "ghcr.io/open-webui/open-webui:main",
   "quay.io/centos-bootc/bootc-image-builder:latest",
   "quay.io/ceph/ceph:latest",
@@ -8271,7 +8280,7 @@ style = "rounded"
 status_position = "bottom"
 status_interval_s = 2
 glyph_mode = "auto"   # auto follows theme.font; ascii works with any SSH font
-remote_glyph_mode = "auto"
+remote_glyph_mode = "nerd"  # nerd opts into client glyphs
 icon_os = ""
 icon_terminal = ""
 icon_time = ""
@@ -8336,7 +8345,7 @@ rich-tuis                = { reach = "n/a", why = "Rich panels draw inside the t
 [theme.prompt]
 omp_path                = "/usr/share/mios/oh-my-posh/mios.omp.json"
 glyph_mode              = "auto"
-remote_glyph_mode       = "auto"
+remote_glyph_mode       = "nerd"  # nerd opts into client glyphs
 
 # Powerline separators between segments. Rounded by default.
 powerline_right         = ""   #  rounded right (segment ends on right side)

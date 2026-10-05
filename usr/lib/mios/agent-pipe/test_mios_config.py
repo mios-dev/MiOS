@@ -123,8 +123,20 @@ def setUpModule():
 
 class TestMiosConfigAudit(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        # The folded runner constructs TestSuites directly, so it bypasses
+        # setUpModule. Probe the same endpoint this class actually tests.
+        if psycopg is None:
+            raise unittest.SkipTest("pgvector audit integration dependency absent")
+        cls.conn_str = "postgresql://mios:mios@localhost:8432/mios"
+        try:
+            with psycopg.connect(cls.conn_str, connect_timeout=1):
+                pass
+        except psycopg.OperationalError:
+            raise unittest.SkipTest("pgvector audit integration endpoint absent")
+
     def setUp(self):
-        self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
         self._cleanup()
 
     def tearDown(self):
@@ -570,6 +582,7 @@ class TestConfigWrite(unittest.TestCase):
     @patch("mios_pipe.kernel.config.write_user_config")
     @patch("fastapi.BackgroundTasks.add_task")
     def test_post_config_success(self, mock_add_task, mock_write_user, mock_authed, mock_load_merged):
+        mock_load_merged.return_value = {"portal": {"config_max_body_bytes": 4096}}
         payload = """
 [meta]
 mios_version = "0.3.0"

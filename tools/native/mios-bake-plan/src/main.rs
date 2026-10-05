@@ -5,9 +5,26 @@ use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use toml::Value;
+use walkdir::WalkDir;
+
+fn quadlet_paths(dir: &Path, max_depth: usize) -> Vec<PathBuf> {
+    let mut paths: Vec<_> = WalkDir::new(dir)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| entry.into_path())
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|ext| ext == "container" || ext == "image")
+        })
+        .collect();
+    paths.sort();
+    paths
+}
 
 fn get_root() -> PathBuf {
     if let Ok(r) = env::var("MIOS_ROOT") {
@@ -252,56 +269,52 @@ fn main() {
     let quadlet_dir = root.join("usr/share/containers/systemd");
     let mut images_to_bake: Vec<(String, String)> = Vec::new();
     let mut unresolved: Vec<(String, String)> = Vec::new();
+    let max_depth = parsed
+        .get("build")
+        .and_then(|b| b.get("quadlet_render"))
+        .and_then(|q| q.get("max_depth"))
+        .and_then(Value::as_integer)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(2);
 
     if quadlet_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&quadlet_dir) {
-            let mut paths: Vec<PathBuf> = entries
-                .filter_map(|e| e.ok().map(|entry| entry.path()))
-                .filter(|p| {
-                    p.extension()
-                        .is_some_and(|ext| ext == "container" || ext == "image")
-                })
-                .collect();
-            paths.sort();
-
-            for path in paths {
-                let base_name = path
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-                let mut img = String::new();
-                if let Ok(fc) = fs::read_to_string(&path) {
-                    for line in fc.lines() {
-                        let trimmed = line.trim();
-                        if let Some(stripped) = trimmed.strip_prefix("Image=") {
-                            img = stripped.trim().to_string();
-                            break;
-                        }
+        for path in quadlet_paths(&quadlet_dir, max_depth) {
+            let base_name = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let mut img = String::new();
+            if let Ok(fc) = fs::read_to_string(&path) {
+                for line in fc.lines() {
+                    let trimmed = line.trim();
+                    if let Some(stripped) = trimmed.strip_prefix("Image=") {
+                        img = stripped.trim().to_string();
+                        break;
                     }
                 }
-                if img.is_empty() {
-                    continue;
-                }
-                let resolved = resolve_image_val(&img, &sidecars, &ssot_vars);
-                if resolved.is_empty() {
-                    continue;
-                }
-                if resolved.contains('$') {
-                    // Dropping this quietly is how a floated tag became "core
-                    // image is not referenced by any Quadlet". Name the variable
-                    // that did not resolve instead.
-                    unresolved.push((base_name.clone(), img.clone()));
-                    continue;
-                }
-                let first = resolved.split('/').next().unwrap_or("");
-                if first == "localhost" {
-                    continue;
-                }
-                let is_core = core.contains(&resolved);
-                if is_core || enabled_map.get(&base_name) != Some(&false) {
-                    images_to_bake.push((resolved, base_name));
-                }
+            }
+            if img.is_empty() {
+                continue;
+            }
+            let resolved = resolve_image_val(&img, &sidecars, &ssot_vars);
+            if resolved.is_empty() {
+                continue;
+            }
+            if resolved.contains('$') {
+                // Dropping this quietly is how a floated tag became "core
+                // image is not referenced by any Quadlet". Name the variable
+                // that did not resolve instead.
+                unresolved.push((base_name.clone(), img.clone()));
+                continue;
+            }
+            let first = resolved.split('/').next().unwrap_or("");
+            if first == "localhost" {
+                continue;
+            }
+            let is_core = core.contains(&resolved);
+            if is_core || enabled_map.get(&base_name) != Some(&false) {
+                images_to_bake.push((resolved, base_name));
             }
         }
     }
@@ -572,6 +585,26 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_quadlets_participate_at_the_declared_discovery_depth() {
+        let dir = env::temp_dir().join(format!(
+            "mios-bake-plan-{}-{}",
+            process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        assert!(fs::create_dir_all(dir.join("users")).is_ok());
+        let system = dir.join("system.container");
+        let user = dir.join("users/sunshine.container");
+        assert!(fs::write(&system, "[Container]\n").is_ok());
+        assert!(fs::write(&user, "[Container]\n").is_ok());
+        assert_eq!(quadlet_paths(&dir, 1), vec![system.clone()]);
+        assert_eq!(quadlet_paths(&dir, 2), vec![system, user]);
+        assert!(fs::remove_dir_all(dir).is_ok());
+    }
 
     #[test]
     fn test_resolve_image_val() {

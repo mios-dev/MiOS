@@ -12,6 +12,24 @@ param(
     [switch]$RuntimeOnly
 )
 $ErrorActionPreference = 'Stop'
+function Test-MiosGuestDefaultRoute([string[]]$Json) {
+    $routes = ($Json -join "`n") | ConvertFrom-Json
+    return @($routes).Count -gt 0
+}
+function Set-MiosTerminalTransparency([Collections.IDictionary]$Appearance, [Collections.IDictionary]$Theme) {
+    foreach ($key in @('opacity','unfocused_opacity')) {
+        if (($Theme[$key] -isnot [int] -and $Theme[$key] -isnot [long]) -or $Theme[$key] -lt 0 -or $Theme[$key] -gt 100) {
+            throw "[theme].$key must be an integer from 0 to 100"
+        }
+    }
+    $Appearance['opacity'] = $Theme['opacity']
+    $Appearance['useAcrylic'] = $Theme['acrylic']
+    if ($Appearance['unfocusedAppearance'] -isnot [Collections.IDictionary]) {
+        $Appearance['unfocusedAppearance'] = @{}
+    }
+    $Appearance['unfocusedAppearance']['opacity'] = $Theme['unfocused_opacity']
+    $Appearance['unfocusedAppearance']['useAcrylic'] = $Theme['unfocused_acrylic']
+}
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'MiOS native client setup requires PowerShell 7' }
 $installedBinding = Join-Path $BinDirectory 'native-binding.json'
 if ($RuntimeOnly -and (Test-Path -LiteralPath $installedBinding)) {
@@ -38,7 +56,7 @@ if ($Distro -notin $registered) {
 $wslConfig = Join-Path $env:USERPROFILE '.wslconfig'
 if ((Test-Path -LiteralPath $wslConfig) -and (Get-Content -Raw -LiteralPath $wslConfig) -match '(?im)^networkingMode\s*=\s*mirrored\s*$') {
     $guestRoute = & wsl.exe -d $Distro -u root -- ip -j route show default
-    if ($LASTEXITCODE -eq 0 -and -not @($guestRoute | ConvertFrom-Json).Count) {
+    if ($LASTEXITCODE -eq 0 -and -not (Test-MiosGuestDefaultRoute $guestRoute)) {
         $hostRoute = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1
         if ($hostRoute) {
             $hostAdapter = Get-NetAdapter -InterfaceIndex $hostRoute.InterfaceIndex
@@ -60,7 +78,7 @@ if (-not $LinuxUser) {
     $LinuxUser = (& wsl.exe -d $Distro -u root -- python3 -c 'import pwd; print(pwd.getpwuid(1000).pw_name)').Trim()
     if ($LASTEXITCODE -ne 0 -or -not $LinuxUser) { throw 'No UID 1000 MiOS user; pass an unprivileged -LinuxUser explicitly' }
 }
-$resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_toml; d=mios_toml.load_merged(); print(json.dumps({"font":d["theme"]["font"],"theme":d["theme"],"terminal":d["terminal"],"colors":mios_toml.colors(d),"keybindings":d["keybindings"],"mcp":d["mcp"],"agent_cli":d["agent_cli"],"clinkPackage":d["bootstrap"]["prereqs"]["clink_pkg"]}))'
+$resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_toml; d=mios_toml.load_merged(); print(json.dumps({"font":d["theme"]["font"],"theme":d["theme"],"terminal":d["terminal"],"colors":mios_toml.colors(d),"keybindings":d["keybindings"],"mcp":d["mcp"],"agent_cli":d["agent_cli"],"nativeWindows":d["build"]["native"]["windows"],"clinkPackage":d["bootstrap"]["prereqs"]["clink_pkg"]}))'
 $configJson = & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $resolve
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve native MiOS theme SSOT' }
 $config = $configJson | ConvertFrom-Json -AsHashtable
@@ -167,6 +185,26 @@ switch ($verb) {
 '@
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-entry.ps1') ($entry + "`n")
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-client-setup.ps1') ([IO.File]::ReadAllText($PSCommandPath))
+foreach ($helper in @('mios-pc-control.ps1','mios-window-foreground.ps1','mios-uia-dump.ps1')) {
+    Write-MiosFile (Join-Path $BinDirectory $helper) ([IO.File]::ReadAllText((Join-Path $SourceRoot "usr\share\mios\windows\$helper")))
+}
+$windowsBuild = $config['nativeWindows']
+$nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'])\release\mios-launch.exe"
+# Cargo verifies the source fingerprint even when a prior artifact exists.
+& {
+    $builderName = $config['theme']['terminal']['dev_profile_name']
+    $builder = @("podman-$builderName",$builderName) | Where-Object { $_ -in $registered } | Select-Object -First 1
+    if (-not $builder) { throw 'MiOS-DEV is required to build the native Windows terminal launcher' }
+    # WSL's argument bridge consumes unquoted backslashes in Windows paths.
+    $sourceLinux = (& wsl.exe -d $builder -u root -- wslpath -a -u $SourceRoot.Replace('\','/')) -join ''
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the system source in MiOS-DEV' }
+    $flags = (@($windowsBuild['rustflags']) + @('-C',"linker=$($windowsBuild['linker'])")) -join ' '
+    & wsl.exe -d $builder -u root -- env CARGO_TARGET_DIR=/var/tmp/mios-native-build "RUSTFLAGS=$flags" cargo build --locked --release --manifest-path "$sourceLinux/tools/native/Cargo.toml" -p mios-launch --target $windowsBuild['target']
+    if ($LASTEXITCODE -ne 0) { throw 'Native Windows launcher build failed inside MiOS-DEV' }
+    & wsl.exe -d $builder -u root -- install -D -m 0755 "/var/tmp/mios-native-build/$($windowsBuild['target'])/release/mios-launch.exe" "$sourceLinux/tools/native/target/$($windowsBuild['target'])/release/mios-launch.exe"
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot stage the verified native Windows launcher' }
+}
+Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
 Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
 $launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n"
 Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
@@ -336,6 +374,7 @@ if (-not $SkipClients) {
 # SSOT projection, rather than assigning a separate console theme.
 $terminalPaths = @(
     (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'),
+    (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json'),
     (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\settings.json')
 )
 foreach ($path in $terminalPaths) {
@@ -361,15 +400,14 @@ foreach ($path in $terminalPaths) {
     $terminal['profiles']['defaults']['font'] = @{face=$config['font']['family'];size=$config['font']['size']}
     $terminal['profiles']['defaults']['padding'] = $config['theme']['padding']
     $terminal['profiles']['defaults']['scrollbarState'] = $config['theme']['scrollbar_state']
+    Set-MiosTerminalTransparency $terminal['profiles']['defaults'] $config['theme']
     foreach ($item in $terminal['profiles']['list']) {
-        if ($item['name'] -notmatch '^MiOS') { continue }
         $item['font'] = @{face=$config['font']['family']; size=$config['font']['size']}
         $item['colorScheme'] = $config['theme']['terminal']['scheme_name']
         $item['padding'] = $config['theme']['padding']
         $item['scrollbarState'] = $config['theme']['scrollbar_state']
         $item['cursorShape'] = $config['theme']['cursor_shape']
-        $item['opacity'] = $config['theme']['opacity']
-        $item['useAcrylic'] = $config['theme']['acrylic']
+        Set-MiosTerminalTransparency $item $config['theme']
         $item['suppressApplicationTitle'] = $config['theme']['suppress_app_title']
         if ($item['name'] -eq $config['theme']['terminal']['dev_profile_name']) {
             $enginePath = if ($RuntimeOnly) { $binding.engine } else { $engine }

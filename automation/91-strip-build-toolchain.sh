@@ -2,12 +2,13 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Retains MiOS self-development dependencies by default; strips build groups only when packages.self-build.retain_toolchain explicitly opts out.
 set -euo pipefail
+# shellcheck disable=SC1090 # The repository and installed log library are equivalent resolver locations.
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-retention="$(get_package_setting self-build retain_toolchain)" || {
+retention="$(get_package_setting self-build retain_toolchain "$(_resolve_mios_toml)")" || {
     mios_err "Missing [packages.self-build].retain_toolchain; refusing to remove self-build dependencies"
     exit 1
 }
