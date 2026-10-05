@@ -134,7 +134,7 @@ foreach ($path in @(
     if ($path -like 'M:*' -and -not (Test-Path -LiteralPath 'M:\MiOS')) { continue }
     Write-MiosFile $path ($promptJson + "`n")
 }
-Write-MiosFile (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-remote.omp.json') $promptBundle.remote
+Write-MiosFile (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-remote.omp.json') ($promptJson + "`n")
 # Refresh the cache used by sessions opened before the remote-theme migration.
 $legacyRemote = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-ascii.omp.json'
 if (Test-Path -LiteralPath $legacyRemote) { Write-MiosFile $legacyRemote $promptBundle.remote }
@@ -146,7 +146,9 @@ $consoleTargets = @(
     'HKCU:\Console\%SystemRoot%_System32_cmd.exe',
     'HKCU:\Console\MiOS',
     'HKCU:\Console\%SystemRoot%_System32_WindowsPowerShell_v1.0_powershell.exe',
-    'HKCU:\Console\%SystemRoot%_SysWOW64_WindowsPowerShell_v1.0_powershell.exe'
+    'HKCU:\Console\%SystemRoot%_SysWOW64_WindowsPowerShell_v1.0_powershell.exe',
+    'Registry::HKEY_USERS\.DEFAULT\Console',
+    'Registry::HKEY_USERS\.DEFAULT\Console\%SystemRoot%_System32_cmd.exe'
 )
 $ansiConsoleKeys = @(
     'ansi_0_black', 'ansi_4_blue', 'ansi_2_green', 'ansi_6_cyan',
@@ -240,7 +242,7 @@ $nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'
 }
 Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
 Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
-$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n"
+$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`nif `"%~1`"==`"`" goto :terminal`r`nif `"%~1`"==`"terminal`" goto :terminal`r`nif `"%~1`"==`"ai-terminal`" goto :ai_terminal`r`nif `"%~1`"==`"project`" exit /b 0`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n:terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-terminal %*`r`nexit /b %ERRORLEVEL%`r`n:ai_terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-ai-terminal %*`r`nexit /b %ERRORLEVEL%`r`n"
 Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
 $devEntry = @'
 # AI-hint: Resolve the installed MiOS image through its native CMD dispatcher.
@@ -306,6 +308,7 @@ for ($i = 0; $i -lt 8; $i++) {
     [void]$oscColors.Append("\x1b]4;$i;$($palette["ansi_${i}_$name"])\x07")
     [void]$oscColors.Append("\x1b]4;$($i+8);$($palette["ansi_$($i+8)_bright_$name"])\x07")
 }
+[void]$oscColors.Append("\x1b[0m")
 $oscLiteral = '"' + $oscColors.ToString() + '"'
 $cmdPrompt = $cmdPrompt.Replace('__OSC_COLORS__', $oscLiteral)
 Write-MiosFile (Join-Path $clinkDirectory 'mios-ssot.lua') ($cmdPrompt + "`n")
@@ -318,9 +321,6 @@ if not os.getenv("MIOS_COLORS_APPLIED") then
     os.setenv("MIOS_COLORS_APPLIED", "1")
 end
 local theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios.omp.json"
-if os.getenv("SSH_CONNECTION") or os.getenv("SSH_CLIENT") or not os.getenv("WT_SESSION") then
-    theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios-remote.omp.json"
-end
 local p = assert(io.popen('oh-my-posh init cmd --config "' .. theme .. '"'))
 local script = p:read("*a")
 p:close()

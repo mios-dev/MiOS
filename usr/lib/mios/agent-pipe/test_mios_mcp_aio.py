@@ -468,34 +468,41 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
 
     async def test_nested_workflow_and_parallel_slots_isolation(self):
         from mcp import Client, StdioServerParameters
-        env = dict(os.environ, MIOS_AGENT_PIPE_URL="http://127.0.0.1:1",
-                   MIOS_MCP_LIST_TIMEOUT="1", MIOS_MCP_TOOLS_CACHE=os.devnull)
-        async with Client(StdioServerParameters(command=sys.executable, args=[str(RELAY)], env=env)) as client:
-            # Positive control: execute nested workflow in slot 1 and slot 2 in parallel
-            results = await asyncio.gather(
-                client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 1}),
-                client.call_tool("mios_tmux_nested_workflow", {"agent": "agy", "task": "--version", "slot": 2}),
-            )
-            for res in results:
-                self.assertFalse(res.model_dump(by_alias=True).get("isError"), res)
-                p = payload(res)
-                self.assertEqual(p["status"], "delivered")
-                self.assertEqual(p["exitCode"], 0)
-                self.assertTrue(len(p["output"]) > 0)
-            self.assertEqual(payload(results[0])["agent"], "codex")
-            self.assertEqual(payload(results[0])["slot"], 1)
-            self.assertEqual(payload(results[1])["agent"], "agy")
-            self.assertEqual(payload(results[1])["slot"], 2)
+        with tempfile.TemporaryDirectory(prefix="mios-mock-agent-bin-") as mock_bin:
+            for ag in ("codex", "agy"):
+                shim = Path(mock_bin) / ag
+                shim.write_text(f"#!/bin/sh\necho '{ag} 1.0.0 (mock)'\nexit 0\n")
+                shim.chmod(0o755)
+            env = dict(os.environ,
+                       PATH=f"{mock_bin}:{os.environ.get('PATH', '')}",
+                       MIOS_AGENT_PIPE_URL="http://127.0.0.1:1",
+                       MIOS_MCP_LIST_TIMEOUT="1", MIOS_MCP_TOOLS_CACHE=os.devnull)
+            async with Client(StdioServerParameters(command=sys.executable, args=[str(RELAY)], env=env)) as client:
+                # Positive control: execute nested workflow in slot 1 and slot 2 in parallel
+                results = await asyncio.gather(
+                    client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 1}),
+                    client.call_tool("mios_tmux_nested_workflow", {"agent": "agy", "task": "--version", "slot": 2}),
+                )
+                for res in results:
+                    self.assertFalse(res.model_dump(by_alias=True).get("isError"), res)
+                    p = payload(res)
+                    self.assertEqual(p["status"], "delivered")
+                    self.assertEqual(p["exitCode"], 0)
+                    self.assertTrue(len(p["output"]) > 0)
+                self.assertEqual(payload(results[0])["agent"], "codex")
+                self.assertEqual(payload(results[0])["slot"], 1)
+                self.assertEqual(payload(results[1])["agent"], "agy")
+                self.assertEqual(payload(results[1])["slot"], 2)
 
-            # Negative control: unknown agent rejected
-            unknown = await client.call_tool("mios_tmux_nested_workflow", {"agent": "DEVLOOP-PLANTED-AGENT", "task": "--version"})
-            self.assertTrue(unknown.model_dump(by_alias=True).get("isError"), unknown)
-            self.assertIn("not in the SSOT CLI catalog", unknown.content[0].text)
+                # Negative control: unknown agent rejected
+                unknown = await client.call_tool("mios_tmux_nested_workflow", {"agent": "DEVLOOP-PLANTED-AGENT", "task": "--version"})
+                self.assertTrue(unknown.model_dump(by_alias=True).get("isError"), unknown)
+                self.assertIn("not in the SSOT CLI catalog", unknown.content[0].text)
 
-            # Negative control: invalid slot number rejected
-            bad_slot = await client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 9999})
-            self.assertTrue(bad_slot.model_dump(by_alias=True).get("isError"), bad_slot)
-            self.assertIn("tmux slot must be an integer", bad_slot.content[0].text)
+                # Negative control: invalid slot number rejected
+                bad_slot = await client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 9999})
+                self.assertTrue(bad_slot.model_dump(by_alias=True).get("isError"), bad_slot)
+                self.assertIn("tmux slot must be an integer", bad_slot.content[0].text)
 
     def test_terminal_ansi_cleaning_and_receipt_extraction(self):
         import mios_translate

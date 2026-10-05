@@ -172,6 +172,10 @@ class _PGStub:
         self.calls = []
         self.insert_id = insert_id
 
+    def rid_to_pg_id(self, rid):
+        import mios_pg
+        return mios_pg.rid_to_pg_id(rid)
+
     async def execute(self, sql, params=None, *, fetch=False, **kw):
         self.calls.append((" ".join(sql.split()), params or {}, fetch))
         if fetch and "RETURNING id" in sql:
