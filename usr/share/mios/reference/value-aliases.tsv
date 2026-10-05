@@ -6,8 +6,9 @@
 #                       pair that a naive name-based collapse would corrupt -- pinned here so
 #                       the AGY-856..930 collapse can never silently merge them).
 # Seeded from reference/audit-value-dup-report.md (measured). Grows via mios-dup-report (AGY-856).
-# A pair whose keys are not both emitted is skipped (informational), so the gate never
-# false-fails on a platform that does not surface a key.
+# Every name in a row MUST be emitted by the resolver; an unemitted name is a violation that
+# names it. (Skipping such rows hid 14 of the 15 [pgvector] keys a lost table header stranded
+# under [offline].) A name ending in "_" declares a naming family, not a variable.
 MIOS_PGVECTOR_USER	MIOS_PG_USER	keep-distinct	# mios-pgvector service acct != mios postgres role (report 4.1)
 MIOS_COLORS_ACCENT	MIOS_COLOR_ACCENT	derive	# family 9 singular/plural color
 MIOS_COLORS_INFO	MIOS_COLOR_INFO	derive	# family 9
@@ -94,6 +95,7 @@ MIOS_PGVECTOR_PASS	MIOS_PG_PASS	derive	# family 3 pgvector/pg
 MIOS_PGVECTOR_POOL_ENABLE	MIOS_PG_POOL_ENABLE	derive	# family 3 pgvector/pg
 MIOS_PGVECTOR_POOL_MAX	MIOS_PG_POOL_MAX	derive	# family 3 pgvector/pg
 MIOS_PGVECTOR_POOL_MIN	MIOS_PG_POOL_MIN	derive	# family 3 pgvector/pg
+MIOS_PGVECTOR_RLS_ENABLE	MIOS_DB_RLS_ENABLE	derive	# family 3 pgvector/db: [pgvector].rls_enable as agent-pipe pg.py and mios-pg-query read it
 MIOS_PGVECTOR_RLS_MODE	MIOS_PG_RLS_MODE	derive	# family 3 pgvector/pg
 MIOS_PGVECTOR_SCHEMA_INIT	MIOS_PG_SCHEMA_INIT	derive	# family 3 pgvector/pg
 MIOS_PGVECTOR_SCRATCH_PERSIST	MIOS_PG_SCRATCH_PERSIST	derive	# family 3 pgvector/pg

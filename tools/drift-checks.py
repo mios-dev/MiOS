@@ -3843,8 +3843,11 @@ def check_value_aliases() -> int:
             if len(parts) < 3:
                 continue
             a, b, disp = parts[0].strip(), parts[1].strip(), parts[2].split()[0].strip()
-            if a not in env or b not in env:
-                continue  # a key not emitted here -> skip (informational; never false-fail)
+            if a not in env or b not in env:  # never just skipped: that hid stranded keys; "X_" names a family
+                bad += [f"{n} is registered ({a} -> {b}, {disp}) but the resolver does not emit it -- its consumers"
+                        f" take their inline defaults; restore its key to the SSOT table that emits it"
+                        for n in (a, b) if n not in env and not n.endswith("_")]
+                continue
             va, vb = env[a], env[b]
             if disp in ("derive", "delete"):
                 if va != vb:

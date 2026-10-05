@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 410
+#!ceiling 406
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -123,7 +123,6 @@ MIOS_DB_AUTHORITATIVE	usr/lib/mios/mios_db_config.py:52
 MIOS_DB_DB	usr/share/mios/owui/pipes/mios_agent_pipe.py:107
 MIOS_DB_NS	usr/share/mios/owui/pipes/mios_agent_pipe.py:106
 MIOS_DB_PASS	automation/34-render-quadlets.sh:50
-MIOS_DB_RLS_ENABLE	usr/lib/mios/mios_toml.py:452
 MIOS_DB_URL	usr/share/mios/owui/pipes/mios_agent_pipe.py:103
 MIOS_DB_USER	automation/34-render-quadlets.sh:50
 MIOS_DEBUG_ENABLE	usr/lib/mios/agent-pipe/server.py:263
@@ -272,9 +271,6 @@ MIOS_PASSWORD_CONFIRM	automation/build-mios.sh:70
 MIOS_PASSWORD_HASH	automation/build-mios.sh:399
 MIOS_PC_INPUT_SECTION	usr/lib/mios/agent-pipe/server.py:1567
 MIOS_PG_BACKEND	usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py:308
-MIOS_PG_POOL_ENABLE	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:273
-MIOS_PG_POOL_MAX	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:280
-MIOS_PG_POOL_MIN	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:276
 MIOS_PG_URI	usr/libexec/mios/user/roaming_seat.py:83
 MIOS_PHASE_EMOJIS	automation/support/hermes-discord-reactions-patch.py:12
 MIOS_PHASE_TIMERS	automation/support/hermes-discord-reactions-patch.py:13
