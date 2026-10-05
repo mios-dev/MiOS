@@ -684,6 +684,109 @@ class _TmuxBridge:
         if self.task:
             await asyncio.shield(self.task)
 
+    async def nested_workflow(self, arguments):
+        import mios_translate
+        args = dict(arguments)
+        agent = args.get("agent")
+        task = args.get("task")
+        if not agent or not task:
+            raise ValueError("nested_workflow requires agent and task")
+        cfg_cli = _agent_cli_config()
+        known = {row["name"] for row in cfg_cli.get("tools", [])}
+        if agent not in known:
+            raise ValueError(f"Agent '{agent}' is not in the SSOT CLI catalog: {sorted(known)}")
+
+        slot = args.get("slot")
+        if slot is None:
+            for s in range(1, int(self.config["max_slots"]) + 1):
+                if not self.slot_locks[s].locked():
+                    slot = s
+                    break
+            if slot is None:
+                slot = 1
+        elif type(slot) is not int or not 1 <= slot <= int(self.config["max_slots"]):
+            raise ValueError(f"tmux slot must be an integer in 1..{self.config['max_slots']}")
+
+        timeout_s = args.get("timeoutSeconds", self.config["timeout_s"])
+        translate_output = args.get("translate_output", True)
+
+        escaped_task = shlex.quote(task)
+        if task in ("--version", "-v", "version"):
+            cmd = f"{agent} {task}"
+        elif agent == "claude":
+            cmd = f"claude -p {escaped_task}"
+        elif agent == "codex":
+            cmd = f"codex exec {escaped_task}"
+        elif agent == "gemini":
+            cmd = f"gemini -p {escaped_task}"
+        elif agent == "copilot":
+            cmd = f"copilot --exec {escaped_task}"
+        elif agent == "opencode":
+            cmd = f"opencode run {escaped_task}"
+        elif agent == "agy":
+            cmd = f"agy -p {escaped_task}"
+        elif agent == "aider":
+            cmd = f"aider --message {escaped_task}"
+        else:
+            cmd = f"{agent} {escaped_task}"
+
+        result = await self.call("mios_tmux_execute_command", {
+            "command": cmd,
+            "slot": slot,
+            "timeoutSeconds": timeout_s,
+        })
+        wire = result.model_dump(by_alias=True, exclude_none=True)
+        if wire.get("isError"):
+            error_text = result.content[0].text if result.content else "nested workflow failed"
+            return {
+                "agent": agent, "slot": slot, "status": "errored",
+                "error": error_text, "exitCode": 1, "output": error_text,
+            }
+
+        raw_output = ""
+        structured = wire.get("structuredContent") or {}
+        if isinstance(structured, dict):
+            raw_output = structured.get("output", "")
+        if not raw_output:
+            for b in result.content:
+                if getattr(b, "type", None) == "text":
+                    try:
+                        d = json.loads(b.text)
+                        if isinstance(d, dict) and "output" in d:
+                            raw_output = d["output"]
+                            structured = d
+                            break
+                    except ValueError:
+                        raw_output = b.text
+
+        clean_text = mios_translate.strip_ansi(raw_output)
+        exit_code = structured.get("exitCode", 0) if isinstance(structured, dict) else 0
+        status = "delivered" if exit_code == 0 else "errored"
+        data = {
+            "agent": agent,
+            "slot": slot,
+            "exitCode": exit_code,
+            "status": status,
+            "output": clean_text,
+        }
+        if translate_output and clean_text:
+            frames = []
+            for line in clean_text.splitlines():
+                line = line.strip()
+                if line.startswith("{") and line.endswith("}"):
+                    try:
+                        parsed = json.loads(line)
+                        if isinstance(parsed, dict):
+                            frames.append(parsed)
+                    except ValueError:
+                        pass
+            if frames:
+                try:
+                    data["translation"] = mios_translate.translate({"source": "auto", "frames": frames})
+                except Exception as ex:
+                    data["translation_note"] = str(ex)
+        return data
+
 
 class _TerminalSessions:
     """Explicit terminal capabilities for stateless HTTP; stdio stays implicit.
@@ -745,6 +848,25 @@ class _TerminalSessions:
                 row["active"] -= 1
                 row["used"] = time.monotonic()
 
+    async def nested_workflow(self, arguments, http=False):
+        args = dict(arguments)
+        token = args.pop("session", None)
+        if token is None:
+            if http:
+                raise ValueError("HTTP terminal tools require session: call mios_tmux_session_open first")
+            return await self.default.nested_workflow(args)
+        async with self.lock:
+            row = self.sessions.get(token) if isinstance(token, str) else None
+            if row is None:
+                raise ValueError("unknown or expired MiOS terminal session")
+            row["active"] += 1
+        try:
+            return await row["bridge"].nested_workflow(args)
+        finally:
+            async with self.lock:
+                row["active"] -= 1
+                row["used"] = time.monotonic()
+
     async def retire(self, token):
         async with self.lock:
             row = self.sessions.get(token) if isinstance(token, str) else None
@@ -786,6 +908,40 @@ def _agent_relay_directory():
     if relative.is_absolute() or ".." in relative.parts:
         raise ValueError("[mcp.agents].state_directory must stay beneath caller state")
     return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / relative
+
+
+def _translation_tools():
+    return [{
+        "name": "translate_frames",
+        "description": "Normalize frames from AGY, Claude, OpenAI Responses/Codex, or any OpenAI-compatible harness (Chat Completions: vLLM, llama.cpp, LM Studio, Ollama, OpenRouter, custom agents) to ordered loop.v1 events and Responses items. Source 'auto' sniffs the dialect. No model call or permission grant occurs.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["source", "frames"],
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "auto", "agy", "claude", "openai", "openai_responses",
+                        "codex", "openai_chat", "chat_completions", "openai_compatible", "generic"
+                    ]
+                },
+                "frames": {"type": "array", "items": {"type": "object"}},
+                "evidence": {
+                    "type": "object",
+                    "required": ["diff_bytes", "positive", "negative", "tree_restored", "exit_code"],
+                    "properties": {
+                        "diff_bytes": {"type": "integer"},
+                        "positive": {"type": "boolean"},
+                        "negative": {"type": "boolean"},
+                        "tree_restored": {"type": "boolean"},
+                        "exit_code": {"type": "integer"},
+                        "timed_out": {"type": "boolean"}
+                    }
+                }
+            },
+            "additionalProperties": False
+        }
+    }]
 
 
 def _agent_relay_tools():
@@ -868,14 +1024,31 @@ def _sdk_server(terminal_only=False):
              "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}},
             {"name": "mios_tmux_session_close", "description": "Reclaim an idle private terminal session and its panes.",
              "inputSchema": {"type": "object", "properties": {"session": {"type": "string"}}, "required": ["session"], "additionalProperties": False}},
+            {"name": "mios_tmux_nested_workflow", "description": "Spawn an isolated nested AI agent workflow in a private tmux slot (1..32) for any global agent (claude, codex, gemini, copilot, opencode, agy, aider). Passes unified AI endpoint and agent relay mailboxes, isolates private HOME, executes prompt, monitors completion, and returns structured receipt and translated frames.",
+             "inputSchema": {"type": "object", "properties": {
+                 "agent": {"type": "string", "enum": ["claude", "codex", "gemini", "copilot", "opencode", "agy", "aider"], "description": "Global agent to execute in the nested workflow."},
+                 "task": {"type": "string", "description": "Task description or command instruction to execute."},
+                 "slot": {"type": "integer", "description": "Tmux slot number (1..32). If omitted, an idle slot is automatically assigned."},
+                 "timeoutSeconds": {"type": "integer", "description": "Execution timeout in seconds (default: [mcp.tmux].timeout_s)."},
+                 "translate_output": {"type": "boolean", "description": "Translate and normalize output frames using loop_translate (default: true)."},
+                 "session": {"type": "string", "description": "Terminal capability from mios_tmux_session_open; required over HTTP."}
+             }, "required": ["agent", "task"], "additionalProperties": False}},
             ])
-        rows = sorted([*(payload.get("tools") or []), *terminal, *_agent_relay_tools()], key=lambda row: row.get("name", ""))
+        extra_tools = [] if terminal_only else _translation_tools()
+        rows = sorted([*(payload.get("tools") or []), *terminal, *_agent_relay_tools(), *extra_tools], key=lambda row: row.get("name", ""))
         return types.ListToolsResult(
             tools=[types.Tool.model_validate(row) for row in rows],
             ttlMs=0, cacheScope="private",
         )
 
     async def call_tool(_ctx, params):
+        if params.name == "translate_frames":
+            try:
+                import mios_translate
+                data = mios_translate.translate(params.arguments or {})
+                return types.CallToolResult(content=[types.TextContent(type="text", text=json.dumps(data))], structuredContent=data)
+            except Exception as error:
+                return types.CallToolResult(content=[types.TextContent(type="text", text=str(error))], isError=True)
         if params.name.startswith("mios_agent_"):
             try:
                 data = await asyncio.to_thread(_agent_relay_call, params.name, params.arguments or {})
@@ -895,6 +1068,8 @@ def _sdk_server(terminal_only=False):
                         raise ValueError("session_close requires only session")
                     await manager.retire(args["session"])
                     data = {"closed": True}
+                elif params.name == "mios_tmux_nested_workflow":
+                    data = await manager.nested_workflow(args, http=_ctx.request is not None)
                 else:
                     return await manager.call(params.name, args, http=_ctx.request is not None)
                 return types.CallToolResult(content=[types.TextContent(type="text", text=json.dumps(data))], structuredContent=data)

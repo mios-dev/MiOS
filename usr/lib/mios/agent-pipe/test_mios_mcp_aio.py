@@ -15,6 +15,7 @@ import tempfile
 import threading
 import urllib.request
 import socket
+import shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import tomllib
 import unittest
@@ -48,6 +49,22 @@ with tarfile.open(archive) as package:
     binary.chmod(0o755)
 os.environ["MIOS_TMUX_MCP_BINARY"] = str(binary)
 
+def setUpModule():
+    if shutil.which("tmux") is None:
+        raise unittest.SkipTest("native tmux dependency absent")
+    # Network use in this suite is limited to its private loopback HTTP
+    # fixtures. Reject an external URL before a connection can be opened.
+    original = urllib.request.urlopen
+    def fixture_urlopen(url, *args, **kwargs):
+        from urllib.parse import urlparse
+        address = url.full_url if isinstance(url, urllib.request.Request) else url
+        if urlparse(address).hostname != "127.0.0.1":
+            raise AssertionError("network outside the loopback fixture")
+        return original(url, *args, **kwargs)
+    guard = patch.object(urllib.request, "urlopen", fixture_urlopen)
+    guard.start()
+    unittest.addModuleCleanup(guard.stop)
+
 def payload(result):
     wire = result.model_dump(by_alias=True, exclude_none=True)
     if wire.get("structuredContent"):
@@ -61,6 +78,10 @@ def payload(result):
     raise AssertionError("missing structured command receipt")
 
 class TestMcpAio(unittest.IsolatedAsyncioTestCase):
+    async def test_network_guard_rejects_external_destination(self):
+        with self.assertRaisesRegex(AssertionError, "outside the loopback"):
+            urllib.request.urlopen("https://example.invalid/DEVLOOP-PLANTED-NETWORK")
+
     async def asyncSetUp(self):
         self.bridge = relay._TmuxBridge(CONFIG)
         await self.bridge.start()
@@ -281,7 +302,7 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                            MIOS_MCP_TOOLS_CACHE=str(Path(cache) / "tools.json"))
                 async with Client(StdioServerParameters(command=sys.executable, args=[str(RELAY)], env=env)) as client:
                     names = {t.name for t in (await client.list_tools()).tools}
-                    self.assertEqual({n for n in names if not n.startswith(("mios_tmux_", "mios_agent_"))}, {t["name"] for t in catalog})
+                    self.assertEqual({n for n in names if not n.startswith(("mios_tmux_", "mios_agent_")) and n != "translate_frames"}, {t["name"] for t in catalog})
                     for name, path, body in (
                         ("mios_test_verb", "/v1/dispatch", {"tool": "mios_test_verb", "args": {"x": 1}}),
                         ("mios_skill__test", "/skills/run", {"name": "test", "params": {"x": 1}}),
@@ -312,7 +333,7 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             reserved.bind(("127.0.0.1", 0))
             port = reserved.getsockname()[1]
         with tempfile.TemporaryDirectory(prefix="mios-http-test-") as directory, tempfile.TemporaryFile() as log:
-            env = dict(os.environ, MIOS_MCP_PORT=str(port), RUNTIME_DIRECTORY=directory)
+            env = dict(os.environ, MIOS_PORT_MCP=str(port), RUNTIME_DIRECTORY=directory)
             process = subprocess.Popen([sys.executable, str(RELAY), "--http", "--tmux-only"],
                                        env=env, stdout=log, stderr=log)
             try:
@@ -375,6 +396,117 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(ValueError, "checksum mismatch"):
                 relay._install_native(source, target)
             self.assertEqual(existing.read_bytes(), b"PREVIOUS-BINARY")
+
+    async def test_translate_frames_tool_positive_and_negative_controls(self):
+        from mcp import Client, StdioServerParameters
+        import mios_translate
+        env = dict(os.environ, MIOS_AGENT_PIPE_URL="http://127.0.0.1:1",
+                   MIOS_MCP_LIST_TIMEOUT="1", MIOS_MCP_TOOLS_CACHE=os.devnull)
+        async with Client(StdioServerParameters(command=sys.executable, args=[str(RELAY)], env=env)) as client:
+            names = {t.name for t in (await client.list_tools()).tools}
+            self.assertIn("translate_frames", names)
+            self.assertIn("mios_tmux_nested_workflow", names)
+
+            # Positive control: auto-detect AGY frames
+            res = await client.call_tool("translate_frames", {
+                "source": "auto",
+                "frames": [
+                    {"event": "step_update", "step_update": {"step_type": "agent_response", "text_delta": "POSITIVE-TRANSLATION"}},
+                    {"event": "result", "result": {"status": "SUCCESS", "response": "COMPLETE"}}
+                ],
+                "evidence": {
+                    "diff_bytes": 100, "positive": True, "negative": True, "tree_restored": True, "exit_code": 0
+                }
+            })
+            self.assertFalse(res.model_dump(by_alias=True).get("isError"), res)
+            data = payload(res)
+            self.assertEqual(data["schema"], "loop.v1")
+            self.assertEqual(data["events"][0]["text"], "POSITIVE-TRANSLATION")
+            self.assertEqual(data["events"][1]["status"], "delivered")
+            self.assertEqual(data["responses_items"][0]["type"], "message")
+
+            # Positive control: Chat Completions streaming accumulation
+            res = await client.call_tool("translate_frames", {
+                "source": "chat_completions",
+                "frames": [
+                    {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [{"index": 0, "id": "call_1", "function": {"name": "test_fn", "arguments": "{\"x\":"}}]}}]},
+                    {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "42}"}}]}}]},
+                    {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                ]
+            })
+            self.assertFalse(res.model_dump(by_alias=True).get("isError"), res)
+            data = payload(res)
+            self.assertEqual(data["events"][0]["arguments"], {"x": 42})
+            self.assertEqual(data["events"][1]["status"], "unverified")
+
+            # Negative control: credential field refusal
+            bad_cred = await client.call_tool("translate_frames", {
+                "source": "openai_chat",
+                "frames": [{"object": "chat.completion", "choices": [{"message": {"role": "assistant", "api_key": "DEVLOOP-PLANTED-SECRET"}}]}]
+            })
+            self.assertTrue(bad_cred.model_dump(by_alias=True).get("isError"), bad_cred)
+            self.assertIn("CREDENTIAL FIELD REFUSED: api_key", bad_cred.content[0].text)
+
+            # Negative control: unknown source
+            bad_source = await client.call_tool("translate_frames", {
+                "source": "DEVLOOP-PLANTED-UNKNOWN-SOURCE",
+                "frames": [{}]
+            })
+            self.assertTrue(bad_source.model_dump(by_alias=True).get("isError"), bad_source)
+            self.assertIn("UNKNOWN SOURCE", bad_source.content[0].text)
+
+            # Negative control: vacuous demotion
+            vacuous = await client.call_tool("translate_frames", {
+                "source": "openai_chat",
+                "frames": [{"object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": "done"}, "finish_reason": "stop"}]}],
+                "evidence": {
+                    "diff_bytes": 0, "positive": True, "negative": True, "tree_restored": True, "exit_code": 0
+                }
+            })
+            self.assertFalse(vacuous.model_dump(by_alias=True).get("isError"), vacuous)
+            self.assertEqual(payload(vacuous)["events"][1]["status"], "vacuous")
+
+    async def test_nested_workflow_and_parallel_slots_isolation(self):
+        from mcp import Client, StdioServerParameters
+        env = dict(os.environ, MIOS_AGENT_PIPE_URL="http://127.0.0.1:1",
+                   MIOS_MCP_LIST_TIMEOUT="1", MIOS_MCP_TOOLS_CACHE=os.devnull)
+        async with Client(StdioServerParameters(command=sys.executable, args=[str(RELAY)], env=env)) as client:
+            # Positive control: execute nested workflow in slot 1 and slot 2 in parallel
+            results = await asyncio.gather(
+                client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 1}),
+                client.call_tool("mios_tmux_nested_workflow", {"agent": "agy", "task": "--version", "slot": 2}),
+            )
+            for res in results:
+                self.assertFalse(res.model_dump(by_alias=True).get("isError"), res)
+                p = payload(res)
+                self.assertEqual(p["status"], "delivered")
+                self.assertEqual(p["exitCode"], 0)
+                self.assertTrue(len(p["output"]) > 0)
+            self.assertEqual(payload(results[0])["agent"], "codex")
+            self.assertEqual(payload(results[0])["slot"], 1)
+            self.assertEqual(payload(results[1])["agent"], "agy")
+            self.assertEqual(payload(results[1])["slot"], 2)
+
+            # Negative control: unknown agent rejected
+            unknown = await client.call_tool("mios_tmux_nested_workflow", {"agent": "DEVLOOP-PLANTED-AGENT", "task": "--version"})
+            self.assertTrue(unknown.model_dump(by_alias=True).get("isError"), unknown)
+            self.assertIn("not in the SSOT CLI catalog", unknown.content[0].text)
+
+            # Negative control: invalid slot number rejected
+            bad_slot = await client.call_tool("mios_tmux_nested_workflow", {"agent": "codex", "task": "--version", "slot": 9999})
+            self.assertTrue(bad_slot.model_dump(by_alias=True).get("isError"), bad_slot)
+            self.assertIn("tmux slot must be an integer", bad_slot.content[0].text)
+
+    def test_terminal_ansi_cleaning_and_receipt_extraction(self):
+        import mios_translate
+        raw_terminal = "\x1b[32m[PASS]\x1b[0m \x1b[1mCommand completed\x1b[0m\r\n{\"exitCode\": 0, \"output\": \"OK\"}\n"
+        clean = mios_translate.strip_ansi(raw_terminal)
+        self.assertNotIn("\x1b", clean)
+        self.assertIn("[PASS] Command completed", clean)
+        receipt = mios_translate.extract_embedded_receipt(raw_terminal)
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt["exitCode"], 0)
+        self.assertEqual(receipt["output"], "OK")
 
 if __name__ == "__main__":
     if "--negative-keybindings" in sys.argv:

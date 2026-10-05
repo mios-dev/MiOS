@@ -75,11 +75,49 @@ Headless clients need an explicit permission policy for the tools their task
 requires. An exit-zero CLI result with `denied_actions` is a failed task, even
 when its wrapper labels the result `SUCCESS`.
 
+On 4 October 2026, a separate live test connected with Windows OpenSSH and a
+PTY to the localhost Windows CMD shell, confirmed all seven globally installed
+agent commands on the host PATH, and typed `mios`. It attached to native MiOS
+tmux with the SSOT truecolor status bar and Oh My Posh prompt. An Antigravity
+head launched a worker through the combined MCP tmux tools; that worker ran
+`mios agents` and `mios agent codex --version` in another pane. The head then
+sent the result to this running Codex chat, and Codex replied through MiOS-MCP.
+The task, worker reply, head-to-Codex result and Codex-to-head reply all had
+recipient acknowledgment receipts of `received`. The observed worker result
+was `MIOS_NESTED_WORKER_OK; installed=7; codex=codex-cli 0.160.0`.
+
+The initial worker permission denial required a scoped tool policy correction;
+the head also needed a conversation resume after its reply wait expired. The
+completed runs had no denied actions. The temporary SSH authorization and
+permission policy were removed afterward. This proves the tested Windows SSH,
+Linux CLI and current Codex chat path. It does not establish automatic delivery
+to an unregistered desktop conversation or authenticated inference for every
+installed provider CLI.
+
 Both participants must actually consume the MCP tools. This mailbox does not
 inject a user turn into an unrelated desktop chat, register an installed binary
 as a running session, or convert an A2A model-service card into a CLI address.
 Peer messages remain context inside the human-authorized task. They do not
 grant new permission or override the receiving agent's instructions.
+
+## Translation layer and nested workflows
+
+The combined endpoint exposes the native translation layer alongside terminal
+and agent relay surfaces:
+
+1. `translate_frames` normalizes frames across dialects (AGY stream JSON, Claude
+   print-mode JSON, OpenAI Responses/Codex items, and OpenAI-compatible Chat
+   Completions) to ordered `loop.v1` events and Responses items. Source `auto`
+   sniffs the frame shape. Credential fields are refused by name before processing;
+   terminal `delivered` events require gate evidence and demote to `unverified`
+   or `vacuous` otherwise.
+2. `mios_tmux_nested_workflow` automates launching nested tasks across any of the
+   seven installed global agent CLIs (`claude`, `codex`, `gemini`, `copilot`,
+   `opencode`, `agy`, `aider`) inside isolated tmux slots (1..32). It sets up
+   private environments with the shared relay pointer, executes the task, strips
+   terminal ANSI escapes, extracts receipts, and translates output frames.
+3. Concurrent slots remain fully isolated with independent per-slot locks,
+   enabling parallel multi-agent trees and swarms without dirty buffer contention.
 
 ## Theme projection at build and runtime
 
@@ -94,7 +132,8 @@ It atomically projects the palette, font and settings for Windows Terminal and
 the Oh My Posh prompt from the same layered TOML. The launcher reads current
 dimensions and profile names from that projection. The native Windows launcher
 uses per-monitor DPI awareness, measures visible window bounds, fits oversized
-windows to the current work area and centers only its own newly opened window.
+windows to the current work area and centers the window containing its new MiOS
+tab. The launch verification uses a separate window to preserve existing tabs.
 Synthetic tests cover negative monitor origins, portrait layouts, large scaling
 factors and oversized windows; physical display verification remains specific
 to hardware tested.
