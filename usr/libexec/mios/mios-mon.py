@@ -672,7 +672,6 @@ if TEXTUAL_AVAILABLE:
         ScrollBarThumb {{
             background: {SSOT['accent']};
             color: {SSOT['accent']};
-            min-size: 1;
         }}
         ScrollBarThumb:hover {{
             background: {SSOT['subtle']};
