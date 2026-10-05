@@ -1156,14 +1156,14 @@ if TEXTUAL_AVAILABLE:
                     ai_lines.append("  [dim](No agents registered in relay)[/]")
                 else:
                     for a in agents[:6]:
-                        status_str = "[green bold]ONLINE[/]" if a.get("online") else "[red bold]OFFLINE[/]"
+                        status_str = "[green bold][ONLINE][/]" if a.get("online") else "[red bold][OFFLINE][/]"
                         aid = a.get("id", "agent")
                         aid_disp = aid if len(aid) <= 26 else (aid[:13] + ".." + aid[-10:])
                         p_str = f" [yellow]({a['pending']}p)[/]" if a.get("pending") else ""
-                        ai_lines.append(f"  • [cyan]{aid_disp}[/] [{status_str}]{p_str}")
+                        ai_lines.append(f"  • [cyan]{escape(aid_disp)}[/] {status_str}{p_str}")
                         if a.get("label"):
                             lbl = a["label"][:30] + (".." if len(a["label"]) > 30 else "")
-                            ai_lines.append(f"    [dim]{a.get('kind','-')}: {lbl}[/]")
+                            ai_lines.append(f"    [dim]{escape(str(a.get('kind','-')))}: {escape(lbl)}[/]")
 
                 ai_lines.append("")
                 ai_lines.append(f"[{SSOT['warning']} bold]Headless Slots (tmux-mcp):[/]")
@@ -1171,7 +1171,7 @@ if TEXTUAL_AVAILABLE:
                     ai_lines.append("  [dim]All automation slots idle (0/32)[/]")
                 else:
                     for sl in slots[:4]:
-                        ai_lines.append(f"  • Slot [cyan]{sl['pane']}[/] (PID {sl['pid']}): [green]{sl['cmd']}[/]")
+                        ai_lines.append(f"  • Slot [cyan]{escape(str(sl['pane']))}[/] (PID {sl['pid']}): [green]{escape(str(sl['cmd']))}[/]")
 
                 ai_lines.append("")
                 ai_lines.append(f"[{SSOT['subtle']}]Memory:[/] {make_bar(psutil.virtual_memory().percent, 14)}")
@@ -1191,7 +1191,7 @@ if TEXTUAL_AVAILABLE:
                         to = m.get("to", "?")
                         if len(to) > 22: to = to[:10] + ".." + to[-10:]
                         preview = escape(m.get("message", "").replace("\n", " ")[:90])
-                        ai_log_box.write(f"[{st_col}][{ts}] [{st}][/{st_col}] [cyan]{frm}[/] ➔ [magenta]{to}[/]\n  [dim]\"{preview}\"[/]")
+                        ai_log_box.write(f"[{st_col}]\\[{ts}] \\[{st}][/] [cyan]{escape(frm)}[/] ➔ [magenta]{escape(to)}[/]\n  [dim]\"{preview}\"[/]")
                 else:
                     for m in messages:
                         m_key = f"{m.get('message_id')}:{m.get('status')}"
@@ -1205,7 +1205,7 @@ if TEXTUAL_AVAILABLE:
                             to = m.get("to", "?")
                             if len(to) > 22: to = to[:10] + ".." + to[-10:]
                             preview = escape(m.get("message", "").replace("\n", " ")[:90])
-                            ai_log_box.write(f"[{st_col}][{ts}] [{st}][/{st_col}] [cyan]{frm}[/] ➔ [magenta]{to}[/]\n  [dim]\"{preview}\"[/]")
+                            ai_log_box.write(f"[{st_col}]\\[{ts}] \\[{st}][/] [cyan]{escape(frm)}[/] ➔ [magenta]{escape(to)}[/]\n  [dim]\"{preview}\"[/]")
 
                 last_log_t = getattr(self, 'last_flash_log_time', None)
                 if last_log_t:
