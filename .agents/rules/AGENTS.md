@@ -41,3 +41,10 @@ When executing in CI/CD pipeline cycles or automated dev-loops:
    - `python3 tools/ci-suites.py --check`
 4. **Projection Synchronization**: Run `bash ./tools/sync-generated.sh` whenever FHS targets, ports, units, or tools are modified. The git index must be clean with 0 unprojected diffs.
 5. **Lossless Merge & Preservation**: Never delete, clobber, or drop code without verifying migration and preservation.
+
+## 5. Universal Harness Neutrality & Native MiOS-MCP + tmux-mcp Everywhere
+
+- **Zero Hardcoded Master/Worker/Monitor Roles**: No agent harness (Antigravity, Codex, Claude Code, OpenCode, Gemini, etc.) is permanently hardcoded as Master, Orchestrator, Worker, or Monitor. Absolutely **ANY AGENT** can be dynamically promoted to Orchestrator or Monitor based on whichever Agent's CLI is invoked.
+- **Dynamic Lease Arbitration**: Coordinator and monitor leases are managed dynamically in `/home/user/.local/state/mios/agent-relay/state.json` via native MiOS-MCP tools. Heartbeats, session transfers, and status acknowledgments are strictly peer-to-peer.
+- **Native MiOS-MCP + tmux-mcp Everywhere**: All multi-agent workflows, inter-agent coordination, sub-pane spawning, command execution, and live monitoring MUST use `MiOS-MCP` (`agent-pipe` / `agent-relay` / `state.json`) and `tmux-mcp v2` native slot tools (`open-pane`, `execute-command`, `send-keys`, `capture-pane`, `start-and-watch`, `nested_workflow`) natively, both in headless slots (`/run/mios-tmux/`) and in the live desktop session (`tmux -L mios-human`).
+

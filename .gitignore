@@ -104,6 +104,7 @@
 !/.agents/plugins/**
 !/.agents/subagents.json
 !/.agents/AGENTS.md
+!/.agents/COORDINATION.md
 !/.agents/agents/
 !/.agents/agents/**
 !/images/
