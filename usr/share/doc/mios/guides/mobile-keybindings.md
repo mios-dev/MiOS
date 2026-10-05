@@ -3,7 +3,7 @@
 
 # MiOS shortcuts and mobile SSH
 
-The SSOT action table defines three entrypoints. `mios-unit-gen keybindings`
+The SSOT action table defines four entrypoints. `mios-unit-gen keybindings`
 projects their names and keys into tmux, Hyprland, Sway, GNOME, VS Code,
 code-server and mobile shortcut metadata. Windows installs matching Start Menu
 hotkeys and checks existing shortcut registrations before assigning them.
@@ -12,6 +12,7 @@ hotkeys and checks existing shortcut registrations before assigning them.
 | --- | --- | --- | --- |
 | Terminal | Ctrl+Alt+Shift+T | Ctrl+B, then T | Ctrl+B, then T |
 | AI | Ctrl+Alt+Shift+A | Ctrl+B, then A | Ctrl+B, then A |
+| Active agents | Ctrl+Alt+Shift+G | Ctrl+B, then G | Ctrl+B, then G |
 | System monitor | Ctrl+Alt+Shift+M | Ctrl+B, then M | Ctrl+B, then M |
 
 Desktop chords and terminal prefix sequences occupy different input contexts.
@@ -27,6 +28,11 @@ After Ctrl+B: H/J/K/L select panes, S/V split, N/P switch windows, W selects a
 window, Z zooms, Y enters copy mode and D detaches. Tab sends Shift+Tab to the
 agent. B (or Ctrl+B again) sends the prefix to the application. This uses plain
 letters, Ctrl and Tab without relying on function keys or Super on an SSH client.
+
+Every native human session opens a background **MiOS Agents** window. Ctrl+B,
+then G selects it; repeating the shortcut selects the same window. Its live
+relay and pane metadata remain readable on a mobile terminal. Run
+`mios agents --observe` for JSON or `mios agents --watch` for the live view.
 
 On mobile, connect with a PTY and run `mios terminal`, or configure that as the
 client's startup command. Reconnect to the same native session after detaching.

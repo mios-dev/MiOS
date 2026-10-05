@@ -1544,11 +1544,12 @@ class tt_TestTmuxTheme(unittest.TestCase):
         self.assertIn("cursor", engine.palette)
 
     def test_generate_powerline_config(self):
-        engine = tmux_theme.TmuxThemeEngine(style="powerline", mock=True)
+        engine = tmux_theme.TmuxThemeEngine(style="powerline", mock=True,
+                                          data=tmux_theme.mios_toml.vendor_tree(tt__ROOT))
         cfg = engine.generate_config()
         self.assertIn("# MiOS Canonical Tmux Theme", cfg)
         self.assertIn("set -g status on", cfg)
-        self.assertIn(f'set -g window-style "bg=default,fg={engine.palette["fg"]}"', cfg)
+        self.assertIn(f'set -g window-style "bg={engine.palette["bg"]},fg={engine.palette["fg"]}"', cfg)
         self.assertIn("set -g pane-active-border-style", cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_right"], cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_left"], cfg)
@@ -1563,6 +1564,7 @@ class tt_TestTmuxTheme(unittest.TestCase):
         import copy
         data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
         data["colors"]["bg"] = "#123456"
+        data["theme"]["tmux"]["pane_background"] = "terminal"
         cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
         self.assertIn('set -g window-active-style "bg=default,', cfg)
         data["theme"]["tmux"]["pane_background"] = "theme"

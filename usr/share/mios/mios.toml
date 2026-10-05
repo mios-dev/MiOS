@@ -9,7 +9,7 @@ use_rust_resolver_shell = true
 use_rust_resolver_powershell = true
 use_rust_resolver_python = true
 use_rust_resolver_install_env = true
-use_compiled_oscontrol = true
+use_compiled_oscontrol = false # enable only after the native executor preserves every control route
 use_compiled_ainode = true
 
 # ----------------------------------------------------------------------------
@@ -3606,6 +3606,11 @@ max_pending = 1024
 max_message_bytes = 32768
 max_receipts = 4096
 
+[mcp.agents.observation]
+refresh_s = 2
+max_rows = 32
+window_name = "MiOS Agents"
+
 [agent_cli]
 enabled = true
 linux_prefix = "/usr/lib/mios/agent-cli"
@@ -3700,6 +3705,16 @@ desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai"
 tmux_command = "new-window -n MiOS-AI /usr/libexec/mios/mios-ai-terminal"
 vscode_command = "runCommands"
 vscode_shell = "/usr/libexec/mios/mios-ai-terminal"
+
+[[keybindings.actions]]
+id = "agents"
+label = "MiOS Agents"
+key = "g"
+command = "mios agents --watch"
+desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents"
+tmux_command = "run-shell '/usr/libexec/mios/mios-terminal --action agents'"
+vscode_command = "runCommands"
+vscode_shell = "mios agents --watch"
 
 [[keybindings.actions]]
 id = "system"
@@ -10203,7 +10218,8 @@ Environment = [
   "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
   "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
   "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
-  "NODE_ENV=production"
+  "NODE_ENV=production",
+  "ENV=local"
 ]
 Exec = "pnpm run start:production"
 Group = "0"
@@ -10244,7 +10260,8 @@ Environment = [
   "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
   "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
   "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
-  "NODE_ENV=production"
+  "NODE_ENV=production",
+  "ENV=local"
 ]
 Exec = "pnpm run workers"
 Group = "0"

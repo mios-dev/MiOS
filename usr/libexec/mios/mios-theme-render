@@ -239,12 +239,13 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Simulate without modifying files or PTYs")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     parser.add_argument("--flatpak", help="Also project into this app's sandbox config directory")
+    parser.add_argument("--config-root", action="append", help="Project into these config roots (image build/skel)")
 
     args = parser.parse_args()
 
     do_all = args.all or not (args.gtk or args.qt or args.pty)
     colors = resolve_colors()
-    roots = config_dirs(args.flatpak)
+    roots = args.config_root if args.config_root is not None else config_dirs(args.flatpak)
 
     results: Dict[str, Any] = {
         "status": "success",

@@ -1776,3 +1776,26 @@ so long. Let a run finish.
 - next: the PR is a draft. Its CI is red only where main 26edb17f is red: the behavioural tier fails the same 5 suites with identical output, and main's smoke build fails at the in-image 98-drift-checks. Follow-ups queued for the operator: make the Quadlet render fail on placeholders the SSOT never emits (MIOS_PG_BIND_ADDR among them), and retire the dead offline.backup_* alias in both resolver twins together with the inert [offline] table.
 - blockers: -
 - unverified: the PR-head smoke test (its in-image violation set against main's 108); the Rust and drift-gate CI tiers, which never run on the PR or on main while the behavioural tier is red; the restored knobs on a booted host.
+
+## 2026-10-05 · native terminal, relay and GTK checkpoint
+- objective: remote Windows CMD enters native MiOS tmux; a head agent launches workers and exchanges acknowledged messages through the combined MCP endpoint; build/runtime theme projections use layered SSOT.
+- verified: real Windows SSH head/worker/current Codex chat round trip has four received/acknowledged receipts (ssh-task-20261004, ssh-reply-20261004, ssh-goal-to-codex-20261004, ssh-codex-reply-20261004). All seven catalog CLIs are installed on both tested runtimes. Native launch geometry and real launch tests pass. GTK3/4 build projection passes; Epiphany's GTK4/libadwaita sandbox parses CSS without errors and resolves background RGB 40/34/98, GeistMono Nerd Font Mono 12 and Bibata 24. Xcursor's loaded image matches the baked Bibata image byte-for-byte. A separate browser process launched through MCP tmux has no former GDK_DPI_SCALE=0.60/QT_FONT_DPI=58 shrink overrides. Windows Terminal defaults and all eleven profiles have focused/unfocused opacity 50.
+- changes: GTK build/skel projection, per-application runtime CSS/settings, canonical cursor environment and sandbox icon paths, WSL exported image-store pointer repair. Latest local integration commits were inspected at 483b2753; pending generator edits from the concurrent lane are preserved.
+- next: regenerate projections, review current CI and host-control health, verify the full image build, then prepare the push for operator review.
+- unverified: automatic consumption by the original desktop conversation, authenticated inference in every installed CLI, physical DPI/orientation coverage, Qt application styling, published image/fleet deployment. A successful tool query or queued message is not delivery proof.
+
+## 2026-10-05 11:05 · antigravity · CPU storm triage, unified mios monitor, MiOS-Ai mobile telemetry, and nested workflow
+- objective: triage and eliminate runaway CPU storm (96% CPU, load avg 44.53) pinned by unconstrained Node workers, unify `mios` / `mios shell` / `mios mon` into one monitoring entry point, implement live `MiOS-Ai` monitoring with responsive mobile/landscape layout and slim scrollbars, and complete Codex's nested workflow worktree takeover.
+- root cause:
+  1. `mios-webtools-redis` was failing to parse `${MIOS_PORT_REDIS:-8565}` in `Exec` because systemd does not support shell parameter expansion `${VAR:-DEFAULT}`. With Redis down, `firecrawl-api` and `firecrawl-worker` entered an infinite restart crash loop.
+  2. Firecrawl's cluster logic (`process.env.ENV === "local" ? 2 : os.cpus().length`) spawned 32 Node cluster workers on high-core CPUs (Ryzen 9 9950X3D) because `ENV=local` was missing from its container configuration.
+- done:
+  1. Rendered Quadlet port placeholder expansion via `34-render-quadlets.sh` (`mios-render-quadlets`), establishing concrete port 8565 in `/etc/containers/systemd/mios-webtools-redis.container`.
+  2. Added `ENV=local` to `mios-webtools-firecrawl-api.Container` and `mios-webtools-firecrawl-worker.Container` in `usr/share/mios/mios.toml`, capping cluster workers strictly to 2.
+  3. Validated all 6 webtools services active and healthy; system load dropped from 44.53 to 2.36 (CPU >92% idle).
+  4. Unified `usr/bin/mios`: interactive invocations, `shell`, `mon`, and `monitor` route directly to `mios-mon.py --monitor`.
+  5. Enhanced `usr/libexec/mios/mios-mon.py`: added `MiOS-Ai` live telemetry tab displaying registered agents, active headless tmux automation sockets, and real-time inter-agent message logs; implemented slim 1-char scrollbars and responsive mobile portrait/landscape layout.
+  6. Reconciled Codex's nested workflow worktree (`mios-mcp-nested-20261005`): verified all 22/22 tests in `test_mios_mcp_aio.py` pass (100% green).
+  7. Ran `tools/sync-generated.sh`, `tests/doc-production-evidence.sh`, and all 6 standing `mios-gate` audits (phase-registry, ratchet-direction, credential-literals, version-literals-ssot, signature-policy, and ci-suites --check).
+- verified: all 6 standing gates pass, 22/22 MCP tests pass, system CPU load verified idle, `mios mon --dash` verified clean.
+- unverified: long-term multi-hour continuous load on Firecrawl web scraping queues.

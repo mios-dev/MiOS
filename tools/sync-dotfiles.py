@@ -391,7 +391,10 @@ def main() -> int:
                 for fn in filenames:
                     s_file = os.path.join(dirpath, fn)
                     d_file = os.path.join(target_dir, fn)
-                    shutil.copy2(s_file, d_file)
+                    try:
+                        shutil.copy2(s_file, d_file)
+                    except PermissionError:
+                        shutil.copyfile(s_file, d_file)
 
         # 4. Also project into active user home directories if write mode
         if not args.check:

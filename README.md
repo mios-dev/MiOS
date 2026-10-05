@@ -28,6 +28,8 @@ The planned MiOS-Metal architecture separates a bare-metal Blade from the MiOS g
 
 The Windows bootstrap reads `[bootstrap.dev_vm.host_reserve]` for MiOS-DEV resources. Its current default reserves half of physical RAM for Windows, with an 8 GB minimum reserve; the generated WSL setting is recalculated during bootstrap. Terminal colors, fonts, geometry, and application launch behavior likewise derive from the theme and terminal sections of the same TOML.
 
+GTK defaults are projected into the image's `/etc/skel/.config` at build time. Native Flatpak launch refreshes both the caller's GTK configuration and each application's sandbox configuration from the layered SSOT. Modern libadwaita receives CSS custom properties; cursor assets are available through Flatpak's host icon paths. Windows Terminal applies `[theme].opacity` and `unfocused_opacity` to every profile. The default `[theme.tmux].pane_background = "theme"` paints the SSOT background in tmux, including remote clients; setting it to `"terminal"` inherits the client's background. Window transparency is supplied by the terminal client. WSLg manages display scaling; MiOS does not impose a fixed text shrink factor. Restart an already-open app to load its updated startup settings.
+
 The root [`.mios` guide](.mios/README.md) explains workflow dotfolders. They stage sources and generated work; they are not alternate runtime FHS locations.
 
 ## Local AI contract
@@ -49,6 +51,7 @@ The vendor [`[keybindings]` table](usr/share/mios/mios.toml) defines one action 
 | --- | --- | --- | --- |
 | Open terminal | Ctrl+Alt+Shift+T | Ctrl+B, then T | Ctrl+B, then T |
 | Open MiOS AI | Ctrl+Alt+Shift+A | Ctrl+B, then A | Ctrl+B, then A |
+| View active agents | Ctrl+Alt+Shift+G | Ctrl+B, then G | Ctrl+B, then G |
 | Open system monitor | Ctrl+Alt+Shift+M | Ctrl+B, then M | Ctrl+B, then M |
 | Summon MiOS window | Ctrl+Alt+Shift+Space on Windows | — | — |
 
@@ -71,6 +74,8 @@ The editor actions apply only when its terminal is unfocused. When a terminal is
 From an SSH connection with a PTY, run `mios` or `mios terminal` to attach to the native session. In Windows CMD, `mios` enters MiOS; `mios agent NAME` opens a globally installed agent with the combined MiOS-MCP/tmux-mcp configuration. `mios agents` lists the installed catalog. Use `mios ssh user@host` to enter a remote MiOS system. Termius and Blink users need Ctrl, Esc and Tab on their keyboard bar; no function keys or Super key are required. Client fonts control glyph rendering; `[theme.tmux].remote_glyph_mode` and `[theme.prompt].remote_glyph_mode` allow an explicit ASCII projection while retaining the SSOT palette.
 
 See the [mobile SSH and shortcut guide](usr/share/doc/mios/guides/mobile-keybindings.md) and [native terminal / MCP contract](usr/share/doc/mios/mcp-tmux.md) for session separation, message receipts and projection details.
+
+Every native human tmux session includes a **MiOS Agents** window. Press **Ctrl+B, then G** or run `mios agents --watch` to see live registrations, pending messages, acknowledgements and tmux pane metadata. `mios agents --observe` returns the same snapshot as JSON; `mios_agent_observe` exposes it over MiOS-MCP. Registered relay participants and detected panes are shown separately. A running pane does not prove that its harness reads messages. The view omits credentials, message bodies and terminal contents, and reports a queued message as received only after the recipient acknowledges it.
 
 ## Build and installation
 

@@ -184,7 +184,7 @@ def validate_man_page(full_path: str) -> tuple[bool, str]:
     if ".SH NAME" not in content or (".SH SYNOPSIS" not in content and ".SH DESCRIPTION" not in content):
         return False, f"{full_path} missing required .SH NAME / SYNOPSIS / DESCRIPTION section"
 
-    man_bin = shutil.which("man")
+    man_bin = shutil.which("man") if os.name != "nt" else None
     if man_bin:
         try:
             res = subprocess.run([man_bin, "-l", full_path], capture_output=True, text=True)

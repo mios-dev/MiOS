@@ -91,6 +91,8 @@ _SYS_INFO_CACHE = None
 _USB_INFO_CACHE = "Scanning USB..."
 _GIT_STATUS_CACHE = "[dim]Git state loading...[/]"
 PIPELINE_MODE = False
+AI_MODE = False
+TAB_CHOICE = None
 
 def monitor_config():
     """Use the shared resolver for vendor, host, user and fragment precedence."""
@@ -399,6 +401,70 @@ def get_sys_info_table():
     t.add_row("Shell", sh, "Host", f"{sys_info.get('host', 'localhost')} ({ip})")
     return t
 
+def get_agent_and_mcp_data():
+    """Extract registered agents from agent relay and headless tmux-mcp automation slots."""
+    relay_dirs = [
+        os.environ.get("MIOS_AGENT_RELAY_STATE"),
+        os.path.expanduser("~/.local/state/mios/agent-relay"),
+        "/home/user/.local/state/mios/agent-relay",
+        "/root/.local/state/mios/agent-relay",
+        "/var/run/mios/agent-relay",
+        "/tmp/agent-relay",
+    ]
+    agents = []
+    messages = []
+    for rd in relay_dirs:
+        if rd and os.path.isdir(rd):
+            sf = os.path.join(rd, "state.json")
+            if os.path.exists(sf):
+                try:
+                    with open(sf, "r", encoding="utf-8") as f:
+                        st = json.load(f)
+                        now = time.time()
+                        for aid, ainfo in st.get("agents", {}).items():
+                            online = ainfo.get("expires", 0) > now
+                            pending = sum(1 for m in st.get("messages", [])
+                                          if m.get("to") == aid and m.get("status") == "queued")
+                            agents.append({
+                                "id": aid,
+                                "kind": ainfo.get("kind", "-"),
+                                "label": ainfo.get("label", ""),
+                                "online": online,
+                                "pending": pending,
+                                "expires": ainfo.get("expires", 0),
+                            })
+                        messages = st.get("messages", [])
+                    break
+                except Exception:
+                    pass
+
+    sockets = []
+    for pattern in [
+        "/mnt/wslg/run/user/*/mios-tmux-*/tmux-*/mcp-headless",
+        "/run/user/*/mios-tmux-*/tmux-*/mcp-headless",
+        "/tmp/mios-tmux-*/tmux-*/mcp-headless",
+        os.path.expanduser("~/.cache/mios-tmux-*/tmux-*/mcp-headless"),
+    ]:
+        sockets.extend(glob.glob(pattern))
+
+    slots = []
+    if shutil.which("tmux"):
+        for s in sockets[:8]:
+            try:
+                res = subprocess.run(
+                    ["tmux", "-S", s, "list-panes", "-a", "-F", "#{pane_index}|#{pane_pid}|#{pane_current_command}"],
+                    capture_output=True, text=True, timeout=0.8
+                )
+                if res.returncode == 0 and res.stdout.strip():
+                    for line in res.stdout.strip().splitlines():
+                        parts = line.split("|")
+                        if len(parts) >= 3 and parts[2] not in ("bash", "sh", ""):
+                            slots.append({"socket": s, "pane": parts[0], "pid": parts[1], "cmd": parts[2]})
+            except Exception:
+                pass
+
+    return agents, messages, slots
+
 def create_metal_layout():
     sys_info = get_sys_info()
     services = get_services()
@@ -590,6 +656,37 @@ if TEXTUAL_AVAILABLE:
             width: 100%;
             border: round {SSOT['success']};
         }}
+        ScrollBar {{
+            width: 1;
+            min-width: 1;
+            background: transparent;
+        }}
+        ScrollBar.-horizontal {{
+            height: 1;
+            min-height: 1;
+            background: transparent;
+        }}
+        ScrollBarCorner {{
+            background: transparent;
+        }}
+        ScrollBarThumb {{
+            background: {SSOT['accent']};
+            color: {SSOT['accent']};
+            min-size: 1;
+        }}
+        ScrollBarThumb:hover {{
+            background: {SSOT['subtle']};
+        }}
+        RichLog {{
+            scrollbar-size: 1 1;
+            scrollbar-size-vertical: 1;
+            scrollbar-size-horizontal: 1;
+        }}
+        DataTable {{
+            scrollbar-size: 1 1;
+            scrollbar-size-vertical: 1;
+            scrollbar-size-horizontal: 1;
+        }}
         Footer {{
             dock: bottom;
             height: 1;
@@ -599,19 +696,29 @@ if TEXTUAL_AVAILABLE:
         BINDINGS = [
             ("q", "quit", "Quit"),
             ("d", "toggle_dark", "Toggle Dark Mode"),
-            ("minus", "speed_up", "Decrease Delay (-)"),
-            ("underscore", "speed_up", "Decrease Delay (-)"),
-            ("kp_minus", "speed_up", "Decrease Delay (-)"),
-            ("up", "speed_up", "Decrease Delay"),
-            ("plus", "slow_down", "Increase Delay (+)"),
-            ("equals", "slow_down", "Increase Delay (+)"),
-            ("kp_plus", "slow_down", "Increase Delay (+)"),
-            ("down", "slow_down", "Increase Delay"),
+            ("1", "tab_global", "1:Systems"),
+            ("2", "tab_build", "2:Build"),
+            ("3", "tab_flash", "3:Flash"),
+            ("4", "tab_ai", "4:MiOS-Ai"),
+            ("minus", "speed_up", "Faster (-)"),
+            ("underscore", "speed_up", "Faster (-)"),
+            ("kp_minus", "speed_up", "Faster (-)"),
+            ("up", "speed_up", "Faster"),
+            ("plus", "slow_down", "Slower (+)"),
+            ("equals", "slow_down", "Slower (+)"),
+            ("kp_plus", "slow_down", "Slower (+)"),
+            ("down", "slow_down", "Slower"),
         ]
+
+        def action_tab_global(self): self.query_one(TabbedContent).active = "tab-global"
+        def action_tab_build(self): self.query_one(TabbedContent).active = "tab-build"
+        def action_tab_flash(self): self.query_one(TabbedContent).active = "tab-flash"
+        def action_tab_ai(self): self.query_one(TabbedContent).active = "tab-ai"
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            with TabbedContent(initial="tab-global"):
+            init_tab = "tab-ai" if AI_MODE else ("tab-build" if PIPELINE_MODE else (f"tab-{TAB_CHOICE}" if TAB_CHOICE else "tab-global"))
+            with TabbedContent(initial=init_tab):
                 with TabPane("Global Systems", id="tab-global"):
                     with Horizontal(id="main-container"):
                         with Vertical(id="left-pane"):
@@ -635,7 +742,7 @@ if TEXTUAL_AVAILABLE:
                         with Vertical(id="flash-stats-pane", classes="box"):
                             yield Static(id="flash-stats", markup=True)
                         yield RichLog(id="flash-log-box", classes="box", markup=True, wrap=True)
-                with TabPane("MiOS AI Forge", id="tab-ai"):
+                with TabPane("MiOS-Ai", id="tab-ai"):
                     with Horizontal(id="ai-container"):
                         with Vertical(id="ai-stats-pane", classes="box"):
                             yield Static(id="ai-stats", markup=True)
@@ -694,7 +801,7 @@ if TEXTUAL_AVAILABLE:
             try:
                 self.query_one("#build-log-box").border_title = "MiOS Build / Install Pipeline (Live)"
                 self.query_one("#flash-log-box").border_title = "MiOS Field USB Flash Stream (Live)"
-                self.query_one("#ai-log-box").border_title = "MiOS AI Forge & Container Stream (Live)"
+                self.query_one("#ai-log-box").border_title = "MiOS-Ai: MCP & Agent Relay Message Stream (Live)"
             except Exception: pass
 
         def action_speed_up(self):
@@ -1034,15 +1141,72 @@ if TEXTUAL_AVAILABLE:
             self.query_one("#forge-box", Static).update("\n".join(u_lines))
 
             try:
+                agents, messages, slots = get_agent_and_mcp_data()
+                online_count = sum(1 for a in agents if a.get("online"))
+                mcp_online = bool(getattr(self, 'service_status', {}).get('mcp', False))
+                pipe_online = bool(getattr(self, 'service_status', {}).get('agent_pipe', False))
+                llm_online = any(getattr(self, 'service_status', {}).get(lane, False)
+                                 for lane in ('llm_light', 'cpu_node', 'vllm', 'sglang'))
+
                 ai_lines = [
-                    f"[{SSOT['success']} bold]AI Forge Status[/]",
-                    f"[{SSOT['subtle']}]Podman Engine:[/] {'[green]ONLINE[/]' if getattr(self, 'service_status', {}).get('podman-machine', False) else '[red]OFFLINE[/]'}",
-                    f"[{SSOT['subtle']}]LLM Inference:[/] {'[green]READY[/]' if any(getattr(self, 'service_status', {}).get(lane, False) for lane in ('llm_light', 'cpu_node', 'vllm', 'sglang')) else '[dim]STANDBY[/]'}",
-                    "",
-                    f"[{SSOT['warning']}]System Memory:[/] {make_bar(psutil.virtual_memory().percent, 18)}",
-                    f"[{SSOT['warning']}]System CPU:[/] {make_bar(float(cpu), 18)}"
+                    f"[{SSOT['success']} bold]MiOS-Ai: MCP & Automation[/]",
+                    f"[{SSOT['subtle']}]MiOS-MCP:[/] {'[green bold]ONLINE[/]' if (mcp_online or pipe_online) else '[dim]STANDBY[/]'}  [{SSOT['subtle']}]LLM:[/] {'[green bold]READY[/]' if llm_online else '[dim]STANDBY[/]'}",
+                    f"[{SSOT['subtle']}]Relay Agents:[/] {len(agents)} registered ({online_count} online)",
                 ]
+                if not agents:
+                    ai_lines.append("  [dim](No agents registered in relay)[/]")
+                else:
+                    for a in agents[:6]:
+                        status_str = "[green bold]ONLINE[/]" if a.get("online") else "[red bold]OFFLINE[/]"
+                        aid = a.get("id", "agent")
+                        aid_disp = aid if len(aid) <= 26 else (aid[:13] + ".." + aid[-10:])
+                        p_str = f" [yellow]({a['pending']}p)[/]" if a.get("pending") else ""
+                        ai_lines.append(f"  • [cyan]{aid_disp}[/] [{status_str}]{p_str}")
+                        if a.get("label"):
+                            lbl = a["label"][:30] + (".." if len(a["label"]) > 30 else "")
+                            ai_lines.append(f"    [dim]{a.get('kind','-')}: {lbl}[/]")
+
+                ai_lines.append("")
+                ai_lines.append(f"[{SSOT['warning']} bold]Headless Slots (tmux-mcp):[/]")
+                if not slots:
+                    ai_lines.append("  [dim]All automation slots idle (0/32)[/]")
+                else:
+                    for sl in slots[:4]:
+                        ai_lines.append(f"  • Slot [cyan]{sl['pane']}[/] (PID {sl['pid']}): [green]{sl['cmd']}[/]")
+
+                ai_lines.append("")
+                ai_lines.append(f"[{SSOT['subtle']}]Memory:[/] {make_bar(psutil.virtual_memory().percent, 14)}")
                 self.query_one("#ai-stats", Static).update("\n".join(ai_lines))
+
+                ai_log_box = self.query_one("#ai-log-box", RichLog)
+                if not hasattr(self, "_seen_ai_messages"):
+                    self._seen_ai_messages = set()
+                    for m in messages[-10:]:
+                        m_key = f"{m.get('message_id')}:{m.get('status')}"
+                        self._seen_ai_messages.add(m_key)
+                        ts = datetime.fromtimestamp(m.get("created", time.time())).strftime("%H:%M:%S")
+                        st = m.get("status", "msg").upper()
+                        st_col = "green" if st == "RECEIVED" else "yellow" if st == "QUEUED" else "cyan"
+                        frm = m.get("from", "?")
+                        if len(frm) > 22: frm = frm[:10] + ".." + frm[-10:]
+                        to = m.get("to", "?")
+                        if len(to) > 22: to = to[:10] + ".." + to[-10:]
+                        preview = escape(m.get("message", "").replace("\n", " ")[:90])
+                        ai_log_box.write(f"[{st_col}][{ts}] [{st}][/{st_col}] [cyan]{frm}[/] ➔ [magenta]{to}[/]\n  [dim]\"{preview}\"[/]")
+                else:
+                    for m in messages:
+                        m_key = f"{m.get('message_id')}:{m.get('status')}"
+                        if m_key not in self._seen_ai_messages:
+                            self._seen_ai_messages.add(m_key)
+                            ts = datetime.fromtimestamp(m.get("created", time.time())).strftime("%H:%M:%S")
+                            st = m.get("status", "msg").upper()
+                            st_col = "green" if st == "RECEIVED" else "yellow" if st == "QUEUED" else "cyan"
+                            frm = m.get("from", "?")
+                            if len(frm) > 22: frm = frm[:10] + ".." + frm[-10:]
+                            to = m.get("to", "?")
+                            if len(to) > 22: to = to[:10] + ".." + to[-10:]
+                            preview = escape(m.get("message", "").replace("\n", " ")[:90])
+                            ai_log_box.write(f"[{st_col}][{ts}] [{st}][/{st_col}] [cyan]{frm}[/] ➔ [magenta]{to}[/]\n  [dim]\"{preview}\"[/]")
 
                 last_log_t = getattr(self, 'last_flash_log_time', None)
                 if last_log_t:
@@ -1122,24 +1286,31 @@ if TEXTUAL_AVAILABLE:
                 a_log = self.query_one("#ai-log-box")
 
                 # Responsive orientation detection:
-                # Portrait if vertical monitor (height > width) or narrow terminal (width < 90)
-                is_portrait = (height > width) or (width < 90)
+                # Multi-tier responsive orientation and scaling:
+                # 1. Narrow / Mobile Portrait (width < 78 or height > width)
+                # 2. Compact Height / Mobile Landscape (height < 26)
+                # 3. Standard / Desktop
+                is_narrow = (width < 78)
+                is_portrait = (height > width) or is_narrow
+                is_compact_height = (height < 26)
 
                 if is_portrait:
                     for c in (main_c, build_c, flash_c, ai_c):
                         c.styles.layout = "vertical"
                     left_p.styles.width = "100%"
-                    left_p.styles.height = "1fr"
+                    left_p.styles.height = "auto"
+                    left_p.styles.max_height = 18 if height > 40 else 12
                     left_p.styles.margin_left = 0
                     left_p.styles.margin_top = 0
                     right_p.styles.width = "100%"
                     right_p.styles.height = "1fr"
                     right_p.styles.margin_left = 0
-                    right_p.styles.margin_top = 1
+                    right_p.styles.margin_top = 0
 
                     for stats in (b_stats, f_stats, a_stats):
                         stats.styles.width = "100%"
                         stats.styles.height = "auto"
+                        stats.styles.max_height = 14 if height > 40 else 10
 
                     for lbox in (b_log, f_log, a_log):
                         lbox.styles.width = "100%"
@@ -1147,22 +1318,40 @@ if TEXTUAL_AVAILABLE:
                 else:
                     for c in (main_c, build_c, flash_c, ai_c):
                         c.styles.layout = "horizontal"
-                    left_p.styles.width = 48 if width >= 130 else "1fr"
-                    left_p.styles.height = "100%"
-                    left_p.styles.margin_left = 0
-                    left_p.styles.margin_top = 0
-                    right_p.styles.width = "1fr"
-                    right_p.styles.height = "100%"
-                    right_p.styles.margin_left = 1
-                    right_p.styles.margin_top = 0
+                    if is_compact_height:
+                        left_p.styles.width = 34 if width >= 90 else "1fr"
+                        left_p.styles.height = "100%"
+                        left_p.styles.margin_left = 0
+                        left_p.styles.margin_top = 0
+                        right_p.styles.width = "1fr"
+                        right_p.styles.height = "100%"
+                        right_p.styles.margin_left = 1
+                        right_p.styles.margin_top = 0
 
-                    for stats in (b_stats, f_stats, a_stats):
-                        stats.styles.width = 38
-                        stats.styles.height = "100%"
+                        for stats in (b_stats, f_stats, a_stats):
+                            stats.styles.width = 30 if width >= 90 else 26
+                            stats.styles.height = "100%"
 
-                    for lbox in (b_log, f_log, a_log):
-                        lbox.styles.width = "1fr"
-                        lbox.styles.height = "100%"
+                        for lbox in (b_log, f_log, a_log):
+                            lbox.styles.width = "1fr"
+                            lbox.styles.height = "100%"
+                    else:
+                        left_p.styles.width = 48 if width >= 130 else 38
+                        left_p.styles.height = "100%"
+                        left_p.styles.margin_left = 0
+                        left_p.styles.margin_top = 0
+                        right_p.styles.width = "1fr"
+                        right_p.styles.height = "100%"
+                        right_p.styles.margin_left = 1
+                        right_p.styles.margin_top = 0
+
+                        for stats in (b_stats, f_stats, a_stats):
+                            stats.styles.width = 38
+                            stats.styles.height = "100%"
+
+                        for lbox in (b_log, f_log, a_log):
+                            lbox.styles.width = "1fr"
+                            lbox.styles.height = "100%"
             except Exception: pass
 
         def on_resize(self, event) -> None:
@@ -1178,16 +1367,23 @@ if TEXTUAL_AVAILABLE:
                 except OSError: pass
 
 def main():
-    global PIPELINE_MODE
+    global PIPELINE_MODE, AI_MODE, TAB_CHOICE
     parser = argparse.ArgumentParser(description="MiOS-Mon -- Unified TUI & System Monitor")
     parser.add_argument("--mini", "--metal", action="store_true", help="compact mini/metal service layout")
     parser.add_argument("--dash", action="store_true", help="full system dashboard layout")
     parser.add_argument("--monitor", action="store_true", help="fullscreen interactive TUI monitor")
     parser.add_argument("--pipeline", action="store_true",
                         help="open directly on the live installer/build log tab")
+    parser.add_argument("--ai", action="store_true",
+                        help="open directly on the live MiOS-Ai monitoring tab")
+    parser.add_argument("--tab", choices=["global", "build", "flash", "ai"], default=None,
+                        help="initial active tab")
     parser.add_argument("--once", action="store_true", help="print snapshot once and exit")
     args, unknown = parser.parse_known_args()
     PIPELINE_MODE = args.pipeline
+    unknown_lower = [a.lower() for a in unknown]
+    AI_MODE = args.ai or (args.tab == "ai") or ("ai" in unknown_lower) or (os.environ.get("MIOS_MON_TAB") == "ai")
+    TAB_CHOICE = args.tab
 
     mode = "monitor"
     unknown_lower = [a.lower() for a in unknown]

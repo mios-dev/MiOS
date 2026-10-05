@@ -20,6 +20,7 @@ Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 Environment=BULL_AUTH_KEY=mios
 Environment=LOGGING_LEVEL=INFO
 Environment=NODE_ENV=production
+Environment=ENV=local
 Exec=pnpm run start:production
 Group=0
 Image=localhost/mios-firecrawl:v1.0.0

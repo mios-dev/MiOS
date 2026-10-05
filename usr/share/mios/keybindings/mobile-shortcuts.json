@@ -12,6 +12,12 @@
     "prefix": "C-b"
   },
   {
+    "command": "mios agents --watch",
+    "key": "g",
+    "name": "MiOS Agents",
+    "prefix": "C-b"
+  },
+  {
     "command": "mios mon",
     "key": "m",
     "name": "MiOS System Monitor",

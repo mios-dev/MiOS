@@ -71,7 +71,7 @@ if (-not $LinuxUser) {
     $LinuxUser = (& wsl.exe -d $Distro -u root -- python3 -c 'import pwd; print(pwd.getpwuid(1000).pw_name)').Trim()
     if ($LASTEXITCODE -ne 0 -or -not $LinuxUser) { throw 'No UID 1000 MiOS user; pass an unprivileged -LinuxUser explicitly' }
 }
-$resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_toml; d=mios_toml.load_merged(); print(json.dumps({"font":d["theme"]["font"],"theme":d["theme"],"terminal":d["terminal"],"colors":mios_toml.colors(d),"keybindings":d["keybindings"],"mcp":d["mcp"],"agent_cli":d["agent_cli"],"nativeWindows":d["build"]["native"]["windows"],"clinkPackage":d["bootstrap"]["prereqs"]["clink_pkg"]}))'
+$resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_toml; d=mios_toml.load_merged(); print(json.dumps({"font":d["theme"]["font"],"theme":d["theme"],"terminal":d["terminal"],"colors":mios_toml.colors(d),"keybindings":d["keybindings"],"mcp":d["mcp"],"agent_cli":d["agent_cli"],"ports":d["ports"],"os_control":d["os_control"],"nativeWindows":d["build"]["native"]["windows"],"clinkPackage":d["bootstrap"]["prereqs"]["clink_pkg"]}))'
 $configJson = & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $resolve
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve native MiOS theme SSOT' }
 $config = $configJson | ConvertFrom-Json -AsHashtable
@@ -219,7 +219,7 @@ switch ($verb) {
 '@
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-entry.ps1') ($entry + "`n")
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-client-setup.ps1') ([IO.File]::ReadAllText($PSCommandPath))
-foreach ($helper in @('mios-pc-control.ps1','mios-window-foreground.ps1','mios-uia-dump.ps1')) {
+foreach ($helper in @('mios-pc-control.ps1','mios-window-foreground.ps1','mios-uia-dump.ps1','mios-oscontrol-server.ps1')) {
     Write-MiosFile (Join-Path $BinDirectory $helper) ([IO.File]::ReadAllText((Join-Path $SourceRoot "usr\share\mios\windows\$helper")))
 }
 $windowsBuild = $config['nativeWindows']
@@ -240,6 +240,7 @@ $nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'
 }
 Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
 Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
+& (Join-Path $BinDirectory 'mios-oscontrol-server.ps1') -Install
 $launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`nif `"%~1`"==`"`" goto :terminal`r`nif `"%~1`"==`"terminal`" goto :terminal`r`nif `"%~1`"==`"ai-terminal`" goto :ai_terminal`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n:terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-terminal %*`r`nexit /b %ERRORLEVEL%`r`n:ai_terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-ai-terminal %*`r`nexit /b %ERRORLEVEL%`r`n"
 Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
 $devEntry = @'
@@ -409,7 +410,7 @@ if (-not $SkipClients) {
                 foreach ($action in $row['args']['commands']) {
                     if ($action -is [Collections.IDictionary] -and $action['command'] -eq 'workbench.action.terminal.sendSequence') {
                         $text = $action['args']['text']
-                        $action['args']['text'] = $text.Replace('/usr/libexec/mios/mios-ai-terminal', 'mios.cmd ai-terminal').Replace('mios mon', 'mios.cmd mon')
+                        $action['args']['text'] = $text.Replace('/usr/libexec/mios/mios-ai-terminal', 'mios.cmd ai-terminal').Replace('mios mon', 'mios.cmd mon').Replace('mios agents --watch', 'mios.cmd agents --watch')
                     }
                 }
             }

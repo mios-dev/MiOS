@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3662,
-  "total_metadata_entries": 3010,
-  "total_hints": 2997,
+  "total_files_scanned": 3663,
+  "total_metadata_entries": 3011,
+  "total_hints": 2998,
   "total_functions_indexed": 1468,
-  "total_related_links": 4824,
+  "total_related_links": 4828,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -16059,6 +16059,20 @@
       "has_shebang": false
     },
     {
+      "path": "usr/lib/mios/mios_oscontrol_client.py",
+      "hint": "Shared layered SSOT endpoint and fail-closed HTTP verdict contract for Windows OS-control clients.",
+      "related": [
+        "mios-pc-control",
+        "mios-oscontrol-health",
+        "mios-windows",
+        "mios_toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/lib/mios/mios_toml.py",
       "hint": "The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh.",
       "related": [],
@@ -23517,7 +23531,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-oscontrol-health",
-      "hint": "Probes the MiOS Windows OS-control plane (in-session executor :11437 via the",
+      "hint": "Probes the SSOT Windows OS-control executor and the WSL shell interop plane.",
       "related": [
         "mios-pc-control",
         "mios-os-recipe",

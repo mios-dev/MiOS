@@ -1475,7 +1475,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 [ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S:-}"
 [ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION="${MIOS_VERSION_K3S:-}"
 : "${MIOS_KARGS_IOMMU:=on}"
-[ -n "${MIOS_KEYBINDINGS_ACTIONS+x}" ] || MIOS_KEYBINDINGS_ACTIONS='{ command = "/usr/libexec/mios/mios-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal", id = "terminal", key = "t", label = "MiOS Terminal", tmux_command = "new-window", vscode_command = "workbench.action.terminal.toggleTerminal" },{ command = "/usr/libexec/mios/mios-ai-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai", id = "ai", key = "a", label = "MiOS AI", tmux_command = "new-window -n MiOS-AI /usr/libexec/mios/mios-ai-terminal", vscode_command = "runCommands", vscode_shell = "/usr/libexec/mios/mios-ai-terminal" },{ command = "mios mon", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system", id = "system", key = "m", label = "MiOS System Monitor", tmux_command = "new-window -n MiOS-System mios mon", vscode_command = "runCommands", vscode_shell = "mios mon" }'
+[ -n "${MIOS_KEYBINDINGS_ACTIONS+x}" ] || MIOS_KEYBINDINGS_ACTIONS='{ command = "/usr/libexec/mios/mios-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal", id = "terminal", key = "t", label = "MiOS Terminal", tmux_command = "new-window", vscode_command = "workbench.action.terminal.toggleTerminal" },{ command = "/usr/libexec/mios/mios-ai-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai", id = "ai", key = "a", label = "MiOS AI", tmux_command = "new-window -n MiOS-AI /usr/libexec/mios/mios-ai-terminal", vscode_command = "runCommands", vscode_shell = "/usr/libexec/mios/mios-ai-terminal" },{ command = "mios agents --watch", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents", id = "agents", key = "g", label = "MiOS Agents", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action agents'"'"'", vscode_command = "runCommands", vscode_shell = "mios agents --watch" },{ command = "mios mon", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system", id = "system", key = "m", label = "MiOS System Monitor", tmux_command = "new-window -n MiOS-System mios mon", vscode_command = "runCommands", vscode_shell = "mios mon" }'
 : "${MIOS_KEYBINDINGS_DESKTOP_ACCELERATOR:=<Control><Alt><Shift>}"
 : "${MIOS_KEYBINDINGS_DESKTOP_MODIFIER:=CTRL ALT SHIFT}"
 : "${MIOS_KEYBINDINGS_ENABLED:=true}"
@@ -1584,6 +1584,9 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_MCP_AGENTS_MAX_MESSAGE_BYTES:=32768}"
 : "${MIOS_MCP_AGENTS_MAX_PENDING:=1024}"
 : "${MIOS_MCP_AGENTS_MAX_RECEIPTS:=4096}"
+: "${MIOS_MCP_AGENTS_OBSERVATION_MAX_ROWS:=32}"
+: "${MIOS_MCP_AGENTS_OBSERVATION_REFRESH_S:=2}"
+: "${MIOS_MCP_AGENTS_OBSERVATION_WINDOW_NAME:=MiOS Agents}"
 : "${MIOS_MCP_AGENTS_STATE_DIRECTORY:=mios/agent-relay}"
 : "${MIOS_MCP_PORT:=8770}"
 : "${MIOS_MCP_PROTOCOL_VERSION:=2026-07-28}"
@@ -1645,7 +1648,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_META_SPEC_URL:=https://toml.io/en/v1.0.0}"
 [ -n "${MIOS_MICRO_ENDPOINT+x}" ] || MIOS_MICRO_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
 : "${MIOS_MIGRATION_USE_COMPILED_AINODE:=true}"
-: "${MIOS_MIGRATION_USE_COMPILED_OSCONTROL:=true}"
+: "${MIOS_MIGRATION_USE_COMPILED_OSCONTROL:=false}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_INSTALL_ENV:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_POWERSHELL:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_PYTHON:=true}"

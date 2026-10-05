@@ -189,7 +189,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-os-control` | The primary entrypoint for MiOS OS-control, providing an OpenAI-compliant tool schema, verb catalog, and skill discovery system derived from mios.toml to allow LLMs to execute system operations... |
 | `usr/libexec/mios/mios-os-recipe` | Executes allowlisted, shell-escaped OS-specific commands defined in mios.toml, handling cross-platform path conversion and security-hardened parameter filtering for MiOS system operations. |
 | `usr/libexec/mios/mios-oscap-gate` | Severity-gated pass/fail parser for an OpenSCAP results file (ARF or XCCDF results XML), the decision half of the BOOT-02 scan-only build gate. Counts rule-result/result=fail entries whose rule... |
-| `usr/libexec/mios/mios-oscontrol-health` | Probes the MiOS Windows OS-control plane (in-session executor :11437 via the |
+| `usr/libexec/mios/mios-oscontrol-health` | Probes the SSOT Windows OS-control executor and the WSL shell interop plane. |
 | `usr/libexec/mios/mios-owui-apply-knowledge` | Registers the authoritative MiOS knowledge corpus from FHS paths into the Open WebUI database, linking specific files and their content to the MiOS-Agent model row for RAG-enabled context. |
 | `usr/libexec/mios/mios-owui-apply-suggestions` | Clears hardcoded prompt_suggestions from the Open WebUI database to ensure the system defaults to dynamic, LLM-generated suggestions based on the current session's context and locale. |
 | `usr/libexec/mios/mios-owui-apply-system-prompt` | Python script that synchronizes the Open WebUI database with the MiOS-managed system prompt for the "MiOS-Agent" model, ensuring the agent's persona and capabilities are correctly injected into the... |
@@ -812,11 +812,12 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_comments.py` | The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
 | `usr/lib/mios/mios_db_config.py` | Peer of mios_toml.py resolving configuration settings from PostgreSQL config tables (WS-VECTOR V1 / T-243). |
 | `usr/lib/mios/mios_env.py` | Shared environment helper for stripping empty MIOS_* environment variables. |
+| `usr/lib/mios/mios_oscontrol_client.py` | Shared layered SSOT endpoint and fail-closed HTTP verdict contract for Windows OS-control clients. |
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/mios_translate.py` | Pure Python translation engine for loop.v1 events, Responses items, and cross-harness frame normalization. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 439 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 440 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

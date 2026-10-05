@@ -10,10 +10,15 @@ name='MiOS AI'
 command='alacritty -e /usr/libexec/mios/mios-terminal --action ai'
 binding='<Control><Alt><Shift>a'
 
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-agents]
+name='MiOS Agents'
+command='alacritty -e /usr/libexec/mios/mios-terminal --action agents'
+binding='<Control><Alt><Shift>g'
+
 [org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-system]
 name='MiOS System Monitor'
 command='alacritty -e /usr/libexec/mios/mios-terminal --action system'
 binding='<Control><Alt><Shift>m'
 
 [org/gnome/settings-daemon/plugins/media-keys]
-custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-terminal/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-ai/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-system/']
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-terminal/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-ai/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-agents/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mios-system/']
