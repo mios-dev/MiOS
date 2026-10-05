@@ -139,6 +139,40 @@ Write-MiosFile (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-remote.omp.json') 
 $legacyRemote = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios-ascii.omp.json'
 if (Test-Path -LiteralPath $legacyRemote) { Write-MiosFile $legacyRemote $promptBundle.remote }
 
+# Persist MiOS palette, font, and VT settings to Windows Console registry targets
+# Ensures standard cmd.exe, OpenSSH (ConPTY), and PowerShell sessions default to MiOS SSOT
+$consoleTargets = @(
+    'HKCU:\Console',
+    'HKCU:\Console\%SystemRoot%_System32_cmd.exe',
+    'HKCU:\Console\MiOS',
+    'HKCU:\Console\%SystemRoot%_System32_WindowsPowerShell_v1.0_powershell.exe',
+    'HKCU:\Console\%SystemRoot%_SysWOW64_WindowsPowerShell_v1.0_powershell.exe'
+)
+$ansiConsoleKeys = @(
+    'ansi_0_black', 'ansi_4_blue', 'ansi_2_green', 'ansi_6_cyan',
+    'ansi_1_red', 'ansi_5_magenta', 'ansi_3_yellow', 'ansi_7_white',
+    'ansi_8_bright_black', 'ansi_12_bright_blue', 'ansi_10_bright_green', 'ansi_14_bright_cyan',
+    'ansi_9_bright_red', 'ansi_13_bright_magenta', 'ansi_11_bright_yellow', 'ansi_15_bright_white'
+)
+$fontSize = [int]$config['font']['size']
+foreach ($cPath in $consoleTargets) {
+    if (-not (Test-Path -LiteralPath $cPath)) { New-Item -Path $cPath -Force | Out-Null }
+    for ($i = 0; $i -lt $ansiConsoleKeys.Count; $i++) {
+        $hex = $config['colors'][$ansiConsoleKeys[$i]].TrimStart('#')
+        $r = [Convert]::ToInt32($hex.Substring(0, 2), 16)
+        $g = [Convert]::ToInt32($hex.Substring(2, 2), 16)
+        $b = [Convert]::ToInt32($hex.Substring(4, 2), 16)
+        $dword = ($b -shl 16) -bor ($g -shl 8) -bor $r
+        Set-ItemProperty -Path $cPath -Name ('ColorTable{0:D2}' -f $i) -Value $dword -Type DWord
+    }
+    Set-ItemProperty -Path $cPath -Name 'ScreenColors' -Value 0x07 -Type DWord
+    Set-ItemProperty -Path $cPath -Name 'PopupColors' -Value 0xF5 -Type DWord
+    Set-ItemProperty -Path $cPath -Name 'VirtualTerminalLevel' -Value 1 -Type DWord
+    Set-ItemProperty -Path $cPath -Name 'FaceName' -Value $config['font']['family'] -Type String
+    Set-ItemProperty -Path $cPath -Name 'FontFamily' -Value 0x36 -Type DWord
+    Set-ItemProperty -Path $cPath -Name 'FontSize' -Value ($fontSize -shl 16) -Type DWord
+}
+
 if (-not $RuntimeOnly) {
 # A real .cmd on machine PATH works from cmd.exe, SSH's default CMD shell, and
 # scripts, without a PowerShell alias or a Command Processor AutoRun hook.
@@ -249,16 +283,40 @@ if encoding then encoding:read("*a"); encoding:close() end
 local p = io.popen(__COMMAND__)
 if p then p:read("*a"); p:close() end
 os.setenv("CLINK_NOAUTORUN", autorun)
+if not os.getenv("MIOS_COLORS_APPLIED") then
+    io.write(__OSC_COLORS__)
+    io.flush()
+    os.setenv("MIOS_COLORS_APPLIED", "1")
+end
 settings.set("clink.customprompt", __PROMPT__)
 '@
 $cmdPrompt = $cmdPrompt.Replace('__BIN__', ($BinDirectory | ConvertTo-Json -Compress)).Replace('__COMMAND__',(('call "' + (Join-Path $BinDirectory 'mios.cmd') + '" project') | ConvertTo-Json -Compress)).Replace('__PROMPT__',((Join-Path $clinkDirectory 'themes\mios-ssot.clinkprompt') | ConvertTo-Json -Compress)).Replace('__CODEPAGE__', [string][int]$config['theme']['terminal']['windows_codepage'])
 $agentRoot = Join-Path $env:ProgramData $config['agent_cli']['windows_directory']
 $agentPaths = @((Join-Path $env:ProgramFiles 'nodejs'),(Join-Path $agentRoot 'npm'),(Join-Path $agentRoot 'native'),(Join-Path $agentRoot 'bin')) -join ';'
 $cmdPrompt = $cmdPrompt.Replace('__AGENTPATH__', ($agentPaths | ConvertTo-Json -Compress))
+$palette = $config['colors']
+$oscColors = [Text.StringBuilder]::new()
+[void]$oscColors.Append("\x1b]10;$($palette['fg'])\x07")
+[void]$oscColors.Append("\x1b]11;$($palette['bg'])\x07")
+[void]$oscColors.Append("\x1b]12;$($palette['cursor'])\x07")
+[void]$oscColors.Append("\x1b]17;$($palette['accent'])\x07")
+$ansiNames = @('black','red','green','yellow','blue','magenta','cyan','white')
+for ($i = 0; $i -lt 8; $i++) {
+    $name = $ansiNames[$i]
+    [void]$oscColors.Append("\x1b]4;$i;$($palette["ansi_${i}_$name"])\x07")
+    [void]$oscColors.Append("\x1b]4;$($i+8);$($palette["ansi_$($i+8)_bright_$name"])\x07")
+}
+$oscLiteral = '"' + $oscColors.ToString() + '"'
+$cmdPrompt = $cmdPrompt.Replace('__OSC_COLORS__', $oscLiteral)
 Write-MiosFile (Join-Path $clinkDirectory 'mios-ssot.lua') ($cmdPrompt + "`n")
 $cmdTheme = @'
 -- AI-hint: Native MiOS prompt loads the caller's runtime SSOT projection.
 -- Oh My Posh owns its Lua filters; Clink owns prompt activation.
+if not os.getenv("MIOS_COLORS_APPLIED") then
+    io.write(__OSC_COLORS__)
+    io.flush()
+    os.setenv("MIOS_COLORS_APPLIED", "1")
+end
 local theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios.omp.json"
 if os.getenv("SSH_CONNECTION") or os.getenv("SSH_CLIENT") or not os.getenv("WT_SESSION") then
     theme = os.getenv("LOCALAPPDATA") .. "\\MiOS\\themes\\mios-remote.omp.json"
@@ -269,6 +327,7 @@ p:close()
 assert(load(script, "MiOS SSOT prompt"))()
 return {}
 '@
+$cmdTheme = $cmdTheme.Replace('__OSC_COLORS__', $oscLiteral)
 Write-MiosFile (Join-Path $clinkDirectory 'themes\mios-ssot.clinkprompt') ($cmdTheme + "`n")
 & $clink autorun install --allusers
 if ($LASTEXITCODE -ne 0) { throw 'Could not enable native CMD startup' }

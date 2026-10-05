@@ -94,7 +94,7 @@ $env:PATH = ($paths -join ';') + ';' + $env:PATH
 # MiOS-owned launchers; the unprivileged native tmux bridge must execute them too.
 foreach ($folder in @($native, (Join-Path $directory 'bin'))) {
     foreach ($exe in Get-ChildItem -LiteralPath $folder -Filter '*.exe' -File) {
-        $linuxPath = & wsl.exe -d $Distro -u root -- wslpath -a -u $exe.FullName
+        $linuxPath = & wsl.exe -d $Distro -u root -- wslpath -a -u $exe.FullName.Replace('\','/')
         if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the global launcher path for MiOS tmux' }
         & wsl.exe -d $Distro -u root -- chmod a+rx ($linuxPath -join '')
         if ($LASTEXITCODE -ne 0) { throw 'Cannot grant execution of the MiOS-owned global launcher' }

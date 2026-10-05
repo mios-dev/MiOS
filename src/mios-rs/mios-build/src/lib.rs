@@ -27,12 +27,24 @@ struct NativeCategory {
     compat_dirs: Vec<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+pub struct NativeWindows {
+    pub target: String,
+    pub linker: String,
+    pub rustflags: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NativeConfig {
     workspaces: Vec<String>,
     windows_only: Vec<String>,
     linux: NativeLinux,
+    #[serde(default)]
+    #[allow(dead_code)]
+    windows: Option<NativeWindows>,
     categories: std::collections::BTreeMap<String, NativeCategory>,
 }
 

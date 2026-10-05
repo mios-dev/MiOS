@@ -132,8 +132,24 @@ class ThemeSyncEngine:
             '"ColorizationAfterglow"=dword:00000000',
             '"ColorizationBlurBalance"=dword:00000001',
             "",
+        ]
+
+        console_targets = [
+            "[HKEY_CURRENT_USER\\Console]",
+            "[HKEY_CURRENT_USER\\Console\\%SystemRoot%_System32_cmd.exe]",
             "[HKEY_CURRENT_USER\\Console\\MiOS]",
         ]
+
+        font_family = "GeistMono Nerd Font Mono"
+        font_size = 12
+        if mios_toml is not None:
+            try:
+                d = mios_toml.load_merged()
+                font_family = d.get("theme", {}).get("font", {}).get("family", font_family)
+                font_size = int(d.get("theme", {}).get("font", {}).get("size", font_size))
+            except Exception:
+                pass
+        font_dword = (font_size << 16)
 
         # ANSI 16 slot console color table mapping
         ansi_keys = [
@@ -143,16 +159,21 @@ class ThemeSyncEngine:
             "ansi_9_bright_red", "ansi_13_bright_magenta", "ansi_11_bright_yellow", "ansi_15_bright_white"
         ]
 
-        for idx, key in enumerate(ansi_keys):
-            hex_val = self.palette.get(key, "#000000")
-            dword = hex_to_dword_bgr(hex_val)
-            reg_lines.append(f'"ColorTable{idx:02d}"=dword:{dword:08x}')
-
-        reg_lines.extend([
-            f'"PopupColors"=dword:000000f5',
-            f'"ScreenColors"=dword:00000007',
-            "",
-        ])
+        for section in console_targets:
+            reg_lines.extend([
+                section,
+                f'"FaceName"="{font_family}"',
+                '"FontFamily"=dword:00000036',
+                f'"FontSize"=dword:{font_dword:08x}',
+                '"PopupColors"=dword:000000f5',
+                '"ScreenColors"=dword:00000007',
+                '"VirtualTerminalLevel"=dword:00000001',
+            ])
+            for idx, key in enumerate(ansi_keys):
+                hex_val = self.palette.get(key, "#000000")
+                dword = hex_to_dword_bgr(hex_val)
+                reg_lines.append(f'"ColorTable{idx:02d}"=dword:{dword:08x}')
+            reg_lines.append("")
 
         return "\r\n".join(reg_lines)
 

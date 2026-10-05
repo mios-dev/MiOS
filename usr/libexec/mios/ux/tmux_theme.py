@@ -53,11 +53,16 @@ class TmuxThemeEngine:
             raise ValueError("[theme.tmux].style must be rounded, powerline or minimal")
         if self.status_position not in {"top", "bottom"}:
             raise ValueError("[theme.tmux].status_position must be top or bottom")
+        pane_bg = self.settings.get("pane_background", "terminal")
+        if pane_bg not in {"terminal", "theme"}:
+            raise ValueError("[theme.tmux].pane_background must be terminal or theme")
+        self.pane_background = pane_bg
         mode = self.settings["remote_glyph_mode"] if is_remote_terminal() else self.settings["glyph_mode"]
         if mode not in {"auto", "nerd", "ascii"}:
             raise ValueError("[theme.tmux].glyph_mode must be auto, nerd or ascii")
         self.font = self.data["theme"]["font"]["family"]
-        if mode == "ascii" or (mode == "auto" and "nerd" not in self.font.lower()):
+        remote = is_remote_terminal()
+        if mode == "ascii" or (mode == "auto" and (remote or "nerd" not in self.font.lower())):
             self.style = "minimal"
         interval = self.settings["status_interval_s"]
         if type(interval) is not int or interval <= 0:
@@ -74,6 +79,7 @@ class TmuxThemeEngine:
         p = self.palette
         bg = p["bg"]
         fg = p["fg"]
+        pane_bg = "default" if self.pane_background == "terminal" else bg
         accent = p["accent"]
         cursor = p["cursor"]
         muted = p["muted"]
@@ -93,8 +99,8 @@ class TmuxThemeEngine:
             f"set -g status-interval {self.settings['status_interval_s']}",
             f"set -g status-position {self.status_position}",
             f'set -g status-style "bg={bg},fg={fg}"',
-            f'set -g window-style "bg={bg},fg={fg}"',
-            f'set -g window-active-style "bg={bg},fg={fg}"',
+            f'set -g window-style "bg={pane_bg},fg={fg}"',
+            f'set -g window-active-style "bg={pane_bg},fg={fg}"',
             "",
             "# Window Status Alignment & Separation",
             "set -g status-justify left",
@@ -207,7 +213,7 @@ def render_prompt(data, remote=False):
     if mode not in {"auto", "nerd", "ascii"}:
         raise ValueError("[theme.prompt] glyph modes must be auto, nerd or ascii")
     prompt = json.loads(omp)
-    if mode == "ascii" or (mode == "auto" and "nerd" not in data["theme"]["font"]["family"].lower()):
+    if mode == "ascii" or (mode == "auto" and (remote or "nerd" not in data["theme"]["font"]["family"].lower())):
         ascii_style = settings["ascii"]
         for block in prompt["blocks"]:
             for segment in block["segments"]:
