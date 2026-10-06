@@ -1505,6 +1505,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-browser"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "mios-resolver",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "mios-comment-lex"
 version = "0.3.0"
 dependencies = [
@@ -1616,6 +1627,16 @@ dependencies = [
  "serde_json",
  "toml",
  "walkdir",
+]
+
+[[package]]
+name = "mios-toml-get"
+version = "0.3.0"
+dependencies = [
+ "mios-resolver",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

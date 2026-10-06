@@ -63,9 +63,8 @@ unresolved = [
 # ----------------------------------------------------------------------------
 [ssot_tables]
 doc = "A top-level table nothing reads is dead SSOT: it looks operator-tunable and is not, and every edit to it is silently ignored. The gate demands ACCESS-SHAPED evidence of consumption -- a direct index of the parsed SSOT, a toml-get lookup, a quoted dotted path naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* variable derived from the table's own keys appearing in a hand-written consumer -- because name-appearance was measured and rejected: any doc sentence or word collision kept a dead table alive (T-996, and the T-997 measurement that closed the text-search direction). Projection surfaces are NOT consumption: the generated globals twins render every table and seed-db-config mirrors nearly every table into config_kv wholesale, so crediting either would make the gate vacuous again. Each entry here is a table whose consumption is currently broken, accepted deliberately while its wiring lands: browser (family/flags reach no browser launcher; MIOS_BROWSER_AI_* belongs to [browser_ai]), hwcaps (ld_so_hwcaps_autoselect and native_rebuild reach no consumer; the rebuild script they describe is absent), preflight (the Windows preflight reads none of its thresholds), repos (its repo definitions feed no dnf/bootc surface). Draining an entry: wire a real consumer or delete the table, then lower max_unconsumed. Gate: check_no_inert_ssot_tables."
-max_unconsumed = 2
+max_unconsumed = 1
 unconsumed = [
-  "browser",                           # family/flags reach no launcher
   "hwcaps",                            # rebuild script it describes is absent
 ]
 
@@ -1903,8 +1902,8 @@ rustflags = ["-C", "target-feature=+crt-static"]
 [build.native.categories.cli]
 binaries = [
   "generate-names-registry", "mios-ai-config", "mios-aiplane-lint", "mios-bake-plan",
-  "mios-comment-lex", "mios-drift-runner", "mios-edge-status", "mios-render-quadlets",
-  "mios-resolver", "mios-size-ceiling", "mios-ssot-lint", "mios-task",
+  "mios-browser", "mios-comment-lex", "mios-drift-runner", "mios-edge-status", "mios-render-quadlets",
+  "mios-resolver", "mios-size-ceiling", "mios-ssot-lint", "mios-task", "mios-toml-get",
   "mios-template-compile", "mios-template-conform", "mios-toolchain-pin",
   "mios-unit-gen", "mios-version-check", "xtask", "mios-gate", "mios-probe", "miosd",
   "mios-install",
@@ -3601,6 +3600,8 @@ enabled = true
 binary = "/usr/libexec/mios/mios-agent-relay"
 state_directory = "mios/agent-relay"
 lease_s = 3600
+queue_offline = true
+mailbox_retention_s = 86400
 max_agents = 64
 max_pending = 1024
 max_message_bytes = 32768
@@ -3649,6 +3650,27 @@ allowed_tools = ["open-pane", "execute-command", "send-keys", "run-in-repl", "st
 upstream = "https://github.com/MadAppGang/tmux-mcp"
 version = "v2.0.0"
 revision = "d9e45cfe72cff75f7ba923c32ac35a19f424effb"
+
+# Native interactive workspaces; every catalogued CLI can replace this default.
+# Terminal cell geometry, not a client/phone name, selects the responsive view.
+[mcp.tmux.workspace]
+enabled = true
+tui_python = "python3"         # shared Fedora Textual/Rich packages
+head_agent = ""                # empty opens the client chooser; NAME bypasses it
+worker_panes = 4
+desktop_head_percent = 34
+desktop_min_columns = 100
+desktop_min_rows = 32
+portrait_ratio_percent = 200
+portrait_observer_percent = 55
+minimum_head_rows = 16
+worker_min_columns = 12
+workers_window_name = "MiOS AI Workers"
+window_name = "MiOS AI"
+introduction = "Choose a head CLI. Use MiOS-MCP and tmux-mcp to coordinate visible workers."
+selection_hint = "Client number/name; n/p: pages; q: close."
+navigation_hint = "Ctrl-b w: choose windows/panes; arrows: expand tree. Ctrl-b z: zoom. Ctrl-b o: next pane. Ctrl-b g: live agents."
+navigation_hint_compact = "Ctrl-b o: agent; f: compact/auto; w: panes; z: zoom."
 
 [mcp.tmux.assets.x86_64]
 path = "usr/share/mios/vendored/tmux-mcp/tmux-mcp_linux_amd64.tar.gz"
@@ -3700,11 +3722,11 @@ vscode_command = "workbench.action.terminal.toggleTerminal"
 id = "ai"
 label = "MiOS AI"
 key = "a"
-command = "/usr/libexec/mios/mios-ai-terminal"
+command = "/usr/bin/mios ai"
 desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai"
-tmux_command = "new-window -n MiOS-AI /usr/libexec/mios/mios-ai-terminal"
+tmux_command = "run-shell '/usr/libexec/mios/mios-terminal --action ai'"
 vscode_command = "runCommands"
-vscode_shell = "/usr/libexec/mios/mios-ai-terminal"
+vscode_shell = "mios ai"
 
 [[keybindings.actions]]
 id = "agents"
@@ -3742,6 +3764,8 @@ bindings = [
   { key = "d", command = "detach-client" },
   { key = "Tab", command = "send-keys BTab" },
   { key = "b", command = "send-prefix" },
+  { key = "o", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-focus next'" },
+  { key = "f", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-view toggle'" },
 ]
 
 [routing]
@@ -6060,14 +6084,6 @@ bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-
 # beyond this on hosts with more headroom.
 ram_floor_gb        = 8
 
-# ----------------------------------------------------------------------------
-# [ai.lanes] -- Hardware-optimized execution lanes declared for /lane routing
-# ----------------------------------------------------------------------------
-[ai.lanes]
-fast = "http://localhost:8640/v1/models/hermes-light"
-code = "http://localhost:8640/v1/models/qwen-coder"
-reason = "http://localhost:8640/v1/models/deepseek-r1"
-
 [ai.kv]
 slot_save_path = "/var/lib/mios/llamacpp/slots"   # --slot-save-path for chat lanes (matches tmpfiles + mios-llm-light.yaml)
 swa_full       = false                            # append --swa-full to SWA lanes ONLY; OFF for the current hybrid/recurrent brains
@@ -6117,15 +6133,6 @@ sys_agent_model          = "mios-sys-agent"
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
-# [aliases] -- Desktop & Environment dispatch targets
-# ----------------------------------------------------------------------------
-[aliases]
-browser = "firefox"                    # Super + b dispatch target (firefox | chromium | zen | brave)
-file_manager = "nautilus"              # Super + e dispatch target
-editor = "nvim"                        # $EDITOR fallback for terminal hand-offs
-terminal = "mios-terminal"             # Super + Return dispatch target
-
-# ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.
 # desktop.flatpaks -> MIOS_FLATPAKS (comma-joined for the Containerfile arg).
 # ----------------------------------------------------------------------------
@@ -6149,18 +6156,6 @@ flatpaks      = [
     "org.chromium.Chromium",                           # FOSS Chromium browser with Wayland + CDP support
     "com.google.ChromeDev",
 ]
-
-[desktop.bindings]
-mod_key = "SUPER"
-app_drawer = "Space"                   # Super + Space triggers Quickshell global drawer
-browser_launch = "b"                   # Super + b triggers aliases.browser
-quick_settings = "a"                   # Super + a triggers control center
-monitor_overlay = "m"                  # Super + m triggers hardware/AI monitor
-
-[desktop.applications.runtimes]
-linux_native = true                    # Indexes FreeDesktop .desktop paths
-windows_seamless = true                # Bridges Proton prefixes and KVM/WinApps shims
-android_waydroid = true                # Indexes Waydroid session APKs and intents
 
 
 [[desktop.apps]]
@@ -7254,6 +7249,7 @@ ttyd_bash          = 8310     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 8320     # ttyd browser pty -- Windows-side PowerShell session
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
 adguard_ui         = 8050     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
+headscale          = 8085     # Headscale mesh VPN control plane coordinator (HTTP / gRPC)
 opencode_gateway   = 8780     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 vllm               = 8520    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
 sglang             = 8530    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
@@ -7292,8 +7288,8 @@ unbound = ["chrome_cdp_worker", "ai_legacy", "field_live_chat"]
 base    = 8050
 stride  = 1
 members = ["adguard_ui"]
-pinned  = { adguard_dns = 53 }
-doc     = "Network edge / resolver. DNS is protocol-pinned at 53 and never floats."
+pinned  = { adguard_dns = 53, headscale = 8085 }
+doc     = "Network edge / resolver. DNS is protocol-pinned at 53 and never floats; Headscale mesh coordinator on 8085."
 
 [ports.categories.admin]
 base    = 8100
@@ -7484,6 +7480,7 @@ valkey             = "docker.io/valkey/valkey:latest"
 # so :latest can never cross into v2's env model; its manifest is digest-identical
 # to the last v1 release. Floating it cannot unbind the collector's SSOT ports.
 otelcol            = "docker.io/jaegertracing/all-in-one:latest"
+headscale          = "docker.io/headscale/headscale:latest"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -7580,7 +7577,8 @@ members     = [
   "mios-k3s",
   "mios-guacamole",
   "mios-guacd",
-  "mios-radosgw"
+  "mios-radosgw",
+  "mios-headscale"
 ]
 doc = """Consolidated system services pod."""
 
@@ -7644,6 +7642,12 @@ user = "mios-whisper"
 uid  = 832
 gid  = 832
 # No model_dir: whisper loads the model baked into its bound image (Law 12).
+
+[services.headscale]
+user = "mios-headscale"
+uid  = 833
+gid  = 833
+
 
 [adguard]
 # Upstream resolvers -- DoH for privacy (no plaintext :53 to the ISP). The agent
@@ -8045,6 +8049,26 @@ headscale_domain = "mesh.mios.local"
 vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
+[headscale]
+enabled = false
+port = 8085
+server_url = "http://mesh.mios.local:8085"
+base_domain = "mesh.mios.local"
+vnet_cidr = "100.64.0.0/10"
+listen_addr = "0.0.0.0:8085"
+metrics_listen_addr = "127.0.0.1:9090"
+config_path = "/etc/headscale/config.yaml"
+policy_path = "/usr/share/mios/mini/headscale-policy.hujson"
+db_path = "/var/lib/headscale/db.sqlite"
+
+[tailscale]
+enabled = true
+mode = "kernel"
+login_server = ""
+accept_routes = true
+accept_dns = true
+advertise_routes = ""
+
 # Per-vendor enable gate for the [gpu.cdi.<vendor>] wiring above. false here
 # keeps a vendor's CDI spec on disk but stops mios-gpu-passthrough from wiring
 # it into any Quadlet drop-in. A vendor with no flag defaults to enabled.
@@ -8084,6 +8108,14 @@ network = "mios.network"
 subnet  = "10.89.0.0/24"
 core_subnet = "10.89.0.0/24"
 core_gateway = "10.89.0.1"
+
+[aliases]
+browser         = "zen"
+web             = "zen"
+default_browser = "zen"
+editor          = "code"
+terminal        = "ptyxis"
+file_manager    = "nautilus"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
@@ -8319,6 +8351,7 @@ hub_target_profile  = "MiOS-DEV"    # WT profile launched by the hub .lnk
 # (MiOS-DEV) per the consolidation -- one MiOS, one chord.
 summon_keys         = "ctrl+alt+shift+space"
 summon_window_name  = "MiOS-DEV"
+center_on_launch    = true        # runtime monitor work area; no persisted pixel position
 windows_codepage    = 65001
 
 [theme.tmux]
@@ -9400,6 +9433,39 @@ After = "network-online.target mios-adguard-firstboot.service mios-webtools-firs
 ConditionPathExists = "/etc/mios/adguard/AdGuardHome.yaml"
 Description = "'MiOS' AdGuard Home (DNS ad/tracker/malware sinkhole + resolver)"
 Requires = "mios-adguard-firstboot.service"
+Wants = "network-online.target"
+
+[containers.mios-headscale.Container]
+ContainerName = "mios-headscale"
+Exec = "headscale serve"
+Group = "${MIOS_HEADSCALE_GID:-833}"
+Image = "${MIOS_HEADSCALE_IMAGE:-docker.io/headscale/headscale:latest}"
+Label = [
+  "org.opencontainers.image.title=mios-headscale",
+  "org.opencontainers.image.url=https://github.com/juanfont/headscale",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_HEADSCALE:-8085}/metrics"
+]
+Pod = "mios-system.pod"
+User = "${MIOS_HEADSCALE_UID:-833}"
+Volume = [
+  "/etc/headscale:/etc/headscale:Z",
+  "/var/lib/headscale:/var/lib/headscale:Z",
+  "/var/run/headscale:/var/run/headscale:Z"
+]
+
+[containers.mios-headscale.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-headscale.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-headscale.Unit]
+After = "network-online.target mios-headscale-firstboot.service"
+Description = "'MiOS' Headscale Mesh VPN Control Plane Coordinator"
+Requires = "mios-headscale-firstboot.service"
 Wants = "network-online.target"
 
 [containers.mios-ceph.Container]
@@ -12680,6 +12746,7 @@ unit = [
     "tests/test-wol-proxy.py",
     "tests/test-ipkvm-manager.py",
     "tests/test-agy-agent-pipeline.py",
+    "tests/test-model-bake-ready.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",
@@ -13102,3 +13169,4 @@ min_bytes = 4194304
 max_untested_crates = 0
 
 [rust.untested_crates]
+

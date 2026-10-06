@@ -236,7 +236,7 @@ jobs:
           # runner mounts one. A hosted runner has none, so identity and model
           # resolve from the SSOT inside the build.
           # [image].base from the SSOT; the Containerfile carries no default.
-          BUILD_ARGS=(--build-arg "BASE_IMAGE=$(python3 ./usr/libexec/mios/mios-toml-get image base)")
+          BUILD_ARGS=(--build-arg "BASE_IMAGE=$(./usr/libexec/mios/mios-toml-get image base)")
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env
@@ -404,7 +404,7 @@ jobs:
         run: |
           sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add all \
               --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-              --build-arg "BASE_IMAGE=$(python3 ./usr/libexec/mios/mios-toml-get image base)" \
+              --build-arg "BASE_IMAGE=$(./usr/libexec/mios/mios-toml-get image base)" \
               --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
 
       - name: Image runs and carries the MiOS components

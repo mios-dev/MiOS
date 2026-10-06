@@ -1,4 +1,4 @@
-﻿# AI-hint: MiOS configuration and runtime asset for Set-MiOSWallpaper.ps1.
+# AI-hint: MiOS configuration and runtime asset for Set-MiOSWallpaper.ps1.
 # AI-related: mios-common, mios-wallpaperd
 
 <#
@@ -94,6 +94,49 @@ if (-not (Get-ItemProperty -Path $wp -Name 'Enabled' -ErrorAction SilentlyContin
 Write-Host "[+] HKLM\SOFTWARE\MiOS\WallpaperUrl set from mios.toml [colors] SSOT (mode=$Mode):" -ForegroundColor Green
 Write-Host "    $url"
 
+# Ensure upstream Windows native iGPU / low-power preference (GpuPreference=1;)
+# targeting AMD Radeon(TM) Graphics iGPU for wallpaper host and WebView2 processes.
+function Ensure-MiosGpuPreferences {
+    $targetExes = [System.Collections.Generic.List[string]]::new()
+    $targetExes.Add('C:\Windows\Web\MiOS\MiOS-Wallpaper.exe')
+    $targetExes.Add('C:\Windows\Web\MiOS\MiOS-Wallpaper-Service.exe')
+
+    $searchRoots = @(
+        'C:\Program Files (x86)\Microsoft\EdgeWebView\Application',
+        'C:\Program Files\Microsoft\EdgeWebView\Application',
+        "$env:LOCALAPPDATA\Microsoft\EdgeWebView\Application"
+    )
+    foreach ($r in $searchRoots) {
+        if (Test-Path $r) {
+            Get-ChildItem -Path $r -Filter 'msedgewebview2.exe' -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+                if (-not $targetExes.Contains($_.FullName)) {
+                    $targetExes.Add($_.FullName)
+                }
+            }
+        }
+    }
+
+    $hives = @('HKCU:\Software\Microsoft\DirectX\UserGpuPreferences')
+    if (Test-Path 'Registry::HKEY_USERS') {
+        Get-ChildItem 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue | ForEach-Object {
+            $hives += "Registry::$($_.Name)\Software\Microsoft\DirectX\UserGpuPreferences"
+        }
+    }
+
+    foreach ($h in $hives) {
+        try {
+            if (-not (Test-Path $h)) {
+                New-Item -Path $h -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+            foreach ($exe in $targetExes) {
+                Set-ItemProperty -Path $h -Name $exe -Value 'GpuPreference=1;' -Type String -Force -ErrorAction SilentlyContinue
+            }
+        } catch { }
+    }
+}
+
+Ensure-MiosGpuPreferences
+
 if ($Restart) {
     try {
         Restart-Service -Name 'MiOS-Wallpaper-Service' -Force -ErrorAction Stop
@@ -101,6 +144,8 @@ if ($Restart) {
     } catch {
         Write-Warning "Could not restart MiOS-Wallpaper-Service: $($_.Exception.Message)"
     }
-    # Drop any live hosts so they relaunch against the new URL on the next poll.
+    # Drop any live hosts so they relaunch against the new URL and iGPU preferences on the next poll.
+    Get-Process -Name 'MiOS-Wallpaper' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Get-Process -Name 'mios-wallpaperd' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
+

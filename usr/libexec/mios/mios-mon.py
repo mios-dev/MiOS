@@ -66,10 +66,13 @@ except ImportError:
 
 try:
     from textual.app import App, ComposeResult
+    from textual.binding import Binding
     from textual.widgets import Header, Footer, Static, RichLog, TabbedContent, TabPane, DataTable, Sparkline, Label
     from textual.containers import Grid, Vertical, Horizontal
     from textual.reactive import reactive
     from textual.theme import Theme
+    from textual import on
+    from mios_agent_tui import ClientView, AgentView, SystemSummary
     import psutil
     TEXTUAL_AVAILABLE = True
 except ImportError:
@@ -402,68 +405,26 @@ def get_sys_info_table():
     return t
 
 def get_agent_and_mcp_data():
-    """Extract registered agents from agent relay and headless tmux-mcp automation slots."""
-    relay_dirs = [
-        os.environ.get("MIOS_AGENT_RELAY_STATE"),
-        os.path.expanduser("~/.local/state/mios/agent-relay"),
-        "/home/user/.local/state/mios/agent-relay",
-        "/root/.local/state/mios/agent-relay",
-        "/var/run/mios/agent-relay",
-        "/tmp/agent-relay",
-    ]
-    agents = []
-    messages = []
-    for rd in relay_dirs:
-        if rd and os.path.isdir(rd):
-            sf = os.path.join(rd, "state.json")
-            if os.path.exists(sf):
-                try:
-                    with open(sf, "r", encoding="utf-8") as f:
-                        st = json.load(f)
-                        now = time.time()
-                        for aid, ainfo in st.get("agents", {}).items():
-                            online = ainfo.get("expires", 0) > now
-                            pending = sum(1 for m in st.get("messages", [])
-                                          if m.get("to") == aid and m.get("status") == "queued")
-                            agents.append({
-                                "id": aid,
-                                "kind": ainfo.get("kind", "-"),
-                                "label": ainfo.get("label", ""),
-                                "online": online,
-                                "pending": pending,
-                                "expires": ainfo.get("expires", 0),
-                            })
-                        messages = st.get("messages", [])
-                    break
-                except Exception:
-                    pass
+    """Use the native sanitized observer; never read another user's private state."""
+    result = subprocess.run(["/usr/bin/mios", "agents", "--observe"],
+                            capture_output=True, text=True, timeout=12)
+    if result.returncode:
+        raise RuntimeError("native agent observer unavailable: " + result.stderr[-160:])
+    snapshot = json.loads(result.stdout)
+    if snapshot.get("errors"):
+        raise RuntimeError("; ".join(str(e.get("error", "observer failure")) for e in snapshot["errors"]))
+    agents = [{**a, "id": a["agent_id"]} for a in snapshot["agents"]]
+    panes = []
+    for p in snapshot["panes"]:
+        if p["session"] == "mios-anchor":
+            continue
+        command = p.get("agent_kind") or p["command"]
+        panes.append({"socket": p["socket"], "pane": f"{p['session']}:{p['window']}:{p['pane']}",
+                      "identity": p["socket"] + ":" + p["pane"], "pid": p["pid"], "cmd": command,
+                      "active": not p["dead"] and command not in ("bash", "sh", ""),
+                      "raw_cmd": p["command"]})
+    return agents, snapshot["messages"], panes
 
-    sockets = []
-    for pattern in [
-        "/mnt/wslg/run/user/*/mios-tmux-*/tmux-*/mcp-headless",
-        "/run/user/*/mios-tmux-*/tmux-*/mcp-headless",
-        "/tmp/mios-tmux-*/tmux-*/mcp-headless",
-        os.path.expanduser("~/.cache/mios-tmux-*/tmux-*/mcp-headless"),
-    ]:
-        sockets.extend(glob.glob(pattern))
-
-    slots = []
-    if shutil.which("tmux"):
-        for s in sockets[:8]:
-            try:
-                res = subprocess.run(
-                    ["tmux", "-S", s, "list-panes", "-a", "-F", "#{pane_index}|#{pane_pid}|#{pane_current_command}"],
-                    capture_output=True, text=True, timeout=0.8
-                )
-                if res.returncode == 0 and res.stdout.strip():
-                    for line in res.stdout.strip().splitlines():
-                        parts = line.split("|")
-                        if len(parts) >= 3 and parts[2] not in ("bash", "sh", ""):
-                            slots.append({"socket": s, "pane": parts[0], "pid": parts[1], "cmd": parts[2]})
-            except Exception:
-                pass
-
-    return agents, messages, slots
 
 def create_metal_layout():
     sys_info = get_sys_info()
@@ -530,7 +491,64 @@ def create_dash_layout():
 
     footer = Align.center(f"{get_credentials_text()}\n\n[bold]Tree:[/] {get_git_tree_status()}")
     header_box = Panel(Group(logo, Text(""), Align.center(fetch) if fetch else get_sys_info_table()), box=box.SIMPLE, border_style="cyan")
-    return Panel(Group(header_box, Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(footer, box=box.SIMPLE, border_style="cyan")), border_style="blue", title="[bold cyan]MiOS Dashboard[/]", padding=(1, 1))
+    
+    agent_panel = None
+    try:
+        agents, messages, slots = get_agent_and_mcp_data()
+        online_count = sum(1 for a in agents if a.get("online"))
+        ag_table = Table(box=box.SIMPLE, expand=True)
+        ag_table.add_column("Agent / Session", style="cyan")
+        ag_table.add_column("Kind", style="dim")
+        ag_table.add_column("Status", justify="center")
+        ag_table.add_column("Pending", justify="right")
+        for a in agents[:6]:
+            st = "[green bold]ONLINE[/]" if a.get("online") else "[red]OFFLINE[/]"
+            aid = a.get("id", "agent")
+            aid_disp = aid if len(aid) <= 30 else (aid[:15] + ".." + aid[-12:])
+            p_str = f"[yellow]{a['pending']}[/]" if a.get("pending") else "[dim]0[/]"
+            ag_table.add_row(aid_disp, str(a.get("kind", "-")), st, p_str)
+
+        pane_table = Table(box=box.SIMPLE, expand=True)
+        pane_table.add_column("Slot / Pane", style="cyan")
+        pane_table.add_column("PID", style="dim", justify="right")
+        pane_table.add_column("Command", style="yellow")
+        for sl in slots[:4]:
+            pane_table.add_row(str(sl["pane"]), str(sl["pid"]), str(sl["cmd"]))
+
+        agent_items = [
+            Text(f"Relay Participants: {len(agents)} registered ({online_count} online)", style="bold cyan"),
+            ag_table,
+            Text(f"Tmux Automation Slots: {len(slots)} detected", style="bold yellow"),
+            pane_table if slots else Text("  No active tmux panes detected\n", style="dim"),
+        ]
+        if messages:
+            agent_items.append(Text(f"Message Receipts: {len(messages)} total", style="bold magenta"))
+            msg_table = Table(box=box.SIMPLE, expand=True)
+            msg_table.add_column("Status", justify="center")
+            msg_table.add_column("Message ID", style="cyan")
+            msg_table.add_column("Route", style="dim")
+            for m in messages[-4:]:
+                st = m.get("status", "msg")
+                st_str = "[green]received[/]" if st == "received" else "[yellow]queued[/]" if st == "queued" else f"[dim]{st}[/]"
+                mid = m.get("message_id", "")
+                mid_disp = mid if len(mid) <= 24 else (mid[:11] + ".." + mid[-10:])
+                frm = m.get("from", "?")
+                if len(frm) > 14: frm = frm[:6] + ".." + frm[-6:]
+                to = m.get("to", "?")
+                if len(to) > 14: to = to[:6] + ".." + to[-6:]
+                msg_table.add_row(st_str, mid_disp, f"{frm} ➔ {to}")
+            agent_items.append(msg_table)
+
+        agent_panel = Panel(Group(*agent_items), title="[cyan]AGENT RELAY & AUTOMATION (MCP)[/]", border_style="cyan")
+    except Exception:
+        agent_panel = None
+
+    dash_panels = [header_box, Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan")]
+    if agent_panel:
+        dash_panels.append(agent_panel)
+    dash_panels.append(Panel(footer, box=box.SIMPLE, border_style="cyan"))
+
+    return Panel(Group(*dash_panels), border_style="blue", title="[bold cyan]MiOS Dashboard[/]", padding=(1, 1))
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():
@@ -558,6 +576,24 @@ if TEXTUAL_AVAILABLE:
     class MiosMonitorApp(App):
         TITLE = "MiOS Unified System & AI Monitor"
         refresh_interval = reactive(0.5)
+
+        def __init__(self, ui_request=None, ui_mode=None, observer=None, collectors=True, **kwargs):
+            super().__init__(**kwargs)
+            self.ui_request = ui_request or {}
+            self.ui_mode = ui_mode
+            self.collectors_enabled = collectors
+            self.collectors_started = False
+            self.observer = observer or self.observe_agents
+
+        def observe_agents(self):
+            request = self.ui_request.get("observation_request")
+            if not request:
+                return {"agents": [], "panes": [], "messages": [], "errors": ["Relay configuration unavailable"]}
+            result = subprocess.run([request["config"]["binary"], "--state", self.ui_request["state"], "--observe"],
+                                    input=json.dumps(request), capture_output=True, text=True, timeout=10)
+            if result.returncode:
+                raise RuntimeError(result.stderr.strip() or f"Observer exit {result.returncode}")
+            return json.loads(result.stdout)
 
         DEFAULT_CSS = f"""
         Screen {{
@@ -690,6 +726,15 @@ if TEXTUAL_AVAILABLE:
             dock: bottom;
             height: 1;
         }}
+        #monitor-title {{ height: 1; padding: 0 1; text-style: bold; color: {SSOT['fg']}; background: {SSOT['subtle']}; }}
+        #monitor-help {{ dock: bottom; height: 1; padding: 0 1; color: {SSOT['fg']}; }}
+        ClientView, AgentView, SystemSummary, DataTable {{ background: {SCREEN_BACKGROUND}; }}
+        DataTable > .datatable--header {{ background: {SSOT['subtle']}; color: {SSOT['fg']}; text-style: bold; }}
+        DataTable > .datatable--cursor {{ background: {SSOT['accent']}; color: {SSOT['bg']}; }}
+        .compact Header, .compact Footer, .compact TabbedContent > ContentTabs {{ display: none; }}
+        .compact #main-container {{ display: none; }}
+        #system-summary {{ display: none; }}
+        .compact #system-summary {{ display: block; }}
         """
 
         BINDINGS = [
@@ -699,26 +744,77 @@ if TEXTUAL_AVAILABLE:
             ("2", "tab_build", "2:Build"),
             ("3", "tab_flash", "3:Flash"),
             ("4", "tab_ai", "4:MiOS-Ai"),
+            Binding("escape", "quit", "Quit", priority=True),
+            Binding("f1", "tab_clients", "Clients", priority=True),
+            Binding("f2", "tab_agents", "Agents", priority=True),
+            Binding("f3", "tab_global", "System", priority=True),
+            Binding("f4", "tab_build", "Build", priority=True),
+            Binding("f5", "tab_flash", "Flash", priority=True),
+            Binding("ctrl+right", "next_view", "Next view", priority=True),
+            Binding("ctrl+left", "previous_view", "Previous view", priority=True),
             ("minus", "speed_up", "Faster (-)"),
             ("underscore", "speed_up", "Faster (-)"),
             ("kp_minus", "speed_up", "Faster (-)"),
-            ("up", "speed_up", "Faster"),
             ("plus", "slow_down", "Slower (+)"),
             ("equals", "slow_down", "Slower (+)"),
             ("kp_plus", "slow_down", "Slower (+)"),
-            ("down", "slow_down", "Slower"),
         ]
 
-        def action_tab_global(self): self.query_one(TabbedContent).active = "tab-global"
-        def action_tab_build(self): self.query_one(TabbedContent).active = "tab-build"
-        def action_tab_flash(self): self.query_one(TabbedContent).active = "tab-flash"
-        def action_tab_ai(self): self.query_one(TabbedContent).active = "tab-ai"
+        def _activate_tab(self, tab_id: str):
+            self.set_focus(None)
+            self.query_one(TabbedContent).active = tab_id
+            if tab_id == "tab-clients":
+                try: self.query_one("#client-input").focus()
+                except Exception: pass
+            elif tab_id == "tab-agents":
+                try: self.query_one("#peer-table").focus()
+                except Exception: pass
+            elif tab_id == "tab-global":
+                try: self.query_one("#svc-table").focus()
+                except Exception: pass
+
+        def action_tab_global(self): self._activate_tab("tab-global")
+        def action_tab_build(self): self._activate_tab("tab-build")
+        def action_tab_flash(self): self._activate_tab("tab-flash")
+        def action_tab_ai(self): self._activate_tab("tab-ai")
+        def action_tab_clients(self): self._activate_tab("tab-clients")
+        def action_tab_agents(self): self._activate_tab("tab-agents")
+
+        def cycle_view(self, step):
+            views = ["tab-clients", "tab-agents", "tab-global", "tab-build", "tab-flash", "tab-ai"]
+            tabs = self.query_one(TabbedContent)
+            next_tab = views[(views.index(tabs.active) + step) % len(views)]
+            self._activate_tab(next_tab)
+
+        def action_next_view(self): self.cycle_view(1)
+        def action_previous_view(self): self.cycle_view(-1)
+
+        @on(ClientView.Selected)
+        def launch_client(self, event):
+            self.exit(event.name)
+
+        @on(TabbedContent.TabActivated)
+        def view_changed(self, event):
+            view = event.tab.id.removeprefix("--content-tab-")
+            title = {"tab-clients": "Clients", "tab-agents": "Agents", "tab-global": "System",
+                     "tab-build": "Build", "tab-flash": "Flash", "tab-ai": "AI logs"}.get(view, "Monitor")
+            self.query_one("#monitor-title", Static).update(f"MiOS Monitor · {title}")
+            if self.ui_mode and view in {"tab-global", "tab-build", "tab-flash", "tab-ai"}:
+                if view == "tab-global" and (self.size.width < 78 or self.size.height < 26):
+                    return
+                self.start_collectors()
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            init_tab = "tab-ai" if AI_MODE else ("tab-build" if PIPELINE_MODE else (f"tab-{TAB_CHOICE}" if TAB_CHOICE else "tab-global"))
+            yield Static("MiOS Monitor", id="monitor-title", markup=False)
+            init_tab = f"tab-{self.ui_mode}" if self.ui_mode else ("tab-ai" if AI_MODE else ("tab-build" if PIPELINE_MODE else (f"tab-{TAB_CHOICE}" if TAB_CHOICE else "tab-global")))
             with TabbedContent(initial=init_tab):
-                with TabPane("Global Systems", id="tab-global"):
+                with TabPane("Clients", id="tab-clients"):
+                    yield ClientView(self.ui_request.get("agents", []))
+                with TabPane("Agents", id="tab-agents"):
+                    yield AgentView(self.observer, self.ui_request.get("observation_request", {}).get("observation", {}).get("refresh_s", 2))
+                with TabPane("System", id="tab-global"):
+                    yield SystemSummary(get_telemetry, get_services, id="system-summary")
                     with Horizontal(id="main-container"):
                         with Vertical(id="left-pane"):
                             yield Static(id="hw-box", classes="box")
@@ -731,22 +827,23 @@ if TEXTUAL_AVAILABLE:
                                 yield Sparkline(data=[], id="spark-widget")
                             yield RichLog(id="log-box", classes="box", markup=True, wrap=True,
                                           max_lines=monitor_sources_config()["scrollback_rows"])
-                with TabPane("MiOS Build", id="tab-build"):
+                with TabPane("Build", id="tab-build"):
                     with Horizontal(id="build-container"):
                         with Vertical(id="build-stats-pane", classes="box"):
                             yield Static(id="build-stats", markup=True)
                         yield RichLog(id="build-log-box", classes="box", markup=True, wrap=True)
-                with TabPane("MiOS Field Flash", id="tab-flash"):
+                with TabPane("Flash", id="tab-flash"):
                     with Horizontal(id="flash-container"):
                         with Vertical(id="flash-stats-pane", classes="box"):
                             yield Static(id="flash-stats", markup=True)
                         yield RichLog(id="flash-log-box", classes="box", markup=True, wrap=True)
-                with TabPane("MiOS-Ai", id="tab-ai"):
+                with TabPane("AI logs", id="tab-ai"):
                     with Horizontal(id="ai-container"):
                         with Vertical(id="ai-stats-pane", classes="box"):
                             yield Static(id="ai-stats", markup=True)
                         yield RichLog(id="ai-log-box", classes="box", markup=True, wrap=True)
             yield Footer()
+            yield Static("F1–F5 views · Ctrl+←/→ · Esc quit", id="monitor-help", markup=False)
 
         def on_mount(self) -> None:
             self.dark = True
@@ -769,6 +866,14 @@ if TEXTUAL_AVAILABLE:
             table.add_columns("Service", "Port", "Status")
             table.zebra_stripes = True
 
+            self.apply_responsive_layout(self.size.width, self.size.height)
+            if not self.ui_mode:
+                self.start_collectors()
+
+        def start_collectors(self):
+            if self.collectors_started or not self.collectors_enabled:
+                return
+            self.collectors_started = True
             self.cpu_history = []
             self.tailing = True
             self.journal_procs = []
@@ -845,9 +950,6 @@ if TEXTUAL_AVAILABLE:
                         rendered = Text(line)
                         if is_err: rendered.stylize(SSOT['error'])
                         elif is_warn: rendered.stylize(SSOT['warning'])
-                        elif 'podman' in line.lower() or 'container' in line.lower():
-                            rendered.stylize(SSOT['subtle'])
-                            if ai_log_box: self.call_from_thread(ai_log_box.write, rendered)
                         self.call_from_thread(log_box.write,
                                               Text.assemble((f"[Linux:{label}] ", f"dim {SSOT['subtle']}"), rendered))
                     try:
@@ -1149,7 +1251,7 @@ if TEXTUAL_AVAILABLE:
 
                 ai_lines = [
                     f"[{SSOT['success']} bold]MiOS-Ai: MCP & Automation[/]",
-                    f"[{SSOT['subtle']}]MiOS-MCP:[/] {'[green bold]ONLINE[/]' if (mcp_online or pipe_online) else '[dim]STANDBY[/]'}  [{SSOT['subtle']}]LLM:[/] {'[green bold]READY[/]' if llm_online else '[dim]STANDBY[/]'}",
+                    f"[{SSOT['subtle']}]MiOS-MCP:[/] {'[green bold]ONLINE[/]' if (mcp_online or pipe_online) else '[dim]STANDBY[/]'}  [{SSOT['subtle']}]LLM:[/] {'[green bold]SERVICE UP[/]' if llm_online else '[dim]STANDBY[/]'}",
                     f"[{SSOT['subtle']}]Relay Agents:[/] {len(agents)} registered ({online_count} online)",
                 ]
                 if not agents:
@@ -1166,46 +1268,58 @@ if TEXTUAL_AVAILABLE:
                             ai_lines.append(f"    [dim]{escape(str(a.get('kind','-')))}: {escape(lbl)}[/]")
 
                 ai_lines.append("")
-                ai_lines.append(f"[{SSOT['warning']} bold]Headless Slots (tmux-mcp):[/]")
+                active_count = sum(1 for sl in slots if sl.get("active"))
+                total_open = len(slots)
+                ai_lines.append(f"[{SSOT['warning']} bold]Tmux Panes (desktop + MCP):[/] ({active_count} running commands, {total_open} detected)")
                 if not slots:
-                    ai_lines.append("  [dim]All automation slots idle (0/32)[/]")
+                    ai_lines.append("  [dim]No tmux panes detected by this user[/]")
                 else:
-                    for sl in slots[:4]:
-                        ai_lines.append(f"  • Slot [cyan]{escape(str(sl['pane']))}[/] (PID {sl['pid']}): [green]{escape(str(sl['cmd']))}[/]")
+                    for sl in slots[:6]:
+                        status_color = "green bold" if sl.get("active") else "dim"
+                        state_label = f"[{status_color}]{escape(str(sl['cmd']))}[/]"
+                        ai_lines.append(f"  • Slot [cyan]{escape(str(sl['pane']))}[/] (PID {sl['pid']}): {state_label}")
 
                 ai_lines.append("")
                 ai_lines.append(f"[{SSOT['subtle']}]Memory:[/] {make_bar(psutil.virtual_memory().percent, 14)}")
                 self.query_one("#ai-stats", Static).update("\n".join(ai_lines))
 
                 ai_log_box = self.query_one("#ai-log-box", RichLog)
-                if not hasattr(self, "_seen_ai_messages"):
-                    self._seen_ai_messages = set()
-                    for m in messages[-10:]:
-                        m_key = f"{m.get('message_id')}:{m.get('status')}"
-                        self._seen_ai_messages.add(m_key)
-                        ts = datetime.fromtimestamp(m.get("created", time.time())).strftime("%H:%M:%S")
-                        st = m.get("status", "msg").upper()
-                        st_col = "green" if st == "RECEIVED" else "yellow" if st == "QUEUED" else "cyan"
-                        frm = m.get("from", "?")
-                        if len(frm) > 22: frm = frm[:10] + ".." + frm[-10:]
-                        to = m.get("to", "?")
-                        if len(to) > 22: to = to[:10] + ".." + to[-10:]
-                        preview = escape(m.get("message", "").replace("\n", " ")[:90])
-                        ai_log_box.write(f"[{st_col}]\\[{ts}] \\[{st}][/] [cyan]{escape(frm)}[/] ➔ [magenta]{escape(to)}[/]\n  [dim]\"{preview}\"[/]")
-                else:
-                    for m in messages:
-                        m_key = f"{m.get('message_id')}:{m.get('status')}"
-                        if m_key not in self._seen_ai_messages:
-                            self._seen_ai_messages.add(m_key)
-                            ts = datetime.fromtimestamp(m.get("created", time.time())).strftime("%H:%M:%S")
-                            st = m.get("status", "msg").upper()
-                            st_col = "green" if st == "RECEIVED" else "yellow" if st == "QUEUED" else "cyan"
-                            frm = m.get("from", "?")
-                            if len(frm) > 22: frm = frm[:10] + ".." + frm[-10:]
-                            to = m.get("to", "?")
-                            if len(to) > 22: to = to[:10] + ".." + to[-10:]
-                            preview = escape(m.get("message", "").replace("\n", " ")[:90])
-                            ai_log_box.write(f"[{st_col}]\\[{ts}] \\[{st}][/] [cyan]{escape(frm)}[/] ➔ [magenta]{escape(to)}[/]\n  [dim]\"{preview}\"[/]")
+
+                # Stream slot state transitions into #ai-log-box
+                if not hasattr(self, "_seen_slot_states"):
+                    self._seen_slot_states = {}
+                current_slot_states = {str(sl["identity"]): (sl["pid"], sl["cmd"], sl.get("active", False)) for sl in slots}
+                ts_now = datetime.now().strftime("%H:%M:%S")
+                for pane, (pid, cmd, active) in current_slot_states.items():
+                    if pane not in self._seen_slot_states:
+                        if active:
+                            ai_log_box.write(f"[{SSOT['success']}]\\[{ts_now}] \\[SLOT ACTIVE][/] Slot [cyan]{escape(str(pane))}[/] (PID {pid}): [green]{escape(str(cmd))}[/]")
+                        else:
+                            ai_log_box.write(f"[{SSOT['subtle']}]\\[{ts_now}] \\[SLOT READY][/] Slot [cyan]{escape(str(pane))}[/] (PID {pid}): [dim]{escape(str(cmd))}[/]")
+                    else:
+                        prev_pid, prev_cmd, prev_active = self._seen_slot_states[pane]
+                        if active and (not prev_active or prev_cmd != cmd):
+                            ai_log_box.write(f"[{SSOT['warning']}]\\[{ts_now}] \\[SLOT EXEC][/] Slot [cyan]{escape(str(pane))}[/] (PID {pid}): [yellow]{escape(str(cmd))}[/]")
+                        elif not active and prev_active:
+                            ai_log_box.write(f"[{SSOT['subtle']}]\\[{ts_now}] \\[SLOT IDLE][/] Slot [cyan]{escape(str(pane))}[/] (PID {pid}): released")
+                for pane, (pid, prev_cmd, prev_active) in self._seen_slot_states.items():
+                    if pane not in current_slot_states:
+                        ai_log_box.write(f"[{SSOT['subtle']}]\\[{ts_now}] \\[SLOT CLOSED][/] Slot [cyan]{escape(str(pane))}[/] (PID {pid}): closed")
+                self._seen_slot_states = current_slot_states
+                seen = getattr(self, "_seen_ai_messages", None)
+                for m in (messages[-10:] if seen is None else messages):
+                    key = (m.get("message_id"), m.get("status"))
+                    if seen is not None and key in seen:
+                        continue
+                    ts = datetime.fromtimestamp(m.get("created", time.time())).strftime("%H:%M:%S")
+                    status = m.get("status", "msg").upper()
+                    color = {"RECEIVED": "green", "QUEUED": "yellow"}.get(status, "cyan")
+                    peers = [str(m.get(k, "?")) for k in ("from", "to")]
+                    peers = [p if len(p) <= 22 else p[:10] + ".." + p[-10:] for p in peers]
+                    preview = escape(str(m.get("message_id", "")))
+                    ai_log_box.write(f"[{color}]\\[{ts}] \\[{status}][/] [cyan]{escape(peers[0])}[/] → [magenta]{escape(peers[1])}[/]\n  [dim]\"{preview}\"[/]")
+                # Bound deduplication to the retained native receipt snapshot.
+                self._seen_ai_messages = {(m.get("message_id"), m.get("status")) for m in messages}
 
                 last_log_t = getattr(self, 'last_flash_log_time', None)
                 if last_log_t:
@@ -1268,6 +1382,7 @@ if TEXTUAL_AVAILABLE:
             except Exception: pass
 
         def apply_responsive_layout(self, width: int, height: int) -> None:
+            self.set_class(width < 78 or height < 26, "compact")
             try:
                 main_c = self.query_one("#main-container")
                 build_c = self.query_one("#build-container")
@@ -1377,6 +1492,8 @@ def main():
                         help="open directly on the live MiOS-Ai monitoring tab")
     parser.add_argument("--tab", choices=["global", "build", "flash", "ai"], default=None,
                         help="initial active tab")
+    parser.add_argument("--ui-mode", choices=["clients", "agents"], help="initial embedded workspace view")
+    parser.add_argument("--ui-request-stdin", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--once", action="store_true", help="print snapshot once and exit")
     args, unknown = parser.parse_known_args()
     PIPELINE_MODE = args.pipeline
@@ -1422,8 +1539,24 @@ def main():
         except KeyboardInterrupt:
             sys.exit(0)
 
-    app = MiosMonitorApp(ansi_color=TRANSPARENT_TERMINAL)
-    app.run()
+    if args.ui_request_stdin:
+        request = json.load(sys.stdin)
+        # Configuration arrives over a pipe; Textual and the CLI share the actual TTY.
+        sys.stdin = open("/dev/tty", "r", encoding="utf-8")
+    else:
+        try:
+            data = monitor_config()
+            result = subprocess.run([data["mcp"]["python"], "/usr/libexec/mios/mios-mcp-server", "--monitor-request"],
+                                    capture_output=True, text=True, timeout=10, check=True)
+            request = json.loads(result.stdout)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            request = {}
+    while True:
+        app = MiosMonitorApp(ui_request=request, ui_mode=args.ui_mode, ansi_color=TRANSPARENT_TERMINAL)
+        selected = app.run()
+        if not selected:
+            break
+        subprocess.run(["/usr/bin/mios", "agent", selected], check=False)
 
 if __name__ == '__main__':
     main()

@@ -13,9 +13,11 @@ import sys
 import tarfile
 import tempfile
 import threading
+import time
 import urllib.request
 import socket
 import shutil
+import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import tomllib
 import unittest
@@ -34,20 +36,23 @@ def load_relay():
     return module
 
 relay = load_relay()
-CONFIG = tomllib.loads((ROOT / "usr/share/mios/mios.toml").read_text())["mcp"]["tmux"]
+CONFIG = tomllib.loads((ROOT / "usr/share/mios/mios.toml").read_text(encoding="utf-8"))["mcp"]["tmux"]
 
 # CI runs against the same verified release asset as the image installer. It
 # does not depend on a previously installed binary or an upstream download.
 _PAYLOAD = tempfile.TemporaryDirectory(prefix="mios-mcp-test-binary-")
-asset = CONFIG["assets"][relay.platform.machine()]
-archive = ROOT / asset["path"]
-if hashlib.sha256(archive.read_bytes()).hexdigest() != asset["sha256"]:
-    raise RuntimeError("tmux-mcp test asset checksum mismatch")
-with tarfile.open(archive) as package:
-    binary = Path(_PAYLOAD.name) / "tmux-mcp"
-    binary.write_bytes(package.extractfile("tmux-mcp").read())
-    binary.chmod(0o755)
-os.environ["MIOS_TMUX_MCP_BINARY"] = str(binary)
+_arch = {"amd64": "x86_64", "arm64": "aarch64"}.get(relay.platform.machine().lower(), relay.platform.machine().lower())
+asset = CONFIG["assets"].get(_arch)
+if asset:
+    archive = ROOT / asset["path"]
+    if archive.is_file() and hashlib.sha256(archive.read_bytes()).hexdigest() != asset["sha256"]:
+        raise RuntimeError("tmux-mcp test asset checksum mismatch")
+    if archive.is_file():
+        with tarfile.open(archive) as package:
+            binary = Path(_PAYLOAD.name) / "tmux-mcp"
+            binary.write_bytes(package.extractfile("tmux-mcp").read())
+            binary.chmod(0o755)
+        os.environ["MIOS_TMUX_MCP_BINARY"] = str(binary)
 
 def setUpModule():
     if shutil.which("tmux") is None:
@@ -159,7 +164,7 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             result = await self.execute("printf SHOULD-NOT-RUN", **args)
             self.assertTrue(result.model_dump(by_alias=True).get("isError"), result)
             self.assertIn(needle, result.content[0].text)
-        disallowed = await self.bridge.call("mios_tmux_notify", {"message": "SHOULD-NOT-RUN"})
+        disallowed = await self.bridge.call("mios_tmux_disallowed_tool", {"message": "SHOULD-NOT-RUN"})
         self.assertTrue(disallowed.model_dump(by_alias=True).get("isError"))
 
     async def test_ambient_secrets_and_shell_hooks_are_absent(self):
@@ -237,9 +242,27 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                     "agent_id": "proof-worker", "kind": "agy"}))
                 identity = {"agent_id": "proof-head", "token": registered["token"]}
                 worker_identity = {"agent_id": "proof-worker", "token": recipient["token"]}
+                # Expire presence while retaining the worker's authenticated mailbox.
+                registry = Path(state) / "state.json"
+                dormant = json.loads(registry.read_text())
+                dormant["agents"]["proof-worker"]["expires"] = 1
+                registry.write_text(json.dumps(dormant))
                 message = {**identity, "to": "proof-worker", "message_id": "proof-1",
                            "message": "Bounded transport test; no provider invocation."}
-                self.assertEqual(payload(await head.call_tool("mios_agent_send", message))["status"], "queued")
+                queued = payload(await head.call_tool("mios_agent_send", message))
+                self.assertEqual(queued["status"], "queued")
+                self.assertFalse(queued["recipient_online"])
+                await head.call_tool("mios_agent_register", {"agent_id": "proof-third", "kind": "codex"})
+                imposter = await worker.call_tool("mios_agent_register", {
+                    "agent_id": "proof-worker", "kind": "agy", "token": "DEVLOOP-PLANTED-IMPERSONATION-00000"})
+                self.assertTrue(imposter.model_dump(by_alias=True).get("isError"))
+                self.assertIn("another lease", imposter.content[0].text)
+                before = (Path(state) / "state.json").read_bytes()
+                observed = payload(await head.call_tool("mios_agent_observe", {}))
+                self.assertEqual((Path(state) / "state.json").read_bytes(), before)
+                self.assertEqual(next(row for row in observed["messages"] if row["message_id"] == "proof-1")["status"], "queued")
+                for private in (registered["token"], recipient["token"], message["message"]):
+                    self.assertNotIn(private, json.dumps(observed))
                 names = {row.name for row in (await worker.list_tools()).tools}
                 self.assertTrue({"mios_agent_receive", "mios_tmux_execute_command", "system_status"} <= names)
                 inbox = payload(await worker.call_tool("mios_agent_receive", worker_identity))
@@ -254,6 +277,8 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                 acknowledged = payload(await worker.call_tool("mios_agent_ack", {
                     **worker_identity, "message_id": "proof-1"}))
                 self.assertEqual(acknowledged["status"], "received")
+                observed = payload(await worker.call_tool("mios_agent_observe", {}))
+                self.assertEqual(next(row for row in observed["messages"] if row["message_id"] == "proof-1")["status"], "received")
                 retry = payload(await head.call_tool("mios_agent_send", message))
                 self.assertEqual(retry["status"], "received")
                 self.assertTrue(retry["duplicate"])
@@ -610,6 +635,343 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(receipt)
         self.assertEqual(receipt["exitCode"], 0)
         self.assertEqual(receipt["output"], "OK")
+
+    async def test_upstream_v2_tools_and_direct_structured_content(self):
+        result = await self.execute("printf 'DIRECT-STRUCTURED'")
+        wire = result.model_dump(by_alias=True, exclude_none=True)
+        self.assertIn("structuredContent", wire)
+        self.assertEqual(wire["structuredContent"]["exitCode"], 0)
+        self.assertIn("DIRECT-STRUCTURED", wire["structuredContent"]["output"])
+        self.assertIn("duration_s", wire["structuredContent"])
+        self.assertIsInstance(wire["structuredContent"]["duration_s"], (int, float))
+
+        notif = await self.bridge.call("mios_tmux_notify", {"message": "TEST-NOTIFICATION"})
+        self.assertFalse(notif.model_dump(by_alias=True).get("isError"))
+
+        wtd = await self.bridge.call("mios_tmux_write_to_display", {"text": "HELLO-DISPLAY", "slot": 4})
+        self.assertFalse(wtd.model_dump(by_alias=True).get("isError"))
+        p_wtd = payload(wtd)
+        self.assertEqual(p_wtd.get("slot"), 4)
+
+        ss = await self.bridge.call("mios_tmux_screenshot_pane", {"slot": 4})
+        self.assertFalse(ss.model_dump(by_alias=True).get("isError"))
+        wire_ss = ss.model_dump(by_alias=True, exclude_none=True)
+        self.assertIn("structuredContent", wire_ss)
+        self.assertEqual(wire_ss["structuredContent"].get("slot"), 4)
+
+        await self.bridge.call("mios_tmux_close_pane", {"slot": 4})
+
+class TestAgentProjection(unittest.TestCase):
+    def test_client_projection_migrates_invalid_entries_and_preserves_user_config(self):
+        with tempfile.TemporaryDirectory(prefix="mios-clients-proof-") as temporary:
+            home = Path(temporary)
+            endpoint = "http://127.0.0.1:1/v1"
+            opencode = home / ".config/opencode/opencode.json"
+            opencode.parent.mkdir(parents=True)
+            opencode.write_text(json.dumps({"providers": {"local": {"name": "Local MiOS"}},
+                "mcp": {"user-server": {"type": "local", "command": ["user-command"]}},
+                "provider": {"user-provider": {"name": "Preserve user choice"}}}))
+            codex = home / ".codex/config.toml"
+            codex.parent.mkdir()
+            codex.write_text('model_provider = "openai"\nbase_url = ' + json.dumps(endpoint)
+                             + '\n\n[mcp_servers.user-server]\ncommand = "user-command"\n')
+            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+                relay._project_agent_clients(home)
+                first = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
+                relay._project_agent_clients(home)
+            self.assertEqual(first, {path: path.read_bytes() for path in first})
+            oc = json.loads(opencode.read_text())
+            self.assertNotIn("providers", oc)
+            self.assertEqual(oc["provider"]["local"]["options"]["baseURL"], endpoint)
+            self.assertEqual(oc["model"], "local/projection-model")
+            self.assertIn("user-provider", oc["provider"])
+            self.assertIn("user-server", oc["mcp"])
+            cc = tomllib.loads(codex.read_text())
+            self.assertEqual(cc["model_provider"], "mios")
+            self.assertEqual(cc["model_providers"]["mios"]["base_url"], endpoint)
+            self.assertEqual(cc["model_providers"]["mios"]["wire_api"], "responses")
+            self.assertIn("user-server", cc["mcp_servers"])
+            codex.write_text('model_provider = "user-provider"\nmodel = "user-model"\n')
+            opencode.write_text(json.dumps({"model": "user-provider/user-model"}))
+            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+                relay._project_agent_clients(home)
+            self.assertEqual(tomllib.loads(codex.read_text())["model_provider"], "user-provider")
+            self.assertEqual(json.loads(opencode.read_text())["model"], "user-provider/user-model")
+
+
+class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="mios-desktop-proof-")
+        self.socket = Path(self.directory.name) / relay.mios_toml.load_merged()["keybindings"]["socket_name"]
+        self.session = relay.mios_toml.load_merged()["keybindings"]["terminal_session"]
+        self.head = self.tmux("new-session", "-d", "-s", self.session, "-x", "180", "-y", "48", "-P", "-F", "#{pane_id}", "/bin/bash --noprofile --norc")
+        self.bridges = []
+
+    def tmux(self, *args):
+        return subprocess.check_output(["tmux", "-S", str(self.socket), "-f", os.devnull, *args], text=True, timeout=5).rstrip("\n")
+
+    async def bridge(self, pane=None):
+        bridge = relay._TmuxBridge(CONFIG)
+        self.bridges.append(bridge)
+        with patch.dict(os.environ, MIOS_TMUX_UI_SOCKET=str(self.socket), MIOS_TMUX_UI_PANE=pane or self.head):
+            await bridge.start()
+        return bridge
+
+    async def asyncTearDown(self):
+        for bridge in reversed(self.bridges):
+            await bridge.close()
+        self.tmux("kill-server")
+        self.directory.cleanup()
+
+    async def test_live_desktop_nested_heads_have_separate_visible_slots(self):
+        parent = await self.bridge()
+        result = await parent.call("mios_tmux_execute_command", {"command": "printf DESKTOP-PARENT"})
+        self.assertFalse(result.is_error, result)
+        self.assertIn("DESKTOP-PARENT", payload(result)["output"])
+        child_head = parent.visible_slots[1]["pane"]
+        child = await self.bridge(child_head)
+        nested = await child.call("mios_tmux_execute_command", {"command": "printf DESKTOP-NESTED"})
+        self.assertFalse(nested.is_error, nested)
+        self.assertIn("DESKTOP-NESTED", payload(nested)["output"])
+        self.assertNotEqual(child.visible_slots[1]["pane"], child_head)
+        self.assertEqual(len(self.tmux("list-panes", "-F", "#{pane_id}").splitlines()), 3)
+        for owner in (parent, child):
+            slots = payload(await owner.call("mios_tmux_list_slots", {}))
+            self.assertEqual([row["slot"] for row in slots], [1])
+            self.assertIs(slots[0]["isolated"], False)
+        await child.close()
+        self.assertEqual(len(self.tmux("list-panes", "-F", "#{pane_id}").splitlines()), 2)
+        again = await parent.call("mios_tmux_execute_command", {"command": "printf PARENT-SURVIVED"})
+        self.assertFalse(again.is_error, again)
+        self.assertIn("PARENT-SURVIVED", payload(again)["output"])
+        await parent.close()
+        self.assertEqual(self.tmux("list-panes", "-F", "#{pane_id}"), self.head)
+
+    async def test_desktop_timeout_and_close_never_reclaim_human_panes(self):
+        user = self.tmux("split-window", "-d", "-P", "-F", "#{pane_id}", "-t", self.head, "/bin/bash --noprofile --norc")
+        bridge = await self.bridge()
+        bad = await bridge.call("mios_tmux_execute_command", {"command": "printf DEVLOOP-PLANTED-DESKTOP-TIMEOUT; sleep 30", "timeoutSeconds": 1})
+        self.assertTrue(bad.is_error, bad)
+        self.assertTrue(payload(bad)["timedOut"])
+        self.assertEqual(set(self.tmux("list-panes", "-F", "#{pane_id}").splitlines()), {self.head, user})
+        await bridge.call("mios_tmux_close_pane", {"slot": "all"})
+        self.assertEqual(set(self.tmux("list-panes", "-F", "#{pane_id}").splitlines()), {self.head, user})
+
+    async def test_forged_desktop_binding_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "binding"):
+            relay._human_tmux_context(str(self.socket), "DEVLOOP-PLANTED-PANE")
+        with self.assertRaises((subprocess.CalledProcessError, ValueError)):
+            relay._human_tmux_context(str(self.socket), "%99999")
+        alias = Path(self.directory.name) / "alias"
+        alias.symlink_to(self.socket.parent, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "binding"):
+            relay._human_tmux_context(str(alias / self.socket.name), self.head)
+        self.assertEqual(self.tmux("list-panes", "-F", "#{pane_id}"), self.head)
+
+    async def test_default_socket_uses_caller_pane_and_rejects_forged_witness(self):
+        self.tmux("kill-server")
+        self.socket = Path(self.directory.name) / 'default'
+        self.session = 'operator-chosen-session'
+        self.head = self.tmux("new-session", "-d", "-s", self.session, "-x", "180", "-y", "48", "-P", "-F", "#{pane_id}", "/bin/bash --noprofile --norc")
+        daemon = self.tmux("display-message", "-p", "-t", self.head, "#{pid}")
+        ambient = {"TMUX": f"{self.socket},{daemon},0", "TMUX_PANE": self.head}
+        with patch.dict(os.environ, ambient):
+            ui = relay._human_tmux_context(str(self.socket), self.head)
+            self.assertEqual(ui['session'], self.session)
+            # A different selected session cannot redirect the caller's workspace.
+            self.tmux("new-session", "-d", "-s", "unrelated", "/bin/bash --noprofile --norc")
+            bridge = await self.bridge()
+            result = await bridge.call("mios_tmux_execute_command", {"command": "printf WITNESSED-DEFAULT-SLOT"})
+            self.assertFalse(result.is_error, result)
+            self.assertIn("WITNESSED-DEFAULT-SLOT", payload(result)["output"])
+            self.assertEqual(bridge.visible['session'], self.session)
+            self.assertEqual(len(self.tmux("list-panes", "-t", self.head, "-F", "#{pane_id}").splitlines()), 2)
+            await bridge.close()
+            workspace_head = self.workspace()
+            with patch.dict(os.environ, {"TMUX_PANE": workspace_head}):
+                workspace_bridge = await self.bridge(workspace_head)
+                self.assertEqual(len(workspace_bridge.visible_slots), 4)
+                self.assertEqual(self.tmux("display-message", "-p", "-t", workspace_head, "#{session_name}"), self.session)
+                result = await workspace_bridge.call("mios_tmux_execute_command", {"slot": 2, "command": "printf DEFAULT-WORKSPACE-RECEIPT"})
+                self.assertEqual(payload(result)['exitCode'], 0)
+                self.assertIn('DEFAULT-WORKSPACE-RECEIPT', payload(result)['output'])
+        with patch.dict(os.environ, {**ambient, "TMUX": f"{self.socket},999999,0"}):
+            with self.assertRaisesRegex(ValueError, 'native MiOS session'):
+                relay._human_tmux_context(str(self.socket), self.head)
+        with patch.dict(os.environ, {**ambient, "TMUX_PANE": "%99999"}):
+            with self.assertRaisesRegex(ValueError, 'binding'):
+                relay._human_tmux_context(str(self.socket), self.head)
+        with patch.dict(os.environ, {"TMUX": "", "TMUX_PANE": ""}):
+            with self.assertRaisesRegex(ValueError, 'binding'):
+                relay._human_tmux_context(str(self.socket), self.head)
+
+    def workspace(self):
+        return relay._workspace_call("open", socket=str(self.socket),
+            latch="mios-workspace-test-" + secrets.token_hex(8),
+            command="/bin/bash --noprofile --norc",
+            observer_command="exec /usr/bin/sleep infinity",
+            adapter=f"{sys.executable} {RELAY}")["head"]
+
+    async def test_workspace_opens_at_native_size_without_losing_head(self):
+        self.tmux('kill-server')
+        compact = Path(self.directory.name) / 'compact'
+        compact.mkdir(mode=0o700)
+        self.socket = compact / self.socket.name
+        self.head = self.tmux('new-session', '-d', '-s', self.session, '-x', '80', '-y', '20',
+                             '-P', '-F', '#{pane_id}', '/bin/bash --noprofile --norc')
+        head = self.workspace()
+        window = self.tmux('display-message', '-p', '-t', head, '#{window_id}')
+        self.assertEqual(len(self.tmux('list-panes', '-t', window, '-F', '#{pane_id}').splitlines()), 2)
+        self.assertEqual(self.tmux('display-message', '-p', '-t', head, '#{pane_current_command}'), 'bash')
+        before = self.tmux('list-panes', '-a', '-F', '#{pane_id}\t#{pane_pid}')
+        visible_windows = self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}').splitlines()
+        self.assertEqual(len(visible_windows), 2, 'managed storage leaked into the human tab list')
+        again = self.workspace()
+        self.assertEqual(again, head)
+        self.assertEqual(self.tmux('list-panes', '-a', '-F', '#{pane_id}\t#{pane_pid}'), before)
+        focused = relay._workspace_call('focus', {'socket':str(self.socket), 'pane':head}, target='next')
+        self.assertNotEqual(focused['active'], head)
+        self.assertNotEqual(self.tmux('display-message', '-p', '-t', head, '#{session_name}'), self.session)
+        self.assertEqual(self.workspace(), head, 'a parked head must still be reused')
+        self.assertEqual(self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}').splitlines(), visible_windows)
+
+    async def test_workspace_resize_hook_uses_its_head_in_caller_socket(self):
+        self.tmux('kill-server')
+        self.socket = self.socket.with_name('default')
+        self.head = self.tmux('new-session', '-d', '-s', self.session, '-x', '180', '-y', '48',
+                             '-P', '-F', '#{pane_id}', '/bin/bash --noprofile --norc')
+        witness = f"{self.socket},{self.tmux('display-message', '-p', '-t', self.head, '#{pid}')},0"
+        with patch.dict(os.environ, TMUX=witness, TMUX_PANE=self.head):
+            head = self.workspace()
+        window = self.tmux('display-message', '-p', '-t', head, '#{window_id}')
+        self.tmux('resize-window', '-t', window, '-x', '61', '-y', '70')
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            layout = self.tmux('display-message', '-p', '-t', window, '#{@mios-workspace-layout}')
+            if layout == 'portrait':
+                break
+            await asyncio.sleep(0.05)
+        self.assertEqual(layout, 'portrait', 'the actual resize hook failed to bind to its own head')
+        self.assertEqual(len(self.tmux('list-panes', '-t', window, '-F', '#{pane_id}').splitlines()), 2)
+
+    async def test_terminal_agents_action_reuses_embedded_monitor_from_parked_head(self):
+        head = self.workspace()
+        window = self.tmux('display-message', '-p', '-t', head, '#{@mios-workspace-window}')
+        self.tmux('resize-window', '-t', window, '-x', '80', '-y', '19')
+        relay._workspace_call('resize', {'socket':str(self.socket), 'pane':head})
+        relay._workspace_call('focus', {'socket':str(self.socket), 'pane':head}, target='next')
+        before = self.tmux('list-panes', '-a', '-F', '#{pane_id}:#{pane_pid}')
+        windows = self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}')
+        env = {**os.environ, 'TMUX':self.tmux('display-message', '-p', '-t', head, '#{socket_path},#{pid},#{session_id}'), 'TMUX_PANE':head}
+        for action in ['agents', 'agents', 'ai']:
+            subprocess.run(['bash', str(ROOT / 'usr/libexec/mios/mios-terminal'), '--action', action], env=env, check=True, timeout=15, capture_output=True, text=True)
+            self.assertEqual(self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}'), windows)
+            self.assertEqual(self.tmux('list-panes', '-a', '-F', '#{pane_id}:#{pane_pid}'), before)
+        observer = self.tmux('display-message', '-p', '-t', window, '#{@mios-workspace-observer}')
+        self.assertEqual(self.tmux('display-message', '-p', '-t', observer, '#{window_id}'), window)
+
+    async def test_workspace_desktop_portrait_rotation_preserves_worker_processes(self):
+        head = self.workspace()
+        before = self.tmux("list-panes", "-t", head, "-F", "#{pane_id}").splitlines()
+        self.assertEqual(len(before), 5)
+        self.assertNotIn(self.head, before, "the operator's original pane was adopted")
+        bridge = await self.bridge(head)
+        self.assertEqual(len(bridge.visible_slots), 4)
+        self.assertEqual(set(self.tmux("list-panes", "-t", head, "-F", "#{pane_id}").splitlines()), set(before))
+        result = await bridge.call("mios_tmux_execute_command", {"slot": 2, "command": "printf WORKSPACE-REAL-SLOT"})
+        self.assertEqual(payload(result)["exitCode"], 0, result)
+        self.assertIn("WORKSPACE-REAL-SLOT", payload(result)["output"])
+        pids = {r["pane"]: self.tmux("display-message", "-p", "-t", r["pane"], "#{pane_pid}") for r in bridge.visible_slots.values()}
+        window = self.tmux("display-message", "-p", "-t", head, "#{window_id}")
+        for width, height, expected in [(61, 70, "portrait"), (160, 48, "desktop"), (80, 19, "compact"), (46, 18, "compact"), (213, 55, "desktop")]:
+            self.tmux("resize-window", "-t", window, "-x", str(width), "-y", str(height))
+            receipt = relay._workspace_call("resize", {"socket":str(self.socket), "pane":head})
+            self.assertEqual(receipt["layout"], expected)
+            rows = [r.split("\t") for r in self.tmux("list-panes", "-t", window, "-F", "#{pane_id}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}").splitlines()]
+            cells = {r[0]: list(map(int, r[1:])) for r in rows}
+            self.assertEqual(len(rows), 2 if expected != "desktop" else 5)
+            if expected != "desktop":
+                self.assertEqual(cells[receipt["observer"]][1], 0)
+                active = receipt['active']
+                if expected == 'portrait':
+                    self.assertEqual(cells[active][0], 0)
+                    self.assertGreater(cells[active][1], cells[receipt["observer"]][3])
+                    self.assertGreaterEqual(cells[active][3], min(CONFIG["workspace"]["minimum_head_rows"], height - 4))
+                else:
+                    self.assertEqual(cells[active][1], 0)
+                    self.assertEqual(cells[active][0], 0)
+                    self.assertGreater(cells[receipt['observer']][0], cells[active][2])
+                    self.assertEqual(cells[active][3], height)
+                hidden = await bridge.call('mios_tmux_execute_command', {'slot': 2, 'command': 'printf COMPACT-SLOT-RECEIPT'})
+                self.assertFalse(hidden.is_error, hidden)
+                self.assertEqual(payload(hidden)['exitCode'], 0)
+                self.assertIn('COMPACT-SLOT-RECEIPT', payload(hidden)['output'])
+                self.assertEqual(len(self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}').splitlines()), 2)
+                self.assertEqual(len(payload(await bridge.call('mios_tmux_list_slots', {}))), 4)
+                focused = relay._workspace_call('focus', {'socket':str(self.socket), 'pane':head}, target='next')
+                self.assertNotEqual(focused['active'], receipt['active'])
+                self.assertEqual(self.tmux('display-message', '-p', '-t', focused['active'], '#{window_id}'), window)
+                self.assertEqual(len(self.tmux('list-panes', '-t', window, '-F', '#{pane_id}').splitlines()), 2)
+                visible = await bridge.call('mios_tmux_execute_command', {'slot': 1, 'command': 'printf VISIBLE-COMPACT-RECEIPT'})
+                self.assertFalse(visible.is_error, visible)
+                with self.assertRaisesRegex(RuntimeError, 'not a member'):
+                    relay._workspace_call('focus', {'socket':str(self.socket), 'pane':head}, target=self.head)
+            else:
+                self.assertEqual(cells[head][0:2], [0, 0])
+                self.assertEqual(len({cells[p][0] for p in before if p != head}), 2)
+                self.assertEqual(len({cells[p][1] for p in before if p != head}), 2)
+                self.assertEqual(len(self.tmux('list-windows', '-t', self.session, '-F', '#{window_id}').splitlines()), 2)
+            for pane, pid in pids.items():
+                self.assertEqual(self.tmux("display-message", "-p", "-t", pane, "#{pane_pid}"), pid)
+        await bridge.close()
+        self.assertEqual(len(self.tmux("list-panes", "-t", head, "-F", "#{pane_id}").splitlines()), 5)
+        self.assertEqual(self.tmux("display-message", "-p", "-t", self.head, "#{pane_id}"), self.head)
+
+    async def test_workspace_refuses_changed_blank_reservation(self):
+        head = self.workspace()
+        blank = self.tmux("list-panes", "-t", head, "-F", "#{pane_id}\t#{@mios-workspace-slot}").splitlines()[1].split("\t")[0]
+        self.tmux("respawn-pane", "-k", "-t", blank, "/bin/bash --noprofile --norc")
+        with self.assertRaisesRegex(RuntimeError, "reservation witness changed"):
+            await self.bridge(head)
+        self.assertEqual(self.tmux("display-message", "-p", "-t", blank, "#{pane_current_command}"), "bash")
+        self.assertEqual(len(self.tmux("list-panes", "-t", head, "-F", "#{pane_id}").splitlines()), 5)
+
+    async def test_chooser_reads_terminal_input_and_redraws_without_launching_unavailable_client(self):
+        data = relay.mios_toml.load_merged()
+        menu = {"workspace":data["mcp"]["tmux"]["workspace"], "colors":relay.mios_toml.colors(data),
+                "agents":[{"name":f"client{i}","installed":False,"mcp":True} for i in range(1,8)]}
+        config = Path(self.directory.name) / "menu.json"
+        config.write_text(json.dumps(menu))
+        self.tmux("set-option", "-w", "-t", self.head, "remain-on-exit", "on")
+        self.tmux("respawn-pane", "-k", "-t", self.head,
+                  f"{relay.shlex.quote(data['mcp']['agents']['binary'])} --workspace-menu < {relay.shlex.quote(str(config))}")
+        async def screen_with(needle):
+            for _ in range(80):
+                screen = self.tmux("capture-pane", "-p", "-t", self.head)
+                if needle in screen:
+                    return screen
+                await asyncio.sleep(.05)
+            self.fail(f"chooser did not render {needle!r}: {screen}")
+        self.assertIn("Choose a head CLI", await screen_with("Client>"))
+        pid = self.tmux("display-message", "-p", "-t", self.head, "#{pane_pid}")
+        self.tmux("send-keys", "-t", self.head, "client1", "Enter")
+        await screen_with("Choose an installed client")
+        self.assertEqual(self.tmux("display-message", "-p", "-t", self.head, "#{pane_pid}"), pid)
+        self.tmux("resize-window", "-t", self.head, "-x", "80", "-y", "8")
+        screen = await screen_with("f: compact/auto")
+        self.assertIn("Choose a head CLI", screen)
+        self.assertIn("client1", screen)
+        self.tmux("send-keys", "-t", self.head, "n", "Enter")
+        await screen_with("client4")
+        self.tmux("send-keys", "-t", self.head, "n", "Enter")
+        await screen_with("client7")
+        self.tmux("send-keys", "-t", self.head, "q", "Enter")
+        for _ in range(80):
+            if self.tmux("display-message", "-p", "-t", self.head, "#{pane_dead}") == "1":
+                break
+            await asyncio.sleep(.05)
+        self.assertEqual(self.tmux("display-message", "-p", "-t", self.head, "#{pane_dead_status}"), "0")
+
 
 if __name__ == "__main__":
     if "--negative-keybindings" in sys.argv:

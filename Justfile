@@ -179,7 +179,7 @@ drift-gate:
 
 build: preflight flight-status
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
-        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(python3 usr/libexec/mios/mios-toml-get image base)}" \
+        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
@@ -194,7 +194,7 @@ build-logged: artifact
     @echo "Unified log will be available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
     @echo "" | tee -a "${LOG_FILE}"
     @set -o pipefail; podman build --retry 5 --retry-delay 3s --no-cache --network=host \
-        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(python3 usr/libexec/mios/mios-toml-get image base)}" \
+        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
@@ -206,7 +206,7 @@ build-logged: artifact
 
 build-verbose: artifact
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
-        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(python3 usr/libexec/mios/mios-toml-get image base)}" \
+        --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
