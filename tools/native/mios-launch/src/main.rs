@@ -205,6 +205,9 @@ mod desktop {
         search.hwnd
     }
     fn place(hwnd: HWND, point: POINT) -> Result<Bounds, String> {
+        if unsafe { IsZoomed(hwnd) } != 0 || unsafe { IsIconic(hwnd) } != 0 {
+            unsafe { ShowWindow(hwnd, SW_RESTORE); }
+        }
         let mut r: RECT = unsafe { mem::zeroed() };
         if unsafe { GetWindowRect(hwnd, &mut r) } == 0 {
             return Err("Cannot read terminal window bounds".into());
@@ -283,39 +286,50 @@ mod desktop {
         let bin = native_bin()?;
         let binding = json(bin.join("native-binding.json"))?;
         let engine = text(&binding, "engine")?;
-        let status = hidden(
+        let projection = hidden(
             Command::new(engine)
                 .args(["-NoLogo", "-NoProfile", "-File"])
                 .arg(bin.join("mios-native-client-setup.ps1"))
-                .args(["-RuntimeOnly", "-BinDirectory"])
+                .args(["-RuntimeOnly", "-EmitConfig", "-BinDirectory"])
                 .arg(&bin),
         )
-        .status()
+        .output()
         .map_err(|e| e.to_string())?;
-        if !status.success() {
+        if !projection.status.success() {
             return Err("Runtime SSOT projection failed; launch stopped".into());
         }
-        let config = json(
-            PathBuf::from(env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA missing")?)
-                .join("MiOS/themes/ssot.json"),
-        )?;
+        // Packaged clients may see a virtualized stale LocalAppData file.
+        // Use this invocation's resolved SSOT rather than re-reading a cache.
+        let config: Value = serde_json::from_slice(&projection.stdout)
+            .map_err(|e| format!("Runtime SSOT projection returned invalid JSON: {e}"))?;
         let profiles = &config["theme"]["terminal"];
+        let centered = profiles["center_on_launch"]
+            .as_bool()
+            .ok_or("SSOT center_on_launch must be a boolean")?;
         let dev = text(profiles, "dev_profile_name")?;
         let profile = args
             .first()
             .filter(|s| !s.starts_with("--"))
             .map(String::as_str)
             .unwrap_or(dev);
-        let logical = if profile == dev {
+        let action = args.iter().position(|a| a == "--action")
+            .map(|i| args.get(i + 1).map(String::as_str).ok_or("--action needs a MiOS action"))
+            .transpose()?;
+        let ai = action == Some("ai");
+        let logical = if ai {
+            text(&config["mcp"]["tmux"]["workspace"], "window_name")?
+        } else if profile == dev {
             text(profiles, "summon_window_name")?
         } else {
             profile
         };
-        let cols = config["terminal"]["cols"]
+        let compact = args.iter().any(|a| a == "--compact");
+        let dimensions = &config["terminal"];
+        let cols = dimensions["cols"]
             .as_u64()
             .filter(|n| *n > 0)
             .ok_or("SSOT terminal.cols missing")?;
-        let rows = config["terminal"]["rows"]
+        let rows = dimensions["rows"]
             .as_u64()
             .filter(|n| *n > 0)
             .ok_or("SSOT terminal.rows missing")?;
@@ -352,8 +366,7 @@ mod desktop {
             &title,
             "--suppressApplicationTitle",
         ]);
-        if let Some(index) = args.iter().position(|a| a == "--action") {
-            let action = args.get(index + 1).ok_or("--action needs a MiOS action")?;
+        if let Some(action) = action {
             if !config["keybindings"]["actions"]
                 .as_array()
                 .ok_or("SSOT keybindings missing")?
@@ -366,6 +379,7 @@ mod desktop {
                 .args(["--", engine, "-NoLogo", "-NoProfile", "-File"])
                 .arg(bin.join("mios-native-entry.ps1"))
                 .args(["terminal", "--action", action]);
+            if compact { command.arg("--compact"); }
         }
         hidden(&mut command).spawn().map_err(|e| e.to_string())?;
         let deadline = Instant::now() + Duration::from_secs(8);
@@ -379,13 +393,20 @@ mod desktop {
             }
             thread::sleep(Duration::from_millis(150));
         };
+        if !centered {
+            return if args.iter().any(|a| a == "--test-launch") {
+                Err("SSOT centering is disabled".into())
+            } else {
+                Ok(())
+            };
+        }
         for _ in 0..12 {
             // Work area and visible DWM frame are re-read during settling;
             // rotation, taskbar offsets and DPI are never baked into pixels.
             place(hwnd, point)?;
             thread::sleep(Duration::from_millis(500));
         }
-        if args.iter().any(|a| a == "--test-launch") {
+        {
             let mut frame: RECT = unsafe { mem::zeroed() };
             if unsafe {
                 DwmGetWindowAttribute(
@@ -405,7 +426,9 @@ mod desktop {
             {
                 return Err("DEVLOOP-PLANTED-CENTER: visible frame is not centered".into());
             }
-            println!("Native MiOS launch centered: {frame:?}");
+            if args.iter().any(|a| a == "--test-launch") {
+                println!("Native MiOS launch centered: {frame:?}");
+            }
         }
         Ok(())
     }

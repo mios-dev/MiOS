@@ -62,7 +62,9 @@ Press and release **Ctrl+B**, then press one key:
 | H / J / K / L | Select pane left / down / up / right |
 | S / V | Split into top and bottom / left and right panes |
 | N / P | Next / previous window |
-| W | Select a window from the tree |
+| O | Cycle the AI workspace's head and workers; select next pane elsewhere |
+| F | Toggle compact / automatic workspace layout |
+| W | Choose windows and panes; expand a window with the arrow keys |
 | Z | Zoom / restore the active pane |
 | Y | Enter copy mode |
 | D | Detach; running agents keep their session |
@@ -75,7 +77,37 @@ From an SSH connection with a PTY, run `mios` or `mios terminal` to attach to th
 
 See the [mobile SSH and shortcut guide](usr/share/doc/mios/guides/mobile-keybindings.md) and [native terminal / MCP contract](usr/share/doc/mios/mcp-tmux.md) for session separation, message receipts and projection details.
 
-Every native human tmux session includes a **MiOS Agents** window. Press **Ctrl+B, then G** or run `mios agents --watch` to see live registrations, pending messages, acknowledgements and tmux pane metadata. `mios agents --observe` returns the same snapshot as JSON; `mios_agent_observe` exposes it over MiOS-MCP. Registered relay participants and detected panes are shown separately. A running pane does not prove that its harness reads messages. The view omits credentials, message bodies and terminal contents, and reports a queued message as received only after the recipient acknowledges it.
+Press **Ctrl+B, then G** to focus the **MiOS Agents** view. Inside an AI workspace it uses the existing monitor pane; it does not add a tab. Run `mios agents --watch` to render the view in the current pane. Compact displays show short labels, distinct identity references, pending counts and pane roles; `mios agents --observe` returns full sanitized identities as JSON, also available through `mios_agent_observe`. Registered relay participants and detected panes are shown separately. A running pane does not prove that its harness reads messages. The view omits credentials, message bodies and terminal contents, and reports a queued message as received only after the recipient acknowledges it.
+
+### Live agent workflows in MiOS Terminal
+
+```bash
+mios ai                     # choose a head CLI in the native workspace
+mios ai --compact           # monitor beside/above one active agent, by orientation
+mios ai codex               # open a named head directly
+mios agents --watch         # live participants, panes and message receipts
+```
+
+`mios ai` opens a client chooser with a wrapped introduction, installed-client status and navigation hints. Enter a client number or name; `n`/`p` page the list in a small pane, and `q` returns to the themed shell. The default launch uses a compact workspace: landscape places the head or active worker on the left and the live agent monitor on the right; portrait places the monitor above the active agent. Other workers keep running in a separate managed session, outside the human tab list. Repeated launches reuse the same head, including while it is parked. **Ctrl+B, then O** cycles the active head/worker; **Ctrl+B, then F** toggles compact/automatic layout. A sufficiently large viewport shows the head on the left and four worker reservations in a grid on the right. Resizing preserves pane identities and processes. Layout thresholds, pane proportions and menu text resolve from `[mcp.tmux.workspace]` at runtime; image builds install the same native implementation.
+
+Windows native launches use `[terminal]` (80 columns × 20 rows in the vendor SSOT), including AI workspaces. Run `mios-launch.exe MiOS-DEV --action ai` for the centered default window. `--compact` keeps the compact workspace when the viewport grows; it does not change the launch size. Actual monitor work area and DPI determine centering and size limits; fullscreen remains available through Windows Terminal. An SSH client supplies its own viewport and window placement; MiOS adapts the layout to its rows and columns.
+
+Inside this workspace, the head's combined `mios-control` MCP connection binds to its verified desktop pane and claims the four reserved workers. Further workers get visible sub-panes, and nested heads receive separate local slot numbers. Plain CLI commands installed by MiOS use the same native launcher. Outside a native human session, MCP uses private headless servers. Closing a head's MCP connection returns its reservations to empty panes and preserves the human session and other heads' workers. Attached clients share the tmux window's layout; the most recently resized client sets its geometry.
+
+Give the head a task with this coordination contract:
+
+```text
+Use the combined mios-control MCP tools for this workload. Register this live
+session with mios_agent_register and keep its lease private. Launch the selected
+worker CLI in a visible helper pane using mios_tmux_start_and_watch or
+mios_tmux_nested_workflow. For ongoing work, use an isolated Git worktree.
+Have the worker register, receive its task through mios_agent_send, acknowledge
+reading it, and send its findings back through the relay. Read and acknowledge
+the reply. Report observed process exits and message receipts separately.
+Do not claim delivery or completion from a queued message or a quiet pane.
+```
+
+**Ctrl+B, then G** opens the live receipt view; **Ctrl+B, then W** selects the head or worker window. CLI installation and MCP availability do not supply provider login, model inference, or tool permission grants. Each selected harness must support and consume MCP, and its configured model must be reachable. The local inference endpoint and runtime theme are resolved from the layered SSOT.
 
 ## Build and installation
 

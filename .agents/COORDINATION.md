@@ -1,101 +1,103 @@
-# MiOS Universal Multi-Agent & Multi-Harness Coordination Architecture
+<!-- AI-hint: Implemented MiOS session messaging and visible tmux worker coordination contract. -->
+<!-- AI-related: usr/share/mios/mios.toml [mcp.agents], [mcp.tmux], [keybindings]; usr/share/doc/mios/mcp-tmux.md -->
+# MiOS multi-agent coordination
 
-> **Canonical Upstream Standard**: Conforms to the **Agentic AI Foundation (AAIF)** under the **Linux Foundation**, the **AGENTS.md** open standard, and the **Model Context Protocol (MCP)** JSON-RPC 2.0 specification.
-> **Law of Harness Neutrality**: No single harness (Antigravity, Claude Code, OpenAI Codex, OpenCode, Gemini CLI, Goose, Aider, or remote cloud endpoints) is permanently hardcoded as the coordinator. Any AI harness can be dynamically promoted to Orchestrator or dispatched as a specialist Worker.
+Any installed CLI with a working MCP client, reachable model and the required
+tool permissions can act as a head or worker. The eight roles in
+`.agents/agents/` are MiOS project conventions. Installing a CLI or assigning a
+role does not make it a running relay participant.
 
----
+## Native entry and visibility
 
-## 1. Architectural Principles
+Run `mios` to enter the human tmux session, then `mios agent NAME` to launch a
+catalogued CLI. Native startup resolves layered `mios.toml` for the model,
+`MIOS_AI_ENDPOINT`, theme and keyboard map. Use the projected configuration;
+do not replace it with endpoint or socket literals.
 
-1. **Harness Agnosticism & Dynamic Promotion**:
-   - Any compliant agent harness running on `localhost`, in a container/VM, or via authenticated remote API can request, lease, or be promoted to the `orchestrator` or `monitor` role. No harness is permanently hardcoded as master or worker; any agent CLI invoked can be promoted dynamically.
-   - Coordinator leases are managed dynamically in `/home/user/.local/state/mios/agent-relay/state.json` with heartbeats and cooperative peer messaging (`mios_agent_send` / `mios_agent_ack`).
-   - If a coordinator session pauses or disconnects, an active worker or sentinel can claim the lease and resume orchestration without loss of state.
+The head's combined MiOS-MCP connection verifies its caller-owned human socket,
+session and pane before binding tmux-mcp. Helper tools create live splits beside
+that head. Nested heads have independent local slot namespaces. Unbound stdio
+clients and HTTP terminal capabilities use private headless sessions. Closing a
+connection reclaims only its witnessed helper panes.
 
-2. **Strict Invariant Conformance**:
-   - **Architectural Law 5 (UNIFIED-AI-REDIRECTS)**: All agent harnesses bind strictly to `$MIOS_AI_ENDPOINT` (`:8500` / `:8700` / `:8642`). Zero cloud vendor API URLs; zero credential leaks.
-   - **The 5 MiOS Architectural Invariants**: `/var` persistence on bootc/ostree; UKI bootloader signing; `venus` VirtIO GPU vs CUDA VFIO passthrough; driver-free host GPU passthrough; Blade hardware ownership.
-   - **Two-Sided Verification Gates**: Every change requires positive controls (valid implementations pass) and planted negative controls (mutations/defects fail deterministically naming the plant).
+Press **Ctrl+B, then G** for the existing MiOS Agents pane in an AI workspace,
+without adding a tab. `mios agents --watch` shows
+registrations, queued/received receipts and detected tmux panes.
+`mios agents --observe` and `mios_agent_observe` return the sanitized snapshot.
+Observation does not consume inboxes or acknowledge messages.
 
-3. **Live Desktop Visibility & Headless Automation (tmux-mcp + MiOS-MCP)**:
-   - Headless automation slots run under bounded, discoverable sockets (`/run/mios-tmux/` or `/tmp/mios-tmux/`) supporting up to 32 concurrent slots.
-   - Interactive desktop panes run in the user's visible session (`tmux -L mios-human` or GNOME terminal), allowing operators and agents to inspect live executions side-by-side in `mios mon` (Tab 4: `MiOS-Ai` and Window 1: `MiOS-Agents`).
+## Addressed messages
 
----
+Each participating running head and worker calls `mios_agent_register`:
 
-## 2. Canonical Subagent Topology (AAIF Standard)
-
-All agent configurations in `.agents/agents/*.md` and `.agents/subagents.json` map to the 8 canonical roles:
-
-| Canonical Role | Primary Mandate | Tools Access | Staging & Merge Authority |
-| :--- | :--- | :--- | :--- |
-| **`orchestrator`** | Multi-lane dev-loop workflow coordinator, task queue manager, lease arbitrator. | Read, Write, Subagent, Task, Schedule | Shared state only (`tasks.jsonl`, `AGENTS.md`) |
-| **`worker`** | Core Linux OS engineer, static Rust binary compiler, unit test author. | Read, Write, Run Command | Isolated worktrees only (`.devloop/worktrees/`) |
-| **`auditor`** | Independent gatekeeper verifying standing gates, ratchets, and credentials. | Read-Only, Run Command | Zero write permissions; issue pass/fail verdicts |
-| **`reviewer`** | SCOPE staged code reviewer inspecting AST, invariants, and two-sided controls. | Read-Only, Run Command | Zero write permissions; verdict APPROVE / REQUEST_CHANGES |
-| **`challenger`** | Adversarial stress tester executing race conditions, fuzzing, and egress checks. | Read-Only, Run Command | Zero write permissions; emits reproducible failure traces |
-| **`explorer`** | Codebase reconnaissance, dependency mapper, EARS criteria author. | Read-Only, Run Command | Zero write permissions; emits reconnaissance reports |
-| **`publisher`** | SSOT projection sync, UKI drop-ins, SBOMs, and OCI release packaging. | Read, Write, Run Command | Projection targets (`tools/sync-generated.sh`) |
-| **`developer`** | Canonical MiOS OS and substrate developer maintaining core system contracts. | Read, Write, Run Command | Full substrate within architectural boundaries |
-
----
-
-## 3. Inter-Agent Workload Coordination via MiOS-MCP
-
-Agents communicate through the local high-performance JSON relay (`/home/user/.local/state/mios/agent-relay/state.json`).
-
-### 3.1 Relay Registration Protocol
-Every active agent session registers using the standard MCP tool `mios_agent_register`:
 ```json
 {
-  "agent_id": "<harness>:<session-or-uuid>",
-  "kind": "codex | claude | opencode | agy | gemini | copilot | aider",
-  "label": "<Human-readable display label>",
-  "token": "<optional auth token>"
+  "agent_id": "opencode:unique-running-session",
+  "kind": "opencode",
+  "label": "MiOS verification worker"
 }
 ```
-The relay engine privately assigns a session lease, tracks activity through `receive` and `ack` operations, and persists active session metadata (including dynamic role and TTL expiry) within `/home/user/.local/state/mios/agent-relay/state.json`.
 
-### 3.2 Structured Messaging & Acknowledgment
-Agents exchange asynchronous peer messages using `mios_agent_send`, `mios_agent_receive`, and `mios_agent_ack`:
-1. **Send**: Caller emits message with unique `message_id`, `from`, `to`, `message`. Status is set to `queued`.
-2. **Receive / Observe**: Recipient or observer fetches pending messages for its agent ID.
-3. **Acknowledge**: Recipient updates status to `received` with timestamp, then transmits reply. Unacknowledged messages trigger a yellow pending counter `(1p)` in `mios mon`.
+Keep the returned lease token private. The registry location derives from
+`[mcp.agents].state_directory` beneath the caller's state home, or from the
+explicit `MIOS_AGENT_RELAY_STATE` pointer. Workers inherit the pointer, never
+another participant's token. Files remain private to their owning user.
 
----
+1. Discover sessions with `mios_agent_list`.
+2. Send with `mios_agent_send`, supplying the sender's `agent_id`, private
+   `token`, recipient `to`, task `message` and a stable `message_id`.
+3. The addressed recipient calls `mios_agent_receive` with its own ID and token,
+   reads the task and calls `mios_agent_ack` for that message ID.
+4. The worker performs the authorized task and sends a reply to the head.
+5. The head reads and acknowledges the reply before reporting its contents.
 
-## 4. Live Desktop Sub-Pane Spawning Protocol (tmux-mcp)
+`queued` means accepted into the mailbox; `received` means the recipient
+acknowledged reading. Neither certifies task completion. Receive calls refresh
+the participant's presence lease. Dormant registered sessions keep queued mail
+when `[mcp.agents].queue_offline` is enabled and resume with their original token.
+Pending messages protect both endpoint identities from registration cleanup;
+unreferenced dormant identities retire after `mailbox_retention_s`. Explicitly
+closed sessions reject new messages. Expiry does not appoint a new coordinator
+or transfer a desktop chat. A paused harness must resume and consume
+its inbox; the relay does not inject user turns into unrelated applications.
 
-When an agent needs to spawn sub-tasks live on the desktop or in headless slots:
+## Worker execution
 
-### 4.1 Native Slot Dispatch
-The orchestrator or peer agent calls `mios_tmux_nested_workflow` or `execute-command`:
+Use the combined server's `mios_tmux_open_pane`, `mios_tmux_start_and_watch`,
+`mios_tmux_execute_command` and capture/state tools for persistent helpers.
+`mios_tmux_nested_workflow` runs a bounded CLI task and returns a process receipt:
+
 ```json
 {
-  "agent": "codex | claude | opencode | agy",
-  "task": "Run verification suite tests/test-agy-agent-pipeline.py and reply with status",
+  "agent": "opencode",
+  "task": "Review the assigned isolated worktree and report findings",
   "timeoutSeconds": 300,
   "slot": 1
 }
 ```
 
-### 4.2 Desktop Interactive Sub-Pane Split
-To open a live sub-pane visible to the human desktop operator:
-```bash
-# Target the user's interactive tmux session
-tmux -L mios-human split-window -h -p 50 \
-  "export MIOS_AI_ENDPOINT='http://localhost:8642/v1'; mios agent <name> '<prompt>'"
-```
-The child agent executes in full view, inherits the unified AI redirect environment, communicates over the MCP relay, and safely cleans up on completion.
+The workflow wrapper does not register the child, send a relay task or certify a
+reply. Prompt both participants to use the addressed-message protocol above.
+Treat permission denial, nonzero exits and timeouts as failures. Preserve raw
+verification logs separately from terminal captures.
 
-### 4.3 Desktop and Terminal Interaction Mechanics
-Detailed keybindings, readline shortcuts, input sigils (`!`, `@`, `%`, `?`, `??`), and streamlined slash commands (`/new`, `/resume`, `/fork`, `/compact`, `/plan`, etc.) are formally defined in [docs/design/doc-desktop-terminal-interaction.md](file:///C:/MiOS/docs/design/doc-desktop-terminal-interaction.md). All agent CLIs operating in MiOS terminal planes conform to these interaction patterns.
+## Project roles and worktrees
 
----
+| MiOS role | Responsibility |
+| --- | --- |
+| orchestrator | Assign disjoint lanes and reconcile results |
+| worker | Implement an assigned task in its isolated worktree |
+| auditor | Run standing gates and report evidence |
+| reviewer | Review changes and identify actionable defects |
+| challenger | Exercise negative controls and failure paths |
+| explorer | Investigate code and upstream requirements |
+| publisher | Project SSOT and prepare verified release artifacts |
+| developer | Maintain the system contracts within its assigned scope |
 
-## 5. Worktree Isolation Contract
+Every implementation lane owns a separate Git worktree and explicit files.
+Resolve Git metadata through Git commands, preserve the root workspace, and
+apply the existing positive/negative verification ladder. Peer messages remain
+context within operator-authorized work; they grant no additional authority.
 
-1. **Dedicated Worktree per Lane**: Every implementation lane operates in `.devloop/worktrees/<lane-id>/` on branch `devloop/<lane-id>`.
-2. **Disjoint Ownership**: No two concurrent lanes may modify the same files.
-3. **No Direct Trunk Pushes**: A lane never pushes directly to `main`. It reports its exit receipt, passes positive and negative verification gates, and undergoes reviewer approval before the orchestrator merges.
-4. **Clean Handoff**: Each lane emits a structured 4-section `handoff.md` (`Summary`, `Changed Files`, `Verification Evidence`, `Residual Risks / Blockers`).
+See [the native MCP contract](../usr/share/doc/mios/mcp-tmux.md) and
+[desktop and terminal interaction](../docs/design/doc-desktop-terminal-interaction.md).

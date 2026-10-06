@@ -24,6 +24,7 @@ ports.ttyd_bash  MIOS_PORTS_TTYD_BASH
 ports.ttyd_powershell  MIOS_PORTS_TTYD_POWERSHELL
 ports.adguard_dns  MIOS_PORTS_ADGUARD_DNS
 ports.adguard_ui  MIOS_PORTS_ADGUARD_UI
+ports.headscale  MIOS_PORTS_HEADSCALE
 ports.opencode_gateway  MIOS_PORTS_OPENCODE_GATEWAY
 ports.vllm  MIOS_PORTS_VLLM
 ports.sglang  MIOS_PORTS_SGLANG
@@ -51,6 +52,7 @@ ports.categories.edge.base  MIOS_PORTS_CATEGORIES_EDGE_BASE
 ports.categories.edge.stride  MIOS_PORTS_CATEGORIES_EDGE_STRIDE
 ports.categories.edge.members  MIOS_PORTS_CATEGORIES_EDGE_MEMBERS
 ports.categories.edge.pinned.adguard_dns  MIOS_PORTS_CATEGORIES_EDGE_PINNED_ADGUARD_DNS
+ports.categories.edge.pinned.headscale  MIOS_PORTS_CATEGORIES_EDGE_PINNED_HEADSCALE
 ports.categories.edge.doc  MIOS_PORTS_CATEGORIES_EDGE_DOC
 ports.categories.admin.base  MIOS_PORTS_CATEGORIES_ADMIN_BASE
 ports.categories.admin.stride  MIOS_PORTS_CATEGORIES_ADMIN_STRIDE
@@ -164,9 +166,6 @@ ai.system_prompt_file  MIOS_AI_SYSTEM_PROMPT_FILE
 ai.prompt_shortcut  MIOS_AI_PROMPT_SHORTCUT
 ai.bake_models  MIOS_AI_BAKE_MODELS
 ai.ram_floor_gb  MIOS_AI_RAM_FLOOR_GB
-ai.lanes.fast  MIOS_AI_LANES_FAST
-ai.lanes.code  MIOS_AI_LANES_CODE
-ai.lanes.reason  MIOS_AI_LANES_REASON
 ai.kv.slot_save_path  MIOS_AI_KV_SLOT_SAVE_PATH
 ai.kv.swa_full  MIOS_AI_KV_SWA_FULL
 ai.catalog  MIOS_AI_CATALOG
@@ -250,14 +249,6 @@ network.retry.total_timeout_sec  MIOS_NETWORK_RETRY_TOTAL_TIMEOUT_SEC
 desktop.session  MIOS_DESKTOP_SESSION
 desktop.color_scheme  MIOS_DESKTOP_COLOR_SCHEME
 desktop.flatpaks  MIOS_DESKTOP_FLATPAKS
-desktop.bindings.mod_key  MIOS_DESKTOP_BINDINGS_MOD_KEY
-desktop.bindings.app_drawer  MIOS_DESKTOP_BINDINGS_APP_DRAWER
-desktop.bindings.browser_launch  MIOS_DESKTOP_BINDINGS_BROWSER_LAUNCH
-desktop.bindings.quick_settings  MIOS_DESKTOP_BINDINGS_QUICK_SETTINGS
-desktop.bindings.monitor_overlay  MIOS_DESKTOP_BINDINGS_MONITOR_OVERLAY
-desktop.applications.runtimes.linux_native  MIOS_DESKTOP_APPLICATIONS_RUNTIMES_LINUX_NATIVE
-desktop.applications.runtimes.windows_seamless  MIOS_DESKTOP_APPLICATIONS_RUNTIMES_WINDOWS_SEAMLESS
-desktop.applications.runtimes.android_waydroid  MIOS_DESKTOP_APPLICATIONS_RUNTIMES_ANDROID_WAYDROID
 desktop.apps  MIOS_DESKTOP_APPS
 desktop.app_types  MIOS_DESKTOP_APP_TYPES
 desktop.start_menu.publish  MIOS_DESKTOP_START_MENU_PUBLISH
@@ -410,6 +401,7 @@ image.sidecars.vllm  MIOS_IMAGE_SIDECARS_VLLM
 image.sidecars.sglang  MIOS_IMAGE_SIDECARS_SGLANG
 image.sidecars.valkey  MIOS_IMAGE_SIDECARS_VALKEY
 image.sidecars.otelcol  MIOS_IMAGE_SIDECARS_OTELCOL
+image.sidecars.headscale  MIOS_IMAGE_SIDECARS_HEADSCALE
 image.sys.base  MIOS_IMAGE_SYS_BASE
 image.sys.packages  MIOS_IMAGE_SYS_PACKAGES
 image.cuda.base  MIOS_IMAGE_CUDA_BASE

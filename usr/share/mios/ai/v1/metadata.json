@@ -1,11 +1,24 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3667,
-  "total_metadata_entries": 3011,
-  "total_hints": 2998,
-  "total_functions_indexed": 1468,
-  "total_related_links": 4828,
+  "total_files_scanned": 3686,
+  "total_metadata_entries": 3030,
+  "total_hints": 3018,
+  "total_functions_indexed": 1483,
+  "total_related_links": 4870,
   "entries": [
+    {
+      "path": ".agents/COORDINATION.md",
+      "hint": "Implemented MiOS session messaging and visible tmux worker coordination contract.",
+      "related": [
+        "usr/share/mios/mios.toml [mcp.agents]",
+        "[mcp.tmux]",
+        "[keybindings]; usr/share/doc/mios/mcp-tmux.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
     {
       "path": ".agents/rules/AGENTS.md",
       "hint": "Antigravity CLI (AGY) project rules for MiOS development pipelines, CI/CD cycles, and artifacting.",
@@ -2615,6 +2628,18 @@
       "has_shebang": false
     },
     {
+      "path": "docs/design/doc-desktop-terminal-interaction.md",
+      "hint": "Implemented MiOS desktop, terminal and agent interaction boundaries, derived from SSOT.",
+      "related": [
+        "usr/share/mios/mios.toml [keybindings]",
+        "[theme]; usr/libexec/mios/mios-terminal; .agents/COORDINATION.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "docs/design/doc-foss-upstream.md",
       "hint": "Redirector pointer to canonical shipped document usr/share/doc/mios/concepts/foss-upstream-map.md.",
       "related": [],
@@ -2708,6 +2733,22 @@
         "usr/share/mios/mios.toml",
         "docs/adr/",
         "AGY-TASKS.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "docs/design/doc-tmux-os-integration.md",
+      "hint": "Architectural specification for Tmux-as-OS integration, upstream FOSS multiplexer patterns, and unified 'mios ai' dispatch across Windows Terminal and desktop tmux.",
+      "related": [
+        "docs/design/doc-desktop-terminal-interaction.md",
+        "usr/share/mios/mios.toml [mcp.tmux]",
+        "[keybindings]",
+        "[agent_cli]",
+        "tools/native/mios-agent-relay/src/main.rs",
+        ".agents/COORDINATION.md"
       ],
       "functions": [],
       "doc": null,
@@ -7303,6 +7344,18 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-model-bake-ready.py",
+      "hint": "Exercise the model-bake readiness gate with complete and planted incomplete model sets, without host writes or downloads.",
+      "related": [
+        "automation/73-model-prep.sh",
+        "usr/share/mios/mios.toml [llamacpp]"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-multimodal-ws.py",
       "hint": "Automated unit test suite for Multi-modal WebSocket Streaming & Sub-100ms Latency (T-671, T-672).",
       "related": [
@@ -9330,6 +9383,35 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-browser/Cargo.toml",
+      "hint": "Fast native static CLI launcher for browser dispatch based on [browser.family] and [browser.flags] (T-1004).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-open-url"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-browser/src/main.rs",
+      "hint": "Fast native static CLI launcher for browser dispatch based on [browser.family] and [browser.flags] (T-1004).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-open-url"
+      ],
+      "functions": [
+        "main",
+        "resolve_family",
+        "resolve_flags",
+        "build_browser_command"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-comment-lex/Cargo.toml",
       "hint": "Cargo manifest for mios-comment-lex -- the native comment lexing gate (Law 16).",
       "related": [
@@ -10059,6 +10141,35 @@
         "llms.txt"
       ],
       "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-toml-get/Cargo.toml",
+      "hint": "Fast native static CLI for querying the layered mios.toml SSOT.",
+      "related": [
+        "usr/libexec/mios/mios-toml-get",
+        "usr/lib/mios/mios_toml.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-toml-get/src/main.rs",
+      "hint": "Fast native static CLI for querying the layered mios.toml SSOT.",
+      "related": [
+        "usr/libexec/mios/mios-toml-get",
+        "usr/lib/mios/mios_toml.py"
+      ],
+      "functions": [
+        "main",
+        "get_section",
+        "format_scalar",
+        "run"
+      ],
       "doc": null,
       "comment_style": "slash",
       "has_shebang": false
@@ -14390,6 +14501,20 @@
       "has_shebang": true
     },
     {
+      "path": "usr/lib/mios/agent-pipe/test_mios_agent_tui.py",
+      "hint": "Exercise the actual unified MiOS Monitor at compact, portrait and desktop sizes, including selection, resize and refresh failures.",
+      "related": [
+        "/usr/lib/mios/mios_agent_tui.py",
+        "/usr/libexec/mios/mios-mon.py"
+      ],
+      "functions": [
+        "TestAgentTui"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/lib/mios/agent-pipe/test_mios_agentreg.py",
       "hint": "Standalone assert-script unit test for mios_agentreg (R3 agent/node registry builders). Pure stdlib, no server.py/DB/pytest.",
       "related": [],
@@ -16032,6 +16157,26 @@
       "has_shebang": true
     },
     {
+      "path": "usr/lib/mios/mios_agent_tui.py",
+      "hint": "Shared fixed-table widgets for the unified MiOS Monitor; presentation never consumes or acknowledges relay messages.",
+      "related": [
+        "/usr/libexec/mios/mios-mon.py",
+        "/usr/libexec/mios/mios-mcp-server",
+        "/usr/lib/mios/agent-pipe/test_mios_agent_tui.py"
+      ],
+      "functions": [
+        "clean",
+        "peer_name",
+        "sync_rows",
+        "ClientView",
+        "AgentView",
+        "SystemSummary"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/lib/mios/mios_comments.py",
       "hint": "The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST...",
       "related": [],
@@ -16768,6 +16913,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/lib/systemd/system/mios-ai-legacy-forward.service",
+      "hint": "Permanent forwarder bridging legacy ai_legacy port (8640) to agent-pipe (8700), preserving backward compatibility for portal/configurator callers.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/system.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/lib/systemd/system/mios-ai.target",
       "hint": "systemd target grouping all MiOS AI plane services (T-076).",
       "related": [],
@@ -17395,6 +17549,15 @@
     {
       "path": "usr/lib/systemd/system/mios-headless.target",
       "hint": "Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/system.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/systemd/system/mios-headscale-firstboot.service",
+      "hint": "Systemd unit that executes /usr/libexec/mios/mios-headscale-firstboot to generate the config.yaml for Headscale from mios.toml before the container starts.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/system.md",
@@ -19054,6 +19217,15 @@
     {
       "path": "usr/lib/tmpfiles.d/mios-grd.conf",
       "hint": "tmpfiles.d that creates the /var/lib/mios parent state dir (0755 root:root); the grd/gnome-remote-desktop var dir is intentionally NOT declared here (upstream's grd tmpfiles owns /var/lib/gnome-remote-desktop).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tmpfiles.d.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/tmpfiles.d/mios-headscale.conf",
+      "hint": "Defines systemd-tmpfiles permissions and ownership for Headscale configuration and runtime data directories to ensure the containerized service (UID 833) can access its config and database.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tmpfiles.d.md",
@@ -22800,6 +22972,21 @@
       "has_shebang": true
     },
     {
+      "path": "usr/libexec/mios/mios-headscale-firstboot",
+      "hint": "Generates the initial Headscale config.yaml by reading mios.toml [headscale] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.",
+      "related": [
+        "/etc/headscale/config.yaml",
+        "/usr/share/mios/mios.toml",
+        "/etc/mios/mios.toml",
+        "/var/lib/headscale",
+        "mios-headscale"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "usr/libexec/mios/mios-hermes-browser",
       "hint": "Launches and manages the ChromeDev flatpak instance on port 9222, providing a dedicated, isolated profile for the Hermes-Agent to perform CDP-based browser actions like navigation and screenshots.",
       "related": [
@@ -24437,6 +24624,20 @@
         "mios-system-status",
         "mios-podman-ps",
         "mios-podman-ps.service"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/libexec/mios/mios-tailscale-sync",
+      "hint": "Synchronizes live Tailscale configuration and state against mios.toml [tailscale] and [headscale] SSOT.",
+      "related": [
+        "/usr/share/mios/mios.toml",
+        "/etc/mios/mios.toml",
+        "tailscaled.service",
+        "mios-headscale"
       ],
       "functions": [],
       "doc": null,
@@ -27412,6 +27613,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/containers/systemd/mios-headscale.container",
+      "hint": "MiOS mios-headscale container. (WS-7 pods-as-SSOT).",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/containers/systemd/mios-k3s.container",
       "hint": "MiOS mios-k3s container. (WS-7 pods-as-SSOT).",
       "related": [],
@@ -27548,7 +27758,7 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-system.pod",
-      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-system' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-system] in mios.toml. Members (7): mios-adguard, mios-ceph, mios-pxe-hub, mios-k3s, mios-guacamole, mios-guacd, mios-radosgw.",
+      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-system' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-system] in mios.toml. Members (8): mios-adguard, mios-ceph, mios-pxe-hub, mios-k3s, mios-guacamole, mios-guacd, mios-radosgw, mios-headscale.",
       "related": [
         "usr/share/mios/mios.toml",
         "tools/generate-pod-quadlets.py",
@@ -27558,7 +27768,8 @@
         "mios-k3s.container",
         "mios-guacamole.container",
         "mios-guacd.container",
-        "mios-radosgw.container"
+        "mios-radosgw.container",
+        "mios-headscale.container"
       ],
       "functions": [],
       "doc": null,
@@ -33564,6 +33775,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/mini/headscale-policy.hujson",
+      "hint": "Fail-closed restrictive HuJSON ACL policy for MiOS Headscale Mesh VPN Coordinator.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/mios.toml",
       "hint": "The primary configuration file defining the MiOS user profile, providing the base defaults for identity, system environment, and service configurations used by tools ...",
       "related": [],
@@ -34900,7 +35120,7 @@
     },
     {
       "path": "usr/share/mios/windows/Set-MiOSWallpaper.ps1",
-      "hint": null,
+      "hint": "MiOS configuration and runtime asset for Set-MiOSWallpaper.ps1.",
       "related": [
         "mios-common",
         "mios-wallpaperd"
@@ -34952,6 +35172,19 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/mios/windows/mios-ai.ps1",
+      "hint": "Legacy Windows mios-ai command enters the native AI workspace in the invoking terminal.",
+      "related": [
+        "mios-native-entry.ps1",
+        "mios-native-client-setup.ps1",
+        "build-mios.ps1"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/mios/windows/mios-claude-mcp-setup.ps1",
       "hint": "Configures Claude Desktop and Claude Code to connect to the MiOS MCP server by dynamically resolving WSL distro names and ports to enable remo...",
       "related": [],
@@ -34978,6 +35211,19 @@
         "usr/libexec/mios/mios-mcp-server",
         "build-mios.ps1",
         "usr/share/doc/mios/guides/mobile-keybindings.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/windows/mios-native-shell.ps1",
+      "hint": "Keep MiOS terminal and agent verbs in the invoking PowerShell terminal while retaining the existing Windows management dispatcher.",
+      "related": [
+        "mios-native-entry.ps1",
+        "mios-native-client-setup.ps1",
+        "Get-MiOS.ps1"
       ],
       "functions": [],
       "doc": null,

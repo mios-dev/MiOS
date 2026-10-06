@@ -120,7 +120,20 @@ if ($Install) {
     # (this script is 5.1-compatible).
     $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not (Test-Path -LiteralPath $psExe)) { throw 'The desktop executor requires the installed Windows PowerShell interpreter' }
-    $action  = New-ScheduledTaskAction -Execute $psExe -Argument $argline
+    $binDir = Split-Path -Parent $PSCommandPath
+    $runHiddenVbs = Join-Path $binDir 'run-hidden.vbs'
+    $wscriptExe   = Join-Path $env:WINDIR 'System32\wscript.exe'
+    $serviceTool  = Join-Path $binDir 'MiosServiceTool.exe'
+    if (Test-Path -LiteralPath $runHiddenVbs) {
+        # wscript.exe is a native Win32 GUI subsystem binary (Subsystem 2).
+        # Running through wscript.exe completely avoids Windows 11 Windows Terminal
+        # console handoff and renders zero visible window/frame on logon or Xbox mode exit.
+        $action = New-ScheduledTaskAction -Execute $wscriptExe -Argument "//B //Nologo `"$runHiddenVbs`" `"$psExe`" $argline"
+    } elseif (Test-Path -LiteralPath $serviceTool) {
+        $action = New-ScheduledTaskAction -Execute $serviceTool -Argument "-Run `"$psExe`" $argline"
+    } else {
+        $action = New-ScheduledTaskAction -Execute $psExe -Argument $argline
+    }
     $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $trigger = New-ScheduledTaskTrigger -AtLogon -User $account
     $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
@@ -161,6 +174,8 @@ public class OSCW32 {
     // app's message pump, freezing the whole listener + breaking autocenter +
     // launch-verify). Non-blocking; the robust enumeration primitive.
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int InternalGetWindowText(IntPtr h, StringBuilder s, int max);
+    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+    [DllImport("kernel32.dll")] public static extern bool FreeConsole();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
@@ -200,6 +215,15 @@ public class OSCW32 {
 if (-not ([System.Management.Automation.PSTypeName]'OSCW32').Type) {
     Add-Type -TypeDefinition $Win32Sig -ErrorAction SilentlyContinue
 }
+
+# Detach and hide any console window immediately so that no interactive console or Windows Terminal frame lingers
+try {
+    $cWnd = [OSCW32]::GetConsoleWindow()
+    if ($cWnd -ne [IntPtr]::Zero) {
+        [OSCW32]::ShowWindow($cWnd, 0) | Out-Null
+        [OSCW32]::FreeConsole() | Out-Null
+    }
+} catch {}
 
 # Enumerate visible top-level windows -> list of @{ title; pid; proc }.
 #

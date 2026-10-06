@@ -10,7 +10,7 @@
         "workbench.action.terminal.new",
         {
           "args": {
-            "text": "/usr/libexec/mios/mios-ai-terminal\r"
+            "text": "mios ai\r"
           },
           "command": "workbench.action.terminal.sendSequence"
         }

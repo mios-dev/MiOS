@@ -11,7 +11,7 @@ case "$-" in
                     break
                 fi
             done
-            export MIOS_AI_ENDPOINT MIOS_AI_MODEL MIOS_AI_KEY
+            export MIOS_AI_ENDPOINT MIOS_AI_MODEL MIOS_AI_KEY BROWSER="${BROWSER:-/usr/libexec/mios/mios-open-url}" MIOS_BROWSER="${MIOS_BROWSER:-/usr/libexec/mios/mios-open-url}"
         fi
         return 0 2>/dev/null || exit 0
         ;;
@@ -60,5 +60,7 @@ export MIOS_SHARE_DIR="${MIOS_SHARE_DIR:-/usr/share/mios}"
 export MIOS_AI_DIR="${MIOS_AI_DIR:-/usr/share/mios/ai}"
 export MIOS_AI_SCRATCH_DIR="${MIOS_AI_SCRATCH_DIR:-/var/lib/mios/ai/scratch}"
 export MIOS_AI_MEMORY_DIR="${MIOS_AI_MEMORY_DIR:-/var/lib/mios/ai/memory}"
+export BROWSER="${BROWSER:-/usr/libexec/mios/mios-open-url}"
+export MIOS_BROWSER="${MIOS_BROWSER:-/usr/libexec/mios/mios-open-url}"
 
 unset -f _mios_source_if_readable

@@ -31,6 +31,7 @@ This document is derived directly from `usr/share/mios/mios.toml`.
 | devtools | code_server | 8900 |
 | edge | adguard_ui | 8050 |
 | edge | adguard_dns (pinned) | 53 |
+| edge | headscale (pinned) | 8085 |
 | forge | forge_http | 8400 |
 | forge | forge_ssh | 8410 |
 | inference | llm_light | 8500 |

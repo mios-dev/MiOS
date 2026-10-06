@@ -101,7 +101,7 @@ models:
       /app/llama-server --model /models/granite-4.1-8b.gguf
       --port ${PORT} --host 127.0.0.1
       --ctx-size 32768 --parallel 1 --cache-reuse 256
-      --n-gpu-layers 999 --flash-attn on
+      --flash-attn auto
       --cache-type-k q8_0 --cache-type-v q8_0
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"

@@ -25,3 +25,92 @@ Describe 'MiOS verified agent installer' {
         Should -Invoke Invoke-WebRequest -Times 0 -Exactly
     }
 }
+
+Describe 'MiOS in-terminal Windows dispatch' {
+    BeforeAll {
+        $shellSource = Join-Path $PSScriptRoot '../../usr/share/mios/windows/mios-native-shell.ps1'
+        $aiSource = Join-Path $PSScriptRoot '../../usr/share/mios/windows/mios-ai.ps1'
+    }
+    BeforeEach {
+        $script:savedDispatcher = Get-Command mios -CommandType Function -ErrorAction SilentlyContinue
+        $script:savedLegacy = $global:MiosLegacyDispatcher
+        $script:savedEntry = $global:MiosNativeEntry
+        $script:savedBin = $env:MIOS_NATIVE_BIN
+        $global:MiosDispatchReceipt = $null
+        function global:mios { param($Verb, [Parameter(ValueFromRemainingArguments=$true)]$Arguments) $global:MiosDispatchReceipt = @('legacy',$Verb) + $Arguments }
+        Set-Content -LiteralPath (Join-Path $TestDrive 'mios-native-entry.ps1') -Value 'param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments) $global:MiosDispatchReceipt = @("native") + $Arguments'
+    }
+    AfterEach {
+        Remove-Item Function:\mios -ErrorAction SilentlyContinue
+        if ($script:savedDispatcher) { Set-Item Function:\global:mios $script:savedDispatcher.ScriptBlock }
+        $global:MiosLegacyDispatcher = $script:savedLegacy
+        $global:MiosNativeEntry = $script:savedEntry
+        $env:MIOS_NATIVE_BIN = $script:savedBin
+        Remove-Variable MiosDispatchReceipt -Scope Global -ErrorAction SilentlyContinue
+    }
+    It 'replaces the web route with the native entry while preserving literal arguments' {
+        mios ai
+        $global:MiosDispatchReceipt[0] | Should -Be 'legacy'
+        . $shellSource -BinDirectory $TestDrive
+        mios ai codex 'a quoted task; $HOME'
+        ($global:MiosDispatchReceipt -join '|') | Should -Be 'native|ai|codex|a quoted task; $HOME'
+    }
+    It 'retains Windows management verbs after repeated profile projection' {
+        . $shellSource -BinDirectory $TestDrive
+        . $shellSource -BinDirectory $TestDrive
+        mios config 'kept argument'
+        ($global:MiosDispatchReceipt -join '|') | Should -Be 'legacy|config|kept argument'
+    }
+    It 'repairs the old per-verb wrapper without starting a separate window' {
+        $env:MIOS_NATIVE_BIN = $TestDrive
+        Mock Start-Process { throw 'A separate window must not be started' }
+        & $aiSource codex --version
+        ($global:MiosDispatchReceipt -join '|') | Should -Be 'native|ai|codex|--version'
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+}
+Describe 'MiOS native terminal projection' {
+    BeforeAll {
+        $source = Join-Path $PSScriptRoot '../../usr/share/mios/windows/mios-native-client-setup.ps1'
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$null, [ref]$null)
+        foreach ($name in @('Set-MiosTerminalStartup', 'Set-MiosNativeShortcut')) {
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+            . ([scriptblock]::Create($functionAst.Extent.Text))
+        }
+        $stamp = 'projection-proof'
+    }
+    It 'replaces persisted pixel placement with SSOT centering and dimensions' {
+        $terminal = @{initialPosition='-1900,400'; unrelated='preserved'}
+        $config = @{theme=@{terminal=@{center_on_launch=$true};launch_mode='focus'};terminal=@{cols=97;rows=31}}
+        Set-MiosTerminalStartup $terminal $config
+        $terminal.ContainsKey('initialPosition') | Should -BeFalse
+        $terminal.centerOnLaunch | Should -BeTrue
+        $terminal.initialCols | Should -Be 97
+        $terminal.initialRows | Should -Be 31
+        $terminal.launchMode | Should -Be 'focus'
+        $terminal.unrelated | Should -Be 'preserved'
+    }
+    It 'rejects a malformed SSOT centering policy' {
+        { Set-MiosTerminalStartup @{} @{theme=@{terminal=@{center_on_launch='yes'}}} } | Should -Throw '*must be a boolean*'
+    }
+    It 'repairs an existing legacy shortcut and leaves an identical projection untouched' {
+        $shell = New-Object -ComObject WScript.Shell
+        $path = Join-Path $TestDrive 'MiOS.lnk'
+        $old = $shell.CreateShortcut($path)
+        $old.TargetPath = 'C:\old-mios\mios-launch.exe'
+        $old.Arguments = 'MiOS-DEV 80 20'
+        $old.WindowStyle = 7
+        $old.Save()
+        Set-MiosNativeShortcut $shell $path 'C:\native-mios\mios-launch.exe' 'MiOS-DEV' 'C:\native-mios'
+        $result = $shell.CreateShortcut($path)
+        $result.TargetPath | Should -Be 'C:\native-mios\mios-launch.exe'
+        $result.Arguments | Should -Be 'MiOS-DEV'
+        $result.WorkingDirectory | Should -Be 'C:\native-mios'
+        $result.WindowStyle | Should -Be 1
+        $before = (Get-FileHash -LiteralPath $path).Hash
+        $written = (Get-Item -LiteralPath $path).LastWriteTimeUtc
+        Set-MiosNativeShortcut $shell $path 'C:\native-mios\mios-launch.exe' 'MiOS-DEV' 'C:\native-mios'
+        (Get-FileHash -LiteralPath $path).Hash | Should -Be $before
+        (Get-Item -LiteralPath $path).LastWriteTimeUtc | Should -Be $written
+    }
+}

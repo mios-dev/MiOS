@@ -22,6 +22,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-agents.service` | `usr/lib/systemd/system` | MiOS' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server) |
 | `mios-ai-firstboot.service` | `usr/lib/systemd/system` | MiOS' AI first-boot provisioning (agent venv + llama.cpp GGUFs) |
 | `mios-ai-firstboot.timer` | `usr/lib/systemd/system` | MiOS' AI first-boot provisioning retry (until the sentinel is written) |
+| `mios-ai-legacy-forward.service` | `usr/lib/systemd/system` | MiOS' AI Legacy Port Forwarder (8640 -> 8700) |
 | `mios-ai.target` | `usr/lib/systemd/system` | MiOS AI Services Target |
 | `mios-aios-refresh.service` | `usr/lib/systemd/system` | MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet |
 | `mios-aios-refresh.timer` | `usr/lib/systemd/system` | Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery) |
@@ -87,6 +88,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-ha-node.target` | `usr/lib/systemd/system` | MiOS' HA Cluster Node Role |
 | `mios-hardware-fallback.service` | `usr/lib/systemd/user` | MiOS' Automated Network and Audio Fallback Manager |
 | `mios-headless.target` | `usr/lib/systemd/system` | MiOS' Headless Role |
+| `mios-headscale-firstboot.service` | `usr/lib/systemd/system` | MiOS' Headscale mesh VPN coordinator first-boot config generator |
+| `mios-headscale.container` | `usr/share/containers/systemd` | MiOS' Headscale Mesh VPN Control Plane Coordinator |
 | `mios-hermes-browser-worker.service` | `usr/lib/systemd/system` | MiOS' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker) |
 | `mios-hermes-browser.service` | `usr/lib/systemd/system` | MiOS' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent) |
 | `mios-hermes-firstboot.service` | `usr/lib/systemd/system` | MiOS' Hermes-Agent first-boot config + key generation |
@@ -203,5 +206,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (195 unit(s)) -->
+<!-- derived from tracked unit files (198 unit(s)) -->
 <!-- /MIOS-GEN:units -->

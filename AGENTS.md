@@ -20,7 +20,10 @@
 > All multi-agent workflows, inter-agent coordination, sub-pane spawning, command execution,
 > and live monitoring MUST use `MiOS-MCP` (`agent-pipe` / `agent-relay` / `state.json`) and `tmux-mcp v2`
 > native slot tools (`open-pane`, `execute-command`, `send-keys`, `capture-pane`, `start-and-watch`,
-> `nested_workflow`) natively, both in headless slots (`/run/mios-tmux/`) and in the live desktop session (`tmux -L mios-human`).
+> the MiOS `mios_tmux_nested_workflow` adapter) natively. Native heads use verified human panes;
+> unbound automation uses private headless sessions. Each participant registers and consumes
+> its own relay inbox; automatic coordinator takeover and desktop conversation transfer are
+> not implemented. See [.agents/COORDINATION.md](.agents/COORDINATION.md).
 >
 > **System repo:** <https://github.com/mios-dev/mios> — that's where
 > the FHS overlay, Containerfile, automation scripts, and the six

@@ -1,0 +1,15 @@
+# AI-hint: Permanent forwarder bridging legacy ai_legacy port (8640) to agent-pipe (8700), preserving backward compatibility for portal/configurator callers.
+# AI-doc: usr/share/doc/mios/manual/system.md
+[Unit]
+Description='MiOS' AI Legacy Port Forwarder (8640 -> 8700)
+After=network.target mios-agent-pipe.service
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat TCP-LISTEN:8640,fork,reuseaddr TCP:127.0.0.1:8700
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

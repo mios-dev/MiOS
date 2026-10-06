@@ -14,7 +14,7 @@ source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
 }
 
 SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
-SEED_DIR="/usr/share/mios/llamacpp/models"
+SEED_DIR="${MIOS_LLAMACPP_MODELS_DIR:?SSOT models directory unresolved}"
 
 if [[ -z "$SPEC" ]]; then
     mios_log "MIOS_LLAMACPP_BAKE_MODELS empty"
@@ -27,12 +27,15 @@ if [[ -L "$SEED_DIR" ]]; then
     rm -f "$SEED_DIR"
 fi
 install -d -m 0755 "$SEED_DIR"
+rm -f "${SEED_DIR}/.ready"
 
 baked=0
+requested=0
 IFS=',' read -ra _entries <<< "$SPEC"
 for entry in "${_entries[@]}"; do
     entry="$(printf '%s' "$entry" | tr -d '[:space:]')"
     [[ -z "$entry" ]] && continue
+    requested=$((requested + 1))
     dest="${entry%%=*}"
     rest="${entry#*=}"
     repo="${rest%%:*}"
@@ -71,12 +74,13 @@ for entry in "${_entries[@]}"; do
     fi
 done
 
-if [[ "$baked" -gt 0 ]]; then
+if [[ "$requested" -gt 0 && "$baked" -eq "$requested" ]]; then
     : > "${SEED_DIR}/.ready"   # the quadlet's ConditionPathExists gate -> lane eligible
     seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
     mios_ok "Baked ${baked} GGUF -> ${SEED_DIR}; .ready set"
 else
-    mios_log "No GGUFs baked"
+    mios_err "Incomplete GGUF bake: ${baked}/${requested}; required model files missing, .ready withheld"
+    exit 1
 fi
 
 # AI-hint: Bakes vLLM model weights into the image at /usr/share/mios/vllm/model if MIOS_VLLM_BAKE_MODEL is set, enabling offline serving via the mios-llm-heavy-alt Quadlet for air-gapped environments.
@@ -122,7 +126,7 @@ print(f"baked {model} -> {dest}")
 PY
 then
     mios_warn "Download failed"
-    exit 0
+    exit 1
 fi
 
 sbom_dir="/usr/share/mios/artifacts/sbom"

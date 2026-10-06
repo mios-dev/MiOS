@@ -6,7 +6,7 @@
     "prefix": "C-b"
   },
   {
-    "command": "/usr/libexec/mios/mios-ai-terminal",
+    "command": "/usr/bin/mios ai",
     "key": "a",
     "name": "MiOS AI",
     "prefix": "C-b"

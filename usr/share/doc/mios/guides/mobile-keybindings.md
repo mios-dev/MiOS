@@ -25,17 +25,25 @@ the Windows input-language switch on Win+Space and the tablet emoji picker on
 Ctrl+Space. Operator-installed third-party global hotkeys require their own audit.
 
 After Ctrl+B: H/J/K/L select panes, S/V split, N/P switch windows, W selects a
-window, Z zooms, Y enters copy mode and D detaches. Tab sends Shift+Tab to the
+window, Z zooms, Y enters copy mode and D detaches. O cycles the head/workers in
+an AI workspace; F toggles compact/automatic layout. Tab sends Shift+Tab to the
 agent. B (or Ctrl+B again) sends the prefix to the application. This uses plain
 letters, Ctrl and Tab without relying on function keys or Super on an SSH client.
 
-Every native human session opens a background **MiOS Agents** window. Ctrl+B,
-then G selects it; repeating the shortcut selects the same window. Its live
-relay and pane metadata remain readable on a mobile terminal. Run
+Ctrl+B, then G selects the existing **MiOS Agents** monitor pane in an AI
+workspace, without creating another tab. Its compact view uses short agent
+labels and pane roles; full identities remain available in JSON. Run
 `mios agents --observe` for JSON or `mios agents --watch` for the live view.
 
 On mobile, connect with a PTY and run `mios terminal`, or configure that as the
 client's startup command. Reconnect to the same native session after detaching.
+Use `mios ai --compact` for a monitor above one active pane in portrait, or
+on the right of the active pane in landscape. Workers keep running in a separate
+managed session outside the human tab list; Ctrl+B, then
+O brings the next agent into the active pane. Narrow or short viewports select
+this layout automatically, and a
+larger viewport restores the desktop grid. Pane identities and processes survive
+the transition. SSH client window placement and fullscreen belong to the client.
 Termius supports startup commands, snippets and a custom keyboard bar. Add Ctrl,
 Esc, Tab and arrow controls there. Blink's Smart Keys expose Ctrl/Alt/Esc; a
 hardware Caps Lock remap can supply Ctrl and tap-Esc. Keep client keyboard

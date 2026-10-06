@@ -22,10 +22,36 @@ the native image pipeline must build and publish the new revision.
 MadAppGang's slot-based tools run behind the SDK's protocol negotiation and
 framing. The adapter publishes the SSOT allowlist with bounded slots and timeouts.
 It does not invent raw `split-pane` tools that this upstream does not expose.
-Each stdio connection owns a private `0700` runtime directory, HOME and tmux
-socket hierarchy. Automation uses `mcp-headless`; human sessions use the separate
-SSOT `mios-human` socket. Personal shell startup hooks and ambient API keys are
-excluded from worker environments.
+Each stdio connection owns a private `0700` runtime directory and worker HOME.
+Unbound automation uses its own `mcp-headless` socket. The native CLI launcher
+binds an interactive head to its caller-owned SSOT `mios-human` socket and exact
+pane; socket ownership, session identity and pane existence are checked before
+any desktop mutation. Arbitrary ambient tmux sessions are not adopted. In this
+mode helpers appear as live splits of the head's desktop window. Separate slot
+namespaces and a window allocation lock allow nested heads to coexist. Teardown
+uses witnessed owned pane IDs and preserves human panes and other heads' workers.
+Personal shell startup hooks and ambient API keys are excluded from workers.
+
+`mios ai` opens the native CLI chooser; `mios ai NAME` starts that catalog client
+directly. The chooser displays an introduction, installation/MCP support and
+navigation hints. Small panes page the client list with `n` and `p`; a number or
+name selects a client, and `q` returns to the SSOT-themed shell. Desktop layout
+has a head on the left and four empty worker reservations on the right when
+the viewport is large enough. Default launches use the SSOT `[terminal]` size
+(80×20): compact landscape places the live agent view on the left and one active
+agent on the right; portrait stacks the monitor above the active agent. Other
+workers keep running in a managed worker window. Ctrl+B then O cycles the active
+agent, and Ctrl+B then F toggles compact/automatic layout. Ctrl+B then W selects
+a pane from the tree; expand with arrows, then use Ctrl+B then Z to zoom. The
+MCP bridge verifies each reserved worker and its workspace before directing
+upstream slot tools to its current window. Resizing preserves pane IDs and PIDs.
+
+The native layout follows `[mcp.tmux.workspace]` on creation and resize. Existing
+pane processes survive rotation. A zoomed or operator-modified layout is left
+alone. Clients attached to the same tmux window share its geometry; its latest
+client resize drives layout selection. A failed creation removes only the panes
+created by that attempt. CLI installation supplies neither provider login nor
+model readiness; an installed client can still require either before doing work.
 
 HTTP clients must call `mios_tmux_session_open`, keep its opaque capability
 private, and supply `session` on terminal calls. This is explicit because modern
@@ -53,7 +79,7 @@ existing shared-ref locking/backoff adapter.
 ## Addressed agent sessions
 
 `[mcp.agents]` configures the native `mios-agent-relay` transaction engine.
-The combined endpoint adds six `mios_agent_*` tools without removing the legacy
+The combined endpoint adds seven `mios_agent_*` tools without removing the legacy
 catalog. Each participating running CLI or chat registers a session ID and keeps
 its returned lease private. Registered sessions share a caller-owned state
 directory; nested tmux workers inherit only the directory pointer, not leases.
@@ -63,7 +89,22 @@ tasks or replies, `mios_agent_receive` to read the recipient's inbox, and
 `mios_agent_ack` after reading. Reusing a message ID makes retries idempotent and
 returns its current receipt. A queued message is not delivery, and a received
 receipt is not completion. `mios_agent_unregister` marks a session offline.
-Leases expire; queue, message, session and retained receipt limits come from SSOT.
+Presence expires without transferring mailbox ownership. With
+`[mcp.agents].queue_offline`, registered dormant sessions retain bounded queued
+work and resume `receive` with their original private token. Explicitly closed
+sessions reject new messages. Registration preserves both identities referenced
+by pending messages; unrelated dormant identities retire after
+`mailbox_retention_s`. Queue, message, registry and receipt limits derive from SSOT.
+
+`mios_agent_observe` and `mios agents --observe` provide the same sanitized,
+read-only snapshot. `mios agents --watch` renders a resizing native view in the
+MiOS Agents pane. In an AI workspace, the SSOT global G action focuses that
+existing pane without adding a tab. Compact output uses short labels and identity
+references; the JSON snapshot retains full identities. Inactive worker panes and
+the desktop observer are parked in a managed session outside the human tab list.
+Registrations, queued/received receipts and detected pane identities are
+distinct; message bodies, leases, command arguments and screen contents are
+omitted. Registry files remain private (`0600` in a `0700` caller-owned directory).
 
 A local live CLI test used an Antigravity head in an MCP tmux pane to launch
 another Antigravity CLI, send it a task, and receive its reply through these
@@ -113,7 +154,8 @@ and agent relay surfaces:
    or `vacuous` otherwise.
 2. `mios_tmux_nested_workflow` automates launching nested tasks across any of the
    seven installed global agent CLIs (`claude`, `codex`, `gemini`, `copilot`,
-   `opencode`, `agy`, `aider`) inside isolated tmux slots (1..32). It sets up
+   `opencode`, `agy`, `aider`) inside bounded tmux slots (1..32). Native desktop
+   heads create visible helpers; unbound and HTTP callers use private servers. It sets up
    private environments with the shared relay pointer, executes the task, strips
    terminal ANSI escapes, extracts receipts, and translates output frames.
 3. Concurrent slots remain fully isolated with independent per-slot locks,
