@@ -1799,3 +1799,22 @@ so long. Let a run finish.
   7. Ran `tools/sync-generated.sh`, `tests/doc-production-evidence.sh`, and all 6 standing `mios-gate` audits (phase-registry, ratchet-direction, credential-literals, version-literals-ssot, signature-policy, and ci-suites --check).
 - verified: all 6 standing gates pass, 22/22 MCP tests pass, system CPU load verified idle, `mios mon --dash` verified clean.
 - unverified: long-term multi-hour continuous load on Firecrawl web scraping queues.
+
+## 2026-10-05 22:50 · antigravity · T-1132: Hermetic Windows wallpaper cross-build & low-power GPU routing
+- objective: Make the Windows wallpaper cross-build hermetic inside MiOS-DEV and enforce upstream Windows native low-power GPU routing on living wallpaper (T-1132).
+- root cause:
+  1. The host toolchain mixed llvm-mingw driver with unpinned GNU flags expecting -lgcc / -lgcc_eh libraries, causing cross-compilation linking failures on Windows targets.
+  2. Windows DirectX UserGpuPreferences was missing registration for child msedgewebview2.exe shader rendering processes, allowing them to default to discrete high-performance GPU (RTX 4090).
+- done:
+  1. Resolved coherent toolchain using `stable-x86_64-pc-windows-gnullvm` and llvm-mingw linker, building 1.5MB `mios-wallpaperd.exe` release binary with zero compiler errors.
+  2. Staged `mios-wallpaperd.exe` to `C:\Windows\Web\MiOS\` and `C:\ProgramData\MiOS\bin\`, and updated `c:\mios-bootstrap\build-mios.ps1` with gnullvm candidate and target fallback.
+  3. Enforced `GpuPreference=1;` across `HKCU` and `HKLM` for all WebView2 and Wallpaper daemons, routing 52.6% 3D compute to AMD Radeon iGPU and leaving RTX 4090 at 0% compute.
+  4. Completely eliminated static desktop wallpaper globally in offline ISO templates (`New-MiOSISO.ps1`, `MiOS-Provision.lib.ps1`, `MiOS-Xbox.xml`), enforcing black background `0 0 0` with interactive living wallpaper auto-launch on first boot.
+  5. Updated task T-1132 to completed in tasks.jsonl and re-rendered TASKS.md via `mios-task`.
+- verified:
+  - `mios-task check` passed (3508 records ok).
+  - Standing gates verified: phase-registry (79/79), ratchet-direction (92/92), credential-literals (0 new), version-literals-ssot (0 divergent), signature-policy (policy.json matches SSOT).
+  - ci-suites (419 suites; 6/6 exempt), sync-bootstrap (13 files, 2 tables, 2 keys match).
+- next: Task T-1148 (Enforce static Linux linkage across native executable roles).
+- blockers: -
+- unverified: -

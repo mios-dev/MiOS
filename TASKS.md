@@ -16,9 +16,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1617 |
+| pending | 1616 |
 | in_progress | 47 |
-| completed | 1807 |
+| completed | 1808 |
 | incomplete | 21 |
 | cancelled | 16 |
 | total | 3508 |
@@ -2477,7 +2477,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### No epic
 
-- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- pending · owner antigravity · P1 · size M
+- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- completed · owner antigravity · P1 · size M
 - `T-1147` Classify native Rust executables through one shared role catalog -- completed · P1 · size M
 - `T-1148` Enforce static Linux linkage across native executable roles -- pending · P1 · size M · depends_on T-1147
 - `T-1149` Validate ARM64 native releases and bootc image lifecycle -- pending · P2 · size M · depends_on T-1148
