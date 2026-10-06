@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3689,
-  "total_metadata_entries": 3033,
-  "total_hints": 3021,
+  "total_files_scanned": 3694,
+  "total_metadata_entries": 3038,
+  "total_hints": 3026,
   "total_functions_indexed": 1482,
-  "total_related_links": 4892,
+  "total_related_links": 4906,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -6879,6 +6879,20 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-igpu-rpc-rust-e2e.py",
+      "hint": "Comprehensive 4-tier E2E test suite for MiOS iGPU Inference Lane, RPC Compute Fabric, and Rust Hardcode-Lint Consolidation (T-211, T-212, T-1161).",
+      "related": [
+        "usr/share/mios/windows/mios-igpu-server.ps1",
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-hardcode-lint",
+        "tests/test_hardcode_lint_parity.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/windows.md, TEST_INFRA.md, PROJECT.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-image-bake.py",
       "hint": "Automated unit test suite for autonomous background OCI image synthesis service.",
       "related": [
@@ -8558,6 +8572,20 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test_hardcode_lint_parity.py",
+      "hint": "Comprehensive parity test suite for MiOS hardcode linting (Python oracle vs Rust compiled binary).",
+      "related": [
+        "usr/libexec/mios/mios-hardcode-lint",
+        "usr/share/mios/mios.toml",
+        "tools/native/mios-hardcode-lint",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/adr/0003-sbom-not-hardcode.md, TEST_INFRA.md, PROJECT.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test_native_static_hardening_e2e.py",
       "hint": "Comprehensive E2E test suite for MiOS Native Static Binaries Hardening and Consolidation (T-1148, T-1161, T-1162).",
       "related": [
@@ -9486,6 +9514,32 @@
         "run",
         "main"
       ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-hardcode-lint/Cargo.toml",
+      "hint": "Fast native static CLI enforcement gate for the NO-HARDCODE law (Architectural Law 7).",
+      "related": [
+        "usr/libexec/mios/mios-hardcode-lint",
+        "automation/98-drift-checks.sh",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-hardcode-lint/src/main.rs",
+      "hint": "Fast native static CLI enforcement gate for the NO-HARDCODE law (Architectural Law 7).",
+      "related": [
+        "usr/libexec/mios/mios-hardcode-lint",
+        "automation/98-drift-checks.sh",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
       "doc": null,
       "comment_style": "slash",
       "has_shebang": false
@@ -16894,6 +16948,15 @@
       "related": [],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/systemd/system/llama-rpc-server.service",
+      "hint": "Systemd unit file defining the llama.cpp RPC server on Linux headless Blade nodes for distributed tensor and layer sharding across the MiOS compute mesh.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/system.md",
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -35250,7 +35313,7 @@
     },
     {
       "path": "usr/share/mios/windows/mios-igpu-server.ps1",
-      "hint": "Powershell script that hosts a llama.cpp Vulkan-backend inference server on Windows to provide a persistent, low-latency micro-LLM for the MiOS dae...",
+      "hint": "Powershell script that hosts a llama.cpp Vulkan-backend inference server (or rpc-server) on Windows to provide a persistent, low-latency micro-LLM for the MiOS daemon and agent pipeline.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/windows.md",

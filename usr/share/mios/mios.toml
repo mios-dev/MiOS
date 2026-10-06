@@ -1902,7 +1902,7 @@ rustflags = ["-C", "target-feature=+crt-static"]
 [build.native.categories.cli]
 binaries = [
   "generate-names-registry", "mios-ai-config", "mios-aiplane-lint", "mios-bake-plan",
-  "mios-browser", "mios-comment-lex", "mios-drift-runner", "mios-edge-status", "mios-render-quadlets",
+  "mios-browser", "mios-comment-lex", "mios-drift-runner", "mios-edge-status", "mios-hardcode-lint", "mios-render-quadlets",
   "mios-resolver", "mios-size-ceiling", "mios-ssot-lint", "mios-task", "mios-toml-get",
   "mios-template-compile", "mios-template-conform", "mios-toolchain-pin",
   "mios-unit-gen", "mios-version-check", "xtask", "mios-gate", "mios-probe", "miosd",
@@ -2758,14 +2758,14 @@ model    = "mios-agent-cpu"    # canonical CPU Modelfile tag, never a raw base
 lane     = "cpu"
 api      = "llamacpp"          # /slots KV-paging, no tool_choice=required
 health_gate = true
-# Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
-# NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
-# /etc/mios overlay). Empty endpoint = inert node, skipped by _load_node_pool.
+# Local iGPU lane -- served natively on the Windows host via llama.cpp+Vulkan
+# on localhost loopback per Architectural Law 5 (MIOS_AI_ENDPOINT).
 [nodes.local-igpu]
-endpoint = ""                  # set to http://<igpu-host-tailnet>:11436/v1 in /etc/mios
-model    = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
-lane     = "igpu"
-api      = "llamacpp"
+endpoint    = "http://127.0.0.1:${MIOS_PORT_LLM_IGPU}/v1"
+model       = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
+lane        = "igpu"
+api         = "llamacpp"
+health_gate = true
 [nodes.local-vllm]
 endpoint    = "http://localhost:${MIOS_PORT_VLLM}/v1"
 model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLLM serves
@@ -2807,6 +2807,12 @@ constrained_tools = true
 stream_thinking  = true
 tool_call_parser = "hermes"
 reasoning_parser = "qwen3"
+constrained_tools = true
+
+[lanes.igpu]
+stream_thinking   = true
+tool_call_parser  = "hermes"
+reasoning_parser  = "qwen3"
 constrained_tools = true
 
 
@@ -3159,11 +3165,11 @@ offload_cpu          = false
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
 lane_tool_cap        = "igpu:12,mobile:12"
 default_tool_cap     = 16
-no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
+no_tool_choice_hints = "8540,11436"          # host:port substrings whose llama.cpp rejects tool_choice=required
 parallel_tools_hints = "8520,8530"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 kv_paging_enable  = true     # master switch; only ACTS on llama.cpp /slots endpoints
-kv_paging_hints   = "11436"  # host:port substrings that speak llama.cpp /slots (default the iGPU lane)
+kv_paging_hints   = "8540,11436"  # host:port substrings that speak llama.cpp /slots (default the iGPU lane)
 kv_paging_slot    = 0        # llama-server slot id the light lane pages (single resident frame)
 kv_paging_timeout = 12.0     # seconds for one save/restore POST (best-effort; never fails the turn)
 kv_fork_enable       = false  # master switch (only ACTS when kv_paging is on AND the endpoint speaks llama.cpp /slots)
@@ -7253,6 +7259,8 @@ headscale          = 8085     # Headscale mesh VPN control plane coordinator (HT
 opencode_gateway   = 8780     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 vllm               = 8520    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
 sglang             = 8530    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
+llm_igpu           = 8540    # mios-igpu: local iGPU inference lane (llama.cpp + Vulkan on Windows host)
+rpc_igpu           = 8550    # mios-rpc-igpu: cross-lane llama.cpp RPC server on iGPU
 prefilter          = 8710    # mios-delegation-prefilter: conversational-bypass classifier + delegation gate (OpenAI /v1 shim in front of hermes). LOOPBACK only.
 arbiter            = 8760    # mios-policy-arbiter: risk-tier arbiter (verb/risk allow-list enforcer). LOOPBACK only. (Mirrors agent.arbiter_port; SSOT migrated here for port-table completeness.)
 daemon_agent       = 8740    # mios-daemon-agent: background inference worker lane (low-priority; CPU-affined). LOOPBACK only.
@@ -7324,7 +7332,7 @@ doc     = "Cluster orchestration and storage control planes."
 [ports.categories.inference]
 base    = 8500
 stride  = 10
-members = ["llm_light", "cpu_node", "vllm", "sglang"]
+members = ["llm_light", "cpu_node", "vllm", "sglang", "llm_igpu", "rpc_igpu"]
 doc     = "Model-serving lanes. Ordered cheapest-to-heaviest: always-on llama.cpp, CPU lane, then the GATED dGPU lanes."
 
 [ports.categories.data]
@@ -12897,6 +12905,7 @@ unit = [
     "tests/test-core-sched.sh",
     "tests/test-kernel-module-signature-enforce.sh",
     "tests/test_native_static_hardening_e2e.py",
+    "tests/test-igpu-rpc-rust-e2e.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

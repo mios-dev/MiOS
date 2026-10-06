@@ -28,6 +28,8 @@ ports.headscale  MIOS_PORTS_HEADSCALE
 ports.opencode_gateway  MIOS_PORTS_OPENCODE_GATEWAY
 ports.vllm  MIOS_PORTS_VLLM
 ports.sglang  MIOS_PORTS_SGLANG
+ports.llm_igpu  MIOS_PORTS_LLM_IGPU
+ports.rpc_igpu  MIOS_PORTS_RPC_IGPU
 ports.prefilter  MIOS_PORTS_PREFILTER
 ports.arbiter  MIOS_PORTS_ARBITER
 ports.daemon_agent  MIOS_PORTS_DAEMON_AGENT

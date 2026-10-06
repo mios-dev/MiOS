@@ -12,6 +12,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `hermes-worker.path` | `usr/lib/systemd/system` | MiOS' watch for the Hermes venv -> (re)start hermes-worker |
 | `hermes-worker.service` | `usr/lib/systemd/system` | MiOS' Hermes gateway (native tool loop, port key `hermes`) |
 | `k3s.service` | `usr/lib/systemd/system` | Lightweight Kubernetes (K3s) |
+| `llama-rpc-server.service` | `usr/lib/systemd/system` | MiOS' llama.cpp RPC Server (Headless Blade Compute Node) |
 | `mios-account-sync.service` | `usr/lib/systemd/system` | MiOS' live PostgreSQL-to-OS user account sync daemon |
 | `mios-additionalimagestores-perms.path` | `usr/lib/systemd/system` | MiOS': watch additionalimagestores for perm changes; retrigger chmod |
 | `mios-additionalimagestores-perms.service` | `usr/lib/systemd/system` | MiOS': enforce world-readable perms on /usr/lib/containers/storage |
@@ -206,5 +207,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (198 unit(s)) -->
+<!-- derived from tracked unit files (199 unit(s)) -->
 <!-- /MIOS-GEN:units -->

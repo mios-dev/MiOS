@@ -88,6 +88,8 @@ The resolved numbers behind those keys come from the `[ports]` SSOT:
 | inference | cpu_node | 8510 |
 | inference | vllm | 8520 |
 | inference | sglang | 8530 |
+| inference | llm_igpu | 8540 |
+| inference | rpc_igpu | 8550 |
 
 <!-- derived from usr/share/mios/mios.toml [ports.categories] -->
 <!-- /MIOS-GEN:ports:inference -->

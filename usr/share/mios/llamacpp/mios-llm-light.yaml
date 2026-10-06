@@ -158,6 +158,22 @@ models:
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
+  # ── federated RPC model route (cross-lane dGPU + iGPU layer sharding) ────────
+  "federated:32b":
+    aliases:
+      - mios-federated
+      - federated
+    cmd: >
+      /app/llama-server --model /models/granite-4.1-8b.gguf
+      --port ${PORT} --host 127.0.0.1
+      --rpc 127.0.0.1:8540 --split-mode layer --tensor-split 24,4
+      --ctx-size 32768 --parallel 1 --cache-reuse 256
+      --flash-attn auto
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --slot-save-path /var/lib/mios/llamacpp/slots --jinja
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: 300
+
 # ── CO-RESIDENT GROUP ("explain the logs" exposed it) ──────
 # Default llama-swap is single-active: only ONE model resident, the rest swapped
 # out. So an embeddings request (RAG / memory) that arrives DURING a chat turn had

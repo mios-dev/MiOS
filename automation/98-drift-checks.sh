@@ -593,6 +593,30 @@ check_blade_dropins() {
 }
 
 check_no_hardcode() {
+    local bin=""
+    local _c
+    for _c in "${MIOS_HARDCODE_LINT_BIN:-}" \
+              "$ROOT/tools/native/target/release/mios-hardcode-lint" \
+              "$ROOT/tools/native/target/debug/mios-hardcode-lint" \
+              "$ROOT/tools/native/target/release/mios-hardcode-lint.exe" \
+              "$ROOT/tools/native/target/debug/mios-hardcode-lint.exe" \
+              /usr/libexec/mios/mios-hardcode-lint \
+              /usr/bin/mios-hardcode-lint; do
+        if [[ -n "$_c" && -x "$_c" ]]; then bin="$_c"; break; fi
+    done
+    if [[ -n "$bin" ]]; then
+        if "$bin" "$ROOT" >/dev/null 2>"$ROOT/.nohc.err"; then
+            rm -f "$ROOT/.nohc.err" 2>/dev/null || true
+            echo "[98-drift-checks]   no date-in-comment / header crash-risk"
+            return 0
+        else
+            sed 's/^/    /' "$ROOT/.nohc.err" >&2 2>/dev/null || true
+            rm -f "$ROOT/.nohc.err" 2>/dev/null || true
+            _violation "NO-HARDCODE law (Law 7): a date/timestamp in a comment/docstring OR an AI-Hint header crash-risk -- strip the date (timeless comment) or move the header below the shebang/BOM (see mios-hardcode-lint)"
+            return
+        fi
+    fi
+
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-hardcode-lint"
     if [[ ! -f "$tool" ]]; then

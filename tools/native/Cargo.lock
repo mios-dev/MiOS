@@ -1547,6 +1547,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-hardcode-lint"
+version = "0.3.0"
+dependencies = [
+ "regex",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
 name = "mios-install"
 version = "0.3.0"
 dependencies = [
