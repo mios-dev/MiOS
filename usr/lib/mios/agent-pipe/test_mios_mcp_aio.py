@@ -438,6 +438,18 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                 relay._install_native(source, target)
             self.assertEqual(existing.read_bytes(), b"PREVIOUS-BINARY")
 
+    async def test_offline_installer_ships_the_unified_monitor_dependency_closure(self):
+        # Use the real release/font archives and actual payload copies. Only
+        # external provisioning (font-cache/venv/pip) is suppressed in this root.
+        with tempfile.TemporaryDirectory() as directory, patch.object(relay.subprocess, "run"), patch.object(relay.shutil, "which", return_value=sys.executable):
+            target = Path(directory)
+            relay._install_native(ROOT, target)
+            for relative in ("usr/libexec/mios/mios-mon.py", "usr/lib/mios/mios_agent_tui.py", "usr/lib/mios/mios_toml.py"):
+                self.assertEqual((target / relative).read_bytes(), (ROOT / relative).read_bytes())
+            module = target / "usr/lib/mios/mios_agent_tui.py"
+            compile(module.read_text(), str(module), "exec")
+            self.assertTrue(os.access(target / "usr/libexec/mios/mios-mon.py", os.X_OK))
+
     async def test_translate_frames_tool_positive_and_negative_controls(self):
         from mcp import Client, StdioServerParameters
         import mios_translate
@@ -811,6 +823,22 @@ class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
             command="/bin/bash --noprofile --norc",
             observer_command="exec /usr/bin/sleep infinity",
             adapter=f"{sys.executable} {RELAY}")["head"]
+
+    async def test_workspace_keeps_the_explicit_directory_for_head_workers_and_observer(self):
+        project = Path(self.directory.name) / 'project with spaces'
+        project.mkdir()
+        head = relay._workspace_call("open", socket=str(self.socket), directory=str(project),
+            latch="mios-workspace-test-" + secrets.token_hex(8),
+            command="/bin/bash --noprofile --norc", observer_command="exec /usr/bin/sleep infinity",
+            adapter=f"{sys.executable} {RELAY}")["head"]
+        paths = self.tmux('list-panes', '-a', '-F', '#{pane_current_path}').splitlines()
+        self.assertEqual(paths.count(str(project)), 7)  # head, four workers, parking anchor, observer
+        before = self.tmux('list-panes', '-a', '-F', '#{pane_id}')
+        with self.assertRaisesRegex(RuntimeError, 'existing absolute path'):
+            relay._workspace_call("open", socket=str(self.socket), directory=str(project / 'missing'),
+                session='invalid-directory', latch='mios-workspace-invalid',
+                command='sleep infinity', observer_command='sleep infinity', adapter='false')
+        self.assertEqual(self.tmux('list-panes', '-a', '-F', '#{pane_id}'), before)
 
     async def test_workspace_opens_at_native_size_without_losing_head(self):
         self.tmux('kill-server')

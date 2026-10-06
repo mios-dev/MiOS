@@ -863,7 +863,7 @@ fn workspace(request: &Value) -> Result<Value, String> {
         // Re-enter the existing human workspace; opening a terminal must not
         // start another head or duplicate its worker reservations.
         let panes = tmux(&["list-panes", "-a", "-F",
-            "#{pane_id}\t#{session_name}\t#{@mios-workspace-head}\t#{@mios-workspace-window}\t#{pane_dead}"])?;
+            "#{pane_id}\t#{session_name}\t#{@mios-workspace-head}\t#{@mios-workspace-window}\t#{pane_dead}"]).unwrap_or_default();
         for row in panes
             .lines()
             .map(|line| line.split('\t').collect::<Vec<_>>())
@@ -893,6 +893,19 @@ fn workspace(request: &Value) -> Result<Value, String> {
             }
         }
         let target = format!("={session}:");
+        let session_target = format!("={session}");
+        let directory = request["directory"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned()
+            });
+        if !Path::new(&directory).is_absolute() || !Path::new(&directory).is_dir() {
+            return Err("workspace directory must be an existing absolute path".into());
+        }
         let latch = string(request, "latch")?;
         identifier(latch)?;
         let command = format!(
@@ -901,18 +914,38 @@ fn workspace(request: &Value) -> Result<Value, String> {
             latch,
             string(request, "command")?
         );
-        head = tmux(&[
-            "new-window",
-            "-d",
-            "-P",
-            "-F",
-            "#{pane_id}",
-            "-t",
-            &target,
-            "-n",
-            string(config, "window_name")?,
-            &command,
-        ])?;
+        let session_exists = tmux(&["has-session", "-t", &session_target]).is_ok();
+        head = if !session_exists {
+            tmux(&[
+                "new-session",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-s",
+                session,
+                "-n",
+                string(config, "window_name")?,
+                "-c",
+                &directory,
+                &command,
+            ])?
+        } else {
+            tmux(&[
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-t",
+                &target,
+                "-n",
+                string(config, "window_name")?,
+                "-c",
+                &directory,
+                &command,
+            ])?
+        };
         let mut created_observer = None;
         let storage = format!("mios-workspace-{}", head.trim_start_matches('%'));
         let created = (|| -> Result<(), String> {
@@ -957,6 +990,8 @@ fn workspace(request: &Value) -> Result<Value, String> {
                 &storage,
                 "-n",
                 string(config, "workers_window_name")?,
+                "-c",
+                &directory,
                 "exec /usr/bin/sleep infinity",
             ])?;
             tmux(&[
@@ -991,6 +1026,8 @@ fn workspace(request: &Value) -> Result<Value, String> {
                     "#{pane_id}",
                     "-t",
                     &head,
+                    "-c",
+                    &directory,
                     "exec /usr/bin/sleep infinity",
                 ])?;
                 let pid = tmux(&["display-message", "-p", "-t", &pane, "#{pane_pid}"])?;
@@ -1020,6 +1057,8 @@ fn workspace(request: &Value) -> Result<Value, String> {
                 &format!("={storage}:"),
                 "-n",
                 "MiOS AI Agents",
+                "-c",
+                &directory,
                 string(request, "observer_command")?,
             ])?;
             created_observer = Some(observer.clone());
@@ -1038,6 +1077,14 @@ fn workspace(request: &Value) -> Result<Value, String> {
                 &observer,
                 "@mios-workspace-observer-for",
                 &head,
+            ])?;
+            tmux(&[
+                "set-option",
+                "-w",
+                "-t",
+                &head,
+                "@mios-workspace-observer-command",
+                string(request, "observer_command")?,
             ])?;
             // A resize hook runs in the server's environment, which may still
             // identify another pane. Bind it to the verified head and daemon.
@@ -1079,17 +1126,26 @@ fn workspace(request: &Value) -> Result<Value, String> {
         tmux(&["select-pane", "-t", &head])?;
         return Ok(json!({"head":head,"worker_panes":count}));
     }
-    let mut window = tmux(&[
+    let mut window = match tmux(&[
         "display-message",
         "-p",
         "-t",
         &head,
         "#{@mios-workspace-window}",
-    ])?;
+    ]) {
+        Ok(w) => w,
+        Err(_) => return Ok(json!({"managed": false})),
+    };
     if window.is_empty() {
-        window = tmux(&["display-message", "-p", "-t", &head, "#{window_id}"])?;
+        window = match tmux(&["display-message", "-p", "-t", &head, "#{window_id}"]) {
+            Ok(w) => w,
+            Err(_) => return Ok(json!({"managed": false})),
+        };
     }
-    let context = tmux(&["display-message", "-p", "-t", &window, "#{session_name}\t#{window_id}\t#{@mios-workspace-head}\t#{window_width}\t#{window_height}\t#{@mios-workspace-observer}\t#{window_zoomed_flag}"])?;
+    let context = match tmux(&["display-message", "-p", "-t", &window, "#{session_name}\t#{window_id}\t#{@mios-workspace-head}\t#{window_width}\t#{window_height}\t#{@mios-workspace-observer}\t#{window_zoomed_flag}"]) {
+        Ok(c) => c,
+        Err(_) => return Ok(json!({"managed": false})),
+    };
     let fields: Vec<&str> = context.split('\t').collect();
     if fields.len() != 7 || fields[0] != string(request, "session")? || fields[2] != head {
         return Ok(json!({"managed":false}));
@@ -1183,7 +1239,53 @@ fn workspace(request: &Value) -> Result<Value, String> {
     }
     let w = fields[3].parse::<usize>().map_err(|e| e.to_string())?;
     let h = fields[4].parse::<usize>().map_err(|e| e.to_string())?;
-    let observer = fields[5];
+    // The observer pane can exit or be closed by the operator. Every later step
+    // joins/breaks it, so a dead id made each window-resized hook fail with
+    // "can't find pane". Rebuild it in this head's storage session.
+    let mut observer_id = fields[5].to_string();
+    let observer_alive = !observer_id.is_empty()
+        && tmux(&["display-message", "-p", "-t", &observer_id, "#{pane_id}"])
+            .map(|p| p == observer_id)
+            .unwrap_or(false);
+    if !observer_alive {
+        let command = tmux(&[
+            "display-message",
+            "-p",
+            "-t",
+            window,
+            "#{@mios-workspace-observer-command}",
+        ])
+        .ok()
+        .filter(|c| !c.is_empty())
+        .or_else(|| {
+            request
+                .get("observer_command")
+                .and_then(|v| v.as_str())
+                .filter(|c| !c.is_empty())
+                .map(str::to_string)
+        });
+        let Some(command) = command else {
+            return Ok(json!({"managed":true,"layout":"observer_missing"}));
+        };
+        let storage = format!("mios-workspace-{}", head.trim_start_matches('%'));
+        observer_id = if tmux(&["has-session", "-t", &format!("={storage}")]).is_ok() {
+            tmux(&[
+                "new-window", "-d", "-P", "-F", "#{pane_id}",
+                "-t", &format!("={storage}:"), "-n", "MiOS AI Agents", &command,
+            ])?
+        } else {
+            let pane = tmux(&[
+                "new-session", "-d", "-P", "-F", "#{pane_id}",
+                "-s", &storage, "-n", "MiOS AI Agents", &command,
+            ])?;
+            tmux(&["set-option", "-t", &storage, "@mios-workspace-storage-for", &head])?;
+            pane
+        };
+        tmux(&["set-option", "-w", "-t", window, "@mios-workspace-observer", &observer_id])?;
+        tmux(&["set-option", "-w", "-t", window, "@mios-workspace-observer-command", &command])?;
+        tmux(&["set-option", "-p", "-t", &observer_id, "@mios-workspace-observer-for", &head])?;
+    }
+    let observer = observer_id.as_str();
     let mut workers = Vec::new();
     let mut ordered = Vec::new();
     for row in rows.lines().map(|s| s.split('\t').collect::<Vec<_>>()) {
@@ -1264,8 +1366,19 @@ fn workspace(request: &Value) -> Result<Value, String> {
         window,
         "#{@mios-workspace-anchor}",
     ])?;
+    // A recorded anchor pane can be killed (operator closed it, storage session
+    // reaped). Joining onto a dead anchor fails every resize with
+    // "can't find pane"; forget it so it is rebuilt below.
+    if !anchor.is_empty()
+        && tmux(&["display-message", "-p", "-t", &anchor, "#{pane_id}"])
+            .map(|p| p != anchor)
+            .unwrap_or(true)
+    {
+        anchor.clear();
+    }
     let storage = format!("mios-workspace-{}", head.trim_start_matches('%'));
-    if tmux(&["has-session", "-t", &format!("={storage}")]).is_ok() {
+    let storage_exists = tmux(&["has-session", "-t", &format!("={storage}")]).is_ok();
+    if storage_exists {
         if tmux(&[
             "display-message",
             "-p",
@@ -1320,18 +1433,33 @@ fn workspace(request: &Value) -> Result<Value, String> {
         tmux(&["kill-pane", "-t", &temporary])?;
     }
     if anchor.is_empty() {
-        anchor = tmux(&[
-            "new-session",
-            "-d",
-            "-P",
-            "-F",
-            "#{pane_id}",
-            "-s",
-            &storage,
-            "-n",
-            string(config, "workers_window_name")?,
-            "exec /usr/bin/sleep infinity",
-        ])?;
+        anchor = if storage_exists {
+            tmux(&[
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-t",
+                &format!("={storage}:"),
+                "-n",
+                string(config, "workers_window_name")?,
+                "exec /usr/bin/sleep infinity",
+            ])?
+        } else {
+            tmux(&[
+                "new-session",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-s",
+                &storage,
+                "-n",
+                string(config, "workers_window_name")?,
+                "exec /usr/bin/sleep infinity",
+            ])?
+        };
         tmux(&[
             "set-option",
             "-t",

@@ -524,6 +524,10 @@ def _human_tmux_context(socket_path=None, pane=None):
             "tmux": f"{path},{fields[4]},0"}
 
 
+# Command the workspace observer pane runs; resize uses it to rebuild a dead observer.
+_WORKSPACE_OBSERVER_COMMAND = "/usr/bin/mios agents --watch"
+
+
 def _workspace_call(action, ui=None, **arguments):
     """Resolve the native workspace policy from the same layered SSOT at runtime."""
     data = mios_toml.load_merged()
@@ -533,9 +537,26 @@ def _workspace_call(action, ui=None, **arguments):
     elif os.environ.get("TMUX"):
         tmux_sock = os.environ["TMUX"].rsplit(",", 2)[0]
         try:
+            # A compact view parks inactive heads/workers in a storage session.
+            # Re-enter their witnessed main window rather than opening a new
+            # workspace in that parking session.
+            pane = os.environ.get("TMUX_PANE")
+            if pane:
+                current = _human_tmux_context(tmux_sock, pane)
+                marks = subprocess.check_output(["tmux", "-S", tmux_sock, "display-message", "-p", "-t", pane,
+                    "#{@mios-workspace-head}\t#{@mios-workspace-worker}\t#{@mios-workspace-observer-for}"], text=True, timeout=2).strip().split('\t')
+                head = next((mark for mark in marks if re.fullmatch(r"%\d+", mark)), "")
+                if head:
+                    main = subprocess.check_output(["tmux", "-S", tmux_sock, "display-message", "-p", "-t", head,
+                        "#{@mios-workspace-window}"], text=True, timeout=2).strip()
+                    witness = subprocess.check_output(["tmux", "-S", tmux_sock, "display-message", "-p", "-t", main,
+                        "#{session_name}\t#{@mios-workspace-head}"], text=True, timeout=2).strip().split('\t')
+                    if len(witness) == 2 and witness[1] == head:
+                        session = witness[0]
+                        arguments.setdefault("session", session)
             cmd = ["tmux", "-S", tmux_sock, "display-message", "-p", "#{session_name}"]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
-            if proc.returncode == 0 and proc.stdout.strip():
+            if proc.returncode == 0 and proc.stdout.strip() and "session" not in arguments:
                 session = proc.stdout.strip()
             elif os.environ.get("TMUX_PANE"):
                 current = _human_tmux_context(tmux_sock, os.environ["TMUX_PANE"])
@@ -544,14 +565,52 @@ def _workspace_call(action, ui=None, **arguments):
             if os.environ.get("TMUX_PANE"):
                 current = _human_tmux_context(tmux_sock, os.environ["TMUX_PANE"])
                 session = current["session"]
+
+    # Resolve socket fallback
+    socket = arguments.get("socket") or (ui and ui.get("socket")) or os.environ.get("MIOS_TMUX_UI_SOCKET") or os.environ.get("TMUX", "").split(",")[0]
+    if not socket:
+        socket_name = data["keybindings"].get("socket_name", "mios-human")
+        try:
+            res = subprocess.run(["tmux", "-L", socket_name, "display-message", "-p", "#{socket_path}"],
+                                 capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                socket = res.stdout.strip()
+        except Exception:
+            pass
+        if not socket:
+            uid = os.getuid() if hasattr(os, "getuid") else 1000
+            for candidate in [
+                Path(f"/run/user/{uid}/tmux-{uid}/{socket_name}"),
+                Path(f"/run/mios-tmux/{socket_name}"),
+                Path(f"/tmp/tmux-{uid}/{socket_name}"),
+            ]:
+                if candidate.exists():
+                    socket = str(candidate)
+                    break
+        if not socket:
+            socket = f"/run/user/{os.getuid()}/tmux-{os.getuid()}/{data['keybindings'].get('socket_name', 'mios-human')}" if hasattr(os, "getuid") else f"/tmp/{data['keybindings'].get('socket_name', 'mios-human')}"
+    arguments["socket"] = socket
+
+    # Resolve directory fallback
+    if "directory" not in arguments:
+        cwd = (ui and ui.get("directory")) or os.getcwd()
+        if not os.path.isabs(cwd) or not os.path.isdir(cwd):
+            cwd = data.get("terminal", {}).get("start_directory", "/")
+            if not os.path.isabs(cwd) or not os.path.isdir(cwd):
+                cwd = "/tmp"
+        arguments["directory"] = cwd
+
     request = {"action": action, "workspace": data["mcp"]["tmux"]["workspace"],
                "human_socket": data["keybindings"]["socket_name"],
                "session": session, **arguments}
     if ui:
-        request.update(socket=ui["socket"], head=ui["pane"])
+        request.update(socket=ui.get("socket") or socket, head=ui["pane"])
     result = subprocess.run([data["mcp"]["agents"]["binary"], "--workspace"],
                             input=json.dumps(request), capture_output=True, text=True, timeout=15)
-    receipt = json.loads(result.stdout)
+    try:
+        receipt = json.loads(result.stdout)
+    except Exception as e:
+        raise RuntimeError(f"failed to parse workspace response: {e}; stderr: {result.stderr}")
     if result.returncode or not receipt.get("ok"):
         raise RuntimeError(receipt.get("error") or result.stderr)
     return receipt["result"]
@@ -801,7 +860,7 @@ class _TmuxBridge:
                 workspace_head = tmux("display-message", "-p", "-t", ui["pane"], "#{@mios-workspace-head}")
                 if re.fullmatch(r"%\d+", workspace_head):
                     tmux("set-option", "-p", "-t", created, "@mios-workspace-worker", workspace_head)
-                    _workspace_call("resize", {**ui, "pane": workspace_head})
+                    _workspace_call("resize", {**ui, "pane": workspace_head}, observer_command=_WORKSPACE_OBSERVER_COMMAND)
                 else:
                     tmux("select-layout", "-t", ui["window"], "tiled")
             except BaseException:
@@ -1813,10 +1872,10 @@ def _install_native(source_root, target_root):
     temporary.chmod(0o755)
     temporary.replace(binary)
     runtime_files = (
-        "usr/libexec/mios/mios-mcp-server", "usr/lib/mios/mios_toml.py", "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-mcp-server", "usr/lib/mios/mios_toml.py", "usr/lib/mios/mios_agent_tui.py", "usr/share/mios/mios.toml",
         "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/mios-dotfiles-render",
         "usr/libexec/mios/mios-terminal", "usr/libexec/mios/mios-ai-terminal",
-        "usr/libexec/mios/mios-dashboard.sh", "usr/libexec/mios/mios-mon.py", "usr/bin/mios",
+        "usr/libexec/mios/mios-mon.py", "usr/bin/mios",
         "etc/profile.d/mios-prompt.sh", "etc/tmux.conf", "etc/dconf/db/local.d/10-mios-keybindings",
         "usr/share/mios/tmux/mios-bashrc", "usr/share/mios/tmux/mios-theme.tmux.conf", "usr/share/mios/tmux/mios-keys.tmux.conf",
         "usr/share/mios/theme/templates/oh-my-posh.omp.json.tmpl", "usr/share/mios/oh-my-posh/mios.omp.json",
@@ -1867,8 +1926,13 @@ def main() -> int:
         return result
     if len(sys.argv) > 1 and sys.argv[1] in {"--workspace", "--workspace-resize"}:
         if sys.argv[1] == "--workspace-resize":
-            ui = _human_tmux_context(sys.argv[3], sys.argv[2])
-            _workspace_call("resize", ui)
+            try:
+                ui = _human_tmux_context(sys.argv[3], sys.argv[2])
+                if ui:
+                    _workspace_call("resize", ui, observer_command=_WORKSPACE_OBSERVER_COMMAND)
+            except Exception as e:
+                sys.stderr.write(f"[mios-mcp] workspace-resize error: {e}\n")
+                return 0
         else:
             data = mios_toml.load_merged()
             arguments = sys.argv[2:]
@@ -1880,10 +1944,11 @@ def main() -> int:
                 raise ValueError("Workspace head is not in the SSOT CLI catalog")
             socket = os.environ.get("MIOS_TMUX_UI_SOCKET") or os.environ.get("TMUX", "").split(",")[0]
             _workspace_call("open", socket=socket, latch="mios-workspace-" + secrets.token_hex(8),
+                            directory=os.getcwd(),
                             view="compact" if compact else "auto",
                             command=shlex.join(["/usr/bin/mios", "agent", name, *arguments[1:]]) if name else
                                 shlex.join([data["mcp"]["python"], "/usr/libexec/mios/mios-mcp-server", "--workspace-menu"]),
-                            observer_command="/usr/bin/mios agents --watch",
+                            observer_command=_WORKSPACE_OBSERVER_COMMAND,
                             adapter=shlex.join([data["mcp"]["python"], "/usr/libexec/mios/mios-mcp-server"]))
         return 0
 

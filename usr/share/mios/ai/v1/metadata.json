@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3696,
-  "total_metadata_entries": 3040,
-  "total_hints": 3028,
-  "total_functions_indexed": 1482,
-  "total_related_links": 4911,
+  "total_files_scanned": 3701,
+  "total_metadata_entries": 3042,
+  "total_hints": 3030,
+  "total_functions_indexed": 1483,
+  "total_related_links": 4920,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -8593,6 +8593,34 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test_adversarial_m2_monitor_tui.py",
+      "hint": "Adversarial empirical test harness for Milestone M2 (MiOS Monitor TUI view consolidation & compact scrollbars).",
+      "related": [
+        "/usr/libexec/mios/mios-mon.py",
+        "/usr/lib/mios/mios_agent_tui.py",
+        "/usr/lib/mios/agent-pipe/test_mios_agent_tui.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/test_gateway_wallpaper_rust_e2e.py",
+      "hint": "Comprehensive 4-tier E2E test suite for MiOS Gateway Context Budgeting, Windows Low-Power Wallpaper Lifecycle, and Static Rust Consolidation (F1-F13).",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py",
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py",
+        "usr/share/mios/windows/Set-MiOSWallpaper.ps1",
+        "tools/native/mios-hardcode-lint",
+        "tools/native/mios-service-core"
+      ],
+      "functions": [],
+      "doc": "TEST_INFRA.md, TEST_READY.md, PROJECT.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -23065,9 +23093,11 @@
         "../../../automation/98-drift-checks.sh",
         "../../share/mios/mios.toml",
         "./mios-ai-tag",
-        "../../../CLAUDE.md"
+        "../../../CLAUDE.md",
+        "tools/native/mios-hardcode-lint/"
       ],
       "functions": [
+        "_try_native_bin",
         "_date_in_comment_py",
         "_date_in_string_py",
         "_date_in_comment_generic",

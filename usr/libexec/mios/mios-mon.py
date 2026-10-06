@@ -593,7 +593,10 @@ if TEXTUAL_AVAILABLE:
                                     input=json.dumps(request), capture_output=True, text=True, timeout=10)
             if result.returncode:
                 raise RuntimeError(result.stderr.strip() or f"Observer exit {result.returncode}")
-            return json.loads(result.stdout)
+            receipt = json.loads(result.stdout)
+            if not receipt.get("ok") or not isinstance(receipt.get("result"), dict):
+                raise RuntimeError(receipt.get("error") or "Invalid native observation receipt")
+            return receipt["result"]
 
         DEFAULT_CSS = f"""
         Screen {{
@@ -718,23 +721,29 @@ if TEXTUAL_AVAILABLE:
             scrollbar-size-horizontal: 1;
         }}
         DataTable {{
-            scrollbar-size: 1 1;
-            scrollbar-size-vertical: 1;
-            scrollbar-size-horizontal: 1;
+            scrollbar-size: 0 0;
+            scrollbar-size-vertical: 0;
+            scrollbar-size-horizontal: 0;
+            overflow-x: hidden;
+            overflow-y: hidden;
         }}
         Footer {{
             dock: bottom;
             height: 1;
         }}
-        #monitor-title {{ height: 1; padding: 0 1; text-style: bold; color: {SSOT['fg']}; background: {SSOT['subtle']}; }}
+        #monitor-title {{ height: 1; padding: 0 1; text-style: bold; color: {SSOT['fg']}; background: {SSOT['accent']}; }}
         #monitor-help {{ dock: bottom; height: 1; padding: 0 1; color: {SSOT['fg']}; }}
         ClientView, AgentView, SystemSummary, DataTable {{ background: {SCREEN_BACKGROUND}; }}
-        DataTable > .datatable--header {{ background: {SSOT['subtle']}; color: {SSOT['fg']}; text-style: bold; }}
-        DataTable > .datatable--cursor {{ background: {SSOT['accent']}; color: {SSOT['bg']}; }}
-        .compact Header, .compact Footer, .compact TabbedContent > ContentTabs {{ display: none; }}
+        DataTable > .datatable--header {{ background: {SSOT['accent']}; color: {SSOT['fg']}; text-style: bold; }}
+        DataTable > .datatable--cursor {{ background: {SSOT['accent']}; color: {SSOT['fg']}; }}
+        .compact Header, .compact Footer, .compact ContentTabs {{ display: none; }}
         .compact #main-container {{ display: none; }}
         #system-summary {{ display: none; }}
         .compact #system-summary {{ display: block; }}
+        .compact #ai-log-box {{ display: none; }}
+        #ai-container > AgentView {{ width: 1fr; height: 100%; }}
+        #ai-container > #ai-log-box {{ width: 1fr; height: 100%; border: round {SSOT['success']}; background: {PANEL_BACKGROUND}; }}
+        .compact #ai-container > AgentView {{ width: 100%; height: 100%; }}
         """
 
         BINDINGS = [
@@ -743,10 +752,10 @@ if TEXTUAL_AVAILABLE:
             ("1", "tab_global", "1:Systems"),
             ("2", "tab_build", "2:Build"),
             ("3", "tab_flash", "3:Flash"),
-            ("4", "tab_ai", "4:MiOS-Ai"),
+            ("4", "tab_agents", "4:Agents & AI"),
             Binding("escape", "quit", "Quit", priority=True),
             Binding("f1", "tab_clients", "Clients", priority=True),
-            Binding("f2", "tab_agents", "Agents", priority=True),
+            Binding("f2", "tab_agents", "Agents & AI", priority=True),
             Binding("f3", "tab_global", "System", priority=True),
             Binding("f4", "tab_build", "Build", priority=True),
             Binding("f5", "tab_flash", "Flash", priority=True),
@@ -761,6 +770,8 @@ if TEXTUAL_AVAILABLE:
         ]
 
         def _activate_tab(self, tab_id: str):
+            if tab_id == "tab-ai":
+                tab_id = "tab-agents"
             self.set_focus(None)
             self.query_one(TabbedContent).active = tab_id
             if tab_id == "tab-clients":
@@ -776,12 +787,12 @@ if TEXTUAL_AVAILABLE:
         def action_tab_global(self): self._activate_tab("tab-global")
         def action_tab_build(self): self._activate_tab("tab-build")
         def action_tab_flash(self): self._activate_tab("tab-flash")
-        def action_tab_ai(self): self._activate_tab("tab-ai")
+        def action_tab_ai(self): self._activate_tab("tab-agents")
         def action_tab_clients(self): self._activate_tab("tab-clients")
         def action_tab_agents(self): self._activate_tab("tab-agents")
 
         def cycle_view(self, step):
-            views = ["tab-clients", "tab-agents", "tab-global", "tab-build", "tab-flash", "tab-ai"]
+            views = ["tab-clients", "tab-agents", "tab-global", "tab-build", "tab-flash"]
             tabs = self.query_one(TabbedContent)
             next_tab = views[(views.index(tabs.active) + step) % len(views)]
             self._activate_tab(next_tab)
@@ -796,10 +807,10 @@ if TEXTUAL_AVAILABLE:
         @on(TabbedContent.TabActivated)
         def view_changed(self, event):
             view = event.tab.id.removeprefix("--content-tab-")
-            title = {"tab-clients": "Clients", "tab-agents": "Agents", "tab-global": "System",
-                     "tab-build": "Build", "tab-flash": "Flash", "tab-ai": "AI logs"}.get(view, "Monitor")
+            title = {"tab-clients": "Clients", "tab-agents": "Agents & AI", "tab-global": "System",
+                     "tab-build": "Build", "tab-flash": "Flash"}.get(view, "Monitor")
             self.query_one("#monitor-title", Static).update(f"MiOS Monitor · {title}")
-            if self.ui_mode and view in {"tab-global", "tab-build", "tab-flash", "tab-ai"}:
+            if self.ui_mode and view in {"tab-global", "tab-build", "tab-flash", "tab-agents"}:
                 if view == "tab-global" and (self.size.width < 78 or self.size.height < 26):
                     return
                 self.start_collectors()
@@ -807,12 +818,16 @@ if TEXTUAL_AVAILABLE:
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
             yield Static("MiOS Monitor", id="monitor-title", markup=False)
-            init_tab = f"tab-{self.ui_mode}" if self.ui_mode else ("tab-ai" if AI_MODE else ("tab-build" if PIPELINE_MODE else (f"tab-{TAB_CHOICE}" if TAB_CHOICE else "tab-global")))
+            mode = "agents" if self.ui_mode == "ai" else self.ui_mode
+            tab_choice = "agents" if TAB_CHOICE == "ai" else TAB_CHOICE
+            init_tab = f"tab-{mode}" if mode else ("tab-agents" if AI_MODE else ("tab-build" if PIPELINE_MODE else (f"tab-{tab_choice}" if tab_choice else "tab-global")))
             with TabbedContent(initial=init_tab):
                 with TabPane("Clients", id="tab-clients"):
                     yield ClientView(self.ui_request.get("agents", []))
-                with TabPane("Agents", id="tab-agents"):
-                    yield AgentView(self.observer, self.ui_request.get("observation_request", {}).get("observation", {}).get("refresh_s", 2))
+                with TabPane("Agents & AI", id="tab-agents"):
+                    with Horizontal(id="ai-container"):
+                        yield AgentView(self.observer, self.ui_request.get("observation_request", {}).get("observation", {}).get("refresh_s", 2), id="agent-view")
+                        yield RichLog(id="ai-log-box", classes="box", markup=True, wrap=True)
                 with TabPane("System", id="tab-global"):
                     yield SystemSummary(get_telemetry, get_services, id="system-summary")
                     with Horizontal(id="main-container"):
@@ -837,11 +852,6 @@ if TEXTUAL_AVAILABLE:
                         with Vertical(id="flash-stats-pane", classes="box"):
                             yield Static(id="flash-stats", markup=True)
                         yield RichLog(id="flash-log-box", classes="box", markup=True, wrap=True)
-                with TabPane("AI logs", id="tab-ai"):
-                    with Horizontal(id="ai-container"):
-                        with Vertical(id="ai-stats-pane", classes="box"):
-                            yield Static(id="ai-stats", markup=True)
-                        yield RichLog(id="ai-log-box", classes="box", markup=True, wrap=True)
             yield Footer()
             yield Static("F1–F5 views · Ctrl+←/→ · Esc quit", id="monitor-help", markup=False)
 
@@ -867,6 +877,9 @@ if TEXTUAL_AVAILABLE:
             table.zebra_stripes = True
 
             self.apply_responsive_layout(self.size.width, self.size.height)
+            mode = "agents" if self.ui_mode == "ai" else self.ui_mode
+            initial = f"tab-{mode}" if mode else self.query_one(TabbedContent).active
+            self.call_after_refresh(self._activate_tab, initial)
             if not self.ui_mode:
                 self.start_collectors()
 
@@ -1243,46 +1256,6 @@ if TEXTUAL_AVAILABLE:
 
             try:
                 agents, messages, slots = get_agent_and_mcp_data()
-                online_count = sum(1 for a in agents if a.get("online"))
-                mcp_online = bool(getattr(self, 'service_status', {}).get('mcp', False))
-                pipe_online = bool(getattr(self, 'service_status', {}).get('agent_pipe', False))
-                llm_online = any(getattr(self, 'service_status', {}).get(lane, False)
-                                 for lane in ('llm_light', 'cpu_node', 'vllm', 'sglang'))
-
-                ai_lines = [
-                    f"[{SSOT['success']} bold]MiOS-Ai: MCP & Automation[/]",
-                    f"[{SSOT['subtle']}]MiOS-MCP:[/] {'[green bold]ONLINE[/]' if (mcp_online or pipe_online) else '[dim]STANDBY[/]'}  [{SSOT['subtle']}]LLM:[/] {'[green bold]SERVICE UP[/]' if llm_online else '[dim]STANDBY[/]'}",
-                    f"[{SSOT['subtle']}]Relay Agents:[/] {len(agents)} registered ({online_count} online)",
-                ]
-                if not agents:
-                    ai_lines.append("  [dim](No agents registered in relay)[/]")
-                else:
-                    for a in agents[:6]:
-                        status_str = "[green bold][ONLINE][/]" if a.get("online") else "[red bold][OFFLINE][/]"
-                        aid = a.get("id", "agent")
-                        aid_disp = aid if len(aid) <= 26 else (aid[:13] + ".." + aid[-10:])
-                        p_str = f" [yellow]({a['pending']}p)[/]" if a.get("pending") else ""
-                        ai_lines.append(f"  • [cyan]{escape(aid_disp)}[/] {status_str}{p_str}")
-                        if a.get("label"):
-                            lbl = a["label"][:30] + (".." if len(a["label"]) > 30 else "")
-                            ai_lines.append(f"    [dim]{escape(str(a.get('kind','-')))}: {escape(lbl)}[/]")
-
-                ai_lines.append("")
-                active_count = sum(1 for sl in slots if sl.get("active"))
-                total_open = len(slots)
-                ai_lines.append(f"[{SSOT['warning']} bold]Tmux Panes (desktop + MCP):[/] ({active_count} running commands, {total_open} detected)")
-                if not slots:
-                    ai_lines.append("  [dim]No tmux panes detected by this user[/]")
-                else:
-                    for sl in slots[:6]:
-                        status_color = "green bold" if sl.get("active") else "dim"
-                        state_label = f"[{status_color}]{escape(str(sl['cmd']))}[/]"
-                        ai_lines.append(f"  • Slot [cyan]{escape(str(sl['pane']))}[/] (PID {sl['pid']}): {state_label}")
-
-                ai_lines.append("")
-                ai_lines.append(f"[{SSOT['subtle']}]Memory:[/] {make_bar(psutil.virtual_memory().percent, 14)}")
-                self.query_one("#ai-stats", Static).update("\n".join(ai_lines))
-
                 ai_log_box = self.query_one("#ai-log-box", RichLog)
 
                 # Stream slot state transitions into #ai-log-box
@@ -1393,7 +1366,6 @@ if TEXTUAL_AVAILABLE:
 
                 b_stats = self.query_one("#build-stats-pane")
                 f_stats = self.query_one("#flash-stats-pane")
-                a_stats = self.query_one("#ai-stats-pane")
 
                 b_log = self.query_one("#build-log-box")
                 f_log = self.query_one("#flash-log-box")
@@ -1407,6 +1379,22 @@ if TEXTUAL_AVAILABLE:
                 is_narrow = (width < 78)
                 is_portrait = (height > width) or is_narrow
                 is_compact_height = (height < 26)
+                is_compact = is_narrow or is_compact_height
+
+                try:
+                    agent_view = self.query_one(AgentView)
+                except Exception:
+                    agent_view = None
+
+                if is_compact:
+                    if a_log:
+                        a_log.styles.display = "none"
+                    if agent_view:
+                        agent_view.styles.width = "100%"
+                        agent_view.styles.height = "100%"
+                else:
+                    if a_log:
+                        a_log.styles.display = "block"
 
                 if is_portrait:
                     for c in (main_c, build_c, flash_c, ai_c):
@@ -1421,14 +1409,22 @@ if TEXTUAL_AVAILABLE:
                     right_p.styles.margin_left = 0
                     right_p.styles.margin_top = 0
 
-                    for stats in (b_stats, f_stats, a_stats):
+                    for stats in (b_stats, f_stats):
                         stats.styles.width = "100%"
                         stats.styles.height = "auto"
                         stats.styles.max_height = 14 if height > 40 else 10
 
-                    for lbox in (b_log, f_log, a_log):
+                    for lbox in (b_log, f_log):
                         lbox.styles.width = "100%"
                         lbox.styles.height = "1fr"
+
+                    if not is_compact:
+                        if agent_view:
+                            agent_view.styles.width = "100%"
+                            agent_view.styles.height = "1fr"
+                        if a_log:
+                            a_log.styles.width = "100%"
+                            a_log.styles.height = "1fr"
                 else:
                     for c in (main_c, build_c, flash_c, ai_c):
                         c.styles.layout = "horizontal"
@@ -1442,11 +1438,11 @@ if TEXTUAL_AVAILABLE:
                         right_p.styles.margin_left = 1
                         right_p.styles.margin_top = 0
 
-                        for stats in (b_stats, f_stats, a_stats):
+                        for stats in (b_stats, f_stats):
                             stats.styles.width = 30 if width >= 90 else 26
                             stats.styles.height = "100%"
 
-                        for lbox in (b_log, f_log, a_log):
+                        for lbox in (b_log, f_log):
                             lbox.styles.width = "1fr"
                             lbox.styles.height = "100%"
                     else:
@@ -1459,13 +1455,21 @@ if TEXTUAL_AVAILABLE:
                         right_p.styles.margin_left = 1
                         right_p.styles.margin_top = 0
 
-                        for stats in (b_stats, f_stats, a_stats):
+                        for stats in (b_stats, f_stats):
                             stats.styles.width = 38
                             stats.styles.height = "100%"
 
-                        for lbox in (b_log, f_log, a_log):
+                        for lbox in (b_log, f_log):
                             lbox.styles.width = "1fr"
                             lbox.styles.height = "100%"
+
+                        if not is_compact:
+                            if agent_view:
+                                agent_view.styles.width = 48 if width >= 120 else "1fr"
+                                agent_view.styles.height = "100%"
+                            if a_log:
+                                a_log.styles.width = "1fr"
+                                a_log.styles.height = "100%"
             except Exception: pass
 
         def on_resize(self, event) -> None:
@@ -1541,8 +1545,12 @@ def main():
 
     if args.ui_request_stdin:
         request = json.load(sys.stdin)
-        # Configuration arrives over a pipe; Textual and the CLI share the actual TTY.
-        sys.stdin = open("/dev/tty", "r", encoding="utf-8")
+        # Textual's Linux driver reads sys.__stdin__ and its file descriptor.
+        # Replacing only sys.stdin leaves raw mode/input on the JSON pipe.
+        # Bind fd 0 too, so the selected CLI also inherits the controlling TTY.
+        with open("/dev/tty", "r", encoding="utf-8") as terminal:
+            os.dup2(terminal.fileno(), 0)
+        sys.stdin = sys.__stdin__ = open(0, "r", encoding="utf-8", closefd=False)
     else:
         try:
             data = monitor_config()

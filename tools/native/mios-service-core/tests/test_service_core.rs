@@ -83,23 +83,48 @@ fn test_verify_socket_owner() {
     ));
 }
 
+#[cfg(unix)]
+fn create_test_socket_fixture(path: &std::path::Path) -> Option<std::os::unix::net::UnixListener> {
+    let _ = std::fs::remove_file(path);
+    Some(std::os::unix::net::UnixListener::bind(path).expect("failed to bind test unix socket"))
+}
+
+#[cfg(not(unix))]
+fn create_test_socket_fixture(path: &std::path::Path) -> Option<()> {
+    File::create(path).expect("failed to create test socket file");
+    None
+}
+
 #[test]
 fn test_socket_candidates_discovery() {
     let dir = tempdir().unwrap();
-    let root = dir.path();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700));
+    }
+    #[cfg(unix)]
+    let root = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+    #[cfg(not(unix))]
+    let root = dir.path().to_path_buf();
 
     let human_sock = root.join("human");
-    File::create(&human_sock).unwrap();
+    let _l1 = create_test_socket_fixture(&human_sock);
 
     let mcp_sock = root.join("mcp-headless");
-    File::create(&mcp_sock).unwrap();
+    let _l2 = create_test_socket_fixture(&mcp_sock);
 
     let sub_dir = root.join("tmux-1000");
     fs::create_dir(&sub_dir).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&sub_dir, std::fs::Permissions::from_mode(0o700));
+    }
     let sub_human = sub_dir.join("human");
-    File::create(&sub_human).unwrap();
+    let _l3 = create_test_socket_fixture(&sub_human);
 
-    let candidates = socket_candidates(root, "human", 0);
+    let candidates = socket_candidates(&root, "human", 0);
     assert!(!candidates.is_empty());
     assert!(candidates.contains(&human_sock));
 }
@@ -107,8 +132,18 @@ fn test_socket_candidates_discovery() {
 #[test]
 fn test_validate_workspace_socket() {
     let dir = tempdir().unwrap();
-    let sock = dir.path().join("mios-test.sock");
-    File::create(&sock).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700));
+    }
+    #[cfg(unix)]
+    let root = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+    #[cfg(not(unix))]
+    let root = dir.path().to_path_buf();
+
+    let sock = root.join("mios-test.sock");
+    let _l = create_test_socket_fixture(&sock);
 
     // Absolute, valid name starting with "mios-"
     let res = validate_workspace_socket(&sock, "human");

@@ -545,6 +545,8 @@ def _daemon_main(args: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) < 2 and sys.stdin.isatty() and sys.stdout.isatty() and sys.platform != "win32":
+        os.execv("/usr/libexec/mios/mios-terminal", ["mios-terminal"])
     if len(argv) >= 2 and argv[1] in ("agents", "agent"):
         if argv[1] == "agent" and len(argv) > 2 and sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TMUX"):
             os.execv("/usr/libexec/mios/mios-terminal", ["mios-terminal", "--agent", *argv[2:]])
@@ -587,7 +589,8 @@ def main(argv: list[str]) -> int:
         sys.stderr.write(
             "mios -- MiOS verb dispatcher + locally-hosted OpenAI agent shell.\n\n"
             "Verbs:\n"
-            "  mios (or mon/monitor)               unified live TUI monitor (MiOS-Ai + systems)\n"
+            "  mios                               unified tmux workspace (clients, agents, systems)\n"
+            "  mios mon (or monitor)              unified live TUI monitor\n"
             "  mios terminal (or shell)             native themed tmux interface (local or SSH)\n"
             "  mios ai-terminal                     mobile text interface to MiOS AI\n"
             "  mios mcp                             combined MiOS + terminal MCP stdio\n"

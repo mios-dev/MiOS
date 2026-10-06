@@ -4,6 +4,13 @@
 
 import copy
 import importlib.machinery
+import json
+import os
+import pty
+import select
+import signal
+import termios
+import time
 from pathlib import Path
 import sys
 import unittest
@@ -37,9 +44,26 @@ class TestAgentTui(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(table.size.height, 8)
             self.assertEqual(table.get_row_at(6)[1].plain, "aider")
             self.assertLessEqual(table.region.right, 35)
+            self.assertFalse(table.vertical_scrollbar.display)
+            self.assertFalse(table.horizontal_scrollbar.display)
+            self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+            self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
             await pilot.press("7", "enter")
             await pilot.pause()
         self.assertEqual(app.return_value, "aider")
+
+    async def test_observer_starts_on_agents_without_focusing_the_hidden_chooser(self):
+        app = self.app(mode="agents")
+        async with app.run_test(size=(44, 19)) as pilot:
+            await pilot.pause()
+            self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
+            self.assertEqual(app.focused.id, "peer-table")
+            for id in ("peer-table", "worker-table"):
+                table = app.query_one(f"#{id}", DataTable)
+                self.assertFalse(table.vertical_scrollbar.display)
+                self.assertFalse(table.horizontal_scrollbar.display)
+                self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+                self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
 
     async def test_missing_and_invalid_clients_cannot_launch(self):
         clients = copy.deepcopy(CLIENTS)
@@ -78,12 +102,31 @@ class TestAgentTui(unittest.IsolatedAsyncioTestCase):
                         self.assertGreaterEqual(table.size.height, 2)
                         self.assertGreater(table.size.width, 0)
                         self.assertLessEqual(table.region.right, size[0])
+                        if size in ((35, 19), (44, 19)):
+                            self.assertFalse(table.vertical_scrollbar.display)
+                            self.assertFalse(table.horizontal_scrollbar.display)
+                            self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+                            self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
                     await pilot.press("f3")
                     await pilot.pause()
                     self.assertEqual(app.query_one(TabbedContent).active, "tab-global")
+                    await pilot.press("4")
+                    await pilot.pause()
+                    self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
+                    app.action_tab_ai()
+                    await pilot.pause()
+                    self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
+                    app._activate_tab("tab-ai")
+                    await pilot.pause()
+                    self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
                 await pilot.press("f1")
                 await pilot.pause()
                 self.assertEqual(app.query_one("#client-table", DataTable).row_count, 7)
+                client_table = app.query_one("#client-table", DataTable)
+                self.assertFalse(client_table.vertical_scrollbar.display)
+                self.assertFalse(client_table.horizontal_scrollbar.display)
+                self.assertEqual(client_table.styles.scrollbar_size_vertical, 0)
+                self.assertEqual(client_table.styles.scrollbar_size_horizontal, 0)
 
     async def test_poll_preserves_cursor_and_failure_is_visible(self):
         app = self.app(mode="agents")
@@ -105,9 +148,93 @@ class TestAgentTui(unittest.IsolatedAsyncioTestCase):
             self.assertIn("unavailable", str(app.query_one("#agent-error", Static).render()))
             self.assertEqual(table.row_count, 2)
 
+    async def test_compact_table_scrollbars_and_tab_ai_compatibility(self):
+        app = self.app(mode="ai")
+        async with app.run_test(size=(35, 19)) as pilot:
+            await pilot.pause()
+            self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
+            for id in ("peer-table", "worker-table"):
+                table = app.query_one(f"#{id}", DataTable)
+                self.assertFalse(table.vertical_scrollbar.display)
+                self.assertFalse(table.horizontal_scrollbar.display)
+                self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+                self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
+            app._activate_tab("tab-clients")
+            await pilot.pause()
+            self.assertEqual(app.query_one(TabbedContent).active, "tab-clients")
+            client_table = app.query_one("#client-table", DataTable)
+            self.assertFalse(client_table.vertical_scrollbar.display)
+            self.assertFalse(client_table.horizontal_scrollbar.display)
+            self.assertEqual(client_table.styles.scrollbar_size_vertical, 0)
+            self.assertEqual(client_table.styles.scrollbar_size_horizontal, 0)
+            app.action_tab_ai()
+            await pilot.pause()
+            self.assertEqual(app.query_one(TabbedContent).active, "tab-agents")
+
     def test_peer_labels_are_literal_and_identifiable(self):
         self.assertEqual(peer_name(SNAPSHOT["agents"][0]), "Agy Orchestrator")
         self.assertEqual(clean("[red]x\x1b\u202ey"), "[red]xy")
+
+    def test_native_observation_receipt_is_unwrapped_and_failure_is_not_an_empty_registry(self):
+        app = self.app()
+        app.ui_request.update(state="/private", observation_request={"config": {"binary": "/native-relay"}})
+        with patch.object(monitor.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = json.dumps({"ok": True, "result": SNAPSHOT})
+            self.assertEqual(app.observe_agents(), SNAPSHOT)
+            run.return_value.stdout = json.dumps({"ok": False, "error": "registry unavailable"})
+            with self.assertRaisesRegex(RuntimeError, "registry unavailable"):
+                app.observe_agents()
+
+    def test_public_monitor_reads_keys_and_mouse_from_tty_after_piped_configuration(self):
+        reader, writer = os.pipe()
+        pid, terminal = pty.fork()
+        if pid == 0:
+            os.close(writer)
+            os.dup2(reader, 0)
+            os.close(reader)
+            os.environ["TERM"] = "xterm-256color"
+            os.environ["PYTHONPATH"] = str(ROOT / "usr/lib/mios")
+            os.execl(sys.executable, sys.executable, str(ROOT / "usr/libexec/mios/mios-mon.py"),
+                     "--ui-mode", "agents", "--ui-request-stdin")
+        os.close(reader)
+        output = bytearray()
+        exited = False
+        try:
+            os.write(writer, json.dumps({"agents": CLIENTS}).encode())
+            os.close(writer)
+            writer = -1
+            def read_until(pattern, timeout=8):
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    if pattern in output:
+                        return
+                    if select.select([terminal], [], [], 0.1)[0]:
+                        output.extend(os.read(terminal, 65536))
+                self.fail(f"TTY did not render {pattern!r}: {bytes(output)[-1500:]!r}")
+            read_until(b"Relay:")
+            self.assertFalse(termios.tcgetattr(terminal)[3] & termios.ECHO, "input must be in raw mode")
+            self.assertNotIn(b"Choose a head CLI", output)
+            os.write(terminal, b"\x1b[<35;4;4M\x1bOP")  # mouse motion, then F1
+            read_until(b"Choose a head CLI")
+            self.assertNotIn(b"^[[<35;4;4M", output, "mouse reports must not echo as text")
+            os.write(terminal, b"\x1b")
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    exited = True
+                    self.assertEqual(os.waitstatus_to_exitcode(status), 0)
+                    break
+                time.sleep(0.05)
+            self.assertTrue(exited, "Escape must close the actual TUI")
+        finally:
+            if writer >= 0:
+                os.close(writer)
+            if not exited:
+                os.kill(pid, signal.SIGKILL)
+                os.waitpid(pid, 0)
+            os.close(terminal)
 
 
 if __name__ == "__main__":

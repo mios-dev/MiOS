@@ -10,7 +10,7 @@ from rich.text import Text
 from textual import on
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import DataTable, Input, Static, TabbedContent
+from textual.widgets import DataTable, Input, Static
 
 
 def clean(value, limit=100):
@@ -51,6 +51,13 @@ class ClientView(Vertical):
 
     DEFAULT_CSS = """
     ClientView { height: 1fr; padding: 0 1; }
+    DataTable {
+        scrollbar-size: 0 0;
+        scrollbar-size-vertical: 0;
+        scrollbar-size-horizontal: 0;
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
     #client-intro { height: 2; }
     #client-table { height: 1fr; min-height: 2; }
     #client-input, #client-status { height: 1; }
@@ -58,8 +65,8 @@ class ClientView(Vertical):
     #client-status { color: $warning; }
     """
 
-    def __init__(self, agents):
-        super().__init__()
+    def __init__(self, agents, **kwargs):
+        super().__init__(**kwargs)
         self.agents = [row for row in agents if re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", str(row.get("name", "")))]
 
     def compose(self):
@@ -75,12 +82,8 @@ class ClientView(Vertical):
         sync_rows(table, [(row["name"], (index, row["name"],
                    "Missing" if not row.get("installed") else "MCP" if row.get("mcp") else "CLI"))
                    for index, row in enumerate(self.agents, 1)])
-        try:
-            tabs = self.app.query_one(TabbedContent)
-            if not (tabs.active and tabs.active != "tab-clients"):
-                self.query_one(Input).focus()
-        except Exception:
-            self.query_one(Input).focus()
+        # The app assigns focus after TabbedContent mounts. A hidden chooser
+        # focusing itself here would activate Clients in the observer pane.
 
     def select_client(self, name):
         row = next((row for row in self.agents if row["name"] == name), None)
@@ -111,6 +114,13 @@ class AgentView(Vertical):
     """Separate registered peers from detected tmux processes and receipts."""
     DEFAULT_CSS = """
     AgentView { height: 1fr; padding: 0 1; }
+    DataTable {
+        scrollbar-size: 0 0;
+        scrollbar-size-vertical: 0;
+        scrollbar-size-horizontal: 0;
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
     #relay-count, #worker-count, #receipt, #agent-error { height: 1; }
     #peer-table { height: 1fr; min-height: 2; }
     #worker-table { height: 1fr; min-height: 2; }
@@ -118,8 +128,8 @@ class AgentView(Vertical):
     #agent-error { color: $warning; }
     """
 
-    def __init__(self, observer, refresh_s=2):
-        super().__init__()
+    def __init__(self, observer, refresh_s=2, **kwargs):
+        super().__init__(**kwargs)
         self.observer = observer
         self.refresh_s = refresh_s
         self.refreshing = False
@@ -193,6 +203,13 @@ class SystemSummary(Vertical):
     """Fixed tables reuse MiOS Monitor's existing hardware/service collectors."""
     DEFAULT_CSS = """
     SystemSummary { height: 1fr; padding: 0 1; }
+    DataTable {
+        scrollbar-size: 0 0;
+        scrollbar-size-vertical: 0;
+        scrollbar-size-horizontal: 0;
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
     #metric-table { height: 5; }
     #summary-services { height: 1fr; min-height: 2; }
     #system-status { height: 1; color: $warning; }

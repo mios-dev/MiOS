@@ -31,14 +31,21 @@ if not isinstance(name, str) or not name or any(ch not in "abcdefghijklmnopqrstu
     raise ValueError("invalid agent observation window name")
 print(name)
 print(next(a["command"] for a in c["actions"] if a["id"] == "agents"))
-if sys.argv[1]:
-    action = next((a for a in c["actions"] if a["id"] == sys.argv[1]), None)
+selected = sys.argv[1] or (d["terminal"]["default_action"] if sys.argv[2] == "default" else "")
+if selected:
+    action = next((a for a in c["actions"] if a["id"] == selected), None)
     if action is None:
         raise ValueError("unknown MiOS terminal action")
     print(action["command"])
     print(action["label"])
-' "$_mios_action")
-[[ ${#_mios_terminal_config[@]} == 4 || ${#_mios_terminal_config[@]} == 6 ]] || { printf 'mios-terminal: keybinding configuration unresolved\n' >&2; exit 1; }
+else:
+    print("")
+    print("")
+print(selected)
+print(d["terminal"]["start_directory"])
+' "$_mios_action" "${_mios_head:-default}")
+[[ ${#_mios_terminal_config[@]} == 8 ]] || { printf 'mios-terminal: keybinding configuration unresolved\n' >&2; exit 1; }
+_mios_action="${_mios_terminal_config[6]}"
 
 # One observation window per session, even when multiple SSH clients enter at once.
 _mios_observer_window() (
@@ -90,6 +97,9 @@ if [[ -n "${TMUX:-}" ]]; then
     exec tmux new-window
 fi
 _mios_runtime="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/mios-terminal"
+# A new desktop/SSH session uses the deployed root. Existing tmux invocations
+# keep their pane's project directory; Windows entry passes its explicit cwd.
+cd -- "${MIOS_TERMINAL_DIRECTORY:-${_mios_terminal_config[7]}}"
 umask 077
 python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "$_mios_runtime"
 export MIOS_OMP_THEME="$_mios_runtime/mios.omp.json"

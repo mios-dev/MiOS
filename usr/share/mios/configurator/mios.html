@@ -2842,6 +2842,10 @@
     <div class="grid">
       <fieldset>
         <legend>terminal (post-install MiOS app: 80x20 portal feel, edge-to-edge framing)</legend>
+        <label for="f-term-action">default_action (unified workspace or shell)</label>
+        <select id="f-term-action" data-key="terminal.default_action" data-type="string"><option value="ai">AI workspace</option><option value="terminal">Shell</option></select>
+        <label for="f-term-directory">start_directory (MiOS path for new desktop launches)</label>
+        <input type="text" id="f-term-directory" data-key="terminal.start_directory" data-type="string" placeholder="/">
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>

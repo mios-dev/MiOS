@@ -45,6 +45,30 @@ function Set-MiosNativeShortcut($Shell, [string]$Path, [string]$Target, [string]
     $link.Description = 'MiOS terminal -- projected from runtime SSOT'
     $link.Save()
 }
+function Set-MiosUnifiedShortcuts($Shell, [Collections.IDictionary]$Config, [string]$Directory, [string[]]$DesktopRoots, [string[]]$ProgramsRoots) {
+    # Only named MiOS entrypoints are retired. WSLg applications and unrelated
+    # shortcuts keep their own entries. Backups have no .lnk extension.
+    $name = $Config['apps']['hub_shortcut_name'] + '.lnk'
+    $canonical = @((Join-Path $DesktopRoots[0] $name), (Join-Path $ProgramsRoots[0] $name))
+    $retired = @('MiOS-WIN.lnk', 'MiOS-DEV.lnk', 'MiOS Terminal.lnk', 'MiOS AI.lnk', 'MiOS Agents.lnk', 'MiOS System Monitor.lnk', 'MiOS Help.lnk', 'Uninstall MiOS.lnk', $name)
+    foreach ($row in $Config['apps']['shortcuts'].Values) { $retired += ($row['name'] + '.lnk') }
+    foreach ($row in $Config['keybindings']['actions']) { $retired += ($row['label'] + '.lnk') }
+    $folders = @($DesktopRoots) + @($ProgramsRoots)
+    foreach ($root in $ProgramsRoots) { $folders += Join-Path $root $Config['apps']['start_menu_folder'] }
+    foreach ($folder in ($folders | Select-Object -Unique)) {
+        foreach ($entry in ($retired | Select-Object -Unique)) {
+            $path = Join-Path $folder $entry
+            if ($path -in $canonical -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $link = $Shell.CreateShortcut($path)
+            if ($link.TargetPath -notmatch '(?i)mios[^\\/]*\.(exe|ps1)$' -and $link.Arguments -notmatch '(?i)mios') { continue }
+            Copy-Item -LiteralPath $path -Destination "$path.mios-backup-$stamp" -Force
+            Remove-Item -LiteralPath $path -Force
+        }
+    }
+    foreach ($path in $canonical) {
+        Set-MiosNativeShortcut $Shell $path (Join-Path $Directory 'mios-launch.exe') $Config['theme']['terminal']['hub_target_profile'] $Directory
+    }
+}
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'MiOS native client setup requires PowerShell 7' }
 $installedBinding = Join-Path $BinDirectory 'native-binding.json'
 if ($RuntimeOnly -and (Test-Path -LiteralPath $installedBinding)) {
@@ -97,6 +121,7 @@ $resolve = 'import sys,json; sys.path.insert(0,"/usr/lib/mios"); import mios_tom
 $configJson = & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $resolve
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve native MiOS theme SSOT' }
 $config = $configJson | ConvertFrom-Json -AsHashtable
+if ($config['terminal']['start_directory'] -isnot [string] -or -not $config['terminal']['start_directory'].StartsWith('/')) { throw '[terminal].start_directory must be an absolute MiOS path' }
 $mcpPython = $config['mcp']['python']
 $check = & wsl.exe -d $Distro -u $LinuxUser -- $mcpPython -c 'import os; from mcp import Client; assert os.getuid()!=0; assert os.access("/usr/libexec/mios/tmux-mcp",os.X_OK); print("native-ready")'
 if ($LASTEXITCODE -ne 0 -or $check -notcontains 'native-ready') { throw 'Install native MiOS-MCP in this WSL distribution first' }
@@ -161,7 +186,9 @@ if ($RuntimeOnly -and $binding) {
     $binding.distro = $Distro
     $binding.linuxUser = $LinuxUser
     $binding | Add-Member -NotePropertyName mcpPython -NotePropertyValue $mcpPython -Force
+    $binding | Add-Member -NotePropertyName terminalDirectory -NotePropertyValue $config['terminal']['start_directory'] -Force
     Save-MiosJson (Join-Path $env:LOCALAPPDATA 'MiOS\native-binding.json') ($binding | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable)
+    Save-MiosJson $installedBinding ($binding | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable)
 }
 foreach ($path in @(
     (Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios.omp.json'),
@@ -216,7 +243,6 @@ foreach ($cpPath in @('HKCU:\Software\Microsoft\Command Processor', 'HKLM:\Softw
     if (Test-Path -LiteralPath $cpPath) { Set-ItemProperty -Path $cpPath -Name 'DefaultColor' -Value 0x07 -Type DWord -ErrorAction SilentlyContinue }
 }
 
-if (-not $RuntimeOnly) {
 # A real .cmd on machine PATH works from cmd.exe, SSH's default CMD shell, and
 # scripts, without a PowerShell alias or a Command Processor AutoRun hook.
 [IO.Directory]::CreateDirectory($BinDirectory) | Out-Null
@@ -233,22 +259,29 @@ $entry = @'
 param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
 $ErrorActionPreference = 'Stop'
 $binding = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'native-binding.json') | ConvertFrom-Json
-$verb = if ($Arguments.Count) { $Arguments[0] } else { 'mon' }
+$verb = if ($Arguments.Count) { $Arguments[0] } else { 'terminal' }
 [string[]]$rest = @()
 if ($Arguments.Count -gt 1) { $rest = $Arguments[1..($Arguments.Count-1)] }
 if ($verb -notin @('mcp','ssh')) { & (Join-Path $PSScriptRoot 'mios-native-client-setup.ps1') -RuntimeOnly -BinDirectory $PSScriptRoot }
 $userBinding = Join-Path $env:LOCALAPPDATA 'MiOS\native-binding.json'
 if (Test-Path -LiteralPath $userBinding) { $binding = Get-Content -Raw -LiteralPath $userBinding | ConvertFrom-Json }
 $remote = @()
-if ($env:SSH_CONNECTION -or $env:SSH_CLIENT -or $env:SSH_TTY) { $remote = @('/usr/bin/env','MIOS_REMOTE_TERMINAL=1') }
+$directory = (Get-Location).ProviderPath
+# Shortcut processes start in the shim folder. WSL must enter the deployed
+# root there; an explicit operator project directory remains the working cwd.
+if (-not $directory -or $directory.TrimEnd('\') -eq $PSScriptRoot.TrimEnd('\') -or $directory.TrimEnd('\') -eq (Join-Path $env:WINDIR 'System32')) {
+    $directory = $binding.terminalDirectory
+}
+$remote = @('/usr/bin/env','MIOS_TERMINAL_DIRECTORY=.')
+if ($env:SSH_CONNECTION -or $env:SSH_CLIENT -or $env:SSH_TTY) { $remote += 'MIOS_REMOTE_TERMINAL=1' }
 switch ($verb) {
     'project' { exit 0 }
     'mon' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios mon @rest; exit $LASTEXITCODE }
     'monitor' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios mon @rest; exit $LASTEXITCODE }
-    'terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/libexec/mios/mios-terminal @rest; exit $LASTEXITCODE }
-    'ai-terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/libexec/mios/mios-ai-terminal @rest; exit $LASTEXITCODE }
-    'ai' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/bin/mios ai @rest; exit $LASTEXITCODE }
-    'agent' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- @remote /usr/bin/mios agent @rest; exit $LASTEXITCODE }
+    'terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser --cd $directory -- @remote /usr/libexec/mios/mios-terminal @rest; exit $LASTEXITCODE }
+    'ai-terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser --cd $directory -- @remote /usr/libexec/mios/mios-ai-terminal @rest; exit $LASTEXITCODE }
+    'ai' { & wsl.exe -d $binding.distro -u $binding.linuxUser --cd $directory -- @remote /usr/bin/mios ai @rest; exit $LASTEXITCODE }
+    'agent' { & wsl.exe -d $binding.distro -u $binding.linuxUser --cd $directory -- @remote /usr/bin/mios agent @rest; exit $LASTEXITCODE }
     'agents' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios agents @rest; exit $LASTEXITCODE }
     'mcp' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- $binding.mcpPython /usr/libexec/mios/mios-mcp-server @rest; exit $LASTEXITCODE }
     'ssh' {
@@ -264,6 +297,37 @@ switch ($verb) {
 }
 '@
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-entry.ps1') ($entry + "`n")
+$launcher = @"
+@echo off
+setlocal DisableDelayedExpansion
+set "BIN_DIR=%~dp0"
+if "%~1"=="" goto :terminal
+if "%~1"=="mon" goto :mon
+if "%~1"=="monitor" goto :mon
+if "%~1"=="terminal" goto :terminal
+if "%~1"=="ai-terminal" goto :ai_terminal
+"$engine" -NoLogo -NoProfile -File "%BIN_DIR%mios-native-entry.ps1" %*
+exit /b %ERRORLEVEL%
+:mon
+for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
+wsl.exe -d $Distro -u $LinuxUser --cd ~ -- /usr/bin/mios mon %REST%
+exit /b %ERRORLEVEL%
+:terminal
+for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
+"$engine" -NoLogo -NoProfile -File "%BIN_DIR%mios-native-entry.ps1" terminal %REST%
+exit /b %ERRORLEVEL%
+:ai_terminal
+for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
+wsl.exe -d $Distro -u $LinuxUser --cd ~ -- /usr/libexec/mios/mios-ai-terminal %REST%
+exit /b %ERRORLEVEL%
+"@.Replace("`n","`r`n")
+Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
+$cmdProcessorPath = 'HKCU:\Software\Microsoft\Command Processor'
+if (-not (Test-Path -LiteralPath $cmdProcessorPath)) {
+    New-Item -Path $cmdProcessorPath -Force | Out-Null
+}
+Set-ItemProperty -Path $cmdProcessorPath -Name 'DisableUNCCheck' -Value 1 -Type DWord -Force
+if (-not $RuntimeOnly) {
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-shell.ps1') ([IO.File]::ReadAllText((Join-Path $SourceRoot 'usr\share\mios\windows\mios-native-shell.ps1')))
 Write-MiosFile (Join-Path $BinDirectory 'mios-native-client-setup.ps1') ([IO.File]::ReadAllText($PSCommandPath))
 foreach ($helper in @('mios-pc-control.ps1','mios-window-foreground.ps1','mios-uia-dump.ps1','mios-oscontrol-server.ps1','run-hidden.vbs')) {
@@ -293,10 +357,8 @@ $nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'
     if ($LASTEXITCODE -ne 0) { throw 'Cannot stage the verified native Windows launcher' }
 }
 Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
-Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython}
+Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython;terminalDirectory=$config['terminal']['start_directory']}
 & (Join-Path $BinDirectory 'mios-oscontrol-server.ps1') -Install
-$launcher = "@echo off`r`nsetlocal DisableDelayedExpansion`r`nif `"%~1`"==`"`" goto :mon`r`nif `"%~1`"==`"mon`" goto :mon`r`nif `"%~1`"==`"monitor`" goto :mon`r`nif `"%~1`"==`"terminal`" goto :terminal`r`nif `"%~1`"==`"ai-terminal`" goto :ai_terminal`r`n`"$engine`" -NoLogo -NoProfile -File `"%~dp0mios-native-entry.ps1`" %*`r`nexit /b %ERRORLEVEL%`r`n:mon`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/bin/mios mon %*`r`nexit /b %ERRORLEVEL%`r`n:terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-terminal %*`r`nexit /b %ERRORLEVEL%`r`n:ai_terminal`r`nshift`r`nwsl.exe -d $Distro -u $LinuxUser -- /usr/libexec/mios/mios-ai-terminal %*`r`nexit /b %ERRORLEVEL%`r`n"
-Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
 $devEntry = @'
 # AI-hint: Resolve the installed MiOS image through its native CMD dispatcher.
 param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
@@ -528,6 +590,7 @@ foreach ($path in $terminalPaths) {
         if ($item['name'] -eq $config['theme']['terminal']['dev_profile_name']) {
             $enginePath = if ($RuntimeOnly) { $binding.engine } else { $engine }
             $item['commandline'] = "`"$enginePath`" -NoLogo -NoProfile -File `"$(Join-Path $BinDirectory 'mios-native-entry.ps1')`" terminal"
+            $item['startingDirectory'] = '%USERPROFILE%'
         }
         if ($item['source'] -eq 'Windows.Terminal.Wsl' -and $item['name'] -notin $registered) { $item['hidden'] = $true }
     }
@@ -538,61 +601,10 @@ foreach ($path in $terminalPaths) {
 # Reconcile the same entrypoints on install and each native runtime projection.
 # Preserve the icon and hotkey while replacing the retired hub launcher route.
 $shell = New-Object -ComObject WScript.Shell
-$ownedMenu = $config['apps']['start_menu_folder']
-$linkRoots = @([Environment]::GetFolderPath('Desktop'), (Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'))
-foreach ($smBase in @([Environment]::GetFolderPath('StartMenu'), [Environment]::GetFolderPath('CommonStartMenu'))) {
-    $subDir = Join-Path $smBase "Programs\$ownedMenu"
-    if (Test-Path -LiteralPath $subDir) {
-        foreach ($staleInSub in @("$($config['apps']['hub_shortcut_name']).lnk", 'MiOS-WIN.lnk', 'MiOS.lnk', 'MiOS Terminal.lnk', 'MiOS AI.lnk', 'MiOS Agents.lnk', 'MiOS System Monitor.lnk')) {
-            $staleSubPath = Join-Path $subDir $staleInSub
-            if (Test-Path -LiteralPath $staleSubPath) { Remove-Item -LiteralPath $staleSubPath -Force -ErrorAction SilentlyContinue }
-        }
-    }
-}
-foreach ($row in @(@($config['apps']['hub_shortcut_name'], $config['theme']['terminal']['hub_target_profile']))) {
-    $paths = @($linkRoots | ForEach-Object { Join-Path $_ ($row[0] + '.lnk') })
-    foreach ($root in @([Environment]::GetFolderPath('CommonDesktopDirectory'), (Join-Path ([Environment]::GetFolderPath('CommonStartMenu')) 'Programs'))) {
-        $existing = Join-Path $root ($row[0] + '.lnk')
-        if (Test-Path -LiteralPath $existing) { $paths += $existing }
-    }
-    foreach ($path in $paths | Select-Object -Unique) { Set-MiosNativeShortcut $shell $path (Join-Path $BinDirectory 'mios-launch.exe') $row[1] $BinDirectory }
-}
+$desktopRoots = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'))
+$programsRoots = @((Join-Path ([Environment]::GetFolderPath('CommonStartMenu')) 'Programs'), (Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'))
+Set-MiosUnifiedShortcuts $shell $config $BinDirectory $desktopRoots $programsRoots
 if (-not $RuntimeOnly) {
-    $shell = New-Object -ComObject WScript.Shell
-    $programsRoot = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
-    $menu = Join-Path $programsRoot 'MiOS'
-    # Prune per-action .lnk generation from Start Menu (both in $menu and $programsRoot)
-    $staleLinks = @('MiOS Terminal.lnk', 'MiOS AI.lnk', 'MiOS Agents.lnk', 'MiOS System Monitor.lnk', 'MiOS-WIN.lnk')
-    foreach ($action in $config['keybindings']['actions']) {
-        $staleLinks += ($action['label'] + '.lnk')
-    }
-    foreach ($dir in @($menu, $programsRoot)) {
-        if (Test-Path -LiteralPath $dir) {
-            foreach ($staleName in ($staleLinks | Select-Object -Unique)) {
-                $staleLink = Join-Path $dir $staleName
-                if (Test-Path -LiteralPath $staleLink) { Remove-Item -LiteralPath $staleLink -Force -ErrorAction SilentlyContinue }
-            }
-        }
-    }
-    # Also sweep any old 'MiOS.lnk' from $menu (Programs\MiOS) to avoid orphaned duplicates
-    if (Test-Path -LiteralPath $menu) {
-        $oldLnkInSub = Join-Path $menu 'MiOS.lnk'
-        if (Test-Path -LiteralPath $oldLnkInSub) { Remove-Item -LiteralPath $oldLnkInSub -Force -ErrorAction SilentlyContinue }
-        if ((Get-ChildItem -LiteralPath $menu).Count -eq 0) {
-            Remove-Item -LiteralPath $menu -Force -Recurse -ErrorAction SilentlyContinue
-        }
-    }
-    # Register only ONE canonical MiOS.lnk in root Programs folder targeting mios-launch.exe
-    $canonicalLnk = Join-Path $programsRoot 'MiOS.lnk'
-    $link = $shell.CreateShortcut($canonicalLnk)
-    $link.TargetPath = Join-Path $BinDirectory 'mios-launch.exe'
-    $link.Arguments = if ($config['theme']['terminal']['dev_profile_name']) { $config['theme']['terminal']['dev_profile_name'] } else { 'MiOS-DEV' }
-    $link.WorkingDirectory = $BinDirectory
-    $link.Description = 'MiOS -- canonical terminal and system launcher'
-    $link.WindowStyle = 1
-    $iconPath = Join-Path (Split-Path -Parent $BinDirectory) 'icons\mios.ico'
-    if (Test-Path -LiteralPath $iconPath) { $link.IconLocation = "$iconPath,0" }
-    $link.Save()
     Write-Host "Installed CMD entrypoint: $(Join-Path $BinDirectory 'mios.cmd')"
     Write-Host "Native runtime: $Distro / $LinuxUser; $($changed.Count) changed files with backups."
 }

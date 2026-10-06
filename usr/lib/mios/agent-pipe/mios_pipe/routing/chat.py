@@ -723,6 +723,11 @@ async def chat_completions_logic(request: Request) -> Any:
         messages = filtered_messages
         body["messages"] = messages
 
+    if str(body.get("tool_choice") or "").strip().lower() == "none":
+        body.pop("tools", None)
+        body.pop("tool_choice", None)
+        log.info("tool_choice: 'none' -> stripped tool definitions; 0 tool tokens for plain chat")
+
     last_user_text = _extract_last_user_text(messages)
     _clean_user = _strip_owui_scaffold(last_user_text)
     if _clean_user != last_user_text:
@@ -786,7 +791,7 @@ async def chat_completions_logic(request: Request) -> Any:
     if LETTA_MEMORY_BACKEND and _LETTA_CLIENT:
         try:
             import mios_tokenize
-            _tok_count = mios_tokenize.count_messages(messages)
+            _tok_count = mios_tokenize.count_messages(messages, tools=body.get("tools"))
             _letta_ctx_limit = 8000
             _fill = _tok_count / _letta_ctx_limit
             _session_id = _conv_key_var.get() or "default"
@@ -815,7 +820,7 @@ async def chat_completions_logic(request: Request) -> Any:
                 messages = _drop_stale_tool_results(messages, tool_result_ttl_turns)
                 body["messages"] = messages
 
-            tok_count = mios_tokenize.count_messages(messages)
+            tok_count = mios_tokenize.count_messages(messages, tools=body.get("tools"))
             fill = tok_count / n_ctx
 
             if fill >= compaction_threshold_pct:
@@ -888,7 +893,7 @@ async def chat_completions_logic(request: Request) -> Any:
                     tokens_before = tok_count
                     messages = new_messages
                     body["messages"] = messages
-                    tokens_after = mios_tokenize.count_messages(messages)
+                    tokens_after = mios_tokenize.count_messages(messages, tools=body.get("tools"))
 
                     if _db_write is not None:
                         try:

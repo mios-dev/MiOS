@@ -73,7 +73,7 @@ Describe 'MiOS native terminal projection' {
     BeforeAll {
         $source = Join-Path $PSScriptRoot '../../usr/share/mios/windows/mios-native-client-setup.ps1'
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$null, [ref]$null)
-        foreach ($name in @('Set-MiosTerminalStartup', 'Set-MiosNativeShortcut')) {
+        foreach ($name in @('Set-MiosTerminalStartup', 'Set-MiosNativeShortcut', 'Set-MiosUnifiedShortcuts')) {
             $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
             . ([scriptblock]::Create($functionAst.Extent.Text))
         }
@@ -112,5 +112,33 @@ Describe 'MiOS native terminal projection' {
         Set-MiosNativeShortcut $shell $path 'C:\native-mios\mios-launch.exe' 'MiOS-DEV' 'C:\native-mios'
         (Get-FileHash -LiteralPath $path).Hash | Should -Be $before
         (Get-Item -LiteralPath $path).LastWriteTimeUtc | Should -Be $written
+    }
+    It 'consolidates personal and common entrypoints with backups and preserves unrelated apps' {
+        $shell = New-Object -ComObject WScript.Shell
+        $bundle = Join-Path $TestDrive 'consolidation'
+        $desktop = Join-Path $bundle 'desktop'
+        $programs = Join-Path $bundle 'common-programs'
+        $personal = Join-Path $bundle 'personal-programs'
+        $folder = Join-Path $personal 'MiOS'
+        $config = @{apps=@{hub_shortcut_name='MiOS';start_menu_folder='MiOS';shortcuts=@{help=@{name='MiOS Help'}}};theme=@{terminal=@{hub_target_profile='MiOS-DEV'}};keybindings=@{actions=@()}}
+        [IO.Directory]::CreateDirectory($folder) | Out-Null
+        [IO.Directory]::CreateDirectory($desktop) | Out-Null
+        foreach ($path in @((Join-Path $folder 'MiOS Help.lnk'), (Join-Path $personal 'MiOS.lnk'), (Join-Path $desktop 'MiOS-WIN.lnk'))) {
+            $old = $shell.CreateShortcut($path)
+            $old.TargetPath = 'C:\retired\mios-launch.exe'
+            $old.Save()
+        }
+        $other = Join-Path $folder 'Other app.lnk'
+        $link = $shell.CreateShortcut($other)
+        $link.TargetPath = 'C:\Windows\notepad.exe'
+        $link.Save()
+        $before = (Get-FileHash -LiteralPath $other).Hash
+        Set-MiosUnifiedShortcuts $shell $config 'C:\native-mios' @($desktop) @($programs,$personal)
+        @(Get-ChildItem -LiteralPath $bundle -Filter 'MiOS*.lnk' -Recurse).Count | Should -Be 2
+        @(Get-ChildItem -LiteralPath $bundle -Filter '*.mios-backup-*' -Recurse).Count | Should -Be 3
+        (Get-FileHash -LiteralPath $other).Hash | Should -Be $before
+        Set-MiosUnifiedShortcuts $shell $config 'C:\native-mios' @($desktop) @($programs,$personal)
+        @(Get-ChildItem -LiteralPath $bundle -Filter 'MiOS*.lnk' -Recurse).Count | Should -Be 2
+        $shell.CreateShortcut((Join-Path $programs 'MiOS.lnk')).Arguments | Should -Be 'MiOS-DEV'
     }
 }

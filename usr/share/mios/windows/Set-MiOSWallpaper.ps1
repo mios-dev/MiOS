@@ -117,7 +117,7 @@ try {
 } catch { }
 
 # Ensure upstream Windows native iGPU / low-power preference (GpuPreference=1;)
-# targeting AMD Radeon(TM) Graphics iGPU for wallpaper host and WebView2 processes.
+# targeting generic Power-Saving / Integrated GPU (Intel, AMD, Qualcomm, virtual) for wallpaper host and WebView2 processes.
 function Ensure-MiosGpuPreferences {
     $targetExes = [System.Collections.Generic.List[string]]::new()
     $targetExes.Add('C:\Windows\Web\MiOS\MiOS-Wallpaper.exe')
