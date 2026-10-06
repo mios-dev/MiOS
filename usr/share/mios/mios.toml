@@ -8288,6 +8288,8 @@ bootstrap_branch    = "main"
 clone_root          = "M:\\MiOS\\repo"
 
 [terminal]
+default_action      = "ai"    # the single launcher enters the unified tmux workspace
+start_directory     = "/"     # deployed MiOS root, never the Windows shim directory
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
@@ -12906,6 +12908,8 @@ unit = [
     "tests/test-kernel-module-signature-enforce.sh",
     "tests/test_native_static_hardening_e2e.py",
     "tests/test-igpu-rpc-rust-e2e.py",
+    "tests/test-adversarial-igpu-rpc.py",
+    "tests/test_adversarial_hardcode_lint.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
@@ -13177,4 +13181,3 @@ min_bytes = 4194304
 max_untested_crates = 0
 
 [rust.untested_crates]
-

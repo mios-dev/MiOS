@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3694,
-  "total_metadata_entries": 3038,
-  "total_hints": 3026,
+  "total_files_scanned": 3696,
+  "total_metadata_entries": 3040,
+  "total_hints": 3028,
   "total_functions_indexed": 1482,
-  "total_related_links": 4906,
+  "total_related_links": 4911,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -6025,6 +6025,19 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-adversarial-igpu-rpc.py",
+      "hint": "Empirical adversarial stress test suite for MiOS iGPU Inference Lane, RPC Compute Fabric, and Hardware Routing (T-211, T-212).",
+      "related": [
+        "usr/share/mios/windows/mios-igpu-server.ps1",
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/llamacpp/llama-swap.yaml"
+      ],
+      "functions": [],
+      "doc": "PROJECT.md, TEST_INFRA.md, ORIGINAL_REQUEST.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-adversarial-roadmap.py",
       "hint": "Adversarial testing suite and empirical challenge harness for T-377..T-381 modules.",
       "related": [
@@ -8568,6 +8581,18 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test_adversarial_hardcode_lint.py",
+      "hint": "Adversarial stress test suite comparing Rust mios-hardcode-lint against Python oracle.",
+      "related": [
+        "usr/libexec/mios/mios-hardcode-lint",
+        "tools/native/target/debug/mios-hardcode-lint.exe"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },

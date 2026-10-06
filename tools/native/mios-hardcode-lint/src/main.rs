@@ -278,45 +278,68 @@ fn tokenize_python(text: &str) -> Vec<PyToken> {
             if is_triple {
                 let delim = [quote_char, quote_char, quote_char];
                 i = quote_pos + 3;
-                while i + 2 < len {
-                    if bytes[i] == b'\\' {
-                        if bytes[i + 1] == b'\n' {
-                            line += 1;
-                        }
-                        i += 2;
-                        continue;
-                    }
-                    if bytes[i] == b'\n' {
-                        line += 1;
-                    }
-                    if bytes[i] == delim[0] && bytes[i + 1] == delim[1] && bytes[i + 2] == delim[2]
+                while i < len {
+                    if i + 3 <= len
+                        && bytes[i] == delim[0]
+                        && bytes[i + 1] == delim[1]
+                        && bytes[i + 2] == delim[2]
                     {
                         i += 3;
                         break;
                     }
-                    i += 1;
-                }
-                if i > len {
-                    i = len;
+                    let ch = text[i..].chars().next().unwrap();
+                    if ch == '\\' {
+                        let ch_len = ch.len_utf8();
+                        i += ch_len;
+                        if i < len {
+                            let esc = text[i..].chars().next().unwrap();
+                            if esc == '\n' {
+                                line += 1;
+                            }
+                            i += esc.len_utf8();
+                        }
+                        continue;
+                    }
+                    if ch == '\n' {
+                        line += 1;
+                    }
+                    i += ch.len_utf8();
                 }
             } else {
                 i = quote_pos + 1;
-                while i < len && bytes[i] != b'\n' {
-                    if bytes[i] == b'\\' {
-                        i += 2;
-                        continue;
-                    }
-                    if bytes[i] == quote_char {
-                        i += 1;
+                while i < len {
+                    let ch = text[i..].chars().next().unwrap();
+                    if ch == '\n' {
                         break;
                     }
-                    i += 1;
+                    if ch == '\\' {
+                        let ch_len = ch.len_utf8();
+                        i += ch_len;
+                        if i < len {
+                            let esc = text[i..].chars().next().unwrap();
+                            if esc == '\n' {
+                                line += 1;
+                            }
+                            i += esc.len_utf8();
+                        }
+                        continue;
+                    }
+                    i += ch.len_utf8();
+                    if ch == quote_char as char {
+                        break;
+                    }
                 }
             }
 
-            let str_token = &text[start_idx..std::cmp::min(i, len)];
-            let is_doc = module_docstring_allowed || expect_suite_docstring;
-            if is_doc {
+            let mut safe_end = std::cmp::min(i, len);
+            while safe_end > start_idx && !text.is_char_boundary(safe_end) {
+                safe_end -= 1;
+            }
+            let str_token = &text[start_idx..safe_end];
+            let prefix = &text[start_idx..quote_pos];
+            let is_fstring = prefix.contains('f') || prefix.contains('F');
+            let is_doc = (module_docstring_allowed || expect_suite_docstring) && !is_fstring;
+            if module_docstring_allowed || expect_suite_docstring {
                 module_docstring_allowed = false;
                 expect_suite_docstring = false;
             }
@@ -385,7 +408,8 @@ fn tokenize_python(text: &str) -> Vec<PyToken> {
             if expect_suite_docstring {
                 expect_suite_docstring = false;
             }
-            i += 1;
+            let ch = text[i..].chars().next().unwrap();
+            i += ch.len_utf8();
         }
     }
 
@@ -468,7 +492,22 @@ fn check_ports_ips_py(
             continue;
         }
         if t.is_string && t.is_triple {
-            continue;
+            let s = t.text.as_str();
+            // Only skip docstring-eligible triple quotes ("""", '''', r"""", r'''', u"""", u'''').
+            // Do NOT skip if prefix contains 'f' or 'F' (e.g. f"""...""", f'''...''').
+            if s.starts_with("\"\"\"")
+                || s.starts_with("'''")
+                || s.starts_with("r\"\"\"")
+                || s.starts_with("r'''")
+                || s.starts_with("R\"\"\"")
+                || s.starts_with("R'''")
+                || s.starts_with("u\"\"\"")
+                || s.starts_with("u'''")
+                || s.starts_with("U\"\"\"")
+                || s.starts_with("U'''")
+            {
+                continue;
+            }
         }
         let ln = t.start_line;
         let line = if ln >= 1 && ln <= lines.len() {
@@ -941,5 +980,37 @@ class Runner:
 
         let good = "chpasswd < /tmp/file";
         assert!(!chpasswd_rx.is_match(good));
+    }
+
+    #[test]
+    fn test_unclosed_multibyte_string_no_panic() {
+        let text = "s = \"\"\"😀\n";
+        let tokens = tokenize_python(text);
+        assert!(!tokens.is_empty());
+        let str_tok = tokens.iter().find(|t| t.is_string);
+        assert!(str_tok.is_some());
+        assert_eq!(str_tok.unwrap().text, "\"\"\"😀\n");
+    }
+
+    #[test]
+    fn test_fstring_triple_quote_port_flagged() {
+        let text = "def f(): return f'''http://localhost:9090'''\n";
+        let tokens = tokenize_python(text);
+        let lines: Vec<&str> = text.split('\n').collect();
+        let allowlist = Allowlist {
+            exempt_files: Vec::new(),
+            exempt_patterns: Vec::new(),
+            exempt_patterns_rx: Vec::new(),
+        };
+        let port_patterns = vec![
+            Regex::new(r"localhost:(\d+)").unwrap(),
+            Regex::new(r"127\.0\.0\.1:(\d+)").unwrap(),
+            Regex::new(r":(\d{4,5})\b").unwrap(),
+        ];
+        let ip_pattern = Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap();
+        let violations =
+            check_ports_ips_py(&tokens, &lines, &allowlist, &port_patterns, &ip_pattern);
+        assert!(!violations.is_empty());
+        assert!(violations.iter().any(|(_, s)| s.contains("9090")));
     }
 }
