@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3688,
-  "total_metadata_entries": 3032,
-  "total_hints": 3020,
+  "total_files_scanned": 3689,
+  "total_metadata_entries": 3033,
+  "total_hints": 3021,
   "total_functions_indexed": 1482,
-  "total_related_links": 4888,
+  "total_related_links": 4892,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -28720,6 +28720,20 @@
       "path": "usr/share/doc/mios/concepts/foss-upstream-map.md",
       "hint": "System concepts documentation for the MiOS FOSS Upstream-Scout Report.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/doc/mios/concepts/igpu-wave0-hardware-probes-2026-10.md",
+      "hint": "Wave-0 Hardware Verification Probes (T-210) for Multi-Vendor GPU Compute (WS-IGPU). Records empirical findings from real-hardware probes across Windows host and WSL2 for iGPU compute, heavy-lane VRAM constraints, and WSL kernel baseline. Establishes the authoritative Go/No-Go decision gating T-211 and T-212.",
+      "related": [
+        "usr/share/doc/mios/concepts/living-wallpaper-engine.md",
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/llamacpp/mios-llm-light.yaml",
+        "TASKS.md"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",

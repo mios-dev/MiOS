@@ -107,6 +107,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/ebpf-semantic-enforcement.md` | Architectural fact-check reconciling Userspace AIOS vs Kernel-Space eBPF/LSM semantic security enforcement. |
 | `usr/share/doc/mios/concepts/firstboot-large-models-plan.md` | Plan to provision large AI models at FULL FIRST BOOT instead of baking them into the build-time OCI image, keeping the image lean and avoiding the bound-images bake layer-commit ceiling (build exit... |
 | `usr/share/doc/mios/concepts/foss-upstream-map.md` | System concepts documentation for the MiOS FOSS Upstream-Scout Report. |
+| `usr/share/doc/mios/concepts/igpu-wave0-hardware-probes-2026-10.md` | Wave-0 Hardware Verification Probes (T-210) for Multi-Vendor GPU Compute (WS-IGPU). Records empirical findings from real-hardware probes across Windows host and WSL2 for iGPU compute, heavy-lane VRAM... |
 | `usr/share/doc/mios/concepts/image-resolution.md` | System concepts documentation for the MiOS Image Registry and Name Resolution Architecture. |
 | `usr/share/doc/mios/concepts/living-wallpaper-engine.md` | Research for a MiOS "living wallpaper" -- a GPU-accelerated animated mesh-gradient background derived from the SSOT [colors] palette, cross-surface (Windows + Linux GNOME/Wayland + optional... |
 | `usr/share/doc/mios/concepts/llamacpp-engine-conversion.md` | Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama... |
@@ -135,7 +136,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md` | Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, self-improve loop) -- what each does, its... |
 | `usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md` | Documentation of the WS-7 security architecture defining the transition from permissive fapolicyd observation to enforced execution whitelisting and verity-rooted UKI builds via mios.toml... |
 
-<!-- derived from the AI-hint headers of 42 file(s) matching usr/share/doc/mios/concepts/*.md -->
+<!-- derived from the AI-hint headers of 43 file(s) matching usr/share/doc/mios/concepts/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/concepts/*.md -->
 
 ## guides

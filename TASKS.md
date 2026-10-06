@@ -16,9 +16,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1613 |
+| pending | 1612 |
 | in_progress | 47 |
-| completed | 1811 |
+| completed | 1812 |
 | incomplete | 21 |
 | cancelled | 16 |
 | total | 3508 |
@@ -4126,7 +4126,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `T-025` A6: migrate the kernel hot path out of `chat_completions()` into dispatcher handlers [VM] (WS-A6 | P2 [VM] | XL) -- completed · P2 · depends_on T-019
 - `T-168` KENF-01: Tetragon eBPF/LSM kernel enforcement plane behind the intent arbiter (WS-SEC | P2 | L) [VM] -- pending · P2 · depends_on T-033
-- `T-210` IGPU-00 Wave-0 go/no-go probes: iGPU-in-WSL, 4 GB heavy lane, WSL rebaseline (WS-IGPU | P2 [VM] | S) -- pending · P2
+- `T-210` IGPU-00 Wave-0 go/no-go probes: iGPU-in-WSL, 4 GB heavy lane, WSL rebaseline (WS-IGPU | P2 [VM] | S) -- completed · P2
 - `T-211` IGPU-01 move the iGPU inference lane in-VM and delete `mios-igpu-server.ps1` (WS-IGPU | P2 [VM] | L) -- pending · P2
 - `T-239` UKI-01: Ship the verity-rooted UKI build and the fapolicyd enforce promotion (WS-SEC2 | P3 | L) [VM] -- incomplete · P3
 - `T-240` A3F-01: Flip the CENTRAL path to pg-primary and close the un-mirrored writes (WS-DB | P2 | M) [VM] -- cancelled · P2

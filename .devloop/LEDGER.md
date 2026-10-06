@@ -1834,3 +1834,22 @@ so long. Let a run finish.
 - next: Review remaining tasks in backlog and prepare pull request for operator review.
 - blockers: -
 - unverified: -
+
+## 2026-10-06 08:05 · antigravity · T-210: Wave-0 hardware verify probes & iGPU/heavy-lane gating decisions
+- objective: Execute Wave-0 hardware verify probes on real workstation hardware for iGPU-in-WSL compute, 4 GB heavy-lane VRAM envelope, and WSL2 substrate rebaseline (T-210), establishing written architectural Go/No-Go decisions for T-211 and T-212.
+- done:
+  1. Probe 1 (iGPU in WSL): Enumerated AMD Radeon 0x13c0 as GPU1 via Direct3D 12 and Mesa Dozen (apiVersion 1.2.354). Proved in-VM ROCm is a NO-GO due to lack of /dev/kfd in WSL2 dxgkrnl; affirmed GO for Windows-native Vulkan/DirectML host offload and living-wallpaper GPU offload (GpuPreference=1;).
+  2. Probe 2 (Heavy lane 4 GB envelope): Validated VRAM allocation boundary (24,564 MiB * 0.20 ~= 4,912 MiB); verified resident memory with running stack (3,057 MiB utilized, >21,500 MiB free) and HiCache DDR5 RAM spillover.
+  3. Probe 3 (WSL rebaseline): Verified WSL 3.0.1.0 (>= 2.7.5) and kernel 6.18.40.1-1 (>= 6.18) with Direct3D 1.611.1 and /dev/dxg present.
+  4. Concept documentation: Published authoritative findings and Go/No-Go decisions in usr/share/doc/mios/concepts/igpu-wave0-hardware-probes-2026-10.md.
+  5. Task updates: Updated task T-210 to completed in tasks.jsonl, rendered TASKS.md via mios-task, and verified tasks.jsonl ok (3508 records).
+  6. Projections: Ran sync-generated.sh cleanly across all 23 steps, synchronizing corpus, AI metadata, pipe boundaries, and documentation indexes.
+- verified:
+  - ci-suites.py --check passes (420 suites registered).
+  - sync-bootstrap.py --check passes (13 mirrored files, 2 tables, 2 keys match).
+  - test_native_static_hardening_e2e.py passes 115/115 tests in 9.7s.
+  - mios-task check passes (3508 records ok).
+- next: T-211 (refactor mios-igpu-server.ps1 to OpenAI-compatible localhost endpoint without Tailscale hop) or T-212 (llama.cpp RPC fabric).
+- blockers: -
+- unverified: -
+
