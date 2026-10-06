@@ -11950,7 +11950,6 @@ max_unregistered = 0
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
-  { ordinal = "02", name = "uki-bootloader", script = "02-uki-bootloader.sh", fatal = true, apply_class = "universal" },
   { ordinal = "04", name = "local-rpm-mirror", script = "04-local-rpm-mirror.sh", fatal = true, apply_class = "universal" },
   { ordinal = "05", name = "repos", script = "05-repos.sh", fatal = true, apply_class = "universal" },
   { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = false, apply_class = "universal" },
@@ -11966,7 +11965,6 @@ list = [
   { ordinal = "22", name = "akmod-guards", script = "22-akmod-guards.sh", fatal = false, apply_class = "universal" },
   { ordinal = "23", name = "gpu-passthrough", script = "23-gpu-passthrough.sh", fatal = true, apply_class = "universal" },
   { ordinal = "24", name = "cpu-affinity", script = "24-cpu-affinity.sh", fatal = true, apply_class = "universal" },
-  { ordinal = "24", name = "gpu-pv-shim", script = "24-gpu-pv-shim.sh", fatal = true, apply_class = "universal" },
   { ordinal = "25", name = "gpu-cdi-toolkits", script = "25-gpu-cdi-toolkits.sh", fatal = true, apply_class = "universal" },
   { ordinal = "26", name = "nvidia-cdi-refresh", script = "26-nvidia-cdi-refresh.sh", fatal = true, apply_class = "universal" },
   { ordinal = "27", name = "vm-gating", script = "27-vm-gating.sh", fatal = false, apply_class = "universal" },
@@ -12576,8 +12574,8 @@ max_tracked_mb    = 323
 tracked_mb_headroom = 1
 max_shell_lines   = 54941  # bash is glue only (Law 14). Re-baselined from approved merges.
 max_ps_lines      = 27878  # no new PowerShell-as-program (Law 14)
-max_automation_phases = 79  # Re-baselined to 79 from approved merges.
-max_libexec_verbs     = 313  # verbs only; re-baselined from approved merges.
+max_automation_phases = 77  # Consolidated 02-uki-bootloader and 24-gpu-pv-shim (T-1161)
+max_libexec_verbs     = 312  # verbs only; retired flight-control.sh, mios-dashboard.sh, mios-dup-report (T-1161)
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
@@ -12898,6 +12896,7 @@ unit = [
     "tests/test-numa-interleave-bandwidth.sh",
     "tests/test-core-sched.sh",
     "tests/test-kernel-module-signature-enforce.sh",
+    "tests/test_native_static_hardening_e2e.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

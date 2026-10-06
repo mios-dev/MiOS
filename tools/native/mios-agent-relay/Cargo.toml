@@ -7,6 +7,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+mios-service-core = { path = "../mios-service-core" }
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true

@@ -20,6 +20,7 @@ mod protected_refs;
 mod ratchet;
 mod rendercov;
 mod sigpolicy;
+mod static_linkage;
 mod stubs;
 mod version_literals;
 
@@ -89,12 +90,13 @@ impl Report {
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
+                     \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH]\n\
                      checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
                              drift-stubs, image-equivalence, image-freshness, law-enforcers,\n\
                              no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, signature-policy,\n\
-                             version-literals-ssot\n";
+                             static-linkage, version-literals-ssot\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -105,6 +107,9 @@ fn main() -> ExitCode {
     let mut ssot: Option<String> = None;
     let mut profile: Option<String> = None;
     let mut allow_tree_only = false;
+    // static-linkage only: optional single binary and architecture override.
+    let mut binary: Option<String> = None;
+    let mut arch: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -143,6 +148,22 @@ fn main() -> ExitCode {
                     profile = Some(v);
                 }
             }
+            "--binary" => {
+                i += 1;
+                let Some(v) = args.get(i).cloned() else {
+                    eprint!("mios-gate: --binary needs a path\n{USAGE}");
+                    return ExitCode::from(EXIT_CANNOT_RUN);
+                };
+                binary = Some(v);
+            }
+            "--arch" => {
+                i += 1;
+                let Some(v) = args.get(i).cloned() else {
+                    eprint!("mios-gate: --arch needs a value\n{USAGE}");
+                    return ExitCode::from(EXIT_CANNOT_RUN);
+                };
+                arch = Some(v);
+            }
             "--allow-tree-only" => allow_tree_only = true,
             "-h" | "--help" => {
                 print!("{USAGE}");
@@ -168,6 +189,10 @@ fn main() -> ExitCode {
         eprint!("mios-gate: --ssot, --profile and --allow-tree-only belong to image-equivalence\n{USAGE}");
         return ExitCode::from(EXIT_CANNOT_RUN);
     }
+    if name != "static-linkage" && (binary.is_some() || arch.is_some()) {
+        eprint!("mios-gate: --binary and --arch belong to static-linkage\n{USAGE}");
+        return ExitCode::from(EXIT_CANNOT_RUN);
+    }
 
     let report = match name.as_str() {
         "artifact" => artifact::check(&root),
@@ -191,6 +216,11 @@ fn main() -> ExitCode {
         "ratchet-direction" => ratchet::check(&root),
         "render-coverage" => rendercov::check(&root),
         "signature-policy" => sigpolicy::check(&root),
+        "static-linkage" => static_linkage::check(&static_linkage::Options {
+            root: root.clone(),
+            binary: binary.map(std::path::PathBuf::from),
+            arch,
+        }),
         "version-literals-ssot" => version_literals::check(&root),
         _ => {
             eprint!("mios-gate: no such check {name:?}\n{USAGE}");

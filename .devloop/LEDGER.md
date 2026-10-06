@@ -1818,3 +1818,19 @@ so long. Let a run finish.
 - next: Task T-1148 (Enforce static Linux linkage across native executable roles).
 - blockers: -
 - unverified: -
+## 2026-10-06 02:47 · antigravity · T-1148, T-1161, T-1162: Native static binary hardening, script consolidation, shared daemon crates
+- objective: Enforce static Linux linkage across native executable roles (T-1148), consolidate candidate scripted components into verified Rust static binaries (T-1161), and consolidate agent services/daemons through shared Rust components (T-1162).
+- done:
+  1. T-1148: Implemented tools/audit-static-linkage.py (64-bit ELF parser, SHA-256 digests, JSON censuses) and mios-gate static-linkage gate in src/mios-rs/mios-gate/src/static_linkage.rs; integrated check_static_linkage into automation/98-drift-checks.sh. Two-sided controls verified against 41 adversarial test cases (clean static PIEs pass, dynamic/truncated ELFs fail).
+  2. T-1161: Retired stale Python script twins (usr/libexec/mios/mios-toml-get, check-template-conformance, compile-templates.py, audit-version-literals.py) in favor of native compiled Rust crates; resolved automation phase collisions (02 folded into 76, 24 into 20) restoring automation_phases to 77 and libexec_verbs to 312; retired thin shell forwarders.
+  3. T-1162: Created shared crate tools/native/mios-service-core (socket discovery <108 bytes sockaddr_un, caller UID check, typed SSOT resolution without hardcoded ports or vendor cloud endpoints, and process flags) with 14 passing unit tests; refactored mios-agent-relay, mios-wallpaperd, and mios-launch to consume shared library; projected tools/native/Cargo.toml with 26 members.
+  4. Cross-repo sync: Reconciled build-mios.ps1 gnullvm probe with mios-bootstrap; verified tools/sync-bootstrap.py --check passes with zero drift (13 mirrored files, 2 tables, 2 keys match).
+  5. E2E testing: Delivered 4-tier E2E test suite tests/test_native_static_hardening_e2e.py (115 test cases, all 115 passing in 8.5s).
+  6. Standing gates: All 5 standing gates pass with exit code 0 (phase-registry 77/77, ratchet-direction 92/92, credential-literals 0 new, version-literals-ssot 0 divergent, signature-policy policy matches SSOT); ci-suites.py --check passes (420 suites).
+  7. Ran bash ./tools/sync-generated.sh cleanly across all 23 projection steps.
+  8. Independent post-victory audit certified VICTORY CONFIRMED.
+  9. Updated tasks T-1148, T-1161, and T-1162 to completed in tasks.jsonl, rendered TASKS.md, and passed mios-task check.
+- verified: 115/115 E2E tests, 104 mios-gate tests, 14 mios-service-core tests, 9 mios-agent-relay tests, 41/41 adversarial tests, all 5 standing gates, ci-suites.py --check, sync-bootstrap.py --check.
+- next: Review remaining tasks in backlog and prepare pull request for operator review.
+- blockers: -
+- unverified: -

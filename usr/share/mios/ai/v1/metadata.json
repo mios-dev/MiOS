@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3685,
-  "total_metadata_entries": 3030,
-  "total_hints": 3018,
-  "total_functions_indexed": 1483,
-  "total_related_links": 4870,
+  "total_files_scanned": 3688,
+  "total_metadata_entries": 3032,
+  "total_hints": 3020,
+  "total_functions_indexed": 1482,
+  "total_related_links": 4888,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -645,15 +645,6 @@
       "has_shebang": false
     },
     {
-      "path": "PROJECT.md",
-      "hint": "Architecture notes for the dev-loop lane-isolation harness: multi-lane orchestration, harness adapters and gates, base-tree guard, and git lock management.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
       "path": "README.md",
       "hint": "Repository entry point for the MiOS system FHS overlay, its SSOT, image build pipeline, local AI interface, deployment shapes, and documented scope. AI-related: /usr/share/mios/mios.toml, /usr/libexec/mios/mios-build-driver, /usr/share/mios/ai/system.md, mios-bootstrap, MiOS-DEV.",
       "related": [],
@@ -734,15 +725,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "automation/02-uki-bootloader.sh",
-      "hint": "Configures UKI bootchain security enforcing module.sig_enforce=1 and lockdown=confidentiality (T-916, T-917).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch41-machine-owner-key-management.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -887,15 +869,6 @@
         "tests/test-core-sched.sh",
         "usr/lib/systemd/system/subagent.slice"
       ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/automation.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "automation/24-gpu-pv-shim.sh",
-      "hint": "Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to de...",
-      "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
       "comment_style": "hash",
@@ -4513,6 +4486,20 @@
         "usr/lib/containers/policy.json",
         "tools/generate-cosign-policy.py",
         "automation/49-cosign-policy.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/static_linkage.rs",
+      "hint": "Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021).",
+      "related": [
+        "src/mios-rs/mios-gate/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh",
+        "automation/55-native-build.sh"
       ],
       "functions": [],
       "doc": null,
@@ -8571,6 +8558,21 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test_native_static_hardening_e2e.py",
+      "hint": "Comprehensive E2E test suite for MiOS Native Static Binaries Hardening and Consolidation (T-1148, T-1161, T-1162).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/mios-gate",
+        "tools/native/mios-toml-get",
+        "tools/ci-suites.py",
+        "tools/sync-bootstrap.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tests.md, TEST_INFRA.md, PROJECT.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tools/README.md",
       "hint": "Index of the standalone out-of-image toolkit scripts that prepare, verify, and maintain a host for MiOS \u2014 VFIO GPU/USB passthrough, CPU isolation/pinning, hardware profiling, Windows-VM Secure Boot/OVMF enrollment, the FHS overlay/sysext packer, and repo build/maintenance helpers. Use to understand what each tools/ script does and how it serves the MiOS build->image->bootc->agentic-AI lifecycle.",
       "related": [
@@ -8617,8 +8619,8 @@
       "has_shebang": true
     },
     {
-      "path": "tools/audit-version-literals.py",
-      "hint": "Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin...",
+      "path": "tools/audit-static-linkage.py",
+      "hint": "Audits ELF headers of compiled Linux binaries across tools/native and src/mios-rs, asserting static linkage (absence of PT_INTERP and DT_NEEDED).",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -9847,6 +9849,78 @@
       "functions": [],
       "doc": null,
       "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/Cargo.toml",
+      "hint": "Shared daemon, relay, and service helpers for MiOS native binaries.",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/src/lib.rs",
+      "hint": "Shared daemon, relay, and service helpers for MiOS native binaries.",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/src/process.rs",
+      "hint": "Process creation flags, hidden console configuration, and workspace locking.",
+      "related": [
+        "tools/native/mios-launch",
+        "tools/native/mios-agent-relay"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/src/socket.rs",
+      "hint": "Socket discovery, validation, and ownership verification routines.",
+      "related": [
+        "tools/native/mios-agent-relay",
+        "usr/libexec/mios/mios-mcp-server"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/src/ssot.rs",
+      "hint": "Dynamic SSOT resolution from usr/share/mios/mios.toml and environment overrides.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tools/native/mios-resolver"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/tests/test_service_core.rs",
+      "hint": "Comprehensive unit tests for mios-service-core crate.",
+      "related": [
+        "tools/native/mios-service-core",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
       "has_shebang": false
     },
     {
@@ -20610,15 +20684,6 @@
       "has_shebang": true
     },
     {
-      "path": "usr/libexec/mios/flight-control.sh",
-      "hint": "MiOS' flight-control -- shows active build variable mappings",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "usr/libexec/mios/forge-firstboot.sh",
       "hint": "bash First-boot admin-bootstrap for the mios-forge Quadlet (Forgejo).",
       "related": [],
@@ -22286,15 +22351,6 @@
       "has_shebang": true
     },
     {
-      "path": "usr/libexec/mios/mios-dashboard.sh",
-      "hint": "MiOS live system dashboard shim. Forwards to the unified Python TUI.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "usr/libexec/mios/mios-day0-reset",
       "hint": "Purges volatile runtime data (sessions, tool_calls, knowledge, logs) from the pgvector agent DB (via parameterized mios-db --pg) plus OWUI's sqlite chats and filesystem caches, while preserving core system configurations and identity keys to reset the AI's operational state to a clean \"day-0\" baseline.",
       "related": [
@@ -22491,20 +22547,6 @@
         "apply.target"
       ],
       "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "usr/libexec/mios/mios-dup-report",
-      "hint": "Value duplication reporter wrapper for MiOS resolved environment",
-      "related": [
-        "/usr/share/mios/mios.toml",
-        "/usr/share/mios/reference/value-dup-report.tsv"
-      ],
-      "functions": [
-        "main"
-      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
@@ -24722,12 +24764,11 @@
     },
     {
       "path": "usr/libexec/mios/mios-toml-get",
-      "hint": "Thin shell-facing CLI over the shared usr/lib/mios/mios_toml.py resolver, so bash scripts + `python3 - <<PY` heredocs stop re-rolling their own awk/regex mios.toml scanners (which mishandle multi-line arrays, [[array.of.tables]], inline tables, and quoting) and instead read the SSOT through the ONE real tomllib-backed layered overlay (vendor<host<user, empty-string rule). `mios-toml-get <section[.sub]> <key> [default]` prints a scalar (default/empty if absent); `--section <a.b>` prints the sub-table as JSON (for [[array]]/catalog reads); `--dump <a.b> k1 k2 ...` prints several keys as `k=v` lines to avoid a python spawn per value on hot paths (e.g. the login-path dashboard). Pairs with mios_toml.py + the 29 already-migrated Python tools; drop-in for the `_mios_toml_value` bash helpers.",
+      "hint": "Thin shell-facing CLI over the shared usr/lib/mios/mios_toml.py resolver, with native tools/native/mios-toml-get dispatch.",
       "related": [
         "../../lib/mios/mios_toml.py",
         "./mios-sync-theme",
-        "./mios-dashboard.sh",
-        "../../../automation/98-drift-checks.sh"
+        "tools/native/mios-toml-get/"
       ],
       "functions": [
         "main"

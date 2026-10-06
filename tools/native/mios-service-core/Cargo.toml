@@ -1,0 +1,21 @@
+# AI-hint: Shared daemon, relay, and service helpers for MiOS native binaries.
+# AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
+
+[package]
+name = "mios-service-core"
+version.workspace = true
+edition.workspace = true
+description = "Shared daemon, relay, and service helpers for MiOS native binaries"
+
+[dependencies]
+anyhow = "1.0"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile.workspace = true

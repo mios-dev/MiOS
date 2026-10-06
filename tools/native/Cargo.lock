@@ -77,6 +77,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.104"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+
+[[package]]
 name = "atk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1471,6 +1477,7 @@ dependencies = [
 name = "mios-agent-relay"
 version = "0.3.0"
 dependencies = [
+ "mios-service-core",
  "serde_json",
  "sha2",
  "tempfile",
@@ -1553,6 +1560,7 @@ dependencies = [
 name = "mios-launch"
 version = "0.3.0"
 dependencies = [
+ "mios-service-core",
  "serde_json",
  "windows-sys 0.61.2",
 ]
@@ -1576,6 +1584,19 @@ dependencies = [
  "miette",
  "mios-ssot-walk",
  "proptest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "mios-service-core"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "libc",
  "serde",
  "serde_json",
  "tempfile",
@@ -1666,6 +1687,7 @@ version = "0.3.0"
 name = "mios-wallpaperd"
 version = "0.3.0"
 dependencies = [
+ "mios-service-core",
  "tao",
  "windows",
  "windows-service",

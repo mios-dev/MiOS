@@ -62,73 +62,11 @@ fn observation(state: &Value, request: &Value, now: u64) -> Result<Value, String
 }
 
 fn owned_path(path: &Path) -> bool {
-    let Ok(meta) = fs::symlink_metadata(path) else {
-        return false;
-    };
-    if meta.file_type().is_symlink() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        let Ok(caller) = fs::metadata("/proc/self") else {
-            return false;
-        };
-        if meta.uid() != caller.uid() {
-            return false;
-        }
-    }
-    true
+    mios_service_core::socket::owned_path(path)
 }
 
 fn socket_candidates(root: &Path, human: &str, depth: usize) -> Vec<PathBuf> {
-    let mut sockets = Vec::new();
-    if !owned_path(root) || !root.is_dir() {
-        return sockets;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::FileTypeExt;
-        for leaf in [human, "mcp-headless"] {
-            let socket = root.join(leaf);
-            if owned_path(&socket)
-                && fs::symlink_metadata(&socket).is_ok_and(|m| m.file_type().is_socket())
-            {
-                sockets.push(socket);
-            }
-        }
-    }
-    let Ok(entries) = fs::read_dir(root) else {
-        return sockets;
-    };
-    for entry in entries.flatten().take(128) {
-        let path = entry.path();
-        if !owned_path(&path) || !path.is_dir() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with("tmux-") {
-            for leaf in [human, "mcp-headless"] {
-                let socket = path.join(leaf);
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::FileTypeExt;
-                    if owned_path(&socket)
-                        && fs::symlink_metadata(&socket).is_ok_and(|m| m.file_type().is_socket())
-                    {
-                        sockets.push(socket);
-                    }
-                }
-            }
-        } else if depth < 2 && (name.starts_with("uid-") || name.starts_with("mios-tmux-")) {
-            sockets.extend(socket_candidates(&path, human, depth + 1));
-        }
-        if sockets.len() >= 16 {
-            break;
-        }
-    }
-    sockets.truncate(16);
-    sockets
+    mios_service_core::socket::socket_candidates(root, human, depth)
 }
 
 fn pane_metadata(socket: &Path) -> Result<Vec<Value>, String> {
@@ -697,22 +635,7 @@ fn workspace_tmux(socket: &str, args: &[&str]) -> Result<String, String> {
 }
 
 fn workspace_lock(path: &Path, name: &str) -> Result<fs::File, String> {
-    let lock_path = path.parent().ok_or("missing socket parent")?.join(name);
-    if lock_path.is_symlink() {
-        return Err("unsafe workspace lock".into());
-    }
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(&lock_path)
-        .map_err(|e| e.to_string())?;
-    if !owned_path(&lock_path) {
-        return Err("workspace lock belongs to another user".into());
-    }
-    lock.lock().map_err(|e| e.to_string())?;
-    Ok(lock)
+    mios_service_core::process::workspace_lock(path, name).map_err(|e| e.to_string())
 }
 
 fn workspace_number(config: &Value, name: &str, lower: u64, upper: u64) -> Result<usize, String> {

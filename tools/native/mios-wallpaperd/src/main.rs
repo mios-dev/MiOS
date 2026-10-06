@@ -30,9 +30,14 @@ pub struct WallpaperConfig {
 
 impl WallpaperConfig {
     pub fn default_config() -> Self {
+        let html_path = mios_service_core::ssot::require_str("theme.wallpaper.html_path")
+            .unwrap_or_else(|_| "/usr/share/mios/branding/living-wallpaper.html".to_string());
+        let framerate = mios_service_core::ssot::require_port("theme.wallpaper.framerate")
+            .map(|p| p as u32)
+            .unwrap_or(60);
         Self {
-            html_path: "/usr/share/mios/branding/living-wallpaper.html".to_string(),
-            framerate: 60,
+            html_path,
+            framerate,
         }
     }
 }

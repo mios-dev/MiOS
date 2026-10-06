@@ -9,6 +9,9 @@ description = "MiOS living-wallpaper + desktop-services daemon: silent WorkerW W
 name = "mios-wallpaperd"
 path = "src/main.rs"
 
+[dependencies]
+mios-service-core = { path = "../mios-service-core" }
+
 [target.'cfg(windows)'.dependencies]
 wry = "0.45"
 tao = "0.30"

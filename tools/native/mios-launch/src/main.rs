@@ -78,7 +78,6 @@ fn geometry_proof(negative: bool) -> Result<(), String> {
 mod desktop {
     use super::{center, Bounds};
     use serde_json::Value;
-    use std::os::windows::process::CommandExt;
     use std::{
         env, fs, mem,
         path::PathBuf,
@@ -113,7 +112,7 @@ mod desktop {
         }
     }
     fn hidden(command: &mut Command) -> &mut Command {
-        command.creation_flags(0x0800_0000)
+        mios_service_core::process::configure_hidden(command)
     }
     fn native_bin() -> Result<PathBuf, String> {
         let exe = env::current_exe().map_err(|e| e.to_string())?;
@@ -206,7 +205,9 @@ mod desktop {
     }
     fn place(hwnd: HWND, point: POINT) -> Result<Bounds, String> {
         if unsafe { IsZoomed(hwnd) } != 0 || unsafe { IsIconic(hwnd) } != 0 {
-            unsafe { ShowWindow(hwnd, SW_RESTORE); }
+            unsafe {
+                ShowWindow(hwnd, SW_RESTORE);
+            }
         }
         let mut r: RECT = unsafe { mem::zeroed() };
         if unsafe { GetWindowRect(hwnd, &mut r) } == 0 {
@@ -312,8 +313,14 @@ mod desktop {
             .filter(|s| !s.starts_with("--"))
             .map(String::as_str)
             .unwrap_or(dev);
-        let action = args.iter().position(|a| a == "--action")
-            .map(|i| args.get(i + 1).map(String::as_str).ok_or("--action needs a MiOS action"))
+        let action = args
+            .iter()
+            .position(|a| a == "--action")
+            .map(|i| {
+                args.get(i + 1)
+                    .map(String::as_str)
+                    .ok_or("--action needs a MiOS action")
+            })
             .transpose()?;
         let ai = action == Some("ai");
         let logical = if ai {
@@ -379,7 +386,9 @@ mod desktop {
                 .args(["--", engine, "-NoLogo", "-NoProfile", "-File"])
                 .arg(bin.join("mios-native-entry.ps1"))
                 .args(["terminal", "--action", action]);
-            if compact { command.arg("--compact"); }
+            if compact {
+                command.arg("--compact");
+            }
         }
         hidden(&mut command).spawn().map_err(|e| e.to_string())?;
         let deadline = Instant::now() + Duration::from_secs(8);

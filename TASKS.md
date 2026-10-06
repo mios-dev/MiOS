@@ -16,9 +16,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1616 |
+| pending | 1613 |
 | in_progress | 47 |
-| completed | 1808 |
+| completed | 1811 |
 | incomplete | 21 |
 | cancelled | 16 |
 | total | 3508 |
@@ -2479,11 +2479,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- completed · owner antigravity · P1 · size M
 - `T-1147` Classify native Rust executables through one shared role catalog -- completed · P1 · size M
-- `T-1148` Enforce static Linux linkage across native executable roles -- pending · P1 · size M · depends_on T-1147
+- `T-1148` Enforce static Linux linkage across native executable roles -- completed · P1 · size M · depends_on T-1147
 - `T-1149` Validate ARM64 native releases and bootc image lifecycle -- pending · P2 · size M · depends_on T-1148
 - `T-1157` Restore warning-free Rust task-store compilation -- completed · P1 · size S · depends_on T-1156
-- `T-1161` Consolidate recovered CLI tools and installer phases into Rust binaries -- pending · P1 · size L · depends_on T-1157
-- `T-1162` Consolidate recovered agent services and daemons through shared Rust components -- pending · P1 · size L · depends_on T-1157
+- `T-1161` Consolidate recovered CLI tools and installer phases into Rust binaries -- completed · P1 · size L · depends_on T-1157
+- `T-1162` Consolidate recovered agent services and daemons through shared Rust components -- completed · P1 · size L · depends_on T-1157
 
 ## WS-NET
 

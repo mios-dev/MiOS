@@ -105,6 +105,8 @@ _gate_bin() {
     for c in "${MIOS_GATE_BIN:-}" \
              "$ROOT/src/mios-rs/target/release/mios-gate" \
              "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             "$ROOT/src/mios-rs/target/release/mios-gate.exe" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate.exe" \
              /usr/libexec/mios/mios-gate; do
         [[ -n "$c" && -x "$c" ]] && { printf '%s' "$c"; return 0; }
     done
@@ -2144,6 +2146,29 @@ check_target_languages() {
     fi
 }
 
+# Law 14 (TARGET-LANGUAGES) / T-1148: enforce static Linux linkage for native binaries
+# --- static linkage gate: asserts absence of PT_INTERP and DT_NEEDED on Linux release binaries ---
+check_static_linkage() {
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_static_linkage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    local out
+    if out="$("$bin" static-linkage --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   static linkage verified for Linux native roles (no PT_INTERP, no DT_NEEDED)"
+        return 0
+    else
+        local rc=$?
+        if [[ $rc -eq 2 ]]; then
+            # Empty scan (unbuilt tree without Linux binaries)
+            echo "[98-drift-checks]   advisory: static-linkage: $out" >&2
+            return 0
+        fi
+        _violations_from "check_static_linkage: " "$out"
+    fi
+}
+
 check_bake_plan() {
     # Stage 85's candidates, in stage 85's order. CI builds debug only, so the
     # certified binary was one the bake can never run; debug is dropped because
@@ -3864,6 +3889,7 @@ main() {
     check_sbom_metadata
     check_shellcheck
     check_target_languages
+    check_static_linkage
     check_curl_retry
     check_resolver_ssot_refs
     check_nested_podman_caps

@@ -14,6 +14,7 @@ members = [
     "mios-launch",
     "mios-render-quadlets",
     "mios-resolver",
+    "mios-service-core",
     "mios-size-ceiling",
     "mios-ssot-lint",
     "mios-ssot-walk",
