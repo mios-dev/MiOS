@@ -108,7 +108,7 @@ pub fn require_port(key: &str) -> Result<u16, ConfigError> {
     } else {
         format!(
             "MIOS_PORT_{}",
-            key.to_uppercase().replace('.', "_").replace('-', "_")
+            key.to_uppercase().replace(['.', '-'], "_")
         )
     };
     if let Ok(val) = std::env::var(&env_var_name) {
@@ -180,7 +180,7 @@ pub fn require_port(key: &str) -> Result<u16, ConfigError> {
 pub fn require_str(key: &str) -> Result<String, ConfigError> {
     let env_var = format!(
         "MIOS_{}",
-        key.to_uppercase().replace('.', "_").replace('-', "_")
+        key.to_uppercase().replace(['.', '-'], "_")
     );
     if let Ok(v) = std::env::var(&env_var) {
         if !v.is_empty() {

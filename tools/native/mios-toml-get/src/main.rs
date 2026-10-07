@@ -30,7 +30,13 @@ fn get_section<'a>(data: &'a Value, path: &str) -> Option<&'a toml::Table> {
 fn format_scalar(v: Option<&Value>) -> String {
     match v {
         None => String::new(),
-        Some(Value::Boolean(b)) => if *b { "true".to_string() } else { "false".to_string() },
+        Some(Value::Boolean(b)) => {
+            if *b {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }
+        }
         Some(Value::String(s)) => s.clone(),
         Some(Value::Integer(i)) => i.to_string(),
         Some(Value::Float(f)) => f.to_string(),
@@ -67,7 +73,10 @@ pub fn run(args: &[String]) -> Result<String, (String, u8)> {
     }
 
     if rest.is_empty() {
-        return Err(("mios-toml-get: missing arguments after --vendor\n".to_string(), 2));
+        return Err((
+            "mios-toml-get: missing arguments after --vendor\n".to_string(),
+            2,
+        ));
     }
 
     let root_env = env::var("MIOS_TOML_ROOT").ok();
@@ -94,7 +103,10 @@ pub fn run(args: &[String]) -> Result<String, (String, u8)> {
 
     if rest[0] == "--dump" {
         if rest.len() < 3 {
-            return Err(("mios-toml-get --dump needs a section + at least one key\n".to_string(), 2));
+            return Err((
+                "mios-toml-get --dump needs a section + at least one key\n".to_string(),
+                2,
+            ));
         }
         let sect = get_section(&data, &rest[1]);
         let mut lines = Vec::new();
@@ -146,7 +158,10 @@ mod tests {
         assert_eq!(format_scalar(Some(&Value::Boolean(true))), "true");
         assert_eq!(format_scalar(Some(&Value::Boolean(false))), "false");
         assert_eq!(format_scalar(Some(&Value::Integer(42))), "42");
-        assert_eq!(format_scalar(Some(&Value::String("hello".to_string()))), "hello");
+        assert_eq!(
+            format_scalar(Some(&Value::String("hello".to_string()))),
+            "hello"
+        );
     }
 
     #[test]

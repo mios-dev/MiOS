@@ -82,7 +82,9 @@ fn test_compile_templates_cli_e2e() {
         stderr
     );
     assert!(
-        stdout.contains("[compile-templates] PASS: All 30 templates compiled/validated successfully."),
+        stdout.contains(
+            "[compile-templates] PASS: All 30 templates compiled/validated successfully."
+        ),
         "Expected success message not found in stdout: {}",
         stdout
     );
@@ -129,7 +131,8 @@ fn test_compile_templates_cli_e2e() {
         );
         let neg_stderr = String::from_utf8_lossy(&neg_output.stderr);
         assert!(
-            neg_stderr.contains("[compile-templates] FAIL: 1 template(s) failed compilation/validation:"),
+            neg_stderr
+                .contains("[compile-templates] FAIL: 1 template(s) failed compilation/validation:"),
             "Expected FAIL message in stderr, got: {}",
             neg_stderr
         );
@@ -153,11 +156,14 @@ fn test_compile_templates_cli_e2e() {
             !neg_json_output.status.success(),
             "Expected failure on corrupted toml-config with JSON format, but got exit code 0"
         );
-        let neg_json: serde_json::Value =
-            serde_json::from_slice(&neg_json_output.stderr).expect("Failed to parse JSON error output");
+        let neg_json: serde_json::Value = serde_json::from_slice(&neg_json_output.stderr)
+            .expect("Failed to parse JSON error output");
         assert_eq!(neg_json["status"], "drift");
         assert_eq!(neg_json["violations"], 1);
-        assert!(neg_json["failures"]["toml-config"].as_str().unwrap().contains("TOML Parse Error:"));
+        assert!(neg_json["failures"]["toml-config"]
+            .as_str()
+            .unwrap()
+            .contains("TOML Parse Error:"));
     }
 
     // 4. Negative control: inject an unregistered template
@@ -179,7 +185,8 @@ fn test_compile_templates_cli_e2e() {
         );
         let neg_stderr = String::from_utf8_lossy(&neg_output.stderr);
         assert!(
-            neg_stderr.contains("unregistered-test-template: Not registered in mios.toml [templates.*]"),
+            neg_stderr
+                .contains("unregistered-test-template: Not registered in mios.toml [templates.*]"),
             "Expected unregistered failure in stderr, got: {}",
             neg_stderr
         );

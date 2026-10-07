@@ -149,10 +149,8 @@ pub fn find_active_socket<P: AsRef<Path>>(
 ) -> Result<Option<PathBuf>, SocketError> {
     for c in candidates {
         let p = c.as_ref();
-        if let Err(e) = check_socket_path_length(p) {
-            // Path bounds check failed
-            return Err(e);
-        }
+        // Path bounds check failure propagates.
+        check_socket_path_length(p)?;
         if p.exists() {
             return Ok(Some(p.to_path_buf()));
         }
