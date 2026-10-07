@@ -13,6 +13,7 @@ mod adr_index;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
+mod roadmap_index;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -103,6 +104,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed markdown is in sync without modifying it
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates and validates Table of Contents, Index, Metrics, and Rollup in ROADMAP.md
+    #[command(name = "roadmap-index")]
+    RoadmapIndex {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed ROADMAP.md is in sync without modifying it
         #[arg(long)]
         check: bool,
     },
@@ -431,6 +444,14 @@ fn main() -> ExitCode {
                 "metal-vs-hosted",
                 "usr/share/doc/mios/reference/metal-vs-hosted.md",
                 metal_vs_hosted::run_metal_vs_hosted(&r, check, cli.format == "json"),
+            )
+        }
+        Commands::RoadmapIndex { root, check } => {
+            let r = resolve_root(root);
+            (
+                "roadmap-index",
+                "ROADMAP.md",
+                roadmap_index::run_roadmap_index(&r, check, cli.format == "json"),
             )
         }
     };

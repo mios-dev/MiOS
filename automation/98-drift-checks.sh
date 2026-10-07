@@ -2308,15 +2308,24 @@ check_bake_ref_defaults() {
 }
 
 check_roadmap_index() {
-    _need_python || return 0
     if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
         _violation "ROADMAP.md not found -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
-    if python3 "$ROOT/tools/roadmap-index.py" --check; then
-        echo "[98-drift-checks]   roadmap index in sync with frontmatter metadata"
+    local bin; bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" ]]; then
+        if "$bin" roadmap-index --root "$ROOT" --check; then
+            echo "[98-drift-checks]   roadmap index in sync with frontmatter metadata"
+        else
+            _violation "roadmap index is STALE or cites invalid laws/ADRs/ssot_keys -- regenerate with mios-gen roadmap-index --root $ROOT"
+        fi
     else
-        _violation "roadmap index is STALE or cites invalid laws/ADRs/ssot_keys -- regenerate with python3 tools/roadmap-index.py"
+        _need_python || return 0
+        if python3 "$ROOT/tools/roadmap-index.py" --check; then
+            echo "[98-drift-checks]   roadmap index in sync with frontmatter metadata"
+        else
+            _violation "roadmap index is STALE or cites invalid laws/ADRs/ssot_keys -- regenerate with python3 tools/roadmap-index.py"
+        fi
     fi
 }
 

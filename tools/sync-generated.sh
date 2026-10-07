@@ -144,12 +144,13 @@ main() {
         "$_gen" gate-index --root "$ROOT" >/dev/null
         "$_gen" pipeline-index --root "$ROOT" >/dev/null
         "$_gen" adr-index --root "$ROOT" >/dev/null
+        "$_gen" roadmap-index --root "$ROOT" >/dev/null
     else
         "$PY" tools/generate-gate-index.py >/dev/null
         "$PY" tools/generate-pipeline-index.py >/dev/null
         "$PY" tools/generate-adr-index.py >/dev/null
+        "$PY" tools/roadmap-index.py >/dev/null
     fi
-    "$PY" tools/roadmap-index.py >/dev/null
 
     # 12. Agent-pipe module boundary manifest
     step "12/23 [boundaries.manifest] project agent-pipe boundary manifest"

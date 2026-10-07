@@ -1,0 +1,4 @@
+$ mios-gen roadmap-index --root [CWD]/nonexistent --check
+? 1
+ERROR: ROADMAP.md not found at [..]nonexistent[..]ROADMAP.md
+
