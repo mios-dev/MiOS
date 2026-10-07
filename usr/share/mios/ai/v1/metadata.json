@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3782,
-  "total_metadata_entries": 3084,
-  "total_hints": 3073,
-  "total_functions_indexed": 1465,
-  "total_related_links": 5103,
+  "total_files_scanned": 3799,
+  "total_metadata_entries": 3091,
+  "total_hints": 3081,
+  "total_functions_indexed": 1462,
+  "total_related_links": 5125,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -1151,12 +1151,10 @@
     },
     {
       "path": "automation/55-native-build.sh",
-      "hint": "Builds and installs native executables from the SSOT role catalog through miosd native-targets; preserves separate CLI, app, service and daemon categories.",
+      "hint": "Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build.",
       "related": [
-        "tools/native/Cargo.toml",
-        "src/mios-rs/Cargo.toml",
-        "automation/85-bake-plan.sh",
-        "/usr/libexec/mios/"
+        "src/mios-rs/mios-build/src/native_build.rs",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -2990,15 +2988,6 @@
       "has_shebang": false
     },
     {
-      "path": "etc/btop/themes/mios.theme",
-      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "etc/chrony.conf",
       "hint": "NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.",
       "related": [],
@@ -4082,9 +4071,9 @@
     },
     {
       "path": "powershell/profile.ps1",
-      "hint": null,
+      "hint": "MiOS configuration and runtime asset for profile.ps1.",
       "related": [
-        "/usr/libexec/mios/mios-dashboard.sh",
+        "/usr/libexec/mios/mios-dashboard",
         "/usr/libexec/mios/mios-ssh-dev-cmd",
         "mios-dashboard",
         "mios-ssh-dev-cmd",
@@ -4192,11 +4181,51 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-build/src/images.rs",
+      "hint": "Build the operator's current source tree using SSOT image targets and verify installed runtime commands; never fetch, reset or reap it.",
+      "related": [
+        "build-mios.ps1",
+        "Containerfile",
+        ".devcontainer/Containerfile",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-build/src/lib.rs",
       "hint": "Native build orchestrator and phase registry for MiOS.",
       "related": [
         "automation/build.sh",
         "automation/build-mios.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-build/src/native_build.rs",
+      "hint": "Native SSOT catalog build, static-artifact verification and atomic FHS installation.",
+      "related": [
+        "automation/55-native-build.sh",
+        "usr/share/mios/mios.toml",
+        "miosd native-build"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-build/src/verification.rs",
+      "hint": "SSOT-driven native toolchain and installed artifact verification shared by build, install and runtime callers; never certifies missing tools or foreign binaries.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "automation/55-native-build.sh",
+        "src/mios-rs/miosd/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -5388,10 +5417,11 @@
     },
     {
       "path": "src/mios-rs/miosd/src/drift/names.rs",
-      "hint": "Names registry drift check using native generate-names-registry.",
+      "hint": "Names registry drift check using the native generate-names-registry binary.",
       "related": [
         "tools/native/generate-names-registry",
-        "usr/share/mios/names.generated.txt"
+        "usr/share/mios/names.generated.txt",
+        "usr/share/mios/referenced_names.txt"
       ],
       "functions": [],
       "doc": null,
@@ -5804,6 +5834,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/fastfetch/cmd.toml",
+      "hint": "Trycmd configuration for render-fastfetch golden-master CLI tests (ADR-0021).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/gate-index/cmd.toml",
       "hint": "Trycmd configuration for gate-index golden-master CLI tests (AGY-1067 / AGY-1088).",
       "related": [
@@ -6013,6 +6055,15 @@
     {
       "path": "tests/powershell/MiOSWin.Tests.ps1",
       "hint": "Pester characterization tests for MiOS.Win.psm1 Windows helper module.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/NativeBuildLifecycle.Tests.ps1",
+      "hint": "Exercise actual full-install builder preservation and native SSOT image dispatch.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -9542,7 +9593,7 @@
     },
     {
       "path": "tools/native/Cargo.toml",
-      "hint": "Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.",
+      "hint": "Generated from mios.toml SSOT by mios-gen cargo-manifests. DO NOT EDIT DIRECTLY.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -9871,6 +9922,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/fastfetch.rs",
+      "hint": "SSOT Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC (ADR-0021 gen category).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/fastfetch/config.jsonc",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/gate_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
       "related": [
@@ -10044,6 +10108,21 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/tmux_runtime.rs",
+      "hint": "Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user). Replaces the `--runtime` mode of the deleted tmux_theme.py (Phase 3.18 regression fix).",
+      "related": [
+        "tools/native/mios-gen/src/tmux_theme.rs",
+        "usr/lib/mios/mios_toml.py",
+        "usr/libexec/mios/ux/theme_sync.py",
+        "etc/profile.d/mios-prompt.sh",
+        "usr/libexec/mios/mios-terminal"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/tmux_theme.rs",
       "hint": "SSOT tmux theme renderer deriving active pane styles and status bar formatting from mios.toml [colors] and [theme.tmux] (ADR-0021 gen category).",
       "related": [
@@ -10143,6 +10222,18 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/fastfetch.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-fastfetch (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/fastfetch.rs",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10295,6 +10386,20 @@
         "tools/native/mios-gen/src/sync_wiki.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
+      "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
+      "related": [
+        "tools/native/mios-gen/src/tmux_runtime.rs",
+        "usr/libexec/mios/ux/theme_sync.py",
+        "etc/profile.d/mios-prompt.sh",
+        "usr/libexec/mios/mios-terminal"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -11718,7 +11823,7 @@
         "/usr/share/mios/ai/system.md",
         "/usr/libexec/mios/tools/",
         "/usr/libexec/mios/mios-build-driver",
-        "/usr/libexec/mios/mios-dashboard.sh",
+        "/usr/libexec/mios/mios-dashboard",
         "/usr/libexec/mios/mios-configurator-launch"
       ],
       "functions": [],
@@ -27540,23 +27645,6 @@
       "has_shebang": true
     },
     {
-      "path": "usr/libexec/mios/ux/fastfetch_gen.py",
-      "hint": "Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC",
-      "related": [
-        "tests/test-ux.py",
-        "usr/share/mios/mios.toml",
-        "usr/lib/mios/mios_toml.py"
-      ],
-      "functions": [
-        "FastfetchGenEngine",
-        "generate_fastfetch_jsonc",
-        "main"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "usr/libexec/mios/ux/firstboot_wizard.py",
       "hint": "Interactive and headless first-boot onboarding wizard for credentials, Wi-Fi & AI lanes",
       "related": [
@@ -35785,7 +35873,7 @@
       "hint": "MiOS-owned interactive tmux startup; layered SSOT prompt without sourcing personal shell hooks.",
       "related": [
         "/etc/profile.d/mios-prompt.sh",
-        "/usr/libexec/mios/ux/tmux_theme.py",
+        "/usr/libexec/mios/mios-gen (render-tmux-theme --runtime)",
         "/usr/share/mios/mios.toml"
       ],
       "functions": [],

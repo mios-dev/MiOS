@@ -381,6 +381,7 @@ image.bib  MIOS_IMAGE_BIB
 image.name  MIOS_IMAGE_NAME
 image.tag  MIOS_IMAGE_TAG
 image.local_tag  MIOS_IMAGE_LOCAL_TAG
+image.dev_local_tag  MIOS_IMAGE_DEV_LOCAL_TAG
 image.machine_os_repo  MIOS_IMAGE_MACHINE_OS_REPO
 image.machine_os_tag  MIOS_IMAGE_MACHINE_OS_TAG
 image.machine_os_mirror  MIOS_IMAGE_MACHINE_OS_MIRROR
@@ -413,6 +414,7 @@ image.sys.packages  MIOS_IMAGE_SYS_PACKAGES
 image.cuda.base  MIOS_IMAGE_CUDA_BASE
 image.cuda.packages  MIOS_IMAGE_CUDA_PACKAGES
 bootstrap.mode  MIOS_BOOTSTRAP_MODE
+bootstrap.windows_install_mode  MIOS_BOOTSTRAP_WINDOWS_INSTALL_MODE
 bootstrap.mios_repo  MIOS_BOOTSTRAP_MIOS_REPO
 bootstrap.bootstrap_repo  MIOS_BOOTSTRAP_BOOTSTRAP_REPO
 bootstrap.branch  MIOS_BOOTSTRAP_BRANCH

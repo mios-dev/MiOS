@@ -1,4 +1,4 @@
-# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.
+# AI-hint: Generated from mios.toml SSOT by mios-gen cargo-manifests. DO NOT EDIT DIRECTLY.
 [workspace]
 members = [
     "generate-names-registry",
@@ -49,3 +49,11 @@ tempfile = "3.10"
 thiserror = "1.0"
 toml = "0.8"
 walkdir = "2.4"
+
+# Size-optimized release for the Windows wallpaper daemon (its profile
+# previously sat in the member manifest, where cargo silently ignored
+# it). lto/strip/panic are workspace-level profile knobs cargo cannot
+# set per package.
+[profile.release.package.mios-wallpaperd]
+opt-level = "z"
+codegen-units = 1
