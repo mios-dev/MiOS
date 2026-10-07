@@ -3469,46 +3469,6 @@ def check_smoke_manifest() -> int:
         sys.stderr.write(f"    Paths listed in [testing.smoke_components] missing from repo: {missing}\n")
     return 1 if bad or missing else 0
 
-def check_negative_coverage() -> int:
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    checks_sh = os.path.join(root, "automation/98-drift-checks.sh")
-    negatives_sh = os.path.join(root, "tests/drift-gate-negatives.sh")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-
-    if not (os.path.isfile(checks_sh) and os.path.isfile(negatives_sh) and os.path.isfile(toml_path)):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_negative_coverage: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    exempt = set(data.get("testing", {}).get("negative_coverage_exempt", {}).get("exempt", []))
-
-    with open(checks_sh, "r", encoding="utf-8", errors="ignore") as f:
-        c_content = f.read()
-
-    main_idx = c_content.rfind("main() {")
-    main_body = c_content[main_idx:] if main_idx != -1 else c_content
-    dispatched = set(re.findall(r"^\s*(check_[a-z0-9_]+)\b", main_body, re.MULTILINE))
-
-    with open(negatives_sh, "r", encoding="utf-8", errors="ignore") as f:
-        n_content = f.read()
-
-    covered = set(re.findall(r"check_[a-z0-9_]+\b", n_content))
-
-    uncovered = dispatched - covered - exempt
-    if uncovered:
-        sys.stderr.write(f"    Dispatched drift checks lacking negative test coverage and not exempt: {sorted(list(uncovered))}\n")
-        return 1
-
-    return 0
-
 def check_usr_over_etc() -> int:
     import os, sys, subprocess
 
@@ -4785,7 +4745,7 @@ _SUBCOMMAND_NAMES = (
     "resolver-ssot-refs", "bake-budget", "greenboot", "router-intent-coverage",
     "council-gate-ssot", "test-hermeticity", "containerfile-pinned-clones",
     "replaceme-mount-substitution", "bib-rootfs-label-policy", "smoke-manifest",
-    "negative-coverage", "usr-over-etc", "projection-registry",
+    "usr-over-etc", "projection-registry",
     "bib-config-mount", "win11-vm-template-xml", "db-seed-coverage",
     "account-column-parity", "v2v-import-ssot", "value-aliases",
     "negatives-are-effective", "pipefail-grep-lint", "skip-list-covered",

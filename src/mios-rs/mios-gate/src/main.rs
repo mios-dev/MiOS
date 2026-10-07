@@ -13,6 +13,7 @@ mod image_equivalence;
 mod image_freshness;
 mod inert_tables;
 mod laws;
+mod negative_coverage;
 mod phases;
 mod profiles;
 mod projreg;
@@ -94,7 +95,7 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH]\n\
                      checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
                              drift-stubs, image-equivalence, image-freshness, law-enforcers,\n\
-                             no-inert-ssot-tables, profile-integrity,\n\
+                             negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
@@ -209,6 +210,7 @@ fn main() -> ExitCode {
         }),
         "image-freshness" => image_freshness::check(&root),
         "law-enforcers" => laws::check(&root),
+        "negative-coverage" => negative_coverage::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),
         "profile-integrity" => profiles::check(&root),

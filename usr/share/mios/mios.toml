@@ -11686,6 +11686,10 @@ exempt = [
   # names a cert AND a Windows PowerShell is present, neither of which holds on
   # a Linux runner -- an injected fault would be skipped, not caught.
   "check_ps_signatures",
+  # Static linkage (T-1148): its subject is a musl target tree only the Linux
+  # builder produces; the negative (a glibc PT_INTERP stub in the scan dir)
+  # needs those artifacts to plant. Follow-up tracked under T-1009.
+  "check_static_linkage",
   # Rust native linter: requires mios-ssot-lint binary compilation environment.
   "check_native_lint",
   # Windows PowerShell resolver equivalence: requires pwsh/PowerShell host runtime.
@@ -11784,6 +11788,8 @@ exempt = [
   "check_vendor_urls",
   # Verb backends: requires verb backend implementation mapper.
   "check_verb_backends",
+  # Static linkage: requires built Linux musl ELF binaries.
+  "check_static_linkage",
   # Comment lex equivalence: requires comment lexing equivalence parser.
   "check_comment_lex_equivalence"
 ]
@@ -12630,7 +12636,7 @@ max_libexec_verbs     = 312  # verbs only; retired flight-control.sh, mios-dashb
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 81188   # Re-baselined from approved merges.
+max_tooling_python_lines = 81148   # T-1009 unit 1: negative-coverage strangled to mios-gate (-40).
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

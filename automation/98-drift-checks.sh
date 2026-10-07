@@ -3380,9 +3380,16 @@ check_smoke_manifest() {
 }
 
 check_negative_coverage() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py negative-coverage
-    then
+    # Ported to mios-gate per ADR-0021 / T-1009 unit 1; the Python twin is
+    # deleted in the same commit. Parity proved on the real tree: both sides
+    # flagged check_static_linkage identically before the exemption landed,
+    # and both pass after it.
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_negative_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" negative-coverage --root "$ROOT"; then
         echo "[98-drift-checks]   negative test coverage gate: all dispatched checks are covered or exempt"
     else
         _violation "drift checks lacking negative test coverage"

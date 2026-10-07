@@ -29,7 +29,11 @@ fn repo(dir: &Path, toml: &str) {
     fs::create_dir_all(dir.join("usr/share/mios")).unwrap();
     fs::create_dir_all(dir.join("usr/libexec/mios/db")).unwrap();
     fs::create_dir_all(dir.join("tools/native/mios-serve")).unwrap();
-    fs::write(dir.join("tools/native/mios-serve/Cargo.toml"), "[package]\n").unwrap();
+    fs::write(
+        dir.join("tools/native/mios-serve/Cargo.toml"),
+        "[package]\n",
+    )
+    .unwrap();
     fs::write(dir.join("usr/libexec/mios/db/backup.py"), "#!/bin/sh\n").unwrap();
     fs::write(dir.join("usr/share/mios/mios.toml"), toml).unwrap();
     git(dir, &["init", "-q"]);
