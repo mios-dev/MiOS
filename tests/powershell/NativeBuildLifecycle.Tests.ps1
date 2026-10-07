@@ -3,7 +3,7 @@ Describe 'MiOS full install build lifecycle' {
     BeforeAll {
         $source = Join-Path $PSScriptRoot '..\..\build-mios.ps1'
         $ast = [Management.Automation.Language.Parser]::ParseFile($source,[ref]$null,[ref]$null)
-        foreach ($name in @('Resolve-MiosBuilderDistribution','Ensure-MiosBuilder','Invoke-MiosNativeImageBuild','Update-MiosCheckout','Invoke-WslBuild')) {
+        foreach ($name in @('Resolve-MiosBuilderDistribution','Ensure-MiosBuilder','Install-MiosNativeCatalog','Invoke-MiosNativeImageBuild','Install-MiosNativeWindowsArtifact','Update-MiosCheckout','Invoke-WslBuild')) {
             $fn = $ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$false)
             if (-not $fn) { throw "Production function missing: $name" }
             . ([scriptblock]::Create($fn.Extent.Text))
@@ -85,9 +85,9 @@ Describe 'MiOS full install build lifecycle' {
         $result = Invoke-MiosNativeImageBuild $TestDrive 'MiOS-DEV'
         $result | Should -BeOfType ([int])
         $result | Should -Be 23
-        $script:NativeInvocations.Count | Should -Be 3
-        $script:NativeInvocations[2] | Should -Contain 'image-build'
-        $script:NativeInvocations[2] | Should -Contain 'all'
+        $script:NativeInvocations.Count | Should -Be 5
+        $script:NativeInvocations[4] | Should -Contain 'image-build'
+        $script:NativeInvocations[4] | Should -Contain 'all'
     }
     It 'stops before image building when native installation fails' {
         foreach ($file in @('usr\share\mios\mios.toml','Containerfile','.devcontainer\Containerfile','automation\55-native-build.sh')) {
@@ -106,4 +106,54 @@ Describe 'MiOS full install build lifecycle' {
         $script:NativeInvocations[1] | Should -Contain 'bash'
         $script:NativeInvocations[1] | Should -Not -Contain 'image-build'
     }
+    It 'installs only the declared Windows target after checking the staged bytes' {
+        $binaryRoot = Join-Path $TestDrive 'operator source'
+        $release = Join-Path $binaryRoot 'tools/native/target/x86_64-pc-windows-msvc/release/mios-wallpaperd.exe'
+        New-Item -ItemType Directory -Path (Split-Path $release) -Force | Out-Null
+        Set-Content $release 'verified release'
+        $destination = Join-Path $TestDrive 'installed.exe'
+        Set-Content $destination 'previous release'
+        Mock Resolve-MiosBuilderDistribution { 'podman-MiOS-DEV' }
+        Mock wsl.exe { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments)
+            $global:LASTEXITCODE=0
+            $script:NativeInvocations.Add(@($Arguments))
+            if ($Arguments -contains 'wslpath') { return '/tmp/operator source' }
+            if ($Arguments -contains '--section') { return '{"target":"x86_64-pc-windows-msvc"}' }
+            if ($Arguments -contains 'native-artifact-check') { (Get-Content $destination -Raw).Trim() | Should -Be 'previous release' }
+        }
+        Install-MiosNativeWindowsArtifact $binaryRoot 'MiOS-DEV' 'mios-wallpaperd' $destination | Should -Be $destination
+        (Get-Content $destination -Raw).Trim() | Should -Be 'verified release'
+        $script:NativeInvocations[2] | Should -Contain 'native-windows-build'
+        $script:NativeInvocations[4] | Should -Contain 'native-artifact-check'
+    }
+    It 'preserves the installed Windows executable when release lint or build fails' {
+        $destination = Join-Path $TestDrive 'preserved.exe'
+        Set-Content $destination 'operator release'
+        Mock Resolve-MiosBuilderDistribution { 'podman-MiOS-DEV' }
+        Mock wsl.exe { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments)
+            $global:LASTEXITCODE=0
+            if ($Arguments -contains 'wslpath') { return '/tmp/operator source' }
+            if ($Arguments -contains '--section') { return '{"target":"x86_64-pc-windows-msvc"}' }
+            if ($Arguments -contains 'native-windows-build') { $global:LASTEXITCODE=17 }
+        }
+        { Install-MiosNativeWindowsArtifact $TestDrive 'MiOS-DEV' 'mios-wallpaperd' $destination } | Should -Throw '*lint/build/static-artifact*'
+        (Get-Content $destination -Raw).Trim() | Should -Be 'operator release'
+    }
+    It 'preserves the installed Windows executable when its copied artifact is rejected' {
+        $release = Join-Path $TestDrive 'tools/native/target/x86_64-pc-windows-msvc/release/mios-wallpaperd.exe'
+        New-Item -ItemType Directory -Path (Split-Path $release) -Force | Out-Null
+        Set-Content $release 'rejected release'
+        $destination = Join-Path $TestDrive 'preserved.exe'
+        Set-Content $destination 'operator release'
+        Mock Resolve-MiosBuilderDistribution { 'podman-MiOS-DEV' }
+        Mock wsl.exe { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments)
+            $global:LASTEXITCODE=0
+            if ($Arguments -contains 'wslpath') { return '/tmp/operator source' }
+            if ($Arguments -contains '--section') { return '{"target":"x86_64-pc-windows-msvc"}' }
+            if ($Arguments -contains 'native-artifact-check') { $global:LASTEXITCODE=23 }
+        }
+        { Install-MiosNativeWindowsArtifact $TestDrive 'MiOS-DEV' 'mios-wallpaperd' $destination } | Should -Throw '*dependency gate*'
+        (Get-Content $destination -Raw).Trim() | Should -Be 'operator release'
+    }
+
 }
