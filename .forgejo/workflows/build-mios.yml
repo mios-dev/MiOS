@@ -56,6 +56,12 @@ jobs:
             || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages \
             || true
 
+      - name: Build and install the SSOT native catalog
+        run: |
+          set -euo pipefail
+          sudo bash ./automation/55-native-build.sh
+          python3.13 ./usr/libexec/mios/mios-mcp-server --install-native --source-root .
+
       - name: Generated artifacts match the SSOT
         run: |
           bash ./tools/sync-generated.sh
@@ -75,14 +81,6 @@ jobs:
           git clone --depth 1 https://github.com/mios-dev/mios-bootstrap.git \
               "${RUNNER_TEMP}/mios-bootstrap"
           echo "MIOS_BOOTSTRAP_ROOT=${RUNNER_TEMP}/mios-bootstrap" >> "$GITHUB_ENV"
-
-      - name: Build the native gate binaries
-        run: |
-          cd ./tools/native && cargo build -p mios-unit-gen -p mios-agent-relay -p mios-resolver
-          install -Dm0755 target/debug/mios-unit-gen /usr/libexec/mios/mios-unit-gen
-          install -Dm0755 target/debug/mios-agent-relay /usr/libexec/mios/mios-agent-relay
-          cd ../..
-          python3.13 ./usr/libexec/mios/mios-mcp-server --install-native --source-root .
 
       - name: Static analysis tier
         run: bash ./tests/run-suites.sh lint
@@ -111,7 +109,9 @@ jobs:
           set -euo pipefail
           # Build arguments come from /etc/mios/install.env, which the runner
           # Quadlet mounts read-only from the host.
-          BUILD_ARGS=()
+          BASE_IMAGE="$(./usr/libexec/mios/mios-toml-get --vendor image base)"
+          [[ -n "$BASE_IMAGE" ]] || { echo "SSOT image.base is empty" >&2; exit 1; }
+          BUILD_ARGS=(--build-arg "BASE_IMAGE=$BASE_IMAGE")
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env

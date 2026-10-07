@@ -13,7 +13,8 @@ fn run(command: &mut Command, label: &str) -> Result<(), String> {
 }
 
 fn rustc(channel: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("rustc")
+    let output = Command::new("rustup")
+        .args(["run", channel, "rustc"])
         .args(args)
         .env("RUSTUP_TOOLCHAIN", channel)
         .output()
@@ -125,7 +126,8 @@ pub fn build_linux(
                 "[native-build] {verb} {} ({})",
                 selected.binary, selected.category
             );
-            let mut cmd = Command::new("cargo");
+            let mut cmd = Command::new("rustup");
+            cmd.args(["run", channel, "cargo"]);
             cmd.current_dir(root.join(&selected.workspace))
                 .args([
                     verb,
