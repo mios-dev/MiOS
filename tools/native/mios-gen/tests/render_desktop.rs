@@ -126,7 +126,8 @@ fn test_render_desktop_cli_e2e() {
         let _restorer = Restorer::new(&target_desktop);
 
         let original_content = fs::read_to_string(&target_desktop).expect("Read desktop file");
-        let mutated_content = original_content.replace("Name=MiOS Search (SearXNG)", "Name=CorruptedSearXNG");
+        let mutated_content =
+            original_content.replace("Name=MiOS Search (SearXNG)", "Name=CorruptedSearXNG");
         assert_ne!(original_content, mutated_content);
         fs::write(&target_desktop, &mutated_content).expect("Write mutated desktop file");
 
@@ -157,8 +158,11 @@ fn test_render_desktop_cli_e2e() {
     let unmanaged_desktop = root.join("usr/share/applications/mios-unmanaged-rogue-test.desktop");
     {
         let _deleter = FileDeleter::new(&unmanaged_desktop);
-        fs::write(&unmanaged_desktop, "[Desktop Entry]\nName=Rogue\nType=Application\n")
-            .expect("Write unmanaged desktop file");
+        fs::write(
+            &unmanaged_desktop,
+            "[Desktop Entry]\nName=Rogue\nType=Application\n",
+        )
+        .expect("Write unmanaged desktop file");
 
         let output_unmanaged = Command::new(bin())
             .args([

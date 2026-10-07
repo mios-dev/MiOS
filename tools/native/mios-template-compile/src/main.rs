@@ -35,7 +35,12 @@ pub fn resolve_root(cli_root: Option<&Path>) -> PathBuf {
     if let Some(r) = cli_root {
         return r.to_path_buf();
     }
-    for var in &["MIOS_DRIFT_ROOT", "MIOS_ROOT", "MIOS_THEME_ROOT", "MIOS_TOML_ROOT"] {
+    for var in &[
+        "MIOS_DRIFT_ROOT",
+        "MIOS_ROOT",
+        "MIOS_THEME_ROOT",
+        "MIOS_TOML_ROOT",
+    ] {
         if let Ok(val) = env::var(var) {
             let trimmed = val.trim();
             if !trimmed.is_empty() {
@@ -178,8 +183,7 @@ pub fn compile_template(
                 }
                 if let Ok(output) = child.wait_with_output() {
                     if !output.status.success() {
-                        let err_msg =
-                            String::from_utf8_lossy(&output.stderr).trim().to_string();
+                        let err_msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
                         return Some(format!("Bash syntax check failed: {}", err_msg));
                     }
                 }

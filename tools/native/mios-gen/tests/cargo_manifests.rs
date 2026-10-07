@@ -126,7 +126,10 @@ fn test_cargo_manifests_cli_e2e() {
     {
         let _restorer = Restorer::new(&manifest_path);
         let orig = fs::read_to_string(&manifest_path).expect("read Cargo.toml");
-        assert!(orig.contains("version = \"0.3.0\""), "Target version not found");
+        assert!(
+            orig.contains("version = \"0.3.0\""),
+            "Target version not found"
+        );
         let mutated = orig.replace("version = \"0.3.0\"", "version = \"9.9.9\"");
         fs::write(&manifest_path, mutated.as_bytes()).expect("write mutated Cargo.toml");
 

@@ -45,9 +45,14 @@ pub struct TmuxThemeEngine {
 }
 
 pub fn is_remote_terminal() -> bool {
-    ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "MIOS_REMOTE_TERMINAL"]
-        .iter()
-        .any(|k| env::var(k).map(|v| !v.trim().is_empty()).unwrap_or(false))
+    [
+        "SSH_CONNECTION",
+        "SSH_CLIENT",
+        "SSH_TTY",
+        "MIOS_REMOTE_TERMINAL",
+    ]
+    .iter()
+    .any(|k| env::var(k).map(|v| !v.trim().is_empty()).unwrap_or(false))
 }
 
 impl TmuxThemeEngine {
@@ -68,16 +73,27 @@ impl TmuxThemeEngine {
 
         let initial_style = override_style
             .map(|s| s.to_string())
-            .or_else(|| tmux_tbl.get("style").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .or_else(|| {
+                tmux_tbl
+                    .get("style")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
             .unwrap_or_else(|| "rounded".to_string());
 
-        if initial_style != "rounded" && initial_style != "powerline" && initial_style != "minimal" {
+        if initial_style != "rounded" && initial_style != "powerline" && initial_style != "minimal"
+        {
             return Err("[theme.tmux].style must be rounded, powerline or minimal".to_string());
         }
 
         let status_position = override_position
             .map(|s| s.to_string())
-            .or_else(|| tmux_tbl.get("status_position").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .or_else(|| {
+                tmux_tbl
+                    .get("status_position")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
             .unwrap_or_else(|| "bottom".to_string());
 
         if status_position != "top" && status_position != "bottom" {
@@ -100,12 +116,21 @@ impl TmuxThemeEngine {
             .unwrap_or("auto")
             .to_string();
 
-        if status_bg_setting != "auto" && status_bg_setting != "terminal" && status_bg_setting != "theme" {
-            return Err("[theme.tmux].status_background must be auto, terminal or theme".to_string());
+        if status_bg_setting != "auto"
+            && status_bg_setting != "terminal"
+            && status_bg_setting != "theme"
+        {
+            return Err(
+                "[theme.tmux].status_background must be auto, terminal or theme".to_string(),
+            );
         }
 
         let remote = is_remote_terminal();
-        let mode_key = if remote { "remote_glyph_mode" } else { "glyph_mode" };
+        let mode_key = if remote {
+            "remote_glyph_mode"
+        } else {
+            "glyph_mode"
+        };
         let mode = tmux_tbl
             .get(mode_key)
             .and_then(|v| v.as_str())
@@ -125,7 +150,9 @@ impl TmuxThemeEngine {
             .to_string();
 
         let mut final_style = initial_style;
-        if mode == "ascii" || (mode == "auto" && (remote || !font_family.to_lowercase().contains("nerd"))) {
+        if mode == "ascii"
+            || (mode == "auto" && (remote || !font_family.to_lowercase().contains("nerd")))
+        {
             final_style = "minimal".to_string();
         }
 
@@ -170,14 +197,14 @@ impl TmuxThemeEngine {
         // Validate required color keys
         for required in &["bg", "fg", "accent", "cursor", "muted", "subtle", "success"] {
             if !palette.contains_key(*required) {
-                return Err(format!("Missing required color [colors].{required} in mios.toml"));
+                return Err(format!(
+                    "Missing required color [colors].{required} in mios.toml"
+                ));
             }
         }
 
         // Parse [theme.prompt]
-        let prompt_tbl = theme_tbl
-            .get("prompt")
-            .and_then(|v| v.as_table());
+        let prompt_tbl = theme_tbl.get("prompt").and_then(|v| v.as_table());
 
         let powerline_left = prompt_tbl
             .and_then(|p| p.get("powerline_left"))
@@ -204,11 +231,31 @@ impl TmuxThemeEngine {
         };
 
         let icons = IconSettings {
-            icon_os: tmux_tbl.get("icon_os").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            icon_terminal: tmux_tbl.get("icon_terminal").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            icon_time: tmux_tbl.get("icon_time").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            icon_date: tmux_tbl.get("icon_date").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            icon_user: tmux_tbl.get("icon_user").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            icon_os: tmux_tbl
+                .get("icon_os")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            icon_terminal: tmux_tbl
+                .get("icon_terminal")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            icon_time: tmux_tbl
+                .get("icon_time")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            icon_date: tmux_tbl
+                .get("icon_date")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            icon_user: tmux_tbl
+                .get("icon_user")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
         };
 
         Ok(Self {
@@ -230,7 +277,11 @@ impl TmuxThemeEngine {
         let p = &self.palette;
         let bg = &p["bg"];
         let fg = &p["fg"];
-        let pane_bg = if self.pane_background == "terminal" { "default" } else { bg };
+        let pane_bg = if self.pane_background == "terminal" {
+            "default"
+        } else {
+            bg
+        };
         let accent = &p["accent"];
         let cursor = &p["cursor"];
         let muted = &p["muted"];
@@ -315,9 +366,15 @@ impl TmuxThemeEngine {
                 "set -g status-left-length 30".to_string(),
                 format!("set -g status-left \"#[fg={},bold][#S] \"", accent),
                 format!("set -g window-status-format \"#[fg={}]#I:#W\"", muted),
-                format!("set -g window-status-current-format \"#[fg={},bold][#I:#W]\"", cursor),
+                format!(
+                    "set -g window-status-current-format \"#[fg={},bold][#I:#W]\"",
+                    cursor
+                ),
                 "set -g status-right-length 60".to_string(),
-                format!("set -g status-right \"#[fg={}]%Y-%m-%d %H:%M #[fg={},bold]#H\"", subtle, fg),
+                format!(
+                    "set -g status-right \"#[fg={}]%Y-%m-%d %H:%M #[fg={},bold]#H\"",
+                    subtle, fg
+                ),
             ]);
         }
 
@@ -335,7 +392,10 @@ impl TmuxThemeEngine {
         ];
 
         for (_, val) in &substitutions {
-            if val.chars().any(|c| c == '\n' || c == '\r' || c == '\0' || c == '"' || c == '\\') {
+            if val
+                .chars()
+                .any(|c| c == '\n' || c == '\r' || c == '\0' || c == '"' || c == '\\')
+            {
                 return Err("[theme.tmux]/[theme.prompt] unsafe tmux glyph".to_string());
             }
         }

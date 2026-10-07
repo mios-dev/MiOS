@@ -154,7 +154,10 @@ fn test_metal_vs_hosted_json_format() {
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(v["status"], "clean");
     assert_eq!(v["subcommand"], "metal-vs-hosted");
-    assert_eq!(v["target"], "usr/share/doc/mios/reference/metal-vs-hosted.md");
+    assert_eq!(
+        v["target"],
+        "usr/share/doc/mios/reference/metal-vs-hosted.md"
+    );
     assert_eq!(v["violations"], 0);
 }
 

@@ -67,7 +67,9 @@ fn test_pipe_boundaries_cli_e2e() {
         stderr
     );
     assert!(
-        stdout.contains("usr/share/mios/pipe-boundaries.manifest.json matches the tree (108 modules)."),
+        stdout.contains(
+            "usr/share/mios/pipe-boundaries.manifest.json matches the tree (108 modules)."
+        ),
         "Expected success message not found in stdout: {}",
         stdout
     );

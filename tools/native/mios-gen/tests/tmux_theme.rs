@@ -95,7 +95,10 @@ fn test_render_tmux_theme_cli_e2e() {
         .output()
         .expect("Failed to execute mios-gen --format json render-tmux-theme --check");
 
-    assert!(json_output.status.success(), "Expected json check to exit 0");
+    assert!(
+        json_output.status.success(),
+        "Expected json check to exit 0"
+    );
     let json_str = String::from_utf8_lossy(&json_output.stdout);
     assert!(
         json_str.contains("\"status\": \"clean\""),

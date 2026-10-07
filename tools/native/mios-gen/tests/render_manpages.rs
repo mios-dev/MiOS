@@ -132,7 +132,8 @@ fn test_render_manpages_cli_e2e() {
         let _restorer = Restorer::new(&target_manpage);
 
         let original_content = fs::read_to_string(&target_manpage).expect("Read mios.1");
-        let mutated_content = format!("{original_content}\n.PP\nan edit the SSOT does not describe\n");
+        let mutated_content =
+            format!("{original_content}\n.PP\nan edit the SSOT does not describe\n");
         fs::write(&target_manpage, &mutated_content).expect("Write mutated mios.1");
 
         let output_neg = Command::new(bin())
@@ -153,7 +154,8 @@ fn test_render_manpages_cli_e2e() {
             "Expected failure on mutated manpage, but succeeded:\nstdout: {stdout_neg}\nstderr: {stderr_neg}"
         );
         assert!(
-            stderr_neg.contains("man pages out of sync") || stderr_neg.contains("usr/share/man/man1/mios.1"),
+            stderr_neg.contains("man pages out of sync")
+                || stderr_neg.contains("usr/share/man/man1/mios.1"),
             "Expected drift error in stderr, got:\n{stderr_neg}"
         );
     }
@@ -183,7 +185,8 @@ fn test_render_manpages_cli_e2e() {
             "Expected failure on orphan manpage, but succeeded:\nstdout: {stdout_orp}\nstderr: {stderr_orp}"
         );
         assert!(
-            stderr_orp.contains("no verb declares it") || stderr_orp.contains("man pages out of sync"),
+            stderr_orp.contains("no verb declares it")
+                || stderr_orp.contains("man pages out of sync"),
             "Expected orphan error in stderr, got:\n{stderr_orp}"
         );
     }

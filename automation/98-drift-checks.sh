@@ -4236,6 +4236,7 @@ main() {
     check_pipe_extraction_parity
     check_desktop_launchers
     check_tmux_theme
+    check_btop_theme
     check_guacamole_consistency
     check_no_inert_ssot_tables
     check_profile_integrity
@@ -5087,6 +5088,23 @@ check_tmux_theme() {
         _run_py_check check_tmux_theme "usr/libexec/mios/ux/tmux_theme.py --check-fixture $ROOT"
     else
         _violation "mios-gen binary not found; tmux_theme.py was strangler-deleted (ADR-0021)"
+    fi
+}
+check_btop_theme() {
+    echo "[98-drift-checks]   checking btop theme matches SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        if ! out=$(cd "$ROOT" && "$bin" render-btop-theme --root "$ROOT" --check 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "btop theme drifted from SSOT (run 'just sync' or 'mios-gen render-btop-theme --root $ROOT')"
+        fi
+        return
+    fi
+    if [[ -f "$ROOT/usr/libexec/mios/ux/btop_theme.py" ]]; then
+        _run_py_check check_btop_theme "usr/libexec/mios/ux/btop_theme.py --check /etc/btop/themes/mios.theme"
+    else
+        _violation "mios-gen binary not found; btop_theme.py was strangler-deleted (ADR-0021)"
     fi
 }
 

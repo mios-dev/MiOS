@@ -48,12 +48,7 @@ fn test_render_ports_cli_e2e() {
 
     // 1. Positive control: check clean repository
     let output = Command::new(bin())
-        .args([
-            "render-ports",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["render-ports", "--root", &root.to_string_lossy(), "--check"])
         .output()
         .expect("Failed to execute mios-gen render-ports");
 
@@ -73,20 +68,12 @@ fn test_render_ports_cli_e2e() {
 
     // 2. Positive control: --print mode
     let output_print = Command::new(bin())
-        .args([
-            "render-ports",
-            "--root",
-            &root.to_string_lossy(),
-            "--print",
-        ])
+        .args(["render-ports", "--root", &root.to_string_lossy(), "--print"])
         .output()
         .expect("Failed to execute mios-gen render-ports --print");
 
     let stdout_print = String::from_utf8_lossy(&output_print.stdout);
-    assert!(
-        output_print.status.success(),
-        "Expected exit 0 for --print"
-    );
+    assert!(output_print.status.success(), "Expected exit 0 for --print");
     assert!(
         stdout_print.contains("53  adguard_dns"),
         "Expected adguard_dns port in output, got:\n{stdout_print}"
@@ -133,12 +120,7 @@ fn test_render_ports_cli_e2e() {
     fs::write(&toml_path, &mutated_toml).expect("Write mutated mios.toml");
 
     let output_neg = Command::new(bin())
-        .args([
-            "render-ports",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["render-ports", "--root", &root.to_string_lossy(), "--check"])
         .output()
         .expect("Failed to execute mios-gen on mutated tree");
 

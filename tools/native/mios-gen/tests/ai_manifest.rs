@@ -26,12 +26,7 @@ fn test_ai_manifest_render_and_check() {
 
     // 1. Positive check on the clean repository
     let output = Command::new(bin())
-        .args([
-            "ai-manifest",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["ai-manifest", "--root", &root.to_string_lossy(), "--check"])
         .output()
         .expect("Failed to execute mios-gen ai-manifest");
 
@@ -101,12 +96,7 @@ fn test_ai_manifest_render_and_check() {
             .expect("Failed to write drift into manifest.json");
 
         let output_neg = Command::new(bin())
-            .args([
-                "ai-manifest",
-                "--root",
-                &root.to_string_lossy(),
-                "--check",
-            ])
+            .args(["ai-manifest", "--root", &root.to_string_lossy(), "--check"])
             .output()
             .expect("Failed to execute mios-gen ai-manifest");
 

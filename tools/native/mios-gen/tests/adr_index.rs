@@ -144,8 +144,19 @@ fn test_adr_index_negative_ssot_consistency() {
         )
         .unwrap();
 
-        let _ = Command::new(bin()).arg("adr-index").arg("--root").arg(root).output().unwrap();
-        let out = Command::new(bin()).arg("adr-index").arg("--root").arg(root).arg("--check").output().unwrap();
+        let _ = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .output()
+            .unwrap();
+        let out = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .arg("--check")
+            .output()
+            .unwrap();
         assert_eq!(out.status.code(), Some(1));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("ADR-0009: mios.toml missing [meta].mios_version SSOT declaration"));
@@ -164,8 +175,19 @@ fn test_adr_index_negative_ssot_consistency() {
         )
         .unwrap();
 
-        let _ = Command::new(bin()).arg("adr-index").arg("--root").arg(root).output().unwrap();
-        let out = Command::new(bin()).arg("adr-index").arg("--root").arg(root).arg("--check").output().unwrap();
+        let _ = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .output()
+            .unwrap();
+        let out = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .arg("--check")
+            .output()
+            .unwrap();
         assert_eq!(out.status.code(), Some(1));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("ADR-0010: mios.toml missing or empty [dotfiles] table registry"));
@@ -184,8 +206,19 @@ fn test_adr_index_negative_ssot_consistency() {
         )
         .unwrap();
 
-        let _ = Command::new(bin()).arg("adr-index").arg("--root").arg(root).output().unwrap();
-        let out = Command::new(bin()).arg("adr-index").arg("--root").arg(root).arg("--check").output().unwrap();
+        let _ = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .output()
+            .unwrap();
+        let out = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .arg("--check")
+            .output()
+            .unwrap();
         assert_eq!(out.status.code(), Some(1));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("ADR-0003: hardcoded @sha256 digest found in [image].ref"));
@@ -207,8 +240,19 @@ fn test_adr_index_negative_ssot_consistency() {
         .unwrap();
         fs::write(shadow_dir.join("0099-shadow.md"), "# Shadow").unwrap();
 
-        let _ = Command::new(bin()).arg("adr-index").arg("--root").arg(root).output().unwrap();
-        let out = Command::new(bin()).arg("adr-index").arg("--root").arg(root).arg("--check").output().unwrap();
+        let _ = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .output()
+            .unwrap();
+        let out = Command::new(bin())
+            .arg("adr-index")
+            .arg("--root")
+            .arg(root)
+            .arg("--check")
+            .output()
+            .unwrap();
         assert_eq!(out.status.code(), Some(1));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("shadow ADR namespace found outside usr/share/doc/mios/adr"));

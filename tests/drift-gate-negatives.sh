@@ -5321,6 +5321,21 @@ test_tmux_theme() {
     log "check_tmux_theme negative test passed"
 }
 
+test_btop_theme() {
+    log "Testing check_btop_theme"
+    local theme="${ROOT}/etc/btop/themes/mios.theme"
+    [[ -s "$theme" ]] || die "check_btop_theme: etc/btop/themes/mios.theme is missing or empty"
+    local bak; bak="$(mktemp)"; cp "$theme" "$bak"
+    _bt_restore() { cp "$bak" "$theme"; rm -f "$bak"; unset -f _bt_restore; }
+
+    printf '\n# devloop planted mutation\ntheme[main_bg]="#000000"\n' >> "$theme"
+    _neg_gate check_btop_theme && { _bt_restore; die "check_btop_theme passed with a hand-edited mios.theme"; }
+
+    _bt_restore
+    _neg_gate check_btop_theme || die "check_btop_theme failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_btop_theme negative test passed"
+}
+
 test_egress_firewall() {
     log "Testing check_egress_firewall"
     local nft="${ROOT}/usr/share/mios/security/egress.nft"
@@ -5653,6 +5668,7 @@ _run_test test_leaked_fixtures
     _run_test test_egress_firewall
     _run_test test_dotfiles_projection
     _run_test test_tmux_theme
+    _run_test test_btop_theme
     _run_test test_edge_generators
     _run_test test_edge_status
     _run_test test_artifact_prompt

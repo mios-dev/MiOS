@@ -171,7 +171,9 @@ fn test_pod_quadlets_cli_e2e() {
         );
         let orphan_stderr = String::from_utf8_lossy(&orphan_output.stderr);
         assert!(
-            orphan_stderr.contains("DRIFT: un-generated orphan Quadlet unit in SSOT dir: zz-orphan-test.container"),
+            orphan_stderr.contains(
+                "DRIFT: un-generated orphan Quadlet unit in SSOT dir: zz-orphan-test.container"
+            ),
             "stderr should report orphan file: {}",
             orphan_stderr
         );

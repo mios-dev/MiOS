@@ -1,0 +1,5 @@
+```console
+$ mios-gen render-btop-theme --check
+[btop-theme] btop theme matches SSOT
+
+```

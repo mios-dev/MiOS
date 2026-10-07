@@ -288,7 +288,10 @@ pub fn sweep_files(root: &Path) -> Vec<PathBuf> {
             .into_iter()
             .filter_entry(|e| {
                 let name = e.file_name().to_string_lossy();
-                name != ".git" && name != "target" && name != "node_modules" && name != "__pycache__"
+                name != ".git"
+                    && name != "target"
+                    && name != "node_modules"
+                    && name != "__pycache__"
             })
             .filter_map(|e| e.ok())
         {
@@ -315,11 +318,7 @@ pub fn sweep_files(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-pub fn sync_fallbacks(
-    root: &Path,
-    derived: &BTreeMap<String, i64>,
-    apply: bool,
-) -> Vec<String> {
+pub fn sync_fallbacks(root: &Path, derived: &BTreeMap<String, i64>, apply: bool) -> Vec<String> {
     let fallback_re = match Regex::new(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}") {
         Ok(r) => r,
         Err(_) => return Vec::new(),
@@ -367,7 +366,9 @@ pub fn sync_fallbacks(
                 .to_string_lossy()
                 .replace('\\', "/");
             for (key, lit, want) in &changed {
-                problems.push(format!("{rel}: MIOS_PORT_{key} fallback :-{lit} != SSOT {want}"));
+                problems.push(format!(
+                    "{rel}: MIOS_PORT_{key} fallback :-{lit} != SSOT {want}"
+                ));
             }
             if apply {
                 let _ = fs::write(&path, new_text);
@@ -394,7 +395,10 @@ pub fn run_render_ports(
 
     let content = fs::read_to_string(&toml_path).map_err(|e| {
         (
-            format!("render-ports: {} could not be read: {e}", toml_path.display()),
+            format!(
+                "render-ports: {} could not be read: {e}",
+                toml_path.display()
+            ),
             1,
         )
     })?;

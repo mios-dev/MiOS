@@ -1,0 +1,5 @@
+# AI-hint: Trycmd configuration for render-btop-theme golden-master CLI tests (ADR-0021).
+# AI-related: usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, tests/golden/README.md
+
+bin.name = "mios-gen"
+args = ["render-btop-theme"]

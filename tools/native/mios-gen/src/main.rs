@@ -12,11 +12,13 @@ use std::process::ExitCode;
 mod adr_index;
 mod ai_manifest;
 mod bib_configs;
+mod btop_theme;
 mod cargo_manifests;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipe_boundaries;
 mod pipeline_index;
+mod pod_quadlets;
 mod render_desktop;
 mod render_globals;
 mod render_manpages;
@@ -24,7 +26,6 @@ mod render_ports;
 mod roadmap_index;
 mod standardize_docs;
 mod sync_wiki;
-mod pod_quadlets;
 mod tmux_theme;
 
 #[derive(Parser, Debug)]
@@ -229,7 +230,11 @@ enum Commands {
     },
 
     /// Generates machine-readable pipe-boundaries.manifest.json for agent-pipe DI contract
-    #[command(name = "pipe-boundaries", alias = "pipe-boundary-manifest", alias = "pipe-manifest")]
+    #[command(
+        name = "pipe-boundaries",
+        alias = "pipe-boundary-manifest",
+        alias = "pipe-manifest"
+    )]
     PipeBoundaries {
         /// Repository root directory
         #[arg(long)]
@@ -322,6 +327,22 @@ enum Commands {
         /// Status bar screen position (bottom, top)
         #[arg(long, alias = "position")]
         status_position: Option<String>,
+    },
+
+    /// Renders btop system monitor theme (etc/btop/themes/mios.theme) from SSOT
+    #[command(name = "render-btop-theme", aliases = ["btop-theme"])]
+    RenderBtopTheme {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed btop theme matches projection
+        #[arg(long)]
+        check: bool,
+
+        /// Output path for btop theme file
+        #[arg(long, aliases = ["output", "out"])]
+        out: Option<PathBuf>,
     },
 }
 
@@ -952,6 +973,30 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::RenderBtopTheme { root, check, out } => {
+            let r = resolve_root(root);
+            (
+                "render-btop-theme",
+                "etc/btop/themes/mios.theme",
+                match btop_theme::run_render_btop_theme(&r, check, out.as_deref()) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!("[btop-theme] btop theme matches SSOT");
+                            } else {
+                                println!(
+                                    "[btop-theme] SUCCESS: Generated btop theme ({} keys, {} bytes)",
+                                    res.keys_count, res.theme_len
+                                );
+                                println!("  Saved config: {}", res.target.display());
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -994,6 +1039,7 @@ fn main() -> ExitCode {
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
             || msg.starts_with("[tmux-theme]")
+            || msg.starts_with("[btop-theme]")
             || msg.contains("mios-theme.tmux.conf:")
             || msg.contains("ADR SSOT consistency check failed:")
         {

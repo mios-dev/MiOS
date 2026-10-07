@@ -13299,11 +13299,11 @@ replaces = [
   "tools/sync-wiki.py",
   "tools/generate-pod-quadlets.py",
   "usr/libexec/mios/ux/tmux_theme.py",
+  "usr/libexec/mios/ux/btop_theme.py",
 ]
 scope = [
   "tools/generate-*.sh", "tools/generate-*.ps1",
   "usr/libexec/mios/win/*.py",
-  "usr/libexec/mios/ux/btop_theme.py",
   "usr/libexec/mios/ux/fastfetch_gen.py", "usr/libexec/mios/ux/theme_sync.py",
   "usr/libexec/mios/ux/editor_config_gen.py", "usr/libexec/mios/ux/wm_config_gen.py",
 ]

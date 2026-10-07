@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3779,
-  "total_metadata_entries": 3082,
-  "total_hints": 3071,
-  "total_functions_indexed": 1466,
-  "total_related_links": 5096,
+  "total_files_scanned": 3782,
+  "total_metadata_entries": 3084,
+  "total_hints": 3073,
+  "total_functions_indexed": 1465,
+  "total_related_links": 5103,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5744,6 +5744,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/btop-theme/cmd.toml",
+      "hint": "Trycmd configuration for render-btop-theme golden-master CLI tests (ADR-0021).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/cargo-manifests/cmd.toml",
       "hint": "Trycmd configuration for cargo-manifests golden-master CLI tests (AGY-1067 / AGY-1108).",
       "related": [
@@ -9833,6 +9845,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/btop_theme.rs",
+      "hint": "SSOT btop theme renderer mapping exact RGB hex colors from mios.toml [colors] (ADR-0021 gen category).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "etc/btop/themes/mios.theme",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/cargo_manifests.rs",
       "hint": "Native Rust projector for tools/native/Cargo.toml workspace manifest (ADR-0021, Law 14).",
       "related": [
@@ -9934,8 +9959,14 @@
     {
       "path": "tools/native/mios-gen/src/render_globals.rs",
       "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants.",
-      "related": [],
-      "functions": [],
+      "related": [
+        "usr/share/mios/mios.toml",
+        "automation/lib/globals.ps1",
+        "tools/render-globals.py"
+      ],
+      "functions": [
+        "_mios_resolve_version"
+      ],
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
@@ -10058,6 +10089,18 @@
         "tools/native/mios-gen/src/bib_configs.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/btop_theme.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-btop-theme (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/btop_theme.rs",
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10221,11 +10264,11 @@
     },
     {
       "path": "tools/native/mios-gen/tests/roadmap_index.rs",
-      "hint": "Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14).",
+      "hint": "Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14) -- hermetic: every case runs against a fixture copy of ROADMAP.md, because a test that checks the LIVE tree's sync state fails on any mid-edit working copy and duplicates what the drift gate already asserts.",
       "related": [
         "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
-        "tools/roadmap-index.py"
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -27441,22 +27484,6 @@
       "functions": [
         "BiometricLockManager",
         "BiometricSensor",
-        "main"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "usr/libexec/mios/ux/btop_theme.py",
-      "hint": "Btop system monitor theme renderer mapping exact RGB hex colors from mios.toml [colors] SSOT.",
-      "related": [
-        "tests/test-ux.py",
-        "usr/share/mios/mios.toml",
-        "etc/btop/themes/mios.theme"
-      ],
-      "functions": [
-        "BtopThemeRenderer",
         "main"
       ],
       "doc": null,

@@ -125,8 +125,12 @@ main() {
     "$PY" tools/sync-dotfiles.py
     if [ -n "$_gen" ]; then
         "$_gen" render-tmux-theme --write-fixture "$ROOT" >/dev/null
+        "$_gen" render-btop-theme --root "$ROOT" >/dev/null
     else
         "$PY" usr/libexec/mios/ux/tmux_theme.py --write-fixture "$ROOT" >/dev/null
+        if [ -f "usr/libexec/mios/ux/btop_theme.py" ]; then
+            "$PY" usr/libexec/mios/ux/btop_theme.py --render >/dev/null
+        fi
     fi
 
     # 7. WSL host configuration mirror

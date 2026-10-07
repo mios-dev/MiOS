@@ -443,8 +443,7 @@ pub fn generate_roadmap_index(root: &Path) -> Result<(String, String), (String, 
     let userenv_path = root.join("tools/lib/userenv.sh");
     if userenv_path.is_file() {
         if let Ok(txt) = fs::read_to_string(&userenv_path) {
-            let re_userenv =
-                Regex::new(r#"\("([a-zA-Z0-9_.-]+)"\s*,\s*"[A-Z0-9_]+"\)"#).unwrap();
+            let re_userenv = Regex::new(r#"\("([a-zA-Z0-9_.-]+)"\s*,\s*"[A-Z0-9_]+"\)"#).unwrap();
             for caps in re_userenv.captures_iter(&txt) {
                 valid_ssot_keys.insert(caps[1].to_string());
             }
@@ -541,14 +540,8 @@ pub fn generate_roadmap_index(root: &Path) -> Result<(String, String), (String, 
                 HashMap::new()
             };
 
-            let id = parsed_yaml
-                .get("id")
-                .cloned()
-                .unwrap_or(ws_id);
-            let title = parsed_yaml
-                .get("title")
-                .cloned()
-                .unwrap_or(ws_title);
+            let id = parsed_yaml.get("id").cloned().unwrap_or(ws_id);
+            let title = parsed_yaml.get("title").cloned().unwrap_or(ws_title);
 
             let status = if let Some(st) = parsed_yaml.get("status") {
                 st.clone()
@@ -588,10 +581,7 @@ pub fn generate_roadmap_index(root: &Path) -> Result<(String, String), (String, 
                 .get("deps")
                 .map(|v| parse_bracket_list(v))
                 .unwrap_or_default();
-            let acceptance = parsed_yaml
-                .get("acceptance")
-                .cloned()
-                .unwrap_or_default();
+            let acceptance = parsed_yaml.get("acceptance").cloned().unwrap_or_default();
             let theme = parsed_yaml
                 .get("theme")
                 .cloned()
@@ -757,7 +747,11 @@ pub fn generate_roadmap_index(root: &Path) -> Result<(String, String), (String, 
     Ok((file_text, new_text))
 }
 
-pub fn run_roadmap_index(root: &Path, check_mode: bool, json_format: bool) -> Result<(), (String, i32)> {
+pub fn run_roadmap_index(
+    root: &Path,
+    check_mode: bool,
+    json_format: bool,
+) -> Result<(), (String, i32)> {
     let (file_text, new_text) = generate_roadmap_index(root)?;
     let roadmap_path = root.join("ROADMAP.md");
 
@@ -775,8 +769,7 @@ pub fn run_roadmap_index(root: &Path, check_mode: bool, json_format: bool) -> Re
         return Ok(());
     }
 
-    fs::write(&roadmap_path, new_text)
-        .map_err(|e| (format!("Cannot write ROADMAP.md: {e}"), 1))?;
+    fs::write(&roadmap_path, new_text).map_err(|e| (format!("Cannot write ROADMAP.md: {e}"), 1))?;
 
     if !json_format {
         println!(
