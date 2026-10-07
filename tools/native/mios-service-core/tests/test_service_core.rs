@@ -74,7 +74,7 @@ fn test_verify_socket_owner() {
     let sock = dir.path().join("valid.sock");
     File::create(&sock).unwrap();
 
-    assert_eq!(verify_socket_owner(&sock).unwrap(), true);
+    assert!(verify_socket_owner(&sock).unwrap());
 
     let missing = dir.path().join("nonexistent.sock");
     assert!(matches!(
