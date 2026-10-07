@@ -376,6 +376,45 @@ class TestNativeProjectionTools(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("BASE_IMAGE=registry.example/base:stable", marker.read_text())
 
+    def test_fedora_rustup_init_bootstrap_is_required_before_native_build(self):
+        fixture = self.root / "source"
+        script = fixture / "automation/55-native-build.sh"
+        script.parent.mkdir(parents=True)
+        shutil.copyfile(Path(_ROOT, "automation/55-native-build.sh"), script)
+        manifest = fixture / "src/mios-rs/Cargo.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("")
+        for command in ['dirname', 'sed', 'mkdir', 'cp', 'chmod']:
+            (self.bins / command).symlink_to(shutil.which(command))
+        driver = self.root / "native-driver"
+        driver.write_text('#!/bin/sh\ncommand -v rustup >/dev/null || exit 9\necho native-build >> "$BUILD_MARKER"\n')
+        driver.chmod(0o755)
+        self.tool(self.bins, "rustc").write_text('#!/bin/sh\necho "host: fixture-host"\n')
+        self.tool(self.bins, "cargo").write_text(
+            '#!/bin/sh\nprevious=""\nfor value in "$@"; do\n'
+            'if [ "$previous" = --target-dir ]; then output="$value"; fi\nprevious="$value"\ndone\n'
+            'mkdir -p "$output/fixture-host/release"\n'
+            'cp "$NATIVE_DRIVER" "$output/fixture-host/release/miosd"\n')
+        self.tool(self.bins, "rustup-init").write_text(
+            '#!/bin/sh\n[ "$INIT_FAIL" = 1 ] && exit 7\n'
+            'mkdir -p "$CARGO_HOME/bin"\nprintf "#!/bin/sh\\nexit 0\\n" > "$CARGO_HOME/bin/rustup"\n'
+            'chmod +x "$CARGO_HOME/bin/rustup"\necho initialized >> "$BUILD_MARKER"\n')
+        marker = self.root / "build-order"
+        env = dict(os.environ, PATH=str(self.bins), CARGO_HOME=str(self.root / "cargo home"),
+                   CARGO_TARGET_DIR=str(self.root / "output with spaces"), NATIVE_DRIVER=str(driver),
+                   MIOS_NATIVE_INSTALL_ROOT=str(self.root / "installed"), BUILD_MARKER=str(marker))
+        env.pop('MIOS_NATIVE_DEST_DIR', None)
+        for failed in (True, False):
+            env['INIT_FAIL'] = '1' if failed else '0'
+            result = subprocess.run([shutil.which('bash'), str(script)], env=env,
+                                    capture_output=True, text=True, timeout=15)
+            if failed:
+                self.assertEqual(result.returncode, 7, result.stderr)
+                self.assertFalse(marker.exists())
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(marker.read_text().splitlines(), ['initialized','native-build'])
+
     def test_missing_tool_fails_before_any_projection(self):
         result = self.run_shell('main', MIOS_NATIVE_BIN_DIR=str(self.bins))
         self.assertNotEqual(result.returncode, 0)

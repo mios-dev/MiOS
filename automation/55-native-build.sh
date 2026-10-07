@@ -20,6 +20,15 @@ host="$(rustc -vV | sed -n 's/^host: //p')"
 # The native engine builds, lints and verifies every shipped static binary.
 (cd "$ROOT_DIR/src/mios-rs" && RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' \
     cargo build --release --locked -p miosd --target "$host" --target-dir "$target_dir")
+# Fedora's rustup RPM installs rustup-init, not the rustup proxy. Keep the
+# bootstrap compiler on its existing PATH; initialize proxies only after it
+# has produced the management binary. That binary selects the SSOT channel.
+if ! command -v rustup >/dev/null 2>&1; then
+    command -v rustup-init >/dev/null 2>&1 || { echo '[55-native-build] Install the SSOT rustup package (rustup-init is missing).' >&2; exit 1; }
+    rustup-init -y --no-modify-path --profile minimal --default-toolchain none
+    export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+    command -v rustup >/dev/null 2>&1 || { echo '[55-native-build] Rustup initialization did not provide its proxy.' >&2; exit 1; }
+fi
 prefix="${MIOS_NATIVE_INSTALL_ROOT:-}"
 [[ -n "$prefix" ]] || { if [[ "$EUID" -eq 0 ]]; then prefix=/; else prefix="$ROOT_DIR"; fi; }
 exec "$target_dir/$host/release/miosd" native-build --root "$ROOT_DIR" \
