@@ -8350,6 +8350,7 @@ bootstrap_branch    = "main"
 clone_root          = "M:\\MiOS\\repo"
 
 [terminal]
+socket_root         = "/tmp"  # tmux namespaces are private tmux-UID children
 default_action      = "ai"    # the single launcher enters the unified tmux workspace
 start_directory     = "/"     # deployed MiOS root, never the Windows shim directory
 cols                = 80

@@ -43,9 +43,13 @@ else:
     print("")
 print(selected)
 print(d["terminal"]["start_directory"])
+print(d["terminal"]["socket_root"])
 ' "$_mios_action" "${_mios_head:-default}")
-[[ ${#_mios_terminal_config[@]} == 8 ]] || { printf 'mios-terminal: keybinding configuration unresolved\n' >&2; exit 1; }
+[[ ${#_mios_terminal_config[@]} == 9 ]] || { printf 'mios-terminal: keybinding configuration unresolved\n' >&2; exit 1; }
 _mios_action="${_mios_terminal_config[6]}"
+
+export TMUX_TMPDIR="${_mios_terminal_config[8]}"
+/usr/bin/miosd terminal-runtime-check --root / >/dev/null
 
 # One observation window per session, even when multiple SSH clients enter at once.
 _mios_observer_window() (

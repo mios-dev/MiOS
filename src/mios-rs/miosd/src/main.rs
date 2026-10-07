@@ -4,6 +4,7 @@
 #![warn(clippy::unwrap_used, clippy::panic, clippy::todo)]
 
 mod drift;
+mod terminal_runtime;
 
 // AI-related: Containerfile, automation/98-drift-checks.sh
 
@@ -19,6 +20,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Verify or explicitly repair the SSOT tmux namespace without restarting sessions
+    TerminalRuntimeCheck {
+        #[arg(long, default_value = "/")]
+        root: String,
+        #[arg(long)]
+        uid: Option<u32>,
+        #[arg(long)]
+        gid: Option<u32>,
+        #[arg(long)]
+        repair: bool,
+    },
     /// Build, lint, verify and install the SSOT Linux native catalog into an FHS root
     NativeBuild {
         #[arg(long, default_value = ".")]
@@ -1038,6 +1050,20 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
+        }
+        Commands::TerminalRuntimeCheck {
+            root,
+            uid,
+            gid,
+            repair,
+        } => {
+            if let Err(error) =
+                terminal_runtime::run(std::path::Path::new(root), *uid, *gid, *repair)
+            {
+                eprintln!("[miosd] Terminal runtime: {error}");
+                std::process::exit(1);
+            }
+            println!("[miosd] private SSOT tmux namespace verified; repair: {repair}");
         }
         Commands::NativeToolchainCheck { root, lint } => {
             if let Err(error) =
