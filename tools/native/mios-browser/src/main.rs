@@ -104,15 +104,9 @@ pub fn resolve_flags(family: &str, mode: &str, ssot: &Value) -> Vec<String> {
         None => return empty_flags,
     };
 
-    let flag_str = fam_flags
-        .get(mode)
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let flag_str = fam_flags.get(mode).and_then(|v| v.as_str()).unwrap_or("");
 
-    flag_str
-        .split_whitespace()
-        .map(|s| s.to_string())
-        .collect()
+    flag_str.split_whitespace().map(|s| s.to_string()).collect()
 }
 
 /// Resolve candidate browser name from override, SSOT configuration, or PATH discovery.
@@ -233,10 +227,13 @@ fn main() -> ExitCode {
     let ssot = match mios_resolver::resolve_merged(None, false) {
         Ok(val) => val,
         Err(e) => {
-            eprintln!("mios-browser: warning: could not load merged SSOT ({e}); using vendor defaults");
+            eprintln!(
+                "mios-browser: warning: could not load merged SSOT ({e}); using vendor defaults"
+            );
             let (vendor_path, _, _, _, _, _) = mios_resolver::layers::resolve_tier_dirs(None);
             if let Ok(text) = std::fs::read_to_string(&vendor_path) {
-                text.parse::<Value>().unwrap_or_else(|_| Value::Table(toml::Table::new()))
+                text.parse::<Value>()
+                    .unwrap_or_else(|_| Value::Table(toml::Table::new()))
             } else {
                 Value::Table(toml::Table::new())
             }
@@ -321,8 +318,14 @@ private      = "--incognito-mode"
         let ssot = sample_ssot();
         assert_eq!(resolve_family("firefox", &ssot), Some("firefox".into()));
         assert_eq!(resolve_family("zen", &ssot), Some("firefox".into()));
-        assert_eq!(resolve_family("/usr/bin/zen", &ssot), Some("firefox".into()));
-        assert_eq!(resolve_family("google-chrome", &ssot), Some("chromium".into()));
+        assert_eq!(
+            resolve_family("/usr/bin/zen", &ssot),
+            Some("firefox".into())
+        );
+        assert_eq!(
+            resolve_family("google-chrome", &ssot),
+            Some("chromium".into())
+        );
         assert_eq!(resolve_family("brave", &ssot), Some("chromium".into()));
         assert_eq!(resolve_family("epiphany", &ssot), Some("epiphany".into()));
         assert_eq!(resolve_family("unknown-browser", &ssot), None);
@@ -343,25 +346,51 @@ private      = "--incognito-mode"
             .unwrap();
 
         // Plant "super-custom-fox" in firefox family
-        let ff_list = family_table.get_mut("firefox").unwrap().as_array_mut().unwrap();
+        let ff_list = family_table
+            .get_mut("firefox")
+            .unwrap()
+            .as_array_mut()
+            .unwrap();
         ff_list.push(Value::String("super-custom-fox".into()));
 
         // Plant "hyper-chrome" in chromium family
-        let cr_list = family_table.get_mut("chromium").unwrap().as_array_mut().unwrap();
+        let cr_list = family_table
+            .get_mut("chromium")
+            .unwrap()
+            .as_array_mut()
+            .unwrap();
         cr_list.push(Value::String("hyper-chrome".into()));
 
-        assert_eq!(resolve_family("super-custom-fox", &ssot), Some("firefox".into()));
-        assert_eq!(resolve_family("hyper-chrome", &ssot), Some("chromium".into()));
+        assert_eq!(
+            resolve_family("super-custom-fox", &ssot),
+            Some("firefox".into())
+        );
+        assert_eq!(
+            resolve_family("hyper-chrome", &ssot),
+            Some("chromium".into())
+        );
     }
 
     #[test]
     fn test_resolve_flags() {
         let ssot = sample_ssot();
         assert_eq!(resolve_flags("firefox", "tab", &ssot), vec!["--new-tab"]);
-        assert_eq!(resolve_flags("firefox", "private", &ssot), vec!["--private-window"]);
-        assert_eq!(resolve_flags("chromium", "tab", &ssot), Vec::<String>::new());
-        assert_eq!(resolve_flags("chromium", "private", &ssot), vec!["--incognito"]);
-        assert_eq!(resolve_flags("epiphany", "private", &ssot), vec!["--incognito-mode"]);
+        assert_eq!(
+            resolve_flags("firefox", "private", &ssot),
+            vec!["--private-window"]
+        );
+        assert_eq!(
+            resolve_flags("chromium", "tab", &ssot),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            resolve_flags("chromium", "private", &ssot),
+            vec!["--incognito"]
+        );
+        assert_eq!(
+            resolve_flags("epiphany", "private", &ssot),
+            vec!["--incognito-mode"]
+        );
     }
 
     #[test]
@@ -404,6 +433,9 @@ private      = "--incognito-mode"
         assert_eq!(cmd.family, "chromium");
         assert_eq!(cmd.mode, "private");
         assert_eq!(cmd.flags, vec!["--incognito"]);
-        assert_eq!(cmd.command, vec!["chrome", "--incognito", "https://example.org"]);
+        assert_eq!(
+            cmd.command,
+            vec!["chrome", "--incognito", "https://example.org"]
+        );
     }
 }

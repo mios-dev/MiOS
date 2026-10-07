@@ -15,11 +15,7 @@ fn get_section<'a>(data: &'a Value, path: &str) -> Option<&'a toml::Table> {
     for part in path.split('.') {
         match current {
             Value::Table(t) => {
-                if let Some(next) = t.get(part) {
-                    current = next;
-                } else {
-                    return None;
-                }
+                current = t.get(part)?;
             }
             _ => return None,
         }

@@ -14,6 +14,7 @@ mod ai_manifest;
 mod bib_configs;
 mod btop_theme;
 mod cargo_manifests;
+mod fastfetch;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipe_boundaries;
@@ -26,6 +27,7 @@ mod render_ports;
 mod roadmap_index;
 mod standardize_docs;
 mod sync_wiki;
+mod tmux_runtime;
 mod tmux_theme;
 
 #[derive(Parser, Debug)]
@@ -320,6 +322,10 @@ enum Commands {
         #[arg(long, aliases = ["output", "out"])]
         out: Option<PathBuf>,
 
+        /// Project layered (vendor < host < user) tmux.conf + mios.omp.json into a private DIRECTORY
+        #[arg(long, value_name = "DIRECTORY", conflicts_with_all = ["check", "check_fixture", "write_fixture", "out"])]
+        runtime: Option<PathBuf>,
+
         /// Visual styling format for status line segments (powerline, rounded, minimal)
         #[arg(long)]
         style: Option<String>,
@@ -343,6 +349,38 @@ enum Commands {
         /// Output path for btop theme file
         #[arg(long, aliases = ["output", "out"])]
         out: Option<PathBuf>,
+    },
+
+    /// Renders Fastfetch system banner JSONC configuration from host/AI metadata
+    #[command(name = "render-fastfetch", aliases = ["fastfetch", "fastfetch-gen"])]
+    RenderFastfetch {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify target configuration matches projection without modifying it
+        #[arg(long)]
+        check: bool,
+
+        /// Output path for config.jsonc file
+        #[arg(long, aliases = ["output", "out"])]
+        out: Option<PathBuf>,
+
+        /// Fastfetch logo display type (small, auto, none, raw)
+        #[arg(long, default_value = "small")]
+        logo_type: String,
+
+        /// Deterministic mock execution for testing and CI
+        #[arg(long)]
+        mock: bool,
+
+        /// Simulate execution without writing files
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Generate configuration (alias for default execution)
+        #[arg(long)]
+        generate: bool,
     },
 }
 
@@ -932,46 +970,63 @@ fn main() -> ExitCode {
             check_fixture,
             write_fixture,
             out,
+            runtime,
             style,
             status_position,
         } => {
-            let (effective_root, is_check) = if let Some(cf) = check_fixture {
-                (cf, true)
-            } else if let Some(wf) = write_fixture {
-                (wf, false)
+            if let Some(dir) = runtime {
+                let r = resolve_root(root);
+                (
+                    "render-tmux-theme",
+                    "usr/share/mios/tmux/mios-theme.tmux.conf",
+                    match tmux_runtime::project_runtime(&r, &dir) {
+                        // Silent on success: callers run this from login shells.
+                        Ok(_) => Ok(()),
+                        Err(msg) => Err((msg, 1)),
+                    },
+                )
             } else {
-                (resolve_root(root), check)
-            };
+                let (effective_root, is_check) = if let Some(cf) = check_fixture {
+                    (cf, true)
+                } else if let Some(wf) = write_fixture {
+                    (wf, false)
+                } else {
+                    (resolve_root(root), check)
+                };
 
-            (
-                "render-tmux-theme",
-                "usr/share/mios/tmux/mios-theme.tmux.conf",
-                match tmux_theme::run_render_tmux_theme(
-                    &effective_root,
-                    is_check,
-                    style.as_deref(),
-                    status_position.as_deref(),
-                    out.as_deref(),
-                ) {
-                    Ok(res) => {
-                        if cli.format != "json" {
-                            if is_check {
-                                println!("[tmux-theme] tmux theme matches SSOT ({})", res.style);
-                            } else {
-                                println!(
+                (
+                    "render-tmux-theme",
+                    "usr/share/mios/tmux/mios-theme.tmux.conf",
+                    match tmux_theme::run_render_tmux_theme(
+                        &effective_root,
+                        is_check,
+                        style.as_deref(),
+                        status_position.as_deref(),
+                        out.as_deref(),
+                    ) {
+                        Ok(res) => {
+                            if cli.format != "json" {
+                                if is_check {
+                                    println!(
+                                        "[tmux-theme] tmux theme matches SSOT ({})",
+                                        res.style
+                                    );
+                                } else {
+                                    println!(
                                     "[tmux-theme] SUCCESS: Generated tmux theme ({} lines) style '{}'",
                                     res.config_lines, res.style
                                 );
-                                if let Some(p) = res.output_path {
-                                    println!("  Saved config: {}", p.display());
+                                    if let Some(p) = res.output_path {
+                                        println!("  Saved config: {}", p.display());
+                                    }
                                 }
                             }
+                            Ok(())
                         }
-                        Ok(())
-                    }
-                    Err(msg) => Err((msg, 1)),
-                },
-            )
+                        Err(msg) => Err((msg, 1)),
+                    },
+                )
+            }
         }
         Commands::RenderBtopTheme { root, check, out } => {
             let r = resolve_root(root);
@@ -989,6 +1044,47 @@ fn main() -> ExitCode {
                                     res.keys_count, res.theme_len
                                 );
                                 println!("  Saved config: {}", res.target.display());
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
+        Commands::RenderFastfetch {
+            root,
+            check,
+            out,
+            logo_type,
+            mock,
+            dry_run,
+            generate: _,
+        } => {
+            let r = resolve_root(root);
+            (
+                "render-fastfetch",
+                fastfetch::FASTFETCH_FIXTURE,
+                match fastfetch::run_render_fastfetch(
+                    &r,
+                    check,
+                    out.as_deref(),
+                    Some(&logo_type),
+                    mock,
+                    dry_run,
+                ) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!("[fastfetch] fastfetch configuration matches projection");
+                            } else {
+                                println!(
+                                    "[fastfetch] SUCCESS: Generated Fastfetch config ({} lines, {} bytes)",
+                                    res.lines_count, res.jsonc_len
+                                );
+                                if let Some(target) = &res.target {
+                                    println!("  Saved config: {}", target.display());
+                                }
                             }
                         }
                         Ok(())
@@ -1040,6 +1136,8 @@ fn main() -> ExitCode {
             || msg.starts_with("man page validation failed")
             || msg.starts_with("[tmux-theme]")
             || msg.starts_with("[btop-theme]")
+            || msg.starts_with("[fastfetch]")
+            || msg.starts_with("fastfetch")
             || msg.contains("mios-theme.tmux.conf:")
             || msg.contains("ADR SSOT consistency check failed:")
         {

@@ -104,7 +104,10 @@ fn test_socket_candidates_discovery() {
         let _ = std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700));
     }
     #[cfg(unix)]
-    let root = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+    let root = dir
+        .path()
+        .canonicalize()
+        .unwrap_or_else(|_| dir.path().to_path_buf());
     #[cfg(not(unix))]
     let root = dir.path().to_path_buf();
 
@@ -138,7 +141,10 @@ fn test_validate_workspace_socket() {
         let _ = std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700));
     }
     #[cfg(unix)]
-    let root = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+    let root = dir
+        .path()
+        .canonicalize()
+        .unwrap_or_else(|_| dir.path().to_path_buf());
     #[cfg(not(unix))]
     let root = dir.path().to_path_buf();
 

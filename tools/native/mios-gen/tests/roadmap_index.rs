@@ -29,11 +29,8 @@ fn fixture_root() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("Failed to create fixture tempdir");
     let repo = get_repo_root();
 
-    fs::copy(
-        repo.join("ROADMAP.md"),
-        dir.path().join("ROADMAP.md"),
-    )
-    .expect("Failed to write fixture ROADMAP.md");
+    fs::copy(repo.join("ROADMAP.md"), dir.path().join("ROADMAP.md"))
+        .expect("Failed to write fixture ROADMAP.md");
 
     let ssot_dest = dir.path().join("usr/share/mios");
     fs::create_dir_all(&ssot_dest).expect("Failed to create fixture SSOT dir");

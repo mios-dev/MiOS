@@ -1,0 +1,6 @@
+```console
+$ mios-gen render-fastfetch --check
+? 1
+Error: generate-render-fastfetch: fastfetch --check requires --out <artifact> to verify; nothing was compared
+
+```

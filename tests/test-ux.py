@@ -585,6 +585,66 @@ class ecg_TestEditorConfigGen(unittest.TestCase):
         self.assertTrue(check_res["local_endpoint"])
         self.assertFalse(check_res["cloud_keys_detected"])
 
+    def check_real_config(self, content):
+        with patch.object(editor_config_gen, "mios_toml", None):
+            gen = editor_config_gen.EditorConfigGen()
+        with tempfile.TemporaryDirectory(prefix="mios-editor-check-") as tmp:
+            path = os.path.join(tmp, "settings.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(content, fh)
+            return gen.check(path)
+
+    def test_check_accepts_all_generated_routes(self):
+        with patch.object(editor_config_gen, "mios_toml", None):
+            gen = editor_config_gen.EditorConfigGen()
+        for config in (gen.render_vscode_settings(), gen.render_cursor_settings(),
+                       gen.render_continue_config()):
+            with self.subTest(config=config):
+                self.assertEqual(self.check_real_config(config)["status"], "compliant")
+
+    def test_check_rejects_each_unapproved_endpoint(self):
+        for endpoint in ("https://unapproved.invalid/v1", "http://localhost.evil.invalid/v1",
+                         "http://localhost:9999/v1", "http://localhost:8700/v1?forward=external",
+                         "http://user:pass@localhost:8700/v1", "not-a-url", 8700):
+            with self.subTest(endpoint=endpoint):
+                result = self.check_real_config({
+                    "openai.apiBase": "http://localhost:8700/v1",
+                    "models": [{"apiBase": endpoint}],
+                })
+                self.assertEqual(result["status"], "non-compliant")
+                self.assertFalse(result["local_endpoint"])
+                self.assertEqual(result["invalid_endpoint_fields"], ["models[0].apiBase"])
+
+    def test_check_localhost_in_prose_is_not_an_endpoint(self):
+        result = self.check_real_config({"description": "connect to localhost"})
+        self.assertEqual(result["status"], "non-compliant")
+        self.assertFalse(result["local_endpoint"])
+
+    def test_check_local_placeholder_key_is_allowed(self):
+        result = self.check_real_config({
+            "openai.apiBase": "http://localhost:8700/v1",
+            "openai.apiKey": "sk-local-fixture",
+        })
+        self.assertEqual(result["status"], "compliant")
+        self.assertFalse(result["cloud_keys_detected"])
+
+    def test_check_rejects_credential_without_echoing_it(self):
+        key = "sk-" + "synthetic-cloud-fixture"
+        result = self.check_real_config({
+            "openai.apiBase": "http://localhost:8700/v1", "openai.apiKey": key,
+        })
+        self.assertEqual(result["status"], "non-compliant")
+        self.assertTrue(result["cloud_keys_detected"])
+        self.assertNotIn(key, json.dumps(result))
+
+    def test_check_ignores_unrelated_schema_and_prose(self):
+        result = self.check_real_config({
+            "openai.apiBase": "http://localhost:8700/v1",
+            "$schema": "https://schemas.invalid/editor.json",
+            "description": "Use a sk-local placeholder for localhost",
+        })
+        self.assertEqual(result["status"], "compliant")
+
     def test_cli_generate_all_mock(self):
         test_args = ["editor_config_gen.py", "--generate", "--target", "all", "--mock", "--json"]
         with patch.object(sys, "argv", test_args):
@@ -626,14 +686,18 @@ fg__HERE = os.path.dirname(os.path.abspath(__file__))
 fg__ROOT = os.path.normpath(os.path.join(fg__HERE, ".."))
 fg__TARGET_PATH = os.path.join(fg__ROOT, "usr", "libexec", "mios", "ux", "fastfetch_gen.py")
 
-fg_spec = importlib.util.spec_from_file_location("fastfetch_gen", fg__TARGET_PATH)
-if fg_spec and fg_spec.loader:
-    fastfetch_gen = importlib.util.module_from_spec(fg_spec)
-    sys.modules[fg_spec.name] = fastfetch_gen
-    fg_spec.loader.exec_module(fastfetch_gen)
+if os.path.isfile(fg__TARGET_PATH):
+    fg_spec = importlib.util.spec_from_file_location("fastfetch_gen", fg__TARGET_PATH)
+    if fg_spec and fg_spec.loader:
+        fastfetch_gen = importlib.util.module_from_spec(fg_spec)
+        sys.modules[fg_spec.name] = fastfetch_gen
+        fg_spec.loader.exec_module(fastfetch_gen)
+    else:
+        fastfetch_gen = None
 else:
-    raise ImportError(f"Could not load module from {fg__TARGET_PATH}")
+    fastfetch_gen = None
 
+@unittest.skipIf(fastfetch_gen is None, "fastfetch_gen.py was strangler-deleted (ported to native mios-gen render-fastfetch)")
 class fg_TestFastfetchGen(unittest.TestCase):
     """Test suite for Fastfetch JSONC configuration and hardware/AI module generation."""
 
@@ -2209,7 +2273,8 @@ class wcg_TestWmConfigGen(unittest.TestCase):
             self.assertNotIn("sway/config", err.getvalue())
             with patch.object(sys, "argv", ["wm_config_gen.py", "--write-fixture", tmp]):
                 self.assertEqual(wm_config_gen.main(), 0)
-            self.assertEqual(os.stat(conf).st_mode & 0o777, 0o640)
+            if os.name != "nt":
+                self.assertEqual(os.stat(conf).st_mode & 0o777, 0o640)
             os.unlink(os.path.join(tmp, "usr/share/mios/sway/config"))
             with contextlib.redirect_stderr(io.StringIO()) as err2:
                 self.assertEqual(wm_config_gen.check_fixture(tmp), 1)

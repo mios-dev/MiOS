@@ -106,10 +106,7 @@ pub fn require_port(key: &str) -> Result<u16, ConfigError> {
     let env_var_name = if key.starts_with("MIOS_PORT_") {
         key.to_string()
     } else {
-        format!(
-            "MIOS_PORT_{}",
-            key.to_uppercase().replace(['.', '-'], "_")
-        )
+        format!("MIOS_PORT_{}", key.to_uppercase().replace(['.', '-'], "_"))
     };
     if let Ok(val) = std::env::var(&env_var_name) {
         if !val.trim().is_empty() {
@@ -178,10 +175,7 @@ pub fn require_port(key: &str) -> Result<u16, ConfigError> {
 
 /// Resolves a string configuration value from environment or dotted TOML path.
 pub fn require_str(key: &str) -> Result<String, ConfigError> {
-    let env_var = format!(
-        "MIOS_{}",
-        key.to_uppercase().replace(['.', '-'], "_")
-    );
+    let env_var = format!("MIOS_{}", key.to_uppercase().replace(['.', '-'], "_"));
     if let Ok(v) = std::env::var(&env_var) {
         if !v.is_empty() {
             return Ok(v);

@@ -370,8 +370,22 @@ def main() -> int:
     parser.add_argument("--mock", action="store_true", help="Deterministic mock execution for CI")
     parser.add_argument("--json", action="store_true", help="Format output as JSON dictionary")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--render-prompt", action="store_true",
+                        help="Print the layered Oh My Posh prompt JSON to stdout (used by mios-gen render-tmux-theme --runtime)")
+    parser.add_argument("--remote", action="store_true", help="With --render-prompt: render the remote-terminal glyph mode")
 
     args = parser.parse_args()
+
+    if args.render_prompt:
+        try:
+            if mios_toml is None:
+                raise RuntimeError("mios_toml unavailable")
+            mios_toml.clear_cache()
+            sys.stdout.write(render_prompt(mios_toml.load_merged(), remote=args.remote))
+            return 0
+        except Exception as e:  # noqa: BLE001 -- report and fail closed for the caller
+            print(f"[theme_sync] ERROR: {e}", file=sys.stderr)
+            return 1
 
     engine = ThemeSyncEngine(
         target=args.target,

@@ -704,12 +704,14 @@ class _TmuxBridge:
             os.chmod(self.socket_dir.name, 0o700)
             self.directory = tempfile.TemporaryDirectory(prefix="mios-tmux-", dir=base)
             os.chmod(self.directory.name, 0o700)
-            theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ux", "tmux_theme.py")
-            loader = importlib.machinery.SourceFileLoader("mios_mcp_terminal_theme", theme_path)
-            spec = importlib.util.spec_from_loader(loader.name, loader)
-            theme = importlib.util.module_from_spec(spec)
-            loader.exec_module(theme)
-            await asyncio.to_thread(theme.project_runtime, self.directory.name)
+            projector = os.environ.get("MIOS_GEN") or os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "mios-gen")
+            if not os.path.isfile(projector):
+                projector = "/usr/libexec/mios/mios-gen"
+            await asyncio.to_thread(
+                subprocess.run,
+                [projector, "render-tmux-theme", "--runtime", self.directory.name],
+                check=True, capture_output=True, text=True, timeout=60)
             # No inherited API keys, shell startup hooks, TMUX or paste buffers.
             self.env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL") if k in os.environ}
             self.env.update({"HOME": self.directory.name, "TMUX_TMPDIR": self.socket_dir.name,
@@ -1873,7 +1875,7 @@ def _install_native(source_root, target_root):
     temporary.replace(binary)
     runtime_files = (
         "usr/libexec/mios/mios-mcp-server", "usr/lib/mios/mios_toml.py", "usr/lib/mios/mios_agent_tui.py", "usr/share/mios/mios.toml",
-        "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/mios-dotfiles-render",
+        "usr/libexec/mios/ux/theme_sync.py", "usr/libexec/mios/mios-dotfiles-render",
         "usr/libexec/mios/mios-terminal", "usr/libexec/mios/mios-ai-terminal",
         "usr/libexec/mios/mios-mon.py", "usr/bin/mios",
         "etc/profile.d/mios-prompt.sh", "etc/tmux.conf", "etc/dconf/db/local.d/10-mios-keybindings",
