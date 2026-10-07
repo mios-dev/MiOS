@@ -1,0 +1,5 @@
+```console
+$ mios-template-compile --check
+[compile-templates] PASS: All 30 templates compiled/validated successfully.
+
+```

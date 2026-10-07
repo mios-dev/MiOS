@@ -1687,9 +1687,11 @@ dependencies = [
 name = "mios-template-compile"
 version = "0.3.0"
 dependencies = [
+ "clap",
  "serde",
  "serde_json",
  "serde_yaml",
+ "tempfile",
  "toml",
 ]
 

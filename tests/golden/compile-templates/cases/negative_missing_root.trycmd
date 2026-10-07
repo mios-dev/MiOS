@@ -1,0 +1,6 @@
+```console
+$ mios-template-compile --check --root [CWD]/nonexistent
+? 1
+[compile-templates] Templates directory not found: [..]nonexistent[..]usr[..]share[..]mios[..]templates
+
+```

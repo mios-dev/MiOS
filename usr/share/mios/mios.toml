@@ -13287,10 +13287,11 @@ replaces = [
   "tools/render-globals.py",
   "tools/generate-bib-configs.py",
   "tools/generate-cargo-manifests.py",
+  "tools/compile-templates.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
-  "tools/gen-*.py", "tools/compile-templates.py",
+  "tools/gen-*.py",
   "tools/standardize-docs.py", "tools/sync-wiki.py",
   "usr/libexec/mios/win/*.py",
   "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",

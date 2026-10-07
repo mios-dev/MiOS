@@ -1711,6 +1711,17 @@ check_coordination_hygiene() {
 }
 
 check_templates_compilation() {
+    local bin; bin="$(native_bin mios-template-compile)" || true
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        if ! "$bin" --root "$ROOT" --check >/dev/null; then
+            "$bin" --root "$ROOT" --check >&2
+            _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
+        else
+            echo "[98-drift-checks]   all templates compile and validate successfully"
+        fi
+        return
+    fi
+
     local python_exe
     if command -v py &>/dev/null; then
         python_exe=py
@@ -1720,13 +1731,18 @@ check_templates_compilation() {
         python_exe=python
     fi
 
-    if ! "$python_exe" "$ROOT/tools/compile-templates.py" >/dev/null; then
-        "$python_exe" "$ROOT/tools/compile-templates.py" >&2
-        _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
+    if [[ -f "$ROOT/tools/compile-templates.py" ]]; then
+        if ! "$python_exe" "$ROOT/tools/compile-templates.py" >/dev/null; then
+            "$python_exe" "$ROOT/tools/compile-templates.py" >&2
+            _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
+        else
+            echo "[98-drift-checks]   all templates compile and validate successfully"
+        fi
     else
-        echo "[98-drift-checks]   all templates compile and validate successfully"
+        _violation "neither mios-template-compile nor tools/compile-templates.py is available"
     fi
 }
+
 
 check_impossible_eol_regressions() {
     local bad=""

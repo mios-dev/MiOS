@@ -4,7 +4,6 @@ tools/ascii-sweep.py
 tools/audit-image-provisioning.py
 tools/check-resolver-twin.py
 tools/compile-dashboard-binary.py
-tools/compile-templates.py
 tools/gen-pipe-boundary-manifest.py
 tools/generate-bib-configs.py
 tools/generate-cosign-policy.py

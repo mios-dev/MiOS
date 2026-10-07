@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3756,
-  "total_metadata_entries": 3067,
-  "total_hints": 3056,
-  "total_functions_indexed": 1466,
-  "total_related_links": 5043,
+  "total_files_scanned": 3759,
+  "total_metadata_entries": 3068,
+  "total_hints": 3057,
+  "total_functions_indexed": 1464,
+  "total_related_links": 5048,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5701,6 +5701,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/compile-templates/cmd.toml",
+      "hint": "Trycmd configuration for compile-templates golden-master CLI tests (AGY-1067 / AGY-1109).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/cosign-policy/cmd.toml",
       "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
       "related": [
@@ -9023,20 +9035,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/compile-templates.py",
-      "hint": "Golden round-trip compiler for templates -- verifies all templates parse cleanly.",
-      "related": [
-        "usr/share/mios/templates/"
-      ],
-      "functions": [
-        "main",
-        "compile_template"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/configure-xbox-cpu.sh",
       "hint": "Automates the extraction, manual editing, and application of specific CPU pinning and host-passthrough XML configurations for the \"Xbox\" Libvirt VM.",
       "related": [],
@@ -10766,13 +10764,27 @@
     },
     {
       "path": "tools/native/mios-template-compile/src/main.rs",
-      "hint": "Native Rust golden round-trip compiler for templates.",
+      "hint": "Native Rust golden round-trip compiler for templates (ADR-0021, Law 14).",
       "related": [
         "/usr/share/mios/templates/",
-        "/usr/share/mios/mios.toml"
+        "/usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
-      "doc": null,
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-template-compile/tests/compile_templates.rs",
+      "hint": "Two-sided integration test suite for mios-template-compile (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-template-compile/src/main.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
