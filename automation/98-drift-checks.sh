@@ -3859,12 +3859,19 @@ check_ports_category_schema() {
 
 check_globals_generated() {
     echo "[98-drift-checks]   checking generated globals resolvers match SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
     local out
-
-    # shellcheck disable=SC2046
-    if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-globals.py --check 2>&1); then
-        printf '%s\n' "$out" | head -n 10 >&2
-        _violation "automation/lib/globals.{sh,ps1} are stale -- they are GENERATED IN FULL from mios.toml; run tools/render-globals.py (never hand-edit them)"
+    if [[ -n "$bin" ]]; then
+        if ! out=$( "$bin" render-globals --root "$ROOT" --check 2>&1 ); then
+            printf '%s\n' "$out" | head -n 10 >&2
+            _violation "automation/lib/globals.{sh,ps1} are stale -- they are GENERATED IN FULL from mios.toml; run mios-gen render-globals (never hand-edit them)"
+        fi
+    else
+        # shellcheck disable=SC2046
+        if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-globals.py --check 2>&1); then
+            printf '%s\n' "$out" | head -n 10 >&2
+            _violation "automation/lib/globals.{sh,ps1} are stale -- they are GENERATED IN FULL from mios.toml; run tools/render-globals.py (never hand-edit them)"
+        fi
     fi
 }
 

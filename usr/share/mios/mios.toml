@@ -2331,7 +2331,7 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-ai-metadata.py", check = "check_ai_metadata_fresh", output = "usr/share/mios/ai/v1/metadata.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
-  { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_adr_index", output = "ADR.md" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_roadmap_index", output = "ROADMAP.md" },
@@ -13284,10 +13284,11 @@ replaces = [
   "tools/render-ports.py",
   "tools/render-desktop.py",
   "tools/render-manpages.py",
+  "tools/render-globals.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
-  "tools/render-*.py", "tools/gen-*.py", "tools/compile-templates.py",
+  "tools/gen-*.py", "tools/compile-templates.py",
   "tools/standardize-docs.py", "tools/sync-wiki.py",
   "usr/libexec/mios/win/*.py",
   "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",

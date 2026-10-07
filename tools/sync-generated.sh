@@ -98,7 +98,11 @@ main() {
 
     # 3. System-wide environment globals and constants
     step "3/23 [globals.projection] render shell and powershell constants"
-    "$PY" tools/render-globals.py
+    if [ -n "$_gen" ]; then
+        "$_gen" render-globals --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/render-globals.py
+    fi
 
     # 4. Freedesktop application entries
     step "4/23 [desktop.projection] render desktop application entries"

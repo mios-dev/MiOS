@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3746,
-  "total_metadata_entries": 3063,
-  "total_hints": 3052,
+  "total_files_scanned": 3749,
+  "total_metadata_entries": 3064,
+  "total_hints": 3053,
   "total_functions_indexed": 1468,
-  "total_related_links": 5022,
+  "total_related_links": 5027,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5749,6 +5749,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/render-globals/cmd.toml",
+      "hint": "Trycmd configuration for render-globals golden-master CLI tests (AGY-1067 / AGY-1106).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/render-manpages/cmd.toml",
       "hint": "Trycmd configuration for render-manpages golden-master CLI tests (AGY-1067 / AGY-1105).",
       "related": [
@@ -9774,6 +9786,15 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/render_globals.rs",
+      "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/render_manpages.rs",
       "hint": "Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).",
       "related": [
@@ -9907,6 +9928,19 @@
       "hint": "Two-sided integration test suite for mios-gen render-desktop (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/render_desktop.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/render_globals.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-globals (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/render_globals.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
@@ -10966,15 +11000,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/render-globals.py",
-      "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/rtx4090-vfio-configurator.sh",
       "hint": "Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passth...",
       "related": [],
@@ -11205,15 +11230,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_render_globals.py",
-      "hint": "Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
       "has_shebang": true
     },

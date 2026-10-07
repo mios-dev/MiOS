@@ -15,6 +15,7 @@ mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
 mod render_desktop;
+mod render_globals;
 mod render_manpages;
 mod render_ports;
 mod roadmap_index;
@@ -164,6 +165,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed .desktop files are in sync without modifying them
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates automation/lib/globals.sh and globals.ps1 from mios.toml SSOT
+    #[command(name = "render-globals", alias = "globals")]
+    RenderGlobals {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed globals.sh and globals.ps1 match SSOT without modifying them
         #[arg(long)]
         check: bool,
     },
@@ -563,6 +576,22 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::RenderGlobals { root, check } => {
+            let r = resolve_root(root);
+            (
+                "render-globals",
+                "automation/lib/globals.{sh,ps1}",
+                match render_globals::run_render_globals(&r, check) {
+                    Ok((msg, _)) => {
+                        if cli.format != "json" && !msg.is_empty() {
+                            println!("{msg}");
+                        }
+                        Ok(())
+                    }
+                    Err((msg, code)) => Err((msg, code)),
+                },
+            )
+        }
         Commands::RenderManpages {
             root,
             check,
@@ -614,6 +643,7 @@ fn main() -> ExitCode {
             || msg.starts_with("generate-metal-vs-hosted:")
             || msg.starts_with("[render-ports]")
             || msg.starts_with("[render-desktop]")
+            || msg.starts_with("[render-globals]")
             || msg.starts_with("[render-manpages]")
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
