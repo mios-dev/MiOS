@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3749,
-  "total_metadata_entries": 3064,
-  "total_hints": 3053,
-  "total_functions_indexed": 1468,
-  "total_related_links": 5027,
+  "total_files_scanned": 3753,
+  "total_metadata_entries": 3066,
+  "total_hints": 3055,
+  "total_functions_indexed": 1466,
+  "total_related_links": 5035,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5677,6 +5677,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/bib-configs/cmd.toml",
+      "hint": "Trycmd configuration for bib-configs golden-master CLI tests (AGY-1067 / AGY-1107).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/cosign-policy/cmd.toml",
       "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
       "related": [
@@ -9129,18 +9141,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-bib-configs.py",
-      "hint": "MiOS system and orchestration module providing generate-bib-configs capabilities.",
-      "related": [],
-      "functions": [
-        "main",
-        "_rendered"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-cargo-manifests.py",
       "hint": "Generator that projects tools/native/Cargo.toml -- members enumerated from the crate directories, version from mios.toml [meta].mios_version SSOT.",
       "related": [],
@@ -9722,6 +9722,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/bib_configs.rs",
+      "hint": "Native Rust projector for BIB artifact filesystem configurations (config/artifacts/*.toml).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "config/artifacts/bib.toml",
+        "config/artifacts/iso.toml"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/gate_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
       "related": [
@@ -9853,6 +9866,19 @@
       "related": [
         "tools/native/mios-gen/src/ai_manifest.rs",
         "tools/generate-ai-manifest.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/bib_configs.rs",
+      "hint": "Two-sided integration test suite for mios-gen bib-configs (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/bib_configs.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",

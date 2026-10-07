@@ -1,0 +1,6 @@
+```console
+$ mios-gen bib-configs --root [CWD]/nonexistent --check
+? 1
+Error: generate-bib-configs: ERROR: [..]nonexistent[..]mios.toml not found
+
+```

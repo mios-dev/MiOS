@@ -3056,8 +3056,26 @@ check_installer_family_roles() {
 }
 
 check_bib_configs_projection() {
+    local bin; bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" ]]; then
+        local out rc=0
+        out="$( "$bin" bib-configs --root "$ROOT" --check 2>&1 )" || rc=$?
+        if (( rc == 0 )); then
+            echo "[98-drift-checks]   BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"
+            return 0
+        else
+            echo "$out" >&2
+            _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
+            _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] -- run mios-gen bib-configs"
+            return
+        fi
+    fi
     if ! _require_python3; then
         return 0
+    fi
+    if [ ! -f "$ROOT/tools/generate-bib-configs.py" ]; then
+        _violation "check_bib_configs_projection: neither mios-gen nor tools/generate-bib-configs.py found"
+        return
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-bib-configs.py" --check >/dev/null 2>&1; then
         echo "[98-drift-checks]   BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"

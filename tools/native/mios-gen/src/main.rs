@@ -11,6 +11,7 @@ use std::process::ExitCode;
 
 mod adr_index;
 mod ai_manifest;
+mod bib_configs;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
@@ -195,6 +196,18 @@ enum Commands {
         /// Validate mode: validate roff structural integrity of all rendered pages
         #[arg(long)]
         validate: bool,
+    },
+
+    /// Projects [deploy.artifacts] filesystem sizing from mios.toml SSOT into config/artifacts/*.toml
+    #[command(name = "bib-configs", alias = "bib")]
+    BibConfigs {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed artifact configs match SSOT without modifying them
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -612,6 +625,29 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::BibConfigs { root, check } => {
+            let r = resolve_root(root);
+            (
+                "bib-configs",
+                "config/artifacts/{bib,iso}.toml",
+                match bib_configs::run_bib_configs(&r, check) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!("PASS: BIB artifact configs in sync with mios.toml SSOT.");
+                            } else {
+                                println!(
+                                    "Updated BIB configs with SSOT sizes: raw={}, iso={}.",
+                                    res.raw_size, res.iso_size
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -640,6 +676,7 @@ fn main() -> ExitCode {
     } else if let Err((msg, _)) = &result {
         if msg.starts_with("VIOLATION:")
             || msg.starts_with("Error:")
+            || msg.starts_with("ERROR: BIB")
             || msg.starts_with("generate-metal-vs-hosted:")
             || msg.starts_with("[render-ports]")
             || msg.starts_with("[render-desktop]")

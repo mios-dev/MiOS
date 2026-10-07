@@ -194,13 +194,14 @@ main() {
     done
 
     # 15. Container image signature verification policy & egress firewall
-    step "15/23 [security.policy] generate container image signature policy & egress firewall"
+    step "15/23 [security.policy] generate container image signature policy, egress firewall & bib configs"
     _gen="$(native_bin mios-gen || true)"
     if [ -n "$_gen" ]; then
         "$_gen" cosign-policy --root "$ROOT" >/dev/null
         "$_gen" egress-firewall --root "$ROOT" >/dev/null
+        "$_gen" bib-configs --root "$ROOT" >/dev/null
     else
-        echo "[sync-generated]      mios-gen not built; policy.json and egress.nft NOT regenerated." >&2
+        echo "[sync-generated]      mios-gen not built; policy.json, egress.nft and bib configs NOT regenerated." >&2
     fi
 
     # 16. Daily artifact release prompt template

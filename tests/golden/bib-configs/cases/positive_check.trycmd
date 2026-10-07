@@ -1,0 +1,5 @@
+```console
+$ mios-gen bib-configs --check
+PASS: BIB artifact configs in sync with mios.toml SSOT.
+
+```
