@@ -2203,3 +2203,50 @@ so long. Let a run finish.
 - next: Phase 3.7 Render Ports Projector (T-1010, AGY-1089) or Phase 2 Drift Gates (T-1009, AGY-1067..AGY-1088).
 - blockers: None.
 - unverified: None.
+## 2026-10-07 02:38 · antigravity · Phase 3.7 Render Ports SSOT Projector Complete (Commit a8b6398a)
+- objective: Consolidate ports derivation and fallback sync generator into `tools/native/mios-gen render-ports` static binary; strangler-delete `tools/render-ports.py` and `tools/test_render_ports.py`; enforce port derivation formula (base + index * stride), pinned port passthrough, reserved empty slots, category band overlap checks, flat-table sync, and `${MIOS_PORT_X:-N}` fallback sweeps; author two-sided Trycmd controls and integration test; wire automation drift checks and sync projections; verify with full subagent trio.
+- status: VERIFIED & COMPLETE.
+- commit: `a8b6398a` (branch `codex/uncommitted-mcp-ux` in `C:\MiOS`).
+- deliverables:
+  1. `tools/native/mios-gen`: added `render-ports` subcommand (with alias `ports`):
+     - `derive_ports`: Derives `base + (idx as i64) * stride` with slots preserved for empty reserved strings, mapping pinned ports verbatim.
+     - `category_band`: Calculates inclusive `[lo, hi]` for category intervals.
+     - `find_violations`: Validates single membership, no collisions, no category band overlaps, and flat-table parity.
+     - `render_table`: Regex line rewrites for the flat `[ports]` table in `mios.toml`, preserving whitespace column alignment, order, CRLF endings, and trailing comments.
+     - `sync_fallbacks`: Sweeps `automation`, `usr`, `etc`, `tools` (skipping tests/targets/fixtures), detects `${MIOS_PORT_X:-N}` patterns, applies `GUACAMOLE` -> `GUACAMOLE_WEB` aliasing, and checks/rewrites fallbacks.
+     - CLI contract: supports `--root`, `--toml`, `--check`, `--print`, `--format json|text`, and standard return codes (0 clean, 1 drift/error).
+  2. Deleted legacy python generator and test (atomic strangler migration):
+     - `tools/render-ports.py` (deleted)
+     - `tools/test_render_ports.py` (deleted)
+  3. `usr/share/mios/mios.toml`:
+     - Registered surface in `[laws.projection_registry]` pointing to `tools/native/mios-gen/src/main.rs`.
+     - Added `tools/render-ports.py` to `[rust.categories.gen].replaces` (now 10 deleted scripts tracked).
+  4. Automation & projection wiring:
+     - `automation/98-drift-checks.sh` `check_ports_category_schema` invokes `native_bin mios-gen render-ports` first.
+     - `tools/sync-generated.sh` step 2 dispatches `_gen render-ports`.
+  5. Trycmd golden-master fixtures:
+     - `tests/golden/render-ports/cmd.toml`
+     - `tests/golden/render-ports/cases/positive_check.trycmd`
+     - `tests/golden/render-ports/cases/negative_missing_root.trycmd`
+  6. Two-sided verification controls:
+     - `cargo test -p mios-gen`: 21/21 tests pass across 9 suites (1 render-ports CLI e2e, 1 ai-manifest, 3 roadmap-index, 3 metal-vs-hosted, 4 adr-index, 2 cosign-policy, 3 egress-firewall, 2 gate-index, 2 pipeline-index).
+     - `cargo clippy -p mios-gen -- -D warnings`: exit code 0 (zero warnings).
+     - WSL2 execution: `/usr/bin/mios-gen render-ports --root /mnt/c/MiOS --check` verified.
+     - `tests/drift-gate-negatives.sh test_ports_category_schema`: PASS (planted band overlap detected; restored clean).
+  7. Standing gates verification:
+     - `phase-registry`: 77/77 registered, 0 on shrink-only register (exit code 0).
+     - `ratchet-direction`: 93 shrink-only ceilings hold (exit code 0).
+     - `credential-literals`: 0 unapproved literals across 253 unit files (exit code 0).
+     - `version-literals-ssot`: 0 divergent literals across 916 files (exit code 0).
+     - `signature-policy`: `usr/lib/containers/policy.json` verified (exit code 0).
+     - `rust-categories`: 34 crates cataloged across 15 categories; 1244 scripts in universe (274 porting-owned, 842 exempt, 128 unowned, ceiling 128); 10 replaces claims verified absent (exit code 0).
+     - `python tools/ci-suites.py --check`: 420 suites registered across 3 tiers (exit code 0).
+     - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
+     - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
+  8. Subagent Trio certification:
+     - Reviewer: VERDICT: APPROVE
+     - Challenger: VERDICT: APPROVE
+     - Auditor: VERDICT: CLEAN
+- next: Phase 3 Remaining Projectors (`tools/render-globals.py` or `tools/render-desktop.py`) or Phase 2 Drift Gates (`mios-gate` T-1009).
+- blockers: None.
+- unverified: None.
