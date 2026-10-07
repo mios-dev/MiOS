@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3759,
-  "total_metadata_entries": 3068,
-  "total_hints": 3057,
+  "total_files_scanned": 3763,
+  "total_metadata_entries": 3070,
+  "total_hints": 3059,
   "total_functions_indexed": 1464,
-  "total_related_links": 5048,
+  "total_related_links": 5056,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5761,6 +5761,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/pipe-boundaries/cmd.toml",
+      "hint": "Trycmd configuration for pipe-boundaries golden-master CLI tests (AGY-1067 / AGY-1110).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/pipeline-index/cmd.toml",
       "hint": "Trycmd configuration for pipeline-index golden-master CLI tests (AGY-1067 / AGY-1088).",
       "related": [
@@ -9142,15 +9154,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/gen-pipe-boundary-manifest.py",
-      "hint": "Generates a machine-readable module-boundary manifest for the agent-pipe DI contract.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-k3s-manifests.ps1",
       "hint": "GENERATED k3s/k8s manifest for the MiOS mios-node pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh or generate-k3s-manifests.ps1.",
       "related": [
@@ -9788,6 +9791,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/pipe_boundaries.rs",
+      "hint": "SSOT module-boundary manifest generator for the agent-pipe DI contract (ADR-0021 gen category).",
+      "related": [
+        "usr/share/mios/pipe-boundaries.manifest.json",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/pipeline_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/pipeline-index.tsv from automation/[0-9][0-9]-*.sh and SSOT.",
       "related": [
@@ -9961,6 +9977,19 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/pipe_boundaries.rs",
+      "hint": "Two-sided integration test suite for mios-gen pipe-boundaries (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/pipe_boundaries.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },

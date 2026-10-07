@@ -172,7 +172,12 @@ main() {
 
     # 12. Agent-pipe module boundary manifest
     step "12/23 [boundaries.manifest] project agent-pipe boundary manifest"
-    "$PY" tools/gen-pipe-boundary-manifest.py >/dev/null
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" pipe-boundaries --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/gen-pipe-boundary-manifest.py >/dev/null
+    fi
 
     # 13. Cargo native workspace members
     step "13/23 [workspace.manifest] synchronize cargo workspace member manifests"

@@ -2342,7 +2342,7 @@ surfaces = [
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
-  { generator = "tools/gen-pipe-boundary-manifest.py", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_bootc_install_projection", output = "usr/lib/bootc/install/00-mios.toml, usr/lib/repart.d/50-root.conf" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
@@ -13288,10 +13288,10 @@ replaces = [
   "tools/generate-bib-configs.py",
   "tools/generate-cargo-manifests.py",
   "tools/compile-templates.py",
+  "tools/gen-pipe-boundary-manifest.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
-  "tools/gen-*.py",
   "tools/standardize-docs.py", "tools/sync-wiki.py",
   "usr/libexec/mios/win/*.py",
   "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",

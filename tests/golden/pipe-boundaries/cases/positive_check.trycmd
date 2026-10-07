@@ -1,0 +1,5 @@
+```console
+$ mios-gen pipe-boundaries --check
+[gen-pipe-boundary-manifest] usr/share/mios/pipe-boundaries.manifest.json matches the tree (108 modules).
+
+```

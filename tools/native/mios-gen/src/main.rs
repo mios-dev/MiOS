@@ -15,6 +15,7 @@ mod bib_configs;
 mod cargo_manifests;
 mod gate_index;
 mod metal_vs_hosted;
+mod pipe_boundaries;
 mod pipeline_index;
 mod render_desktop;
 mod render_globals;
@@ -219,6 +220,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed tools/native/Cargo.toml matches projection without modifying it
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates machine-readable pipe-boundaries.manifest.json for agent-pipe DI contract
+    #[command(name = "pipe-boundaries", alias = "pipe-boundary-manifest", alias = "pipe-manifest")]
+    PipeBoundaries {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed pipe-boundaries.manifest.json matches projection without modifying it
         #[arg(long)]
         check: bool,
     },
@@ -684,6 +697,32 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::PipeBoundaries { root, check } => {
+            let r = resolve_root(root);
+            (
+                "pipe-boundaries",
+                "usr/share/mios/pipe-boundaries.manifest.json",
+                match pipe_boundaries::run_pipe_boundaries(&r, check) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!(
+                                    "[gen-pipe-boundary-manifest] usr/share/mios/pipe-boundaries.manifest.json matches the tree ({} modules).",
+                                    res.modules_count
+                                );
+                            } else {
+                                println!(
+                                    "[gen-pipe-boundary-manifest] Emitted usr/share/mios/pipe-boundaries.manifest.json with {} modules.",
+                                    res.modules_count
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -719,6 +758,8 @@ fn main() -> ExitCode {
             || msg.starts_with("[render-globals]")
             || msg.starts_with("[render-manpages]")
             || msg.starts_with("[generate-cargo-manifests]")
+            || msg.starts_with("[gen-pipe-boundary-manifest]")
+            || msg.starts_with("MISSING ")
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
             || msg.contains("ADR SSOT consistency check failed:")

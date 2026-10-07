@@ -3390,19 +3390,26 @@ check_verb_templates() {
 
 # --- pipe-boundaries.manifest.json matches the agent-pipe tree ---
 check_pipe_boundaries() {
-    _need_python || return 0
     local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
     if [ ! -f "$manifest" ]; then
         _violation "pipe-boundaries.manifest.json is missing"
         return 0
     fi
-    # Existence is not freshness. Regenerate and diff via the generator's own
-    # --check, which is what "up-to-date" was asserting without ever testing.
-    local out rc=0
-    out="$(cd "$ROOT" && python3 tools/gen-pipe-boundary-manifest.py --check 2>&1)" || rc=$?
+
+    local bin out rc=0
+    bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        out="$("$bin" pipe-boundaries --root "$ROOT" --check 2>&1)" || rc=$?
+    elif _need_python && [[ -f "$ROOT/tools/gen-pipe-boundary-manifest.py" ]]; then
+        out="$(cd "$ROOT" && python3 tools/gen-pipe-boundary-manifest.py --check 2>&1)" || rc=$?
+    else
+        _violation "neither mios-gen nor tools/gen-pipe-boundary-manifest.py is available"
+        return
+    fi
+
     if (( rc != 0 )); then
         printf '%s\n' "$out" >&2
-        _violation "pipe-boundaries.manifest.json is stale -- run tools/gen-pipe-boundary-manifest.py"
+        _violation "pipe-boundaries.manifest.json is stale -- run mios-gen pipe-boundaries"
         return
     fi
     echo "[98-drift-checks]   pipe-boundaries.manifest.json matches the agent-pipe tree"

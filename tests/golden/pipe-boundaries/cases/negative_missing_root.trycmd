@@ -1,0 +1,6 @@
+```console
+$ mios-gen pipe-boundaries --root [CWD]/nonexistent --check
+? 1
+[gen-pipe-boundary-manifest] agent-pipe directory not found: [..]nonexistent[..]usr[..]lib[..]mios[..]agent-pipe[..]mios_pipe
+
+```
