@@ -26,7 +26,11 @@ pub fn get_ssot_version(root: &Path) -> String {
     if ssot_path.is_file() {
         if let Ok(content) = fs::read_to_string(&ssot_path) {
             if let Ok(doc) = content.parse::<toml::Value>() {
-                if let Some(v) = doc.get("meta").and_then(|m| m.get("mios_version")).and_then(|s| s.as_str()) {
+                if let Some(v) = doc
+                    .get("meta")
+                    .and_then(|m| m.get("mios_version"))
+                    .and_then(|s| s.as_str())
+                {
                     return v.to_string();
                 }
             }
@@ -77,7 +81,7 @@ pub fn render_cargo_manifest(members: &[String], version: &str) -> String {
     }
 
     format!(
-        "# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.\n\
+        "# AI-hint: Generated from mios.toml SSOT by mios-gen cargo-manifests. DO NOT EDIT DIRECTLY.\n\
         [workspace]\n\
         members = [\n\
         {}\
@@ -100,7 +104,15 @@ pub fn render_cargo_manifest(members: &[String], version: &str) -> String {
         tempfile = \"3.10\"\n\
         thiserror = \"1.0\"\n\
         toml = \"0.8\"\n\
-        walkdir = \"2.4\"\n",
+        walkdir = \"2.4\"\n\
+        \n\
+        # Size-optimized release for the Windows wallpaper daemon (its profile\n\
+        # previously sat in the member manifest, where cargo silently ignored\n\
+        # it). lto/strip/panic are workspace-level profile knobs cargo cannot\n\
+        # set per package.\n\
+        [profile.release.package.mios-wallpaperd]\n\
+        opt-level = \"z\"\n\
+        codegen-units = 1\n",
         listed, version
     )
 }
@@ -134,8 +146,13 @@ pub fn run_cargo_manifests(root: &Path, check: bool) -> Result<CargoManifestResu
             ));
         }
 
-        let committed_content = fs::read_to_string(&cargo_toml_path)
-            .map_err(|e| format!("[generate-cargo-manifests] FAIL: cannot read {} ({})", cargo_toml_path.display(), e))?;
+        let committed_content = fs::read_to_string(&cargo_toml_path).map_err(|e| {
+            format!(
+                "[generate-cargo-manifests] FAIL: cannot read {} ({})",
+                cargo_toml_path.display(),
+                e
+            )
+        })?;
 
         if normalize_newlines(&committed_content) != normalize_newlines(&projected_content) {
             return Err(

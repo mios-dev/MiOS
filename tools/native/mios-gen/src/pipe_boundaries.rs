@@ -195,9 +195,7 @@ pub fn run_pipe_boundaries(root: &Path, check: bool) -> Result<PipeBoundaryResul
             ));
         }
 
-        Ok(PipeBoundaryResult {
-            modules_count,
-        })
+        Ok(PipeBoundaryResult { modules_count })
     } else {
         if let Some(parent) = out_json.parent() {
             fs::create_dir_all(parent)
@@ -207,9 +205,7 @@ pub fn run_pipe_boundaries(root: &Path, check: bool) -> Result<PipeBoundaryResul
         fs::write(&out_json, rendered.as_bytes())
             .map_err(|e| format!("Failed to write {}: {}", out_json.display(), e))?;
 
-        Ok(PipeBoundaryResult {
-            modules_count,
-        })
+        Ok(PipeBoundaryResult { modules_count })
     }
 }
 

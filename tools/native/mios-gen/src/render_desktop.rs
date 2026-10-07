@@ -10,14 +10,20 @@ use toml::Value;
 const DEFAULT_TOML_PATH: &str = "usr/share/mios/mios.toml";
 const APPLICATIONS_DIR: &str = "usr/share/applications";
 
-pub fn load_ssot(root: &Path) -> Result<(BTreeMap<String, i64>, BTreeMap<String, Value>), String> {
+type DesktopSsot = (BTreeMap<String, i64>, BTreeMap<String, Value>);
+
+pub fn load_ssot(root: &Path) -> Result<DesktopSsot, String> {
     let toml_path = match std::env::var("MIOS_TOML") {
         Ok(v) if !v.trim().is_empty() => PathBuf::from(v.trim()),
         _ => root.join(DEFAULT_TOML_PATH),
     };
 
-    let content = fs::read_to_string(&toml_path)
-        .map_err(|e| format!("render-desktop: {} could not be read: {e}", toml_path.display()))?;
+    let content = fs::read_to_string(&toml_path).map_err(|e| {
+        format!(
+            "render-desktop: {} could not be read: {e}",
+            toml_path.display()
+        )
+    })?;
 
     let parsed: Value = content
         .parse()
@@ -99,8 +105,8 @@ pub fn render_launcher(name: &str, cfg_val: &Value, ports: &BTreeMap<String, i64
         .and_then(|t| t.get("ai_related"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let ai_related = if ai_related_raw.is_empty() && port.is_some() {
-        format!("localhost:{}", port.unwrap())
+    let ai_related = if ai_related_raw.is_empty() {
+        port.map(|p| format!("localhost:{p}")).unwrap_or_default()
     } else {
         ai_related_raw.to_string()
     };
@@ -123,7 +129,10 @@ pub fn render_launcher(name: &str, cfg_val: &Value, ports: &BTreeMap<String, i64
         .unwrap_or("");
     lines.push(format!("Name={title}"));
 
-    if let Some(gn) = cfg.and_then(|t| t.get("generic_name")).and_then(|v| v.as_str()) {
+    if let Some(gn) = cfg
+        .and_then(|t| t.get("generic_name"))
+        .and_then(|v| v.as_str())
+    {
         lines.push(format!("GenericName={gn}"));
     }
     if !comment.is_empty() {
@@ -135,7 +144,10 @@ pub fn render_launcher(name: &str, cfg_val: &Value, ports: &BTreeMap<String, i64
     if let Some(icon) = cfg.and_then(|t| t.get("icon")).and_then(|v| v.as_str()) {
         lines.push(format!("Icon={icon}"));
     }
-    if let Some(cat) = cfg.and_then(|t| t.get("categories")).and_then(|v| v.as_str()) {
+    if let Some(cat) = cfg
+        .and_then(|t| t.get("categories"))
+        .and_then(|v| v.as_str())
+    {
         lines.push(format!("Categories={cat}"));
     }
     if let Some(kw) = cfg.and_then(|t| t.get("keywords")).and_then(|v| v.as_str()) {
@@ -154,14 +166,23 @@ pub fn render_launcher(name: &str, cfg_val: &Value, ports: &BTreeMap<String, i64
         .unwrap_or(true);
     lines.push(format!("StartupNotify={startup_notify}"));
 
-    if let Some(wm) = cfg.and_then(|t| t.get("startup_wm_class")).and_then(|v| v.as_str()) {
+    if let Some(wm) = cfg
+        .and_then(|t| t.get("startup_wm_class"))
+        .and_then(|v| v.as_str())
+    {
         lines.push(format!("StartupWMClass={wm}"));
     }
-    if let Some(nd) = cfg.and_then(|t| t.get("no_display")).and_then(|v| v.as_bool()) {
+    if let Some(nd) = cfg
+        .and_then(|t| t.get("no_display"))
+        .and_then(|v| v.as_bool())
+    {
         lines.push(format!("NoDisplay={nd}"));
     }
 
-    if let Some(tc) = cfg.and_then(|t| t.get("trailing_comments")).and_then(|v| v.as_array()) {
+    if let Some(tc) = cfg
+        .and_then(|t| t.get("trailing_comments"))
+        .and_then(|v| v.as_array())
+    {
         for comment_line in tc {
             if let Some(s) = comment_line.as_str() {
                 lines.push(s.to_string());
@@ -174,10 +195,7 @@ pub fn render_launcher(name: &str, cfg_val: &Value, ports: &BTreeMap<String, i64
     out
 }
 
-pub fn run_render_desktop(
-    root: &Path,
-    check: bool,
-) -> Result<(String, i32), (String, i32)> {
+pub fn run_render_desktop(root: &Path, check: bool) -> Result<(String, i32), (String, i32)> {
     let (ports, launchers) = load_ssot(root).map_err(|e| (e, 1))?;
     let apps_dir = root.join(APPLICATIONS_DIR);
 
@@ -242,7 +260,13 @@ pub fn run_render_desktop(
                 let _ = fs::create_dir_all(parent);
             }
             if let Err(e) = fs::write(&target_path, rendered.as_bytes()) {
-                return Err((format!("render-desktop: write {} failed: {e}", target_path.display()), 1));
+                return Err((
+                    format!(
+                        "render-desktop: write {} failed: {e}",
+                        target_path.display()
+                    ),
+                    1,
+                ));
             }
         }
     }
@@ -255,8 +279,14 @@ pub fn run_render_desktop(
             }
             return Err((lines.join("\n"), 1));
         }
-        Ok(("[render-desktop] All .desktop launchers match SSOT".to_string(), 0))
+        Ok((
+            "[render-desktop] All .desktop launchers match SSOT".to_string(),
+            0,
+        ))
     } else {
-        Ok(("[render-desktop] Rendered .desktop launchers from SSOT".to_string(), 0))
+        Ok((
+            "[render-desktop] Rendered .desktop launchers from SSOT".to_string(),
+            0,
+        ))
     }
 }

@@ -173,19 +173,71 @@ pub fn plane_rows(root: &Path, data: &Value) -> Vec<PlaneRow> {
 pub fn policy_rows(data: &Value) -> Vec<(String, String, String)> {
     let b = data.get("blade").and_then(|v| v.as_table());
     let spec: [(&str, &str, &str); 13] = [
-        ("blade.hardware", "min_interfaces", "the whole floor -- the LAN is uplink AND downlink"),
-        ("blade.hardware", "min_ap_capable", "AP-capable interfaces required; 0 means an AP is optional"),
-        ("blade.cluster", "k3s_servers", "k3s-native HA: 3 servers on embedded etcd, one per localhost host"),
-        ("blade.cluster", "control_plane_ha", "quorum tolerates one member loss -- and works on a single box"),
-        ("blade.fencing", "method", "how a member is fenced -- self-fence, so none must be reached"),
-        ("blade.fencing", "diskless", "watchdog driven by quorum, no shared block device"),
-        ("blade.storage", "replication", "data classes that shadow-copy Mini-to-Mini"),
-        ("blade.storage", "at_rest", "Ceph-native: dm-crypt OSDs, key in the MON config-key store"),
-        ("blade.uplink", "failover", "where the DEFAULT ROUTE goes when the WAN dies (the plane stays)"),
-        ("blade.cluster", "localhost_hosts", "logical hosts one Mini serves itself as -- \"its own cluster\""),
-        ("blade.mesh", "blocks_boot", "Law 12 -- enrolment never gates a boot"),
-        ("blade.mesh", "federate", "peers join by each system's OWN mechanism, never by hand"),
-        ("blade.hardware", "max_radios", "radios a Mini uses; 0 is a supported build"),
+        (
+            "blade.hardware",
+            "min_interfaces",
+            "the whole floor -- the LAN is uplink AND downlink",
+        ),
+        (
+            "blade.hardware",
+            "min_ap_capable",
+            "AP-capable interfaces required; 0 means an AP is optional",
+        ),
+        (
+            "blade.cluster",
+            "k3s_servers",
+            "k3s-native HA: 3 servers on embedded etcd, one per localhost host",
+        ),
+        (
+            "blade.cluster",
+            "control_plane_ha",
+            "quorum tolerates one member loss -- and works on a single box",
+        ),
+        (
+            "blade.fencing",
+            "method",
+            "how a member is fenced -- self-fence, so none must be reached",
+        ),
+        (
+            "blade.fencing",
+            "diskless",
+            "watchdog driven by quorum, no shared block device",
+        ),
+        (
+            "blade.storage",
+            "replication",
+            "data classes that shadow-copy Mini-to-Mini",
+        ),
+        (
+            "blade.storage",
+            "at_rest",
+            "Ceph-native: dm-crypt OSDs, key in the MON config-key store",
+        ),
+        (
+            "blade.uplink",
+            "failover",
+            "where the DEFAULT ROUTE goes when the WAN dies (the plane stays)",
+        ),
+        (
+            "blade.cluster",
+            "localhost_hosts",
+            "logical hosts one Mini serves itself as -- \"its own cluster\"",
+        ),
+        (
+            "blade.mesh",
+            "blocks_boot",
+            "Law 12 -- enrolment never gates a boot",
+        ),
+        (
+            "blade.mesh",
+            "federate",
+            "peers join by each system's OWN mechanism, never by hand",
+        ),
+        (
+            "blade.hardware",
+            "max_radios",
+            "radios a Mini uses; 0 is a supported build",
+        ),
     ];
 
     let mut out = Vec::new();
@@ -318,10 +370,7 @@ pub fn gated_off_on_seat(data: &Value) -> Vec<(String, Vec<String>)> {
 
     let mut out = Vec::new();
     for (unit, caps) in req {
-        let mut missing: Vec<String> = caps
-            .into_iter()
-            .filter(|c| !have_set.contains(c))
-            .collect();
+        let mut missing: Vec<String> = caps.into_iter().filter(|c| !have_set.contains(c)).collect();
         missing.sort();
         missing.dedup();
         if !missing.is_empty() {
@@ -382,11 +431,27 @@ pub fn greenboot_rows(data: &Value) -> Vec<(String, String, bool, Vec<String>)> 
 
 pub fn overlay_keys() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("[ai].endpoint", "MIOS_AI_ENDPOINT", "the AI front door every client dials"),
+        (
+            "[ai].endpoint",
+            "MIOS_AI_ENDPOINT",
+            "the AI front door every client dials",
+        ),
         ("[search].endpoint", "MIOS_SEARCH_ENDPOINT", "web search"),
-        ("[nodes.<name>].endpoint", "-", "a compute lane in the fan-out pool"),
-        ("[blades.<name>]", "-", "a remote machine's capacity envelope"),
-        ("[urls].<tile>", "MIOS_URLS_<TILE>", "a browser-openable tile only"),
+        (
+            "[nodes.<name>].endpoint",
+            "-",
+            "a compute lane in the fan-out pool",
+        ),
+        (
+            "[blades.<name>]",
+            "-",
+            "a remote machine's capacity envelope",
+        ),
+        (
+            "[urls].<tile>",
+            "MIOS_URLS_<TILE>",
+            "a browser-openable tile only",
+        ),
     ]
 }
 
@@ -407,7 +472,10 @@ pub fn baked_payloads(data: &Value) -> Vec<(String, String)> {
             out.push((local.trim().to_string(), remote.trim().to_string()));
         }
     }
-    let vllm = data.get("ai").and_then(|a| a.get("vllm")).and_then(|v| v.as_table());
+    let vllm = data
+        .get("ai")
+        .and_then(|a| a.get("vllm"))
+        .and_then(|v| v.as_table());
     let model = vllm
         .and_then(|v| v.get("bake_model"))
         .and_then(|b| b.as_str())
@@ -421,12 +489,16 @@ pub fn baked_payloads(data: &Value) -> Vec<(String, String)> {
 
 pub fn render(data: &Value, root: &Path) -> String {
     let rows = archetype_rows(data);
-    let seat_row = rows.iter().find(|r| r.0 == SEAT).cloned().unwrap_or_else(|| {
-        (SEAT.to_string(), Vec::new(), 0, 0)
-    });
-    let full = rows.iter().max_by_key(|r| r.3).cloned().unwrap_or_else(|| {
-        ("hybrid".to_string(), Vec::new(), 0, 0)
-    });
+    let seat_row = rows
+        .iter()
+        .find(|r| r.0 == SEAT)
+        .cloned()
+        .unwrap_or_else(|| (SEAT.to_string(), Vec::new(), 0, 0));
+    let full = rows
+        .iter()
+        .max_by_key(|r| r.3)
+        .cloned()
+        .unwrap_or_else(|| ("hybrid".to_string(), Vec::new(), 0, 0));
     let gated = gated_off_on_seat(data);
     let gb = greenboot_rows(data);
     let blade = data.get("blade").and_then(|b| b.as_table());
@@ -449,7 +521,10 @@ pub fn render(data: &Value, root: &Path) -> String {
     lines.push("".to_string());
     lines.push("A **MiOS-Metal** is a box. A **hosted MiOS OCI image** is the same image in a different position: a container, a VM, or another machine, local or remote. They are not two builds — one artifact, one tag, one bake. What separates them is not what they *contain* but what they *own*.".to_string());
     lines.push("".to_string());
-    lines.push("`[blade.planes].owner` is that line, and it is the whole definition of offload:".to_string());
+    lines.push(
+        "`[blade.planes].owner` is that line, and it is the whole definition of offload:"
+            .to_string(),
+    );
     lines.push("".to_string());
     lines.push("- **`mini`** — the plane is bound to metal this box has and a guest does not: radios, the uplink NIC, the hypervisor itself, the bare-metal filesystem. It **cannot be shed**, because a hosted image has nothing to shed it onto.".to_string());
     lines.push("- **`either`** — the plane is a workload. A Mini runs it by default and may hand it to any peer; a hosted image can accept it.".to_string());
@@ -459,8 +534,16 @@ pub fn render(data: &Value, root: &Path) -> String {
         lines.push("**`[blade.planes]` is empty**, so nothing declares which planes a Mini owns and the shed set cannot be derived. That is a defect in the SSOT, not an empty answer.".to_string());
         lines.push("".to_string());
     } else {
-        let movable_str = movable.iter().map(|m| format!("`{}`", m)).collect::<Vec<_>>().join(", ");
-        let fixed_str = fixed.iter().map(|f| format!("`{}`", f)).collect::<Vec<_>>().join(", ");
+        let movable_str = movable
+            .iter()
+            .map(|m| format!("`{}`", m))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let fixed_str = fixed
+            .iter()
+            .map(|f| format!("`{}`", f))
+            .collect::<Vec<_>>()
+            .join(", ");
         lines.push(format!(
             "So \"offload all services to hosted MiOS OCI image(s)\" means exactly **{} of {} planes**: {}. The other {} ({}) are what make the box a Mini, and a Mini that shed them would stop being one.",
             movable.len(),
@@ -495,7 +578,10 @@ pub fn render(data: &Value, root: &Path) -> String {
             } else {
                 "by default"
             };
-            lines.push(format!("| `{}` | `{}` | {} | {} | {} | {} |", p.name, p.owner, shed, runs, baked, wire));
+            lines.push(format!(
+                "| `{}` | `{}` | {} | {} | {} | {} |",
+                p.name, p.owner, shed, runs, baked, wire
+            ));
         }
         lines.push("".to_string());
         lines.push("| Plane | What it does |".to_string());
@@ -507,13 +593,30 @@ pub fn render(data: &Value, root: &Path) -> String {
     }
 
     if !planes.is_empty() {
-        let hw = blade.and_then(|b| b.get("hardware")).and_then(|h| h.as_table());
-        let opt: Vec<&str> = planes.iter().filter(|r| r.owner == "mini" && !r.required).map(|r| r.name.as_str()).collect();
+        let hw = blade
+            .and_then(|b| b.get("hardware"))
+            .and_then(|h| h.as_table());
+        let opt: Vec<&str> = planes
+            .iter()
+            .filter(|r| r.owner == "mini" && !r.required)
+            .map(|r| r.name.as_str())
+            .collect();
         if let Some(hw_tbl) = hw {
-            let nif = hw_tbl.get("min_interfaces").and_then(|v| v.as_integer()).unwrap_or(1);
+            let nif = hw_tbl
+                .get("min_interfaces")
+                .and_then(|v| v.as_integer())
+                .unwrap_or(1);
             let nif_suffix = if nif == 1 { "" } else { "s" };
-            let max_radios = hw_tbl.get("max_radios").and_then(|v| v.as_integer()).map(|i| i.to_string()).unwrap_or_else(|| "?".to_string());
-            let min_ap = hw_tbl.get("min_ap_capable").and_then(|v| v.as_integer()).map(|i| i.to_string()).unwrap_or_else(|| "?".to_string());
+            let max_radios = hw_tbl
+                .get("max_radios")
+                .and_then(|v| v.as_integer())
+                .map(|i| i.to_string())
+                .unwrap_or_else(|| "?".to_string());
+            let min_ap = hw_tbl
+                .get("min_ap_capable")
+                .and_then(|v| v.as_integer())
+                .map(|i| i.to_string())
+                .unwrap_or_else(|| "?".to_string());
             lines.push(format!(
                 "**MiOS boots on any hardware**, so these numbers gate a *plane*, never the boot (ADR-0016 D14). The floor is **{} interface{}** — the LAN is both uplink and downlink — and a radio is optional at **{}**, of which **{}** need be AP-capable. A box that misses one still boots; it simply does not run that plane.",
                 nif, nif_suffix, max_radios, min_ap
@@ -522,7 +625,11 @@ pub fn render(data: &Value, root: &Path) -> String {
         }
 
         if !opt.is_empty() {
-            let opt_str = opt.iter().map(|o| format!("`{}`", o)).collect::<Vec<_>>().join(", ");
+            let opt_str = opt
+                .iter()
+                .map(|o| format!("`{}`", o))
+                .collect::<Vec<_>>()
+                .join(", ");
             let verb = if opt.len() == 1 { "is" } else { "are" };
             lines.push(format!(
                 "That is why {} {} `owner = \"mini\"` but **not** required: a Mini with no radio is still a Mini, whereas one without a hypervisor, a router, a mesh or CephFS is not.",
@@ -546,11 +653,15 @@ pub fn render(data: &Value, root: &Path) -> String {
         lines.push("**Read the two right-hand columns narrowly.** *Baked* means every marker package is in `[packages]` — Law 12 satisfied, nothing to fetch at boot. *Wired* means the named file exists in the tree. Neither claims the plane is finished: `router` is baked and its forwarding sysctl is applied, and it still has no NAT ruleset or client DHCP (T-337). A plane is only complete when a gate proves it end to end.".to_string());
         lines.push("".to_string());
 
-        let unbaked: Vec<&PlaneRow> = planes.iter().filter(|r| !r.markers.is_empty() && !r.missing.is_empty()).collect();
+        let unbaked: Vec<&PlaneRow> = planes
+            .iter()
+            .filter(|r| !r.markers.is_empty() && !r.missing.is_empty())
+            .collect();
         let unwired: Vec<&PlaneRow> = planes.iter().filter(|r| r.wired_by.is_empty()).collect();
 
         if !unbaked.is_empty() || !unwired.is_empty() {
-            lines.push("What that leaves open right now, derived rather than asserted:".to_string());
+            lines
+                .push("What that leaves open right now, derived rather than asserted:".to_string());
             lines.push("".to_string());
             for p in &unbaked {
                 lines.push(format!(
@@ -577,7 +688,8 @@ pub fn render(data: &Value, root: &Path) -> String {
             if open_owners.len() == 1 && open_owners.contains("mini") {
                 lines.push("Every one of those is an `owner = \"mini\"` plane, and that is the finding: the planes a hosted image was never going to provide are exactly the ones the Mini does not have yet — and the only ones adding a peer cannot supply.".to_string());
             } else {
-                let mut non_mini: Vec<String> = open_owners.into_iter().filter(|o| o != "mini").collect();
+                let mut non_mini: Vec<String> =
+                    open_owners.into_iter().filter(|o| o != "mini").collect();
                 non_mini.sort();
                 lines.push(format!(
                     "Not all of those are `owner = \"mini\"`. The `{}` ones can be supplied by adding a peer; the `mini` ones cannot.",
@@ -595,21 +707,46 @@ pub fn render(data: &Value, root: &Path) -> String {
         SEAT
     ));
     lines.push("".to_string());
-    lines.push(format!("| Surface | `{}` (grants nothing) | `{}` (widest) |", SEAT, full.0));
+    lines.push(format!(
+        "| Surface | `{}` (grants nothing) | `{}` (widest) |",
+        SEAT, full.0
+    ));
     lines.push("|---|---|---|".to_string());
     lines.push("| Image | identical OCI image and tag | identical |".to_string());
     lines.push("| Bake | every payload baked, including model weights | identical |".to_string());
-    lines.push(format!("| Units started | **{}** | **{}** |", seat_row.3, full.3));
-    lines.push(format!("| Capabilities granted | *(none)* | `{}` |", full.1.join("`, `")));
-    lines.push(format!("| Capability-gated units it starts | {} | {} |", seat_row.2, full.2));
+    lines.push(format!(
+        "| Units started | **{}** | **{}** |",
+        seat_row.3, full.3
+    ));
+    lines.push(format!(
+        "| Capabilities granted | *(none)* | `{}` |",
+        full.1.join("`, `")
+    ));
+    lines.push(format!(
+        "| Capability-gated units it starts | {} | {} |",
+        seat_row.2, full.2
+    ));
     let seat_side_units = seat_units(data);
-    lines.push(format!("| Always-on units (`[blade].seat_side`) | {} | {} |", seat_side_units.len(), seat_side_units.len()));
-    let inference_lanes = gated.iter().filter(|(u, _)| u.contains("llm") || u.ends_with("cpu-node")).count();
-    lines.push(format!("| Local inference lanes | **0** | up to {} |", inference_lanes));
+    lines.push(format!(
+        "| Always-on units (`[blade].seat_side`) | {} | {} |",
+        seat_side_units.len(),
+        seat_side_units.len()
+    ));
+    let inference_lanes = gated
+        .iter()
+        .filter(|(u, _)| u.contains("llm") || u.ends_with("cpu-node"))
+        .count();
+    lines.push(format!(
+        "| Local inference lanes | **0** | up to {} |",
+        inference_lanes
+    ));
     let probed_count = gb.iter().filter(|r| r.2).count();
     lines.push(format!(
         "| Greenboot probes | {} of {} critical services | {} of {} |",
-        probed_count, gb.len(), gb.len(), gb.len()
+        probed_count,
+        gb.len(),
+        gb.len(),
+        gb.len()
     ));
     lines.push("| Addressing | `/etc/mios` overlay repoints the canonical keys | vendor defaults, all `localhost` |".to_string());
     lines.push("".to_string());
@@ -659,7 +796,10 @@ pub fn render(data: &Value, root: &Path) -> String {
     lines.push("".to_string());
     let gb_crit = blade
         .and_then(|b| b.get("blade_reachability_critical"))
-        .or_else(|| data.get("greenboot").and_then(|g| g.get("blade_reachability_critical")))
+        .or_else(|| {
+            data.get("greenboot")
+                .and_then(|g| g.get("blade_reachability_critical"))
+        })
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     lines.push(format!(
@@ -694,7 +834,10 @@ pub fn render(data: &Value, root: &Path) -> String {
             lines.push(format!("| `{}` | `{}` |", name, source));
         }
 
-        let vllm = data.get("ai").and_then(|a| a.get("vllm")).and_then(|v| v.as_table());
+        let vllm = data
+            .get("ai")
+            .and_then(|a| a.get("vllm"))
+            .and_then(|v| v.as_table());
         let bake_model = vllm
             .and_then(|v| v.get("bake_model"))
             .and_then(|b| b.as_str())
@@ -720,11 +863,17 @@ pub fn render(data: &Value, root: &Path) -> String {
 pub fn run_metal_vs_hosted(root: &Path, check: bool, json_mode: bool) -> Result<(), (String, i32)> {
     let toml_path = root.join(TOML);
     let toml_content = fs::read_to_string(&toml_path).map_err(|e| {
-        (format!("generate-metal-vs-hosted: cannot read the SSOT: {}", e), 1)
+        (
+            format!("generate-metal-vs-hosted: cannot read the SSOT: {}", e),
+            1,
+        )
     })?;
 
     let data: Value = toml::from_str(&toml_content).map_err(|e| {
-        (format!("generate-metal-vs-hosted: failed to parse TOML: {}", e), 1)
+        (
+            format!("generate-metal-vs-hosted: failed to parse TOML: {}", e),
+            1,
+        )
     })?;
 
     let want = render(&data, root);
@@ -732,7 +881,13 @@ pub fn run_metal_vs_hosted(root: &Path, check: bool, json_mode: bool) -> Result<
 
     if check {
         let have = fs::read_to_string(&path).map_err(|_| {
-            (format!("generate-metal-vs-hosted: {} is missing -- run the generator", OUT), 1)
+            (
+                format!(
+                    "generate-metal-vs-hosted: {} is missing -- run the generator",
+                    OUT
+                ),
+                1,
+            )
         })?;
 
         let norm_have = have.replace("\r\n", "\n");
@@ -756,7 +911,14 @@ pub fn run_metal_vs_hosted(root: &Path, check: bool, json_mode: bool) -> Result<
     }
 
     fs::write(&path, &want).map_err(|e| {
-        (format!("generate-metal-vs-hosted: failed to write {}: {}", path.display(), e), 1)
+        (
+            format!(
+                "generate-metal-vs-hosted: failed to write {}: {}",
+                path.display(),
+                e
+            ),
+            1,
+        )
     })?;
 
     if !json_mode {

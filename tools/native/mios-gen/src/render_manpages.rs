@@ -60,7 +60,7 @@ fn version_of(root: &Path) -> String {
     let version_file = root.join("VERSION");
     if let Ok(raw) = fs::read_to_string(&version_file) {
         let cleaned: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
-        let stripped = cleaned.trim_start_matches(|c| c == 'v' || c == 'V');
+        let stripped = cleaned.trim_start_matches(['v', 'V']);
         if !stripped.is_empty() {
             return stripped.to_string();
         }
@@ -150,7 +150,11 @@ pub fn render_pages(root: &Path, ssot: &Value) -> BTreeMap<String, String> {
             .and_then(|d| d.as_str())
             .unwrap_or("")
             .trim();
-        let d = if desc.is_empty() { "A MiOS verb." } else { desc };
+        let d = if desc.is_empty() {
+            "A MiOS verb."
+        } else {
+            desc
+        };
 
         let d_trimmed_dot = d.trim_end_matches('.');
         let mut body = vec![
@@ -391,14 +395,20 @@ pub fn run_render_manpages(
     let toml_path = root.join("usr/share/mios/mios.toml");
     let toml_str = fs::read_to_string(&toml_path).map_err(|e| {
         (
-            format!("render-manpages: {} could not be read: {e}", toml_path.display()),
+            format!(
+                "render-manpages: {} could not be read: {e}",
+                toml_path.display()
+            ),
             1,
         )
     })?;
 
     let ssot: Value = toml_str.parse().map_err(|e| {
         (
-            format!("render-manpages: failed to parse {}: {e}", toml_path.display()),
+            format!(
+                "render-manpages: failed to parse {}: {e}",
+                toml_path.display()
+            ),
             1,
         )
     })?;
@@ -458,7 +468,9 @@ pub fn run_render_manpages(
     }
 
     if check && (!drift.is_empty() || !orphans.is_empty()) {
-        let mut lines = vec!["man pages out of sync with the SSOT -- run mios-gen render-manpages:".to_string()];
+        let mut lines = vec![
+            "man pages out of sync with the SSOT -- run mios-gen render-manpages:".to_string(),
+        ];
         for d in drift.iter().take(10) {
             lines.push(format!("  {d}"));
         }
@@ -489,7 +501,9 @@ pub fn run_render_manpages(
             }
         }
         if validated == 0 {
-            valid_errors.push("no man page was validated, so a clean result here means nothing".to_string());
+            valid_errors.push(
+                "no man page was validated, so a clean result here means nothing".to_string(),
+            );
         }
         if !valid_errors.is_empty() {
             let mut lines = vec!["man page validation failed:".to_string()];
@@ -505,7 +519,10 @@ pub fn run_render_manpages(
     }
 
     let action = if check { "verified" } else { "rendered" };
-    messages.push(format!("[render-manpages] {} page(s) {action}", rendered.len()));
+    messages.push(format!(
+        "[render-manpages] {} page(s) {action}",
+        rendered.len()
+    ));
 
     Ok((messages.join("\n"), 0))
 }

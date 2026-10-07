@@ -2,9 +2,9 @@
 // AI-doc: usr/share/doc/mios/manual/tools.md
 // AI-related: usr/share/mios/mios.toml, config/artifacts/bib.toml, config/artifacts/iso.toml
 
+use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
-use regex::Regex;
 
 const SSOT_REL: &str = "usr/share/mios/mios.toml";
 const BIB_REL: &str = "config/artifacts/bib.toml";
@@ -91,7 +91,8 @@ pub fn run_bib_configs(root: &Path, check: bool) -> Result<BibConfigsResult, Str
             .map_err(|e| format!("Failed to read {}: {}", abs_path.display(), e))?;
 
         let current_normalized = normalize_newlines(&raw_content);
-        let rendered_normalized = normalize_newlines(&render_artifact_config(&raw_content, target_size));
+        let rendered_normalized =
+            normalize_newlines(&render_artifact_config(&raw_content, target_size));
 
         if current_normalized != rendered_normalized {
             stale_files.push(rel_path.to_string());

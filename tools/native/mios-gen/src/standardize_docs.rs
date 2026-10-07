@@ -2,9 +2,9 @@
 // AI-related: tools/standardize-docs.py, specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md
 // AI-functions: get_version, render_header, render_footer, extract_ai_hint, standardize_content, run_standardize_docs
 
+use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
-use regex::Regex;
 
 pub const DEFAULT_TARGETS: &[&str] = &[
     "specs/audit",
@@ -112,8 +112,12 @@ pub fn standardize_content(raw_content: &str, version: &str) -> String {
     }
 
     // Strip legacy footers
-    let legacy_footer1_re = Regex::new(r"(?s)\n---\n###\s+(?:Legal & Source Reference|Bootc Ecosystem & Resources).*?---(?:\s*)$").expect("valid regex");
-    let proprietary_footer_re = Regex::new(r"(?s)\n<!--\s+'MiOS'\s+Proprietary\s+Artifact.*?-->\s*$").expect("valid regex");
+    let legacy_footer1_re = Regex::new(
+        r"(?s)\n---\n###\s+(?:Legal & Source Reference|Bootc Ecosystem & Resources).*?---(?:\s*)$",
+    )
+    .expect("valid regex");
+    let proprietary_footer_re =
+        Regex::new(r"(?s)\n<!--\s+'MiOS'\s+Proprietary\s+Artifact.*?-->\s*$").expect("valid regex");
 
     body = legacy_footer1_re.replace(&body, "").to_string();
     body = proprietary_footer_re.replace(&body, "").to_string();
@@ -121,8 +125,8 @@ pub fn standardize_content(raw_content: &str, version: &str) -> String {
     // Strip existing standard footer if present
     let footer = render_footer();
     let trimmed_end = body.trim_end();
-    if trimmed_end.ends_with(footer) {
-        body = trimmed_end[..trimmed_end.len() - footer.len()].to_string();
+    if let Some(stripped) = trimmed_end.strip_suffix(footer) {
+        body = stripped.to_string();
     } else if let Some(pos) = trimmed_end.rfind("\n---\n- **Copyright:** (c) 2026 'MiOS' Project") {
         body = trimmed_end[..pos].to_string();
     }
@@ -141,7 +145,11 @@ pub fn collect_target_files(root: &Path, paths: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
     if !paths.is_empty() {
         for p in paths {
-            let full = if p.is_absolute() { p.clone() } else { root.join(p) };
+            let full = if p.is_absolute() {
+                p.clone()
+            } else {
+                root.join(p)
+            };
             if full.is_file() {
                 if full.extension().and_then(|e| e.to_str()) == Some("md") {
                     files.push(full);
@@ -203,7 +211,10 @@ pub fn run_standardize_docs(
             let rel_str = rel.display().to_string().replace('\\', "/");
             if check {
                 violations += 1;
-                eprintln!("[standardize-docs] UNSTANDARDIZED: {} does not match standardized format", rel_str);
+                eprintln!(
+                    "[standardize-docs] UNSTANDARDIZED: {} does not match standardized format",
+                    rel_str
+                );
                 unstandardized.push(rel_str);
             } else {
                 fs::write(file_path, standardized.as_bytes())

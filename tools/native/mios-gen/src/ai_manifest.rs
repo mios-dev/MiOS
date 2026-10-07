@@ -91,9 +91,7 @@ impl ManifestEntry {
     }
 }
 
-pub fn parse_markdown_metadata(
-    content: &str,
-) -> (String, serde_json::Map<String, Value>, Value) {
+pub fn parse_markdown_metadata(content: &str) -> (String, serde_json::Map<String, Value>, Value) {
     let title_re = Regex::new(r"(?m)^#\s+(.+)$").expect("valid title regex");
     let title = title_re
         .captures(content)
@@ -524,19 +522,15 @@ pub fn generate_manifest(
             entries,
         };
 
-        let json_str = serde_json::to_string(&manifest)
-            .map_err(|e| format!("Failed to format JSON: {e}"))?;
+        let json_str =
+            serde_json::to_string(&manifest).map_err(|e| format!("Failed to format JSON: {e}"))?;
         let escaped = escape_ascii_json(&json_str);
 
         Ok(escaped.into_bytes())
     }
 }
 
-pub fn run_ai_manifest(
-    root: &Path,
-    check: bool,
-    json_format: bool,
-) -> Result<(), (String, i32)> {
+pub fn run_ai_manifest(root: &Path, check: bool, json_format: bool) -> Result<(), (String, i32)> {
     if !root.is_dir() {
         return Err((format!("Repository root not found: {}", root.display()), 1));
     }
@@ -563,18 +557,13 @@ pub fn run_ai_manifest(
 
         let full_output_path = root.join(output_file);
 
-        let generated_bytes = match generate_manifest(
-            root,
-            target_dir,
-            output_file,
-            recursive,
-            tracked.as_ref(),
-        ) {
-            Ok(b) => b,
-            Err(e) => {
-                return Err((e, 2));
-            }
-        };
+        let generated_bytes =
+            match generate_manifest(root, target_dir, output_file, recursive, tracked.as_ref()) {
+                Ok(b) => b,
+                Err(e) => {
+                    return Err((e, 2));
+                }
+            };
 
         if check {
             if !full_output_path.exists() {
@@ -619,7 +608,9 @@ pub fn run_ai_manifest(
                 // Surface diff diagnostics matching Python
                 if !output_file.ends_with(".gz") {
                     if let (Ok(v1), Ok(v2)) = (
-                        serde_json::from_slice::<Value>(&fs::read(&full_output_path).unwrap_or_default()),
+                        serde_json::from_slice::<Value>(
+                            &fs::read(&full_output_path).unwrap_or_default(),
+                        ),
                         serde_json::from_slice::<Value>(&generated_bytes),
                     ) {
                         let e1: HashSet<String> = v1
@@ -627,7 +618,11 @@ pub fn run_ai_manifest(
                             .and_then(|e| e.as_array())
                             .map(|arr| {
                                 arr.iter()
-                                    .filter_map(|x| x.get("path").and_then(|p| p.as_str()).map(|s| s.to_string()))
+                                    .filter_map(|x| {
+                                        x.get("path")
+                                            .and_then(|p| p.as_str())
+                                            .map(|s| s.to_string())
+                                    })
                                     .collect()
                             })
                             .unwrap_or_default();
@@ -636,7 +631,11 @@ pub fn run_ai_manifest(
                             .and_then(|e| e.as_array())
                             .map(|arr| {
                                 arr.iter()
-                                    .filter_map(|x| x.get("path").and_then(|p| p.as_str()).map(|s| s.to_string()))
+                                    .filter_map(|x| {
+                                        x.get("path")
+                                            .and_then(|p| p.as_str())
+                                            .map(|s| s.to_string())
+                                    })
                                     .collect()
                             })
                             .unwrap_or_default();
@@ -647,12 +646,28 @@ pub fn run_ai_manifest(
                         only2.sort();
 
                         if !only1.is_empty() {
-                            let preview = if only1.len() > 8 { &only1[..8] } else { &only1[..] };
-                            eprintln!("    committed-only entries ({}): {:?}", only1.len(), preview);
+                            let preview = if only1.len() > 8 {
+                                &only1[..8]
+                            } else {
+                                &only1[..]
+                            };
+                            eprintln!(
+                                "    committed-only entries ({}): {:?}",
+                                only1.len(),
+                                preview
+                            );
                         }
                         if !only2.is_empty() {
-                            let preview = if only2.len() > 8 { &only2[..8] } else { &only2[..] };
-                            eprintln!("    regenerated-only entries ({}): {:?}", only2.len(), preview);
+                            let preview = if only2.len() > 8 {
+                                &only2[..8]
+                            } else {
+                                &only2[..]
+                            };
+                            eprintln!(
+                                "    regenerated-only entries ({}): {:?}",
+                                only2.len(),
+                                preview
+                            );
                         }
                     }
                 }

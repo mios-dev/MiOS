@@ -70,7 +70,8 @@ pub fn collect(root: &Path) -> (Vec<AdrRow>, Vec<String>) {
     if let Ok(read_dir) = fs::read_dir(&d) {
         for entry in read_dir.flatten() {
             let fn_str = entry.file_name().to_string_lossy().to_string();
-            if fn_str.ends_with(".md") && fn_str.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            if fn_str.ends_with(".md") && fn_str.chars().next().is_some_and(|c| c.is_ascii_digit())
+            {
                 entries.push(fn_str);
             }
         }
@@ -156,12 +157,8 @@ pub fn render(rows: &[AdrRow]) -> String {
         let ssot = if r.ssot.is_empty() {
             "--".to_string()
         } else {
-            let first_four: Vec<String> = r
-                .ssot
-                .iter()
-                .take(4)
-                .map(|x| format!("`{}`", x))
-                .collect();
+            let first_four: Vec<String> =
+                r.ssot.iter().take(4).map(|x| format!("`{}`", x)).collect();
             let mut s = first_four.join(", ");
             if r.ssot.len() > 4 {
                 s.push_str(&format!(", +{}", r.ssot.len() - 4));
@@ -209,7 +206,8 @@ pub fn validate_adr_ssot_consistency(root: &Path) -> Vec<String> {
         .and_then(|m| m.get("mios_version"))
         .is_some();
     if !has_version {
-        violations.push("ADR-0009: mios.toml missing [meta].mios_version SSOT declaration".to_string());
+        violations
+            .push("ADR-0009: mios.toml missing [meta].mios_version SSOT declaration".to_string());
     }
 
     // ADR-0010: SSOT as system dotfiles registry
@@ -218,7 +216,8 @@ pub fn validate_adr_ssot_consistency(root: &Path) -> Vec<String> {
         .and_then(|d| d.as_table())
         .is_some_and(|t| !t.is_empty());
     if !has_dotfiles {
-        violations.push("ADR-0010: mios.toml missing or empty [dotfiles] table registry".to_string());
+        violations
+            .push("ADR-0010: mios.toml missing or empty [dotfiles] table registry".to_string());
     }
 
     // ADR-0003: SBOM image references integrity (no hardcoded @sha256: digests in [image])
@@ -263,14 +262,19 @@ pub fn validate_adr_ssot_consistency(root: &Path) -> Vec<String> {
                     if path.is_dir() {
                         let dir_name = path.file_name().unwrap_or_default();
                         let dir_str = dir_name.to_string_lossy();
-                        if dir_str.starts_with('.') || dir_str == "target" || dir_str == "node_modules" {
+                        if dir_str.starts_with('.')
+                            || dir_str == "target"
+                            || dir_str == "node_modules"
+                        {
                             continue;
                         }
                         if dir_str == "adr" && rel != norm_adr_dir {
                             if let Ok(sub) = fs::read_dir(&path) {
                                 for f in sub.flatten() {
                                     let fn_str = f.file_name().to_string_lossy().to_string();
-                                    if fn_str.ends_with(".md") && fn_str.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+                                    if fn_str.ends_with(".md")
+                                        && fn_str.chars().next().is_some_and(|c| c.is_ascii_digit())
+                                    {
                                         shadows.push(format!("{}/{}", rel_str, fn_str));
                                     }
                                 }
@@ -328,12 +332,18 @@ pub fn run_adr_index(root: &Path, check: bool, json_mode: bool) -> Result<(), (S
         let current = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => {
-                return Err((format!("{} is missing -- run tools/generate-adr-index.py", OUT), 1));
+                return Err((
+                    format!("{} is missing -- run tools/generate-adr-index.py", OUT),
+                    1,
+                ));
             }
         };
 
         if current != body {
-            return Err((format!("{} is stale -- run tools/generate-adr-index.py", OUT), 1));
+            return Err((
+                format!("{} is stale -- run tools/generate-adr-index.py", OUT),
+                1,
+            ));
         }
 
         let adr_viols = validate_adr_ssot_consistency(root);

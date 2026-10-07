@@ -1,6 +1,6 @@
-// AI-hint: Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14).
+// AI-hint: Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14) -- hermetic: every case runs against a fixture copy of ROADMAP.md, because a test that checks the LIVE tree's sync state fails on any mid-edit working copy and duplicates what the drift gate already asserts.
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/roadmap_index.rs, ROADMAP.md, tools/roadmap-index.py
+// AI-related: tools/native/mios-gen/src/roadmap_index.rs, ROADMAP.md, automation/98-drift-checks.sh
 
 use std::fs;
 use std::path::PathBuf;
@@ -20,25 +20,89 @@ fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_mios-gen")
 }
 
+/// A throwaway root whose ROADMAP.md is a self-consistent copy of the real
+/// one: render once against the fixture so its index agrees with its body,
+/// then every --check below measures the binary, not the working tree.
+/// roadmap-index validates workstream citations against the ADR corpus and
+/// the SSOT, so those ride along with the copy.
+fn fixture_root() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("Failed to create fixture tempdir");
+    let repo = get_repo_root();
+
+    fs::copy(
+        repo.join("ROADMAP.md"),
+        dir.path().join("ROADMAP.md"),
+    )
+    .expect("Failed to write fixture ROADMAP.md");
+
+    let ssot_dest = dir.path().join("usr/share/mios");
+    fs::create_dir_all(&ssot_dest).expect("Failed to create fixture SSOT dir");
+    fs::copy(
+        repo.join("usr/share/mios/mios.toml"),
+        ssot_dest.join("mios.toml"),
+    )
+    .expect("Failed to copy fixture SSOT");
+
+    let adr_src = repo.join("usr/share/doc/mios/adr");
+    let adr_dest = dir.path().join("usr/share/doc/mios/adr");
+    fs::create_dir_all(&adr_dest).expect("Failed to create fixture ADR dir");
+    for entry in fs::read_dir(&adr_src).expect("Failed to read ADR corpus") {
+        let entry = entry.expect("ADR dir entry");
+        if entry.path().is_file() {
+            fs::copy(entry.path(), adr_dest.join(entry.file_name()))
+                .expect("Failed to copy ADR file");
+        }
+    }
+
+    // roadmap-index shells out to `git ls-files` for its metrics; a throwaway
+    // repo of the fixture satisfies it (the ratchet.rs fixtures do the same).
+    for args in [
+        ["init", "-q"].as_slice(),
+        ["config", "user.email", "t@example.invalid"].as_slice(),
+        ["config", "user.name", "t"].as_slice(),
+        ["add", "-A"].as_slice(),
+    ] {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(args)
+            .output()
+            .expect("git must be available for this fixture");
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let out = Command::new(bin())
+        .args(["roadmap-index", "--root"])
+        .arg(dir.path())
+        .output()
+        .expect("Failed to render fixture index");
+    assert!(
+        out.status.success(),
+        "fixture render failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    dir
+}
+
 #[test]
 fn test_roadmap_index_render_and_check() {
-    let root = get_repo_root();
+    let fixture = fixture_root();
+    let roadmap_path = fixture.path().join("ROADMAP.md");
 
-    // 1. Positive check on the clean repository
+    // 1. Positive check on the self-consistent fixture
     let output = Command::new(bin())
-        .args([
-            "roadmap-index",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["roadmap-index", "--root"])
+        .arg(fixture.path())
+        .arg("--check")
         .output()
         .expect("Failed to execute mios-gen roadmap-index");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    println!("stdout:\n{stdout}");
-    println!("stderr:\n{stderr}");
 
     assert!(
         output.status.success(),
@@ -51,29 +115,16 @@ fn test_roadmap_index_render_and_check() {
         "Expected sync confirmation message, got: {stdout}"
     );
 
-    // 2. Negative check: intentional mutation in repo ROADMAP.md, restored cleanly via RAII guard
-    let roadmap_path = root.join("ROADMAP.md");
-    let original = fs::read_to_string(&roadmap_path).expect("Failed to read ROADMAP.md");
-
-    struct Restorer(std::path::PathBuf, String);
-    impl Drop for Restorer {
-        fn drop(&mut self) {
-            let _ = fs::write(&self.0, &self.1);
-        }
-    }
-    let _restorer = Restorer(roadmap_path.clone(), original.clone());
-
+    // 2. Negative check: mutate the fixture; no restorer needed, it is a copy
+    let original = fs::read_to_string(&roadmap_path).expect("Failed to read fixture ROADMAP.md");
     let mutated = original.replace("- **Done**:", "- **Done**: 99999");
     assert_ne!(original, mutated, "Mutation must change content");
     fs::write(&roadmap_path, mutated).expect("Failed to write mutated ROADMAP.md");
 
     let output_neg = Command::new(bin())
-        .args([
-            "roadmap-index",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["roadmap-index", "--root"])
+        .arg(fixture.path())
+        .arg("--check")
         .output()
         .expect("Failed to execute mios-gen roadmap-index on mutated copy");
 
@@ -90,17 +141,12 @@ fn test_roadmap_index_render_and_check() {
 
 #[test]
 fn test_roadmap_index_json_format() {
-    let root = get_repo_root();
+    let fixture = fixture_root();
 
     let output = Command::new(bin())
-        .args([
-            "--format",
-            "json",
-            "roadmap-index",
-            "--root",
-            &root.to_string_lossy(),
-            "--check",
-        ])
+        .args(["--format", "json", "roadmap-index", "--root"])
+        .arg(fixture.path())
+        .arg("--check")
         .output()
         .expect("Failed to execute mios-gen --format json roadmap-index");
 
@@ -125,12 +171,9 @@ fn test_roadmap_index_negative_missing_root() {
     let temp_empty = tempfile::tempdir().expect("Failed to create empty tempdir");
 
     let output = Command::new(bin())
-        .args([
-            "roadmap-index",
-            "--root",
-            &temp_empty.path().to_string_lossy(),
-            "--check",
-        ])
+        .args(["roadmap-index", "--root"])
+        .arg(temp_empty.path())
+        .arg("--check")
         .output()
         .expect("Failed to execute mios-gen on empty root");
 

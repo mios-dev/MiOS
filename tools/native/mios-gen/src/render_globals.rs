@@ -21,14 +21,7 @@ const EXCLUDED_SECTIONS: &[&str] = &[
     "units",
 ];
 
-const WALK_MOSTLY_DEAD: &[&str] = &[
-    "ai",
-    "image",
-    "bootstrap",
-    "profile",
-    "sandbox",
-    "security",
-];
+const WALK_MOSTLY_DEAD: &[&str] = &["ai", "image", "bootstrap", "profile", "sandbox", "security"];
 
 const WALK_EMIT_KEEP: &[&str] = &[
     "MIOS_AI_BAKE_MODELS",
@@ -205,7 +198,7 @@ pub fn build_exports(root: &Path) -> Result<BTreeMap<String, String>, String> {
         if EXCLUDED_SECTIONS.contains(&section) {
             continue;
         }
-        if dotted.ends_with(".comment") || dotted.split('.').last() == Some("comment") {
+        if dotted.ends_with(".comment") || dotted.rsplit('.').next() == Some("comment") {
             continue;
         }
         let processed = mios_resolver::walk::process_val(&dotted, &val, stack_offset);
@@ -694,11 +687,7 @@ mod tests {
     fn test_ps_assign_dollar_in_template_is_escaped() {
         let mut exports = BTreeMap::new();
         exports.insert("MIOS_PORT_SSH".to_string(), "8100".to_string());
-        let out = ps_assign(
-            "MIOS_X",
-            "a $literal and ${MIOS_PORT_SSH}",
-            Some(&exports),
-        );
+        let out = ps_assign("MIOS_X", "a $literal and ${MIOS_PORT_SSH}", Some(&exports));
         assert!(out.contains("`$literal"));
     }
 
@@ -724,7 +713,10 @@ mod tests {
         exports.insert("MIOS_PORT_FORGE_HTTP".to_string(), "8400".to_string());
 
         let names = ordered_names(&exports);
-        let idx_dep = names.iter().position(|n| n == "MIOS_PORT_FORGE_HTTP").unwrap();
+        let idx_dep = names
+            .iter()
+            .position(|n| n == "MIOS_PORT_FORGE_HTTP")
+            .unwrap();
         let idx_ref = names.iter().position(|n| n == "MIOS_URLS_FORGE").unwrap();
         assert!(idx_dep < idx_ref);
     }
@@ -734,15 +726,21 @@ mod tests {
         let sh_body = ": \"${MIOS_TEST_KEY:=1234}\"\n";
         let ps_body = "$script:MIOS_TEST_KEY = 1234\n";
         let problems = check_globals_parity(sh_body, ps_body);
-        assert!(problems.is_empty(), "expected 0 problems, got: {problems:?}");
+        assert!(
+            problems.is_empty(),
+            "expected 0 problems, got: {problems:?}"
+        );
 
         let ps_missing = "$script:MIOS_OTHER_KEY = 1234\n";
         let problems_missing_ps = check_globals_parity(sh_body, ps_missing);
-        assert!(problems_missing_ps.iter().any(|p| p.contains("missing in globals.ps1")));
+        assert!(problems_missing_ps
+            .iter()
+            .any(|p| p.contains("missing in globals.ps1")));
 
         let sh_missing = ": \"${MIOS_OTHER_KEY:=1234}\"\n";
         let problems_missing_sh = check_globals_parity(sh_missing, ps_body);
-        assert!(problems_missing_sh.iter().any(|p| p.contains("missing in globals.sh")));
+        assert!(problems_missing_sh
+            .iter()
+            .any(|p| p.contains("missing in globals.sh")));
     }
 }
-

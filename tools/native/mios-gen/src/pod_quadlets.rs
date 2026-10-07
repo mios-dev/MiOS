@@ -116,7 +116,10 @@ pub fn load_user_scope(doc: &toml::Value) -> BTreeSet<String> {
 pub fn load_privileged_root(doc: &toml::Value) -> BTreeSet<String> {
     let mut allowed = BTreeSet::new();
     if let Some(sec_tbl) = doc.get("security").and_then(|v| v.as_table()) {
-        if let Some(priv_tbl) = sec_tbl.get("privileged_quadlets").and_then(|v| v.as_table()) {
+        if let Some(priv_tbl) = sec_tbl
+            .get("privileged_quadlets")
+            .and_then(|v| v.as_table())
+        {
             if let Some(toml::Value::Array(arr)) = priv_tbl.get("root") {
                 for item in arr {
                     let raw = match item {
@@ -140,7 +143,10 @@ pub fn load_privileged_root(doc: &toml::Value) -> BTreeSet<String> {
 pub fn load_grandfathered_credentials(doc: &toml::Value) -> BTreeSet<String> {
     let mut set = BTreeSet::new();
     if let Some(sec_tbl) = doc.get("security").and_then(|v| v.as_table()) {
-        if let Some(cred_tbl) = sec_tbl.get("credential_literals").and_then(|v| v.as_table()) {
+        if let Some(cred_tbl) = sec_tbl
+            .get("credential_literals")
+            .and_then(|v| v.as_table())
+        {
             if let Some(toml::Value::Array(arr)) = cred_tbl.get("grandfathered") {
                 for item in arr {
                     if let Some(s) = item.as_str() {
@@ -175,7 +181,10 @@ pub fn load_secret_keys(doc: &toml::Value) -> BTreeSet<String> {
     set
 }
 
-pub fn sidecar_image<'a>(var_name: &str, sidecars: &'a BTreeMap<String, String>) -> Option<&'a str> {
+pub fn sidecar_image<'a>(
+    var_name: &str,
+    sidecars: &'a BTreeMap<String, String>,
+) -> Option<&'a str> {
     if let Some(rest) = var_name.strip_prefix("MIOS_") {
         if let Some(base) = rest.strip_suffix("_IMAGE") {
             let key = base.to_lowercase();
@@ -250,7 +259,10 @@ pub fn resolve_one(
     }
     if name.starts_with("MIOS_PORT_") || placeholders.contains(name) {
         let def_expanded = if sep {
-            format!(":-{}", expand_str(default, placeholders, ssot_exports, sidecars)?)
+            format!(
+                ":-{}",
+                expand_str(default, placeholders, ssot_exports, sidecars)?
+            )
         } else {
             String::new()
         };
@@ -443,7 +455,8 @@ pub fn validate_environment_entry(
         let unit_target = format!("usr/share/containers/systemd/{name}.{unit_type}:{k}={v}");
         let alt_target = format!("{name}.{unit_type}:{k}={v}");
         let clean_v = v.trim_matches(|c| c == '\'' || c == '"');
-        let unit_target_clean = format!("usr/share/containers/systemd/{name}.{unit_type}:{k}={clean_v}");
+        let unit_target_clean =
+            format!("usr/share/containers/systemd/{name}.{unit_type}:{k}={clean_v}");
         let alt_target_clean = format!("{name}.{unit_type}:{k}={clean_v}");
 
         if let Some(gf) = grandfathered {
@@ -584,6 +597,9 @@ pub fn render_pod_quadlet(
     Ok(lines.join("\n") + "\n")
 }
 
+// Nine context parameters is the projection's real shape (SSOT-derived sets
+// plus the render sidecars); grouping them would obscure the call sites.
+#[allow(clippy::too_many_arguments)]
 pub fn render_nested_quadlet(
     name: &str,
     spec: &toml::Value,
@@ -616,7 +632,9 @@ pub fn render_nested_quadlet(
         "# DO NOT EDIT -- regenerate via \
         tools/generate-pod-quadlets.py from [{unit_type}s.{name}] in mios.toml."
     ));
-    lines.push(format!("# /usr/share/containers/systemd/{name}.{unit_type}"));
+    lines.push(format!(
+        "# /usr/share/containers/systemd/{name}.{unit_type}"
+    ));
     if name == "mios-llm-heavy-alt" && unit_type == "container" {
         lines.push("# DEPRECATED (Part 10): retire by setting [converge.inference].retire_heavy_alt = true and running the migration guide at usr/share/doc/mios/guides/inference-consolidation.md.".to_string());
     }
@@ -657,7 +675,7 @@ pub fn render_nested_quadlet(
         lines.push(String::new());
         lines.push(format!("[{sec}]"));
         let mut keys: Vec<(&String, &toml::Value)> = sec_data.iter().collect();
-        keys.sort_by(|(a, _), (b, _)| a.cmp(b));
+        keys.sort_by_key(|(k, _)| *k);
         for (k, val) in keys {
             match val {
                 toml::Value::Array(arr) => {
@@ -674,13 +692,16 @@ pub fn render_nested_quadlet(
                             toml::Value::Integer(i) => i.to_string(),
                             other => other.to_string(),
                         };
-                        let resolved_item = expand_str(&item_str, placeholders, ssot_exports, sidecars)?;
-                        if (k == "User" || k == "Group") && is_root_id(&resolved_item) {
-                            if unit_type == "container" && !is_auth_root {
-                                return Err(format!(
-                                    "Container '{name}' attempts {k}={resolved_item} but is not listed in [security.privileged_quadlets].root in mios.toml (Law 6)"
-                                ));
-                            }
+                        let resolved_item =
+                            expand_str(&item_str, placeholders, ssot_exports, sidecars)?;
+                        if (k == "User" || k == "Group")
+                            && is_root_id(&resolved_item)
+                            && unit_type == "container"
+                            && !is_auth_root
+                        {
+                            return Err(format!(
+                                "Container '{name}' attempts {k}={resolved_item} but is not listed in [security.privileged_quadlets].root in mios.toml (Law 6)"
+                            ));
                         }
                         if k == "Environment" && unit_type == "container" {
                             validate_environment_entry(
@@ -714,12 +735,14 @@ pub fn render_nested_quadlet(
                     if (k == "User" || k == "Group") && resolved_val.is_empty() {
                         continue;
                     }
-                    if (k == "User" || k == "Group") && is_root_id(&resolved_val) {
-                        if unit_type == "container" && !is_auth_root {
-                            return Err(format!(
-                                "Container '{name}' attempts {k}={resolved_val} but is not listed in [security.privileged_quadlets].root in mios.toml (Law 6)"
-                            ));
-                        }
+                    if (k == "User" || k == "Group")
+                        && is_root_id(&resolved_val)
+                        && unit_type == "container"
+                        && !is_auth_root
+                    {
+                        return Err(format!(
+                            "Container '{name}' attempts {k}={resolved_val} but is not listed in [security.privileged_quadlets].root in mios.toml (Law 6)"
+                        ));
                     }
                     if k == "Environment" && unit_type == "container" {
                         validate_environment_entry(
@@ -774,7 +797,7 @@ pub fn apply_bound_image_store(
                     Some(s) => list.push(s.to_string()),
                     None => {
                         return Err(
-                            "[build.bake].firstboot_tokens must be a string array".to_string(),
+                            "[build.bake].firstboot_tokens must be a string array".to_string()
                         )
                     }
                 }
@@ -810,12 +833,18 @@ pub fn apply_bound_image_store(
                         match item.as_str() {
                             Some(s) => args.push(s.to_string()),
                             None => {
-                                return Err(format!("{name}: GlobalArgs must be a string or string array"))
+                                return Err(format!(
+                                    "{name}: GlobalArgs must be a string or string array"
+                                ))
                             }
                         }
                     }
                 }
-                _ => return Err(format!("{name}: GlobalArgs must be a string or string array")),
+                _ => {
+                    return Err(format!(
+                        "{name}: GlobalArgs must be a string or string array"
+                    ))
+                }
             }
         }
 
@@ -835,20 +864,30 @@ pub fn apply_bound_image_store(
             idx += 1;
         }
 
-        if tokens.iter().any(|tok| !tok.is_empty() && image.contains(tok)) {
+        if tokens
+            .iter()
+            .any(|tok| !tok.is_empty() && image.contains(tok))
+        {
             if !existing.is_empty() {
-                return Err(format!("{name}: firstboot image cannot use bootc additional image store"));
+                return Err(format!(
+                    "{name}: firstboot image cannot use bootc additional image store"
+                ));
             }
             continue;
         }
         if user_scope.contains(name) {
             if !existing.is_empty() {
-                return Err(format!("{name}: user-scope unit cannot use bootc additional image store"));
+                return Err(format!(
+                    "{name}: user-scope unit cannot use bootc additional image store"
+                ));
             }
             continue;
         }
         if !existing.is_empty() && existing != vec![store.to_string()] {
-            return Err(format!("{name}: conflicting bootc additional image store {:?}", existing));
+            return Err(format!(
+                "{name}: conflicting bootc additional image store {:?}",
+                existing
+            ));
         }
         if existing.is_empty() {
             args.push(wanted.clone());
@@ -861,7 +900,11 @@ pub fn apply_bound_image_store(
     Ok(())
 }
 
-pub fn run_pod_quadlets(root: &Path, check: bool, list_mode: bool) -> Result<PodQuadletResult, String> {
+pub fn run_pod_quadlets(
+    root: &Path,
+    check: bool,
+    list_mode: bool,
+) -> Result<PodQuadletResult, String> {
     let toml_path = match std::env::var("MIOS_TOML") {
         Ok(p) => PathBuf::from(p),
         Err(_) => root.join("usr/share/mios/mios.toml"),
@@ -987,7 +1030,7 @@ pub fn run_pod_quadlets(root: &Path, check: bool, list_mode: bool) -> Result<Pod
 
     let sorted_pods: Vec<(&String, &toml::Value)> = {
         let mut p: Vec<_> = pods.iter().collect();
-        p.sort_by(|(a, _), (b, _)| a.cmp(b));
+        p.sort_by_key(|(k, _)| *k);
         p
     };
 
@@ -1053,7 +1096,7 @@ pub fn run_pod_quadlets(root: &Path, check: bool, list_mode: bool) -> Result<Pod
     for (specs, unit_type) in categories {
         let sorted_specs: Vec<(&String, &toml::Value)> = {
             let mut s: Vec<_> = specs.iter().collect();
-            s.sort_by(|(a, _), (b, _)| a.cmp(b));
+            s.sort_by_key(|(k, _)| *k);
             s
         };
 
@@ -1166,14 +1209,18 @@ pub fn run_pod_quadlets(root: &Path, check: bool, list_mode: bool) -> Result<Pod
         let orphans: BTreeSet<_> = shipped.difference(&generated_files).cloned().collect();
         if !orphans.is_empty() {
             for orphan in &orphans {
-                eprintln!("[pod-gen] DRIFT: un-generated orphan Quadlet unit in SSOT dir: {orphan}");
+                eprintln!(
+                    "[pod-gen] DRIFT: un-generated orphan Quadlet unit in SSOT dir: {orphan}"
+                );
             }
             drift += orphans.len();
         }
 
         if drift > 0 {
             eprintln!("[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT");
-            return Err(format!("[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT"));
+            return Err(format!(
+                "[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT"
+            ));
         }
         if member_miss > 0 {
             return Err(format!("[pod-gen] {member_miss} member unit(s) missing"));
@@ -1197,7 +1244,10 @@ mod tests {
     #[test]
     fn test_shlex_split() {
         let words = shlex_split("--storage-opt=additionalimagestore=/usr/lib/bootc/storage");
-        assert_eq!(words, vec!["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]);
+        assert_eq!(
+            words,
+            vec!["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
+        );
 
         let words = shlex_split("--foo 'bar baz' \"qux quux\"");
         assert_eq!(words, vec!["--foo", "bar baz", "qux quux"]);
@@ -1245,12 +1295,15 @@ mod tests {
         let ssot_exports = BTreeMap::new();
 
         // Positive Control: authorized container in privileged_quadlets.root allows User=0 and Group=0
-        let auth_spec: toml::Value = toml::from_str(r#"
+        let auth_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "ceph"
             User = "0"
             Group = "0"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let auth_out = render_nested_quadlet(
             "mios-ceph",
             &auth_spec,
@@ -1262,17 +1315,23 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(auth_out.is_ok(), "Authorized container mios-ceph should succeed");
+        assert!(
+            auth_out.is_ok(),
+            "Authorized container mios-ceph should succeed"
+        );
         let text_out = auth_out.unwrap();
         assert!(text_out.contains("User=0") && text_out.contains("Group=0"));
 
         // Positive Control: unprivileged container with standard non-zero UID passes
-        let unpriv_spec: toml::Value = toml::from_str(r#"
+        let unpriv_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "adguard"
             User = "825"
             Group = "825"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let unpriv_out = render_nested_quadlet(
             "mios-adguard",
             &unpriv_spec,
@@ -1284,13 +1343,19 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(unpriv_out.is_ok(), "Unprivileged container with User=825 should succeed");
+        assert!(
+            unpriv_out.is_ok(),
+            "Unprivileged container with User=825 should succeed"
+        );
 
         // Positive Control: allowlisted container omitting User= (implicit root) passes
-        let implicit_spec: toml::Value = toml::from_str(r#"
+        let implicit_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "ceph"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let implicit_out = render_nested_quadlet(
             "mios-ceph",
             &implicit_spec,
@@ -1302,14 +1367,20 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(implicit_out.is_ok(), "Allowlisted container without User= should pass");
+        assert!(
+            implicit_out.is_ok(),
+            "Allowlisted container without User= should pass"
+        );
 
         // Negative Control 1: Unauthorized container declaring User=0 is rejected
-        let unauth_u0: toml::Value = toml::from_str(r#"
+        let unauth_u0: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "alpine"
             User = "0"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let err = render_nested_quadlet(
             "test-unauth-root",
             &unauth_u0,
@@ -1325,11 +1396,14 @@ mod tests {
         assert!(err.unwrap_err().contains("Law 6"));
 
         // Negative Control 2: Unauthorized container declaring User=root is rejected
-        let unauth_uroot: toml::Value = toml::from_str(r#"
+        let unauth_uroot: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "alpine"
             User = "root"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let err = render_nested_quadlet(
             "test-unauth-root",
             &unauth_uroot,
@@ -1345,12 +1419,15 @@ mod tests {
         assert!(err.unwrap_err().contains("Law 6"));
 
         // Negative Control 3: Unauthorized container declaring Group=0 is rejected
-        let unauth_g0: toml::Value = toml::from_str(r#"
+        let unauth_g0: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "alpine"
             Group = "0"
             User = "1000"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let err = render_nested_quadlet(
             "test-unauth-root",
             &unauth_g0,
@@ -1366,10 +1443,13 @@ mod tests {
         assert!(err.unwrap_err().contains("Law 6"));
 
         // Negative Control 4: Un-allowlisted container declaring no User= is rejected
-        let unauth_nouser: toml::Value = toml::from_str(r#"
+        let unauth_nouser: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "alpine"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let err = render_nested_quadlet(
             "zz-planted",
             &unauth_nouser,
@@ -1381,7 +1461,10 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(err.is_err(), "Un-allowlisted container without User= must fail");
+        assert!(
+            err.is_err(),
+            "Un-allowlisted container without User= must fail"
+        );
         let msg = err.unwrap_err();
         assert!(msg.contains("declares no User=") && msg.contains("Law 6"));
     }
@@ -1390,7 +1473,10 @@ mod tests {
     fn test_law_11_secrets_enforcement() {
         let allowed_root = BTreeSet::new();
         let mut grandfathered_creds = BTreeSet::new();
-        grandfathered_creds.insert("usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD=mios".to_string());
+        grandfathered_creds.insert(
+            "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD=mios"
+                .to_string(),
+        );
 
         let secret_keys = BTreeSet::new();
         let placeholders = BTreeSet::new();
@@ -1398,13 +1484,16 @@ mod tests {
         let ssot_exports = BTreeMap::new();
 
         // Positive Control: grandfathered placeholder password literal passes
-        let gf_spec: toml::Value = toml::from_str(r#"
+        let gf_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "pgvector"
             User = "826"
             Group = "826"
             Environment = ["POSTGRES_PASSWORD=mios"]
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let gf_out = render_nested_quadlet(
             "mios-pgvector",
             &gf_spec,
@@ -1417,16 +1506,21 @@ mod tests {
             &sidecars,
         );
         assert!(gf_out.is_ok(), "Grandfathered credential must pass");
-        assert!(gf_out.unwrap().contains("Environment=POSTGRES_PASSWORD=mios"));
+        assert!(gf_out
+            .unwrap()
+            .contains("Environment=POSTGRES_PASSWORD=mios"));
 
         // Positive Control: secret reference via EnvironmentFile passes
-        let ref_spec: toml::Value = toml::from_str(r#"
+        let ref_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "pgvector"
             User = "826"
             Group = "826"
             EnvironmentFile = "/etc/mios/secrets.env"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let ref_out = render_nested_quadlet(
             "mios-pgvector",
             &ref_spec,
@@ -1438,17 +1532,25 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(ref_out.is_ok(), "Secret reference via EnvironmentFile must pass");
-        assert!(ref_out.unwrap().contains("EnvironmentFile=/etc/mios/secrets.env"));
+        assert!(
+            ref_out.is_ok(),
+            "Secret reference via EnvironmentFile must pass"
+        );
+        assert!(ref_out
+            .unwrap()
+            .contains("EnvironmentFile=/etc/mios/secrets.env"));
 
         // Negative Control: Non-placeholder password literal in Environment is rejected
-        let secret_spec: toml::Value = toml::from_str(r#"
+        let secret_spec: toml::Value = toml::from_str(
+            r#"
             [Container]
             Image = "postgres"
             User = "826"
             Group = "826"
             Environment = ["POSTGRES_PASSWORD=my-super-secret-pw"]
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let err = render_nested_quadlet(
             "test-db",
             &secret_spec,
@@ -1466,20 +1568,35 @@ mod tests {
 
     #[test]
     fn test_user_scope_and_bootc_store() {
-        let bake: toml::Value = toml::from_str(r#"
+        let bake: toml::Value = toml::from_str(
+            r#"
             additional_image_store = "/usr/lib/bootc/storage"
             firstboot_tokens = []
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let mut containers = toml::map::Map::new();
-        containers.insert("sys".to_string(), toml::from_str(r#"
+        containers.insert(
+            "sys".to_string(),
+            toml::from_str(
+                r#"
             [Container]
             Image = "example/sys:1"
-        "#).unwrap());
-        containers.insert("usr".to_string(), toml::from_str(r#"
+        "#,
+            )
+            .unwrap(),
+        );
+        containers.insert(
+            "usr".to_string(),
+            toml::from_str(
+                r#"
             [Container]
             Image = "example/usr:1"
-        "#).unwrap());
+        "#,
+            )
+            .unwrap(),
+        );
 
         let mut user_scope = BTreeSet::new();
         user_scope.insert("usr".to_string());
@@ -1499,18 +1616,30 @@ mod tests {
         assert!(res.is_ok());
 
         let sys_c = containers.get("sys").unwrap().get("Container").unwrap();
-        assert!(sys_c.get("GlobalArgs").is_some(), "System unit must get GlobalArgs");
+        assert!(
+            sys_c.get("GlobalArgs").is_some(),
+            "System unit must get GlobalArgs"
+        );
 
         let usr_c = containers.get("usr").unwrap().get("Container").unwrap();
-        assert!(usr_c.get("GlobalArgs").is_none(), "User-scope unit must NOT get GlobalArgs");
+        assert!(
+            usr_c.get("GlobalArgs").is_none(),
+            "User-scope unit must NOT get GlobalArgs"
+        );
 
         // Negative Control: user-scope unit declaring the bootc store is rejected
         let mut bad_containers = toml::map::Map::new();
-        bad_containers.insert("usr".to_string(), toml::from_str(r#"
+        bad_containers.insert(
+            "usr".to_string(),
+            toml::from_str(
+                r#"
             [Container]
             Image = "example/usr:1"
             GlobalArgs = "--storage-opt=additionalimagestore=/usr/lib/bootc/storage"
-        "#).unwrap());
+        "#,
+            )
+            .unwrap(),
+        );
 
         let bad_res = apply_bound_image_store(
             &mut bad_containers,
@@ -1520,6 +1649,9 @@ mod tests {
             &ssot_exports,
             &sidecars,
         );
-        assert!(bad_res.is_err(), "User-scope unit declaring bootc store must fail");
+        assert!(
+            bad_res.is_err(),
+            "User-scope unit declaring bootc store must fail"
+        );
     }
 }

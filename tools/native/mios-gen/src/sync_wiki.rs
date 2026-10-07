@@ -111,17 +111,16 @@ pub fn sync_file_content(
 
             // Update last_rag_sync
             let current_sync = obj.get("last_rag_sync").and_then(|v| v.as_str());
-            if explicit_rag_sync
+            if (explicit_rag_sync
                 || current_sync.is_none()
-                || current_sync.unwrap_or("").trim().is_empty()
+                || current_sync.unwrap_or("").trim().is_empty())
+                && current_sync != Some(rag_sync)
             {
-                if current_sync != Some(rag_sync) {
-                    obj.insert(
-                        "last_rag_sync".to_string(),
-                        serde_json::Value::String(rag_sync.to_string()),
-                    );
-                    modified = true;
-                }
+                obj.insert(
+                    "last_rag_sync".to_string(),
+                    serde_json::Value::String(rag_sync.to_string()),
+                );
+                modified = true;
             }
         }
 
@@ -158,14 +157,15 @@ pub fn sync_file_content(
                         modified = true;
                     }
                 }
-                if obj.contains_key("last_sync") && explicit_rag_sync {
-                    if obj.get("last_sync").and_then(|v| v.as_str()) != Some(rag_sync) {
-                        obj.insert(
-                            "last_sync".to_string(),
-                            serde_json::Value::String(rag_sync.to_string()),
-                        );
-                        modified = true;
-                    }
+                if obj.contains_key("last_sync")
+                    && explicit_rag_sync
+                    && obj.get("last_sync").and_then(|v| v.as_str()) != Some(rag_sync)
+                {
+                    obj.insert(
+                        "last_sync".to_string(),
+                        serde_json::Value::String(rag_sync.to_string()),
+                    );
+                    modified = true;
                 }
             }
             if let Ok(pretty_json) = serde_json::to_string_pretty(&data) {
@@ -194,10 +194,7 @@ pub fn run_sync_wiki(
     target_paths: &[PathBuf],
 ) -> Result<SyncResult, String> {
     if !root.is_dir() {
-        return Err(format!(
-            "Root directory does not exist: {}",
-            root.display()
-        ));
+        return Err(format!("Root directory does not exist: {}", root.display()));
     }
 
     let version = get_version(root);
@@ -253,11 +250,7 @@ pub fn run_sync_wiki(
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(e) => {
-                return Err(format!(
-                    "Failed to read file {}: {}",
-                    path.display(),
-                    e
-                ));
+                return Err(format!("Failed to read file {}: {}", path.display(), e));
             }
         };
 
