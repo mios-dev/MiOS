@@ -30,10 +30,13 @@ Response carries X-MiOS-Lane / X-MiOS-Model so you can SEE which node served.
 Override lanes via MIOS_ROUTER_DEPLOYMENTS (JSON). Port via MIOS_ROUTER_PORT.
 """
 import os, time, json, asyncio, re, subprocess
+import logging
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 import uvicorn
+
+log = logging.getLogger("mios-model-router")
 
 PORT = int(os.environ.get("MIOS_PORT_MODEL_ROUTER", os.environ.get("MIOS_ROUTER_PORT", "8645")))
 COOLDOWN_S = float(os.environ.get("MIOS_ROUTER_COOLDOWN_S", "30"))
@@ -210,7 +213,8 @@ async def _passthrough(path: str, req: Request):
                 return Response(content=r.content, media_type="application/json",
                                 headers={"X-MiOS-Lane": d["name"], "X-MiOS-Model": d["model"]})
         except Exception as e:
-            _cool(d["name"]); last = f"{d['name']}: {type(e).__name__}: {e}"; continue
+            log.warning("model lane %s failed", d["name"], exc_info=True)
+            _cool(d["name"]); last = f"{d['name']}: backend unavailable"; continue
     return JSONResponse({"error": {"message": f"all lanes for {requested} unavailable ({last})",
                                    "type": "service_unavailable"}}, status_code=503)
 

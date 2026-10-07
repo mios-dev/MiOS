@@ -4311,13 +4311,13 @@ function emitTomlValue(v) {
     const allNumeric = v.every(x => typeof x === "number");
     const items = allNumeric
       ? v.map(n => String(n))
-      : v.map(s => `"${String(s).replace(/"/g, '\\"')}"`);
+      : v.map(s => JSON.stringify(String(s)));
     // Inline for short arrays (groups, small sets); multi-line for long
     // arrays (desktop.flatpaks) so the saved TOML stays human-readable.
     if (v.length <= 4) return "[" + items.join(", ") + "]";
     return "[\n    " + items.join(",\n    ") + ",\n]";
   }
-  return `"${String(v).replace(/"/g, '\\"')}"`;
+  return JSON.stringify(String(v));
 }
 
 // ── Form ↔ data binding ──────────────────────────────────────────
@@ -5138,7 +5138,7 @@ function renderPathBanner() {
   if (sp) {
     suggestedRow =
       `<div style="margin:4px 0 8px;padding:6px 8px;background:rgba(88,166,255,.12);border-radius:4px">` +
-      `<b>Bootstrap is waiting on:</b> <code>${sp}</code><br>` +
+      `<b>Bootstrap is waiting on:</b> <code>${escapeHtml(sp)}</code><br>` +
       `Click <b>Pick file</b> above and open this exact path; edit; click Save. The bootstrap script will pick up the values when you press Enter back in the terminal.` +
       `</div>`;
   }

@@ -991,7 +991,7 @@ async def _client_tools_relay(body: dict, streaming: bool) -> Any:
         except Exception as e:  # noqa: BLE001
             log.warning("client-tools relay backend failed: %s", e)
             return JSONResponse(
-                content={"error": {"message": f"tool backend error: {e}",
+                content={"error": {"message": "The tool backend is unavailable",
                                    "type": "server_error"}}, status_code=502)
 
     async def _gen() -> AsyncGenerator[bytes, None]:
