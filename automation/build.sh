@@ -435,9 +435,10 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
     done
     if command -v python3 >/dev/null 2>&1; then
         # The edge goldens follow the build SSOT like the image surfaces 65-bake-hyprland.sh rendered.
-        for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py ux/tmux_theme.py; do
+        for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py; do
             python3 "${_drift_root}/usr/libexec/mios/${_gen}" --write-fixture "${_drift_root}"
         done
+        /usr/libexec/mios/mios-gen render-tmux-theme --write-fixture "${_drift_root}"
     else
         echo "[reproject] WARN: python3 unavailable"
     fi

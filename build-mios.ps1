@@ -7147,7 +7147,7 @@ $miosRepo = $MiosRepoDir
     Set-Step (Get-MiosTomlValue -Section 'messages.steps' -Key 'mios_bootstrap_overlay' -Default "Overlaying mios-bootstrap files onto $MiosRepoDir")
     $robocopyExit = Invoke-NativeQuiet {
         robocopy $MiosBootstrapShadow $MiosRepoDir `
-            /E /XD .git /XF mios.toml /NJH /NJS /NFL /NDL /NP
+            /E /XC /XN /XO /XD .git /XF mios.toml /NJH /NJS /NFL /NDL /NP
     }
     if ($robocopyExit -ge 8) {
         throw "mios-bootstrap overlay failed: robocopy exit $robocopyExit"

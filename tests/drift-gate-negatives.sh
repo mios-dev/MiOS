@@ -5336,6 +5336,31 @@ test_btop_theme() {
     log "check_btop_theme negative test passed"
 }
 
+test_fastfetch() {
+    log "Testing check_fastfetch"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp -p "$toml" "$bak"
+    _ff_restore() { cp -p "$bak" "$toml"; rm -f "$bak"; unset -f _ff_restore; }
+
+    # (1) Positive control: clean run passes
+    _neg_gate check_fastfetch || { _ff_restore; die "check_fastfetch failed on clean tree: ${_NEG_GATE_OUT}"; }
+
+    # (2) Negative control: corrupted hex color in mios.toml makes render-fastfetch fail
+    sed -i 's/^bg\( *\)= "#[0-9a-fA-F]*"/bg\1= "INVALID_HEX"/' "$toml"
+    _neg_gate check_fastfetch && { _ff_restore; die "check_fastfetch passed with invalid hex color in mios.toml"; }
+
+    _ff_restore
+    _neg_gate check_fastfetch || die "check_fastfetch failed after restoration: ${_NEG_GATE_OUT}"
+
+    # (3) Negative control: a hand-edited persisted golden fixture must fail the gate
+    local fx="${ROOT}/tests/golden/fastfetch/mock.jsonc" fxbak; fxbak="$(mktemp)"; cp -p "$fx" "$fxbak"
+    printf '\n// devloop planted\n' >> "$fx"
+    if _neg_gate check_fastfetch; then cp -p "$fxbak" "$fx"; rm -f "$fxbak"; die "check_fastfetch passed with a corrupted golden fixture"; fi
+    cp -p "$fxbak" "$fx"; rm -f "$fxbak"
+    _neg_gate check_fastfetch || die "check_fastfetch failed after fixture restoration: ${_NEG_GATE_OUT}"
+    log "check_fastfetch negative test passed"
+}
+
 test_egress_firewall() {
     log "Testing check_egress_firewall"
     local nft="${ROOT}/usr/share/mios/security/egress.nft"
@@ -5669,6 +5694,7 @@ _run_test test_leaked_fixtures
     _run_test test_dotfiles_projection
     _run_test test_tmux_theme
     _run_test test_btop_theme
+    _run_test test_fastfetch
     _run_test test_edge_generators
     _run_test test_edge_status
     _run_test test_artifact_prompt

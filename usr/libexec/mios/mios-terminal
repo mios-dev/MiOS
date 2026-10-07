@@ -101,7 +101,7 @@ _mios_runtime="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/mios-terminal
 # keep their pane's project directory; Windows entry passes its explicit cwd.
 cd -- "${MIOS_TERMINAL_DIRECTORY:-${_mios_terminal_config[7]}}"
 umask 077
-python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "$_mios_runtime"
+/usr/libexec/mios/mios-gen render-tmux-theme --runtime "$_mios_runtime"
 export MIOS_OMP_THEME="$_mios_runtime/mios.omp.json"
 _mios_bootstrap=""
 if ! tmux -L "${_mios_terminal_config[0]}" has-session -t "=${_mios_terminal_config[1]}" 2>/dev/null; then

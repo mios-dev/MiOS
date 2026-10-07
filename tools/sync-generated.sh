@@ -45,6 +45,13 @@ native_bin() {
     local name="$1" override="${2:-}" suffix candidate
     local suffixes=("" ".exe")
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe" "");; esac
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        for suffix in "${suffixes[@]}"; do
+            candidate="$MIOS_NATIVE_BIN_DIR/$name$suffix"
+            [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+        done
+        return 1
+    fi
     if [[ -n "$override" && -x "$override" ]]; then
         printf '%s' "$override"
         return 0
@@ -126,11 +133,11 @@ main() {
     if [ -n "$_gen" ]; then
         "$_gen" render-tmux-theme --write-fixture "$ROOT" >/dev/null
         "$_gen" render-btop-theme --root "$ROOT" >/dev/null
+        "$_gen" render-fastfetch --root "$ROOT" --mock --out "$ROOT/tests/golden/fastfetch/mock.jsonc" >/dev/null
     else
-        "$PY" usr/libexec/mios/ux/tmux_theme.py --write-fixture "$ROOT" >/dev/null
-        if [ -f "usr/libexec/mios/ux/btop_theme.py" ]; then
-            "$PY" usr/libexec/mios/ux/btop_theme.py --render >/dev/null
-        fi
+        # tmux_theme.py was strangled into mios-gen (ADR-0021); there is no python twin to fall back to.
+        echo "[sync-generated] FATAL: mios-gen is required for render-tmux-theme; build it: cd tools/native && cargo build -p mios-gen" >&2
+        return 1
     fi
 
     # 7. WSL host configuration mirror

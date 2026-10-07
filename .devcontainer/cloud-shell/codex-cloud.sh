@@ -122,7 +122,7 @@ test -r /usr/share/mios/mios.toml
 test -x /usr/libexec/mios/mios-agent-relay
 tmux -V
 oh-my-posh --version
-python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "${XDG_CACHE_HOME:-$HOME/.cache}/mios-cloud-theme"
+/usr/libexec/mios/mios-gen render-tmux-theme --runtime "${XDG_CACHE_HOME:-$HOME/.cache}/mios-cloud-theme"
 mios agents
 python3 - <<"PY"
 import json, subprocess

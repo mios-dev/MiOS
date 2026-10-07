@@ -4237,6 +4237,7 @@ main() {
     check_desktop_launchers
     check_tmux_theme
     check_btop_theme
+    check_fastfetch
     check_guacamole_consistency
     check_no_inert_ssot_tables
     check_profile_integrity
@@ -5105,6 +5106,25 @@ check_btop_theme() {
         _run_py_check check_btop_theme "usr/libexec/mios/ux/btop_theme.py --check /etc/btop/themes/mios.theme"
     else
         _violation "mios-gen binary not found; btop_theme.py was strangler-deleted (ADR-0021)"
+    fi
+}
+check_fastfetch() {
+    echo "[98-drift-checks]   checking fastfetch config matches SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        # Real comparison: deterministic (--mock) render vs the persisted golden fixture.
+        # A missing/corrupt fixture or a drifted generator both fail; nothing passes vacuously.
+        if ! out=$(cd "$ROOT" && "$bin" render-fastfetch --root "$ROOT" --check --mock --out "$ROOT/tests/golden/fastfetch/mock.jsonc" 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "fastfetch generator output differs from tests/golden/fastfetch/mock.jsonc (regenerate: mios-gen render-fastfetch --mock --out tests/golden/fastfetch/mock.jsonc)"
+        fi
+        return
+    fi
+    if [[ -f "$ROOT/usr/libexec/mios/ux/fastfetch_gen.py" ]]; then
+        _run_py_check check_fastfetch "usr/libexec/mios/ux/fastfetch_gen.py --generate --mock"
+    else
+        _violation "mios-gen binary not found; fastfetch_gen.py was strangler-deleted (ADR-0021)"
     fi
 }
 

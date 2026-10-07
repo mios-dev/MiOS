@@ -19,10 +19,10 @@ unset _u_ff
 # Render on shell startup, including SSH and existing tmux servers. Runtime
 # projections are caller-owned; /usr stays immutable and user JSON cannot drift
 # away from the layered TOML contract.
-if [ "${MIOS_THEME_PROJECTED:-}" != 1 ] && [ -x /usr/libexec/mios/mios-unit-gen ]; then
+if [ "${MIOS_THEME_PROJECTED:-}" != 1 ] && [ -x /usr/libexec/mios/mios-unit-gen ] && [ -x /usr/libexec/mios/mios-gen ]; then
     _mios_projection="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/mios-terminal"
     [ -z "${MIOS_OMP_THEME:-}" ] || _mios_projection="${MIOS_OMP_THEME%/*}"
-    if python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "$_mios_projection"; then
+    if /usr/libexec/mios/mios-gen render-tmux-theme --runtime "$_mios_projection"; then
         export MIOS_OMP_THEME="$_mios_projection/mios.omp.json"
         [ -z "${TMUX:-}" ] || tmux source-file "$_mios_projection/tmux.conf"
     else

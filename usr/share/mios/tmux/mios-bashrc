@@ -1,5 +1,5 @@
 # AI-hint: MiOS-owned interactive tmux startup; layered SSOT prompt without sourcing personal shell hooks.
-# AI-related: /etc/profile.d/mios-prompt.sh, /usr/libexec/mios/ux/tmux_theme.py, /usr/share/mios/mios.toml
+# AI-related: /etc/profile.d/mios-prompt.sh, /usr/libexec/mios/mios-gen (render-tmux-theme --runtime), /usr/share/mios/mios.toml
 case $- in *i*) ;; *) return ;; esac
 PS1='MiOS \u@\h:\w\$ '
 [[ -r /etc/profile.d/mios-prompt.sh ]] && source /etc/profile.d/mios-prompt.sh
