@@ -145,7 +145,7 @@ pub fn get_tracked_files(root: &Path) -> Option<HashSet<String>> {
 }
 
 fn is_tracked(rel_path: &str, tracked: Option<&HashSet<String>>) -> bool {
-    tracked.map_or(true, |set| set.contains(rel_path))
+    tracked.is_none_or(|set| set.contains(rel_path))
 }
 
 fn collect_json_entries(
@@ -557,7 +557,7 @@ pub fn run_ai_manifest(
         }
 
         // Only GATE manifests that are actually committed in git
-        if check && tracked.as_ref().map_or(false, |k| !k.contains(output_file)) {
+        if check && tracked.as_ref().is_some_and(|k| !k.contains(output_file)) {
             continue;
         }
 

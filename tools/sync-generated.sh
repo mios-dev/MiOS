@@ -82,13 +82,19 @@ _register_new_files() {
 }
 
 main() {
+    local _gen; _gen="$(native_bin mios-gen || true)"
+
     # 1. Untracked file registration for index visibility
     step "1/23 [index.untracked] register new files in git index"
     _register_new_files
 
     # 2. Port allocation schema projection
     step "2/23 [ports.projection] render category port definitions"
-    "$PY" tools/render-ports.py
+    if [ -n "$_gen" ]; then
+        "$_gen" render-ports --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/render-ports.py
+    fi
 
     # 3. System-wide environment globals and constants
     step "3/23 [globals.projection] render shell and powershell constants"

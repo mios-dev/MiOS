@@ -2355,7 +2355,7 @@ surfaces = [
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/mios-ai-config/src/main.rs", check = "check_ai_config_projection", output = "etc/mios/ai/config.json, usr/share/mios/ai/v1/config.json" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
-  { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
   { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
   { generator = "usr/libexec/mios/desktop/gpu_terminal.py", check = "check_edge_generators", output = "etc/skel/.config/alacritty/alacritty.toml" },
   { generator = "usr/libexec/mios/win/wt_profile_inject.py", check = "check_edge_generators", output = "usr/share/mios/wsl/terminal-profile.json" },
@@ -13281,6 +13281,7 @@ replaces = [
   "tools/generate-metal-vs-hosted.py",
   "tools/roadmap-index.py",
   "tools/generate-ai-manifest.py",
+  "tools/render-ports.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",

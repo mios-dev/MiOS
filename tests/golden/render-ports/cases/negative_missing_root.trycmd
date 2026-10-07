@@ -1,0 +1,6 @@
+```console
+$ mios-gen render-ports --root [CWD]/nonexistent --check
+? 1
+Error: generate-render-ports: render-ports: [..]nonexistent[..]mios.toml could not be read: [..]
+
+```

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3737,
-  "total_metadata_entries": 3060,
-  "total_hints": 3049,
+  "total_files_scanned": 3740,
+  "total_metadata_entries": 3061,
+  "total_hints": 3050,
   "total_functions_indexed": 1469,
-  "total_related_links": 5004,
+  "total_related_links": 5013,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5737,6 +5737,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/render-ports/cmd.toml",
+      "hint": "Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/Challenge_AST_M2.Tests.ps1",
       "hint": "Validates installer and exporter PowerShell AST structure and syntax.",
       "related": [],
@@ -9725,6 +9737,20 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/render_ports.rs",
+      "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tools/render-ports.py",
+        "automation/35-render-ports.sh",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/roadmap_index.rs",
       "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14)",
       "related": [
@@ -9823,6 +9849,19 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/render_ports.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-ports (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/render_ports.rs",
+        "tools/render-ports.py",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10881,15 +10920,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/render-ports.py",
-      "hint": "Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator reta...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/rtx4090-vfio-configurator.sh",
       "hint": "Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passth...",
       "related": [],
@@ -11153,15 +11183,6 @@
     {
       "path": "tools/test_render_globals.py",
       "hint": "Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_render_ports.py",
-      "hint": "Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",

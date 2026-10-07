@@ -14,6 +14,7 @@ mod ai_manifest;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
+mod render_ports;
 mod roadmap_index;
 
 #[derive(Parser, Debug)]
@@ -131,6 +132,26 @@ enum Commands {
         /// Check mode: verify committed manifests are in sync without modifying them
         #[arg(long)]
         check: bool,
+    },
+
+    /// Derives and checks [ports] flat table and literals from [ports.categories] SSOT
+    #[command(name = "render-ports", alias = "ports")]
+    RenderPorts {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Path to mios.toml (default: usr/share/mios/mios.toml under root)
+        #[arg(long)]
+        toml: Option<PathBuf>,
+
+        /// Check mode: verify flat table and port fallbacks match SSOT without modifying
+        #[arg(long)]
+        check: bool,
+
+        /// Print mode: print sorted derived ports
+        #[arg(long = "print")]
+        print_ports: bool,
     },
 }
 
@@ -475,6 +496,27 @@ fn main() -> ExitCode {
                 ai_manifest::run_ai_manifest(&r, check, cli.format == "json"),
             )
         }
+        Commands::RenderPorts {
+            root,
+            toml,
+            check,
+            print_ports,
+        } => {
+            let r = resolve_root(root);
+            (
+                "render-ports",
+                "usr/share/mios/mios.toml [ports]",
+                match render_ports::run_render_ports(&r, toml.as_deref(), check, print_ports) {
+                    Ok((msg, _)) => {
+                        if cli.format != "json" {
+                            print!("{msg}");
+                        }
+                        Ok(())
+                    }
+                    Err((msg, code)) => Err((msg, code)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -504,6 +546,7 @@ fn main() -> ExitCode {
         if msg.starts_with("VIOLATION:")
             || msg.starts_with("Error:")
             || msg.starts_with("generate-metal-vs-hosted:")
+            || msg.starts_with("[render-ports]")
             || msg.contains("ADR SSOT consistency check failed:")
         {
             eprintln!("{msg}");

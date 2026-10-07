@@ -3840,12 +3840,20 @@ _render_env() {
 
 check_ports_category_schema() {
     echo "[98-drift-checks]   checking port category schema (allocation + collisions)"
+    local bin; bin="$(native_bin mios-gen)" || true
     local out
-
-    # shellcheck disable=SC2046
-    if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-ports.py --check 2>&1); then
-        printf '%s\n' "$out" | head -n 20 >&2
-        _violation "port schema drift: every port must derive from [ports.categories] (base + index*stride), belong to exactly one category, and not collide -- run tools/render-ports.py"
+    if [[ -n "$bin" ]]; then
+        # shellcheck disable=SC2046
+        if ! out=$(cd "$ROOT" && env $(_render_env) "$bin" render-ports --root "$ROOT" --check 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "port schema drift: every port must derive from [ports.categories] (base + index*stride), belong to exactly one category, and not collide -- run mios-gen render-ports"
+        fi
+    else
+        # shellcheck disable=SC2046
+        if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-ports.py --check 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "port schema drift: every port must derive from [ports.categories] (base + index*stride), belong to exactly one category, and not collide -- run tools/render-ports.py"
+        fi
     fi
 }
 

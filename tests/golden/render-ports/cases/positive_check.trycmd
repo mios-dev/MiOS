@@ -1,0 +1,5 @@
+```console
+$ mios-gen render-ports --check
+[render-ports] 51 ports derive cleanly from 15 categories
+
+```
