@@ -1365,8 +1365,9 @@ async def responses_api_logic(request: Request) -> Any:
                              json={"model": model, "messages": msgs, "stream": False},
                              headers={"Content-Type": "application/json"})
         cc = r.json()
-    except Exception as e:  # noqa: BLE001
-        return JSONResponse(content={"error": {"message": str(e)[:200],
+    except Exception:  # noqa: BLE001
+        log.exception("responses relay backend failed")
+        return JSONResponse(content={"error": {"message": "The response backend is unavailable",
                             "type": "api_error"}}, status_code=502)
     answer = (((cc.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
     return JSONResponse(content={
