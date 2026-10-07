@@ -325,10 +325,20 @@ class TestM2AdversarialMonitorTui(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(str(log_box.styles.display), "none", "In compact height, #ai-log-box must have display: none")
             self.assertEqual(agent_view.styles.width.value, 100.0, "In compact height, AgentView must expand to 100%")
 
-            # 3. Standard desktop (width >= 78 and height >= 26)
-            await pilot.resize_terminal(90, 30)
+            # 3. The declared intermediate width (<95) remains compact.
+            await pilot.resize_terminal(94, 30)
+            await pilot.pause()
+            self.assertEqual(str(log_box.styles.display), "none")
+
+            # 4. Exact desktop boundary: width >=95 and height >=28.
+            await pilot.resize_terminal(95, 28)
             await pilot.pause()
             self.assertEqual(str(log_box.styles.display), "block", "In desktop view, #ai-log-box must have display: block")
+
+            # 5. One row below the height boundary returns to compact.
+            await pilot.resize_terminal(95, 27)
+            await pilot.pause()
+            self.assertEqual(str(log_box.styles.display), "none")
 
     async def test_07_ai_log_box_message_stream_deduplication(self):
         """Verify message streaming into #ai-log-box with deduplication and long peer truncation."""
