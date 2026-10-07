@@ -4,6 +4,10 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub mod images;
+pub mod native_build;
+pub mod verification;
+
 /// Executable roles are distinct from Cargo libraries and from their shared
 /// implementation modules. The SSOT assigns each executable exactly once.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -34,6 +38,7 @@ pub struct NativeWindows {
     pub target: String,
     pub linker: String,
     pub rustflags: Vec<String>,
+    pub system_dlls: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,9 +78,7 @@ pub fn native_linux_target(
     root: &std::path::Path,
     arch: &str,
 ) -> Result<NativeLinuxTarget, String> {
-    let ssot = std::fs::read_to_string(root.join("usr/share/mios/mios.toml"))
-        .map_err(|e| format!("cannot read native SSOT: {e}"))?;
-    linux_target(&native_config(&ssot)?, arch)
+    linux_target(&resolved_native_config(root)?, arch)
 }
 
 fn linux_target(config: &NativeConfig, arch: &str) -> Result<NativeLinuxTarget, String> {
@@ -234,8 +237,22 @@ struct NativeCargoTarget {
     kind: Vec<String>,
 }
 
+#[cfg(test)]
 fn native_config(ssot: &str) -> Result<NativeConfig, String> {
     let doc: toml::Value = toml::from_str(ssot).map_err(|e| format!("native catalog TOML: {e}"))?;
+    native_config_document(&doc)
+}
+
+fn resolved_native_config(root: &std::path::Path) -> Result<NativeConfig, String> {
+    native_config_document(&native_document(root)?)
+}
+
+fn native_document(root: &std::path::Path) -> Result<toml::Value, String> {
+    mios_resolver::resolve_merged(Some(root), false)
+        .map_err(|e| format!("cannot resolve layered native SSOT: {e}"))
+}
+
+fn native_config_document(doc: &toml::Value) -> Result<NativeConfig, String> {
     let config: NativeConfig = doc
         .get("build")
         .and_then(|v| v.get("native"))
@@ -420,9 +437,7 @@ pub fn native_target_plan(
     if platform != "linux" && platform != "windows" {
         return Err(format!("unsupported native platform {platform:?}"));
     }
-    let ssot = std::fs::read_to_string(root.join("usr/share/mios/mios.toml"))
-        .map_err(|e| format!("cannot read native SSOT: {e}"))?;
-    let config = native_config(&ssot)?;
+    let config = resolved_native_config(root)?;
     let mut metadata = Vec::new();
     for workspace in &config.workspaces {
         let output = std::process::Command::new("cargo")
@@ -504,7 +519,7 @@ mod native_catalog_tests {
         pie[224..232].copy_from_slice(&7_u64.to_le_bytes());
         verify_static_elf(&pie, "x86_64", false).unwrap();
     }
-    fn static_pie() -> Vec<u8> {
+    pub(super) fn static_pie() -> Vec<u8> {
         let mut pie = elf(2);
         pie[16..18].copy_from_slice(&3_u16.to_le_bytes());
         pie[224..232].copy_from_slice(&0x6fff_fffb_u64.to_le_bytes());

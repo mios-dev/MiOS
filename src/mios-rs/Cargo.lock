@@ -843,6 +843,8 @@ name = "mios-build"
 version = "0.3.0"
 dependencies = [
  "insta",
+ "mios-resolver",
+ "object",
  "serde",
  "serde_json",
  "tempfile",
