@@ -2103,8 +2103,59 @@ so long. Let a run finish.
      - Reviewer: VERDICT: APPROVE
      - Challenger: VERDICT: APPROVE
      - Auditor: VERDICT: CLEAN
-- next: Phase 3 remaining projectors (`tools/roadmap-index.py` → `mios-gen roadmap-index`, and AGY-1102 `tools/generate-ai-manifest.py` → `mios-gen ai-manifest`).
+- next: Phase 3.5 Roadmap-Index SSOT Projector (T-1010, AGY-1089).
 - blockers: None.
 - unverified: None.
+
+## 2026-10-07 01:29 · antigravity · Phase 3.5 Roadmap-Index SSOT Projector Complete (Commit 31c296da)
+- objective: Consolidate ROADMAP.md Table of Contents, Index, Metrics, and Rollup generator into `tools/native/mios-gen roadmap-index` static binary; strangler-delete `tools/roadmap-index.py` and shrink `python-untested-baseline.txt`; enforce two-sided Trycmd controls and drift check wiring; verify with full subagent trio.
+- status: VERIFIED & COMPLETE.
+- commit: `31c296da` (branch `codex/uncommitted-mcp-ux` in `C:\MiOS`).
+- deliverables:
+  1. `tools/native/mios-gen`: added `roadmap-index` subcommand:
+     - `flatten_keys`: traverses `usr/share/mios/mios.toml` tables to extract all valid SSOT keys.
+     - `make_anchor`: converts markdown section titles into standard anchors matching GitHub heading anchors.
+     - `parse_simple_yaml`: parses workstream frontmatter blocks supporting YAML lists and multiline acceptance criteria.
+     - `generate_metrics_table`: computes tracked files count, repo size in MB from git blobs (`cat-file --batch-check`), lines of code for `.sh`, `.py`, `.ps1`, `.rs` from git blobs (`cat-file --batch`), drift checks from `automation/98-drift-checks.sh`, and SSOT/systemd unit counts.
+     - `generate_roadmap_index`: validates workstream laws against `[laws.laws]`, ADR numbers against `usr/share/doc/mios/adr/`, and SSOT keys against `mios.toml` and `userenv.sh`. Formats byte-identical TOC, Rollup, Index, and Metrics table.
+     - CLI contract: supports `--root`, `--check`, `--format json|text`, and standard return codes (0 clean, 1 drift/error, 2 validation failure).
+  2. Deleted legacy python generator and ratcheted untested baseline (atomic strangler migration):
+     - `tools/roadmap-index.py` (deleted)
+     - `usr/share/mios/reference/python-untested-baseline.txt` (shrunk by 1 line)
+  3. `usr/share/mios/mios.toml`:
+     - Registered surface in `[laws.projection_registry]` pointing to `tools/native/mios-gen/src/main.rs`.
+     - Added `tools/roadmap-index.py` to `[rust.categories.gen].replaces` (now 8 deleted scripts tracked).
+     - Removed `tools/roadmap-index.py` from `[rust.categories.gen].scope`.
+  4. Automation & projection wiring:
+     - `automation/98-drift-checks.sh` `check_roadmap_index` invokes `native_bin mios-gen` first.
+     - `tools/sync-generated.sh` step 11 dispatches `mios-gen roadmap-index`.
+     - `usr/libexec/mios/mios-ssot-regen` invokes `mios-gen roadmap-index` when available.
+  5. Trycmd golden-master fixtures:
+     - `tests/golden/roadmap-index/cmd.toml`
+     - `tests/golden/roadmap-index/cases/positive_check.trycmd`
+     - `tests/golden/roadmap-index/cases/negative_missing_root.trycmd`
+  6. Two-sided verification controls:
+     - `cargo test -p mios-gen`: 19/19 tests pass (3 roadmap-index, 3 metal-vs-hosted, 4 adr-index, 2 cosign-policy, 3 egress-firewall, 2 gate-index, 2 pipeline-index).
+     - `cargo clippy -p mios-gen -- -D warnings`: exit code 0 (zero warnings).
+     - WSL2 execution: `/usr/bin/mios-gen roadmap-index --root /mnt/c/MiOS --check` verified in 0.045s.
+     - `tests/drift-gate-negatives.sh test_roadmap_index`: PASS (planted mutation detected; restored clean).
+  7. Standing gates verification:
+     - `phase-registry`: 77/77 registered, 0 on shrink-only register (exit code 0).
+     - `ratchet-direction`: 93 shrink-only ceilings hold (exit code 0).
+     - `credential-literals`: 0 unapproved literals across 253 unit files (exit code 0).
+     - `version-literals-ssot`: 0 divergent literals across 915 files (exit code 0).
+     - `signature-policy`: `usr/lib/containers/policy.json` verified (exit code 0).
+     - `rust-categories`: 34 crates cataloged across 15 categories; 1247 scripts in universe (276 porting-owned, 843 exempt, 128 unowned, ceiling 128); 8 replaces claims verified absent (exit code 0).
+     - `python tools/ci-suites.py --check`: 421 suites registered across 3 tiers (exit code 0).
+     - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
+     - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
+  8. Subagent Trio certification:
+     - Reviewer: VERDICT: APPROVE
+     - Challenger: VERDICT: APPROVE
+     - Auditor: VERDICT: CLEAN
+- next: AGY-1102 `tools/generate-ai-manifest.py` → `mios-gen ai-manifest`.
+- blockers: None.
+- unverified: None.
+
 
 
