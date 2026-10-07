@@ -152,7 +152,10 @@ pub fn artifact_check(root: &Path, path: &Path, platform: &str, arch: &str) -> R
         "windows" => {
             let policy = config.windows.ok_or("SSOT has no [build.native.windows]")?;
             if arch != "x86_64"
-                || policy.target != "x86_64-pc-windows-gnu"
+                || !matches!(
+                    policy.target.as_str(),
+                    "x86_64-pc-windows-gnu" | "x86_64-pc-windows-msvc"
+                )
                 || policy.rustflags != ["-C", "target-feature=+crt-static"]
                 || policy.system_dlls.is_empty()
             {
@@ -179,10 +182,8 @@ pub fn windows_build(root: &Path, binary: &str, output: &Path) -> Result<PathBuf
         .ok_or("missing SSOT toolchain channel")?;
     let config = config(root)?;
     let policy = config.windows.ok_or("missing [build.native.windows]")?;
-    if policy.target != "x86_64-pc-windows-gnu"
-        || policy.linker != "x86_64-w64-mingw32-gcc"
-        || policy.rustflags != ["-C", "target-feature=+crt-static"]
-    {
+    let driver = windows_driver(&policy)?;
+    if policy.rustflags != ["-C", "target-feature=+crt-static"] {
         return Err("invalid SSOT Windows build policy".into());
     }
     let plan = super::native_target_plan(root, "windows")?;
@@ -191,8 +192,40 @@ pub fn windows_build(root: &Path, binary: &str, output: &Path) -> Result<PathBuf
         .find(|t| t.binary == binary)
         .ok_or_else(|| format!("{binary} is not a catalogued Windows executable"))?;
     toolchain_check(root, false)?;
+    run(
+        Command::new("rustup").args(["target", "add", "--toolchain", channel, &policy.target]),
+        "provision SSOT Windows target",
+    )?;
+    if driver == "xwin" {
+        let version = policy
+            .driver_version
+            .as_deref()
+            .ok_or("missing SSOT Windows driver_version")?;
+        let installed = Command::new("cargo")
+            .args(["xwin", "--version"])
+            .env("RUSTUP_TOOLCHAIN", channel)
+            .output();
+        let matches = installed.is_ok_and(|out| {
+            out.status.success()
+                && String::from_utf8_lossy(&out.stdout)
+                    .split_whitespace()
+                    .last()
+                    == Some(version)
+        });
+        if !matches {
+            run(
+                Command::new("cargo")
+                    .args(["install", "--locked", "cargo-xwin", "--version", version])
+                    .env("RUSTUP_TOOLCHAIN", channel),
+                "provision SSOT Windows build driver",
+            )?;
+        }
+    }
     for subcommand in ["clippy", "build"] {
         let mut cmd = Command::new("cargo");
+        if driver == "xwin" {
+            cmd.arg("xwin");
+        }
         cmd.current_dir(root.join(&selected.workspace))
             .args([
                 subcommand,
@@ -210,7 +243,13 @@ pub fn windows_build(root: &Path, binary: &str, output: &Path) -> Result<PathBuf
             .env("RUSTUP_TOOLCHAIN", channel)
             .env_remove("CARGO_ENCODED_RUSTFLAGS")
             .env("RUSTFLAGS", policy.rustflags.join(" "))
-            .env("CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER", &policy.linker);
+            .env(
+                format!(
+                    "CARGO_TARGET_{}_LINKER",
+                    policy.target.to_uppercase().replace('-', "_")
+                ),
+                &policy.linker,
+            );
         if subcommand == "clippy" {
             cmd.args(["--", "-D", "warnings"]);
         }
@@ -232,6 +271,31 @@ pub fn windows_build(root: &Path, binary: &str, output: &Path) -> Result<PathBuf
         std::fs::copy(&artifact, &staged).map_err(|e| e.to_string())?;
     }
     Ok(staged)
+}
+
+fn windows_driver(policy: &super::NativeWindows) -> Result<&'static str, String> {
+    match (
+        policy.target.as_str(),
+        policy.driver.as_str(),
+        policy.linker.as_str(),
+    ) {
+        ("x86_64-pc-windows-gnu", "cargo", "x86_64-w64-mingw32-gcc") => Ok("cargo"),
+        ("x86_64-pc-windows-msvc", "cargo-xwin", "lld-link") => {
+            let version = policy
+                .driver_version
+                .as_deref()
+                .ok_or("missing SSOT Windows driver_version")?;
+            if version.split('.').count() != 3
+                || !version
+                    .split('.')
+                    .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+            {
+                return Err("invalid SSOT Windows driver_version".into());
+            }
+            Ok("xwin")
+        }
+        _ => Err("invalid SSOT Windows build driver/target/linker combination".into()),
+    }
 }
 
 /// Uses the shipped role catalog without Cargo metadata, so the final image can
@@ -327,6 +391,25 @@ mod tests {
         )
         .unwrap();
         root
+    }
+
+    #[test]
+    fn windows_build_driver_requires_a_compatible_target_and_pinned_version() {
+        let root = fixture();
+        let mut policy = config(root.path()).unwrap().windows.unwrap();
+        assert_eq!(windows_driver(&policy).unwrap(), "xwin");
+        for bad in ["", "...", "0.23", "0.23.1/../../", "--offline"] {
+            policy.driver_version = Some(bad.into());
+            assert!(windows_driver(&policy).is_err(), "accepted {bad:?}");
+        }
+        policy.driver_version = Some("0.23.1".into());
+        policy.linker = "x86_64-w64-mingw32-gcc".into();
+        assert!(windows_driver(&policy).is_err());
+        policy.target = "x86_64-pc-windows-gnu".into();
+        policy.driver = "cargo".into();
+        assert_eq!(windows_driver(&policy).unwrap(), "cargo");
+        policy.driver = "shell-script".into();
+        assert!(windows_driver(&policy).is_err());
     }
 
     #[test]

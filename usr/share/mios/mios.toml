@@ -1912,8 +1912,11 @@ rustflags = ["-C", "target-feature=+crt-static"]
 pie = { x86_64 = true, aarch64 = false }
 
 [build.native.windows]
-target = "x86_64-pc-windows-gnu"
-linker = "x86_64-w64-mingw32-gcc"
+# MSVC links the WebView2 loader statically; GNU imports WebView2Loader.dll.
+target = "x86_64-pc-windows-msvc"
+linker = "lld-link"
+driver = "cargo-xwin"
+driver_version = "0.23.1"
 rustflags = ["-C", "target-feature=+crt-static"]
 # OS imports are permitted; external compiler and runtime DLLs are rejected.
 system_dlls = [
@@ -1926,6 +1929,8 @@ system_dlls = [
   # Windows synchronization API contract and OS cryptographic primitives.
   # https://learn.microsoft.com/windows/win32/apiindex/windows-apisets
   "api-ms-win-core-synch-l1-2-0.dll", "bcryptprimitives.dll",
+  # Windows session notifications: learn.microsoft.com/windows/win32/api/wtsapi32/
+  "wtsapi32.dll",
 ]
 
 [build.native.categories.cli]
@@ -6859,7 +6864,7 @@ pkgs = [
 [packages.windows-cross-build]
 enable = true
 # The SSOT Windows target needs both its Rust standard library and a real linker.
-pkgs = ["mingw64-gcc", "mingw64-crt", "mingw64-headers"]
+pkgs = ["mingw64-gcc", "mingw64-crt", "mingw64-headers", "clang", "lld"]
 
 [packages.boot]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
