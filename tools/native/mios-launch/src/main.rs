@@ -2,6 +2,9 @@
 // AI-related: usr/share/mios/windows/mios-native-client-setup.ps1, usr/share/mios/mios.toml, usr/share/mios/windows/mios-pc-control.ps1
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+#[cfg_attr(not(windows), allow(dead_code))]
+mod monitor;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Bounds {
     x: i32,
@@ -300,13 +303,16 @@ mod desktop {
         let bin = native_bin()?;
         let binding = json(bin.join("native-binding.json"))?;
         let engine = text(&binding, "engine")?;
-        let projection = hidden(
-            Command::new(engine)
-                .args(["-NoLogo", "-NoProfile", "-File"])
-                .arg(bin.join("mios-native-client-setup.ps1"))
-                .args(["-RuntimeOnly", "-EmitConfig", "-BinDirectory"])
-                .arg(&bin),
-        )
+        // Resolve policy in Rust. Bootstrap shells do not render runtime policy.
+        let projection = hidden(Command::new("wsl.exe").args([
+            "-d",
+            text(&binding, "distro")?,
+            "-u",
+            text(&binding, "linuxUser")?,
+            "--",
+            "/usr/bin/mios-resolver",
+            "--emit=json",
+        ]))
         .output()
         .map_err(|e| e.to_string())?;
         if !projection.status.success() {
@@ -314,8 +320,93 @@ mod desktop {
         }
         // Packaged clients may see a virtualized stale LocalAppData file.
         // Use this invocation's resolved SSOT rather than re-reading a cache.
-        let config: Value = serde_json::from_slice(&projection.stdout)
+        let resolved: Value = serde_json::from_slice(&projection.stdout)
             .map_err(|e| format!("Runtime SSOT projection returned invalid JSON: {e}"))?;
+        let config = resolved
+            .get("merged")
+            .ok_or("Native resolver omitted merged SSOT")?;
+        if args.first().is_some_and(|a| a == "--tmux") {
+            if config["terminal"]["windows_tmux_backend"].as_str() != Some("wsl") {
+                return Err("Unsupported SSOT terminal.windows_tmux_backend".into());
+            }
+            let mut guard = Command::new("wsl.exe");
+            guard.args([
+                "-d",
+                text(&binding, "distro")?,
+                "-u",
+                text(&binding, "linuxUser")?,
+                "--",
+                "/usr/bin/miosd",
+                "terminal-runtime-check",
+                "--root",
+                "/",
+            ]);
+            if !guard.status().map_err(|e| e.to_string())?.success() {
+                return Err("Native tmux namespace verification failed; run mios repair".into());
+            }
+            let status = Command::new("wsl.exe")
+                .args([
+                    "-d",
+                    text(&binding, "distro")?,
+                    "-u",
+                    text(&binding, "linuxUser")?,
+                    "--cd",
+                    text(&config["terminal"], "start_directory")?,
+                    "--",
+                    "env",
+                    &format!("TMUX_TMPDIR={}", text(&config["terminal"], "socket_root")?),
+                    "tmux",
+                ])
+                .args(&args[1..])
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err(format!("MiOS tmux exited: {status}"));
+            }
+            return Ok(());
+        }
+        if args.first().is_some_and(|a| a == "--build-monitor") {
+            let value = |flag: &str| {
+                args.iter()
+                    .position(|a| a == flag)
+                    .and_then(|i| args.get(i + 1))
+                    .map(String::as_str)
+                    .ok_or_else(|| format!("{flag} needs a path"))
+            };
+            let python = value("--python")?;
+            let script = value("--monitor-script")?;
+            if !std::path::Path::new(python).is_file() || !std::path::Path::new(script).is_file() {
+                return Err("Build monitor executable or asset missing".into());
+            }
+            let mut rendered = crate::monitor::render(config, python, script)?;
+            let title_index = rendered
+                .iter()
+                .position(|a| a == "--title")
+                .ok_or("Monitor title missing")?
+                + 1;
+            let title = format!("{}-{}", rendered[title_index], std::process::id());
+            rendered[title_index] = title.clone();
+            let mut point = POINT { x: 0, y: 0 };
+            let _ = unsafe { GetCursorPos(&mut point) };
+            let centered = config["theme"]["terminal"]["center_on_launch"]
+                .as_bool()
+                .ok_or("SSOT center_on_launch must be a boolean")?;
+            let mut command = Command::new(terminal()?);
+            let status = command
+                .args(&rendered)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err(format!("Native build monitor launch failed: {status}"));
+            }
+            return settle_window(
+                &title,
+                text(&config["terminal"]["monitor"], "window_name")?,
+                point,
+                centered,
+                false,
+            );
+        }
         let profiles = &config["theme"]["terminal"];
         let centered = profiles["center_on_launch"]
             .as_bool()
@@ -402,9 +493,24 @@ mod desktop {
             }
         }
         command.spawn().map_err(|e| e.to_string())?;
+        settle_window(
+            &title,
+            window_name,
+            point,
+            centered,
+            args.iter().any(|a| a == "--test-launch"),
+        )
+    }
+    fn settle_window(
+        title: &str,
+        window_name: &str,
+        point: POINT,
+        centered: bool,
+        test: bool,
+    ) -> Result<(), String> {
         let deadline = Instant::now() + Duration::from_secs(16);
         let hwnd = loop {
-            let hwnd = window(&title, window_name);
+            let hwnd = window(title, window_name);
             if !hwnd.is_null() {
                 break hwnd;
             }
@@ -414,7 +520,7 @@ mod desktop {
             thread::sleep(Duration::from_millis(150));
         };
         if !centered {
-            return if args.iter().any(|a| a == "--test-launch") {
+            return if test {
                 Err("SSOT centering is disabled".into())
             } else {
                 Ok(())
@@ -443,10 +549,10 @@ mod desktop {
             let work = monitor(point)?;
             let off = (2 * frame.x + frame.width - (2 * work.x + work.width)).abs() > 2
                 || (2 * frame.y + frame.height - (2 * work.y + work.height)).abs() > 2;
-            if off && args.iter().any(|a| a == "--test-launch") {
+            if off && test {
                 return Err("DEVLOOP-PLANTED-CENTER: visible frame is not centered".into());
             }
-            if args.iter().any(|a| a == "--test-launch") {
+            if test {
                 println!("Native MiOS launch centered: {frame:?}");
             }
         }

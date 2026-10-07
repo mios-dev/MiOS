@@ -28,3 +28,7 @@ function global:btop {
     # Use the installed binding's unprivileged user, including from Xbox Mode.
     & $global:MiosNativeEntry btop @args
 }
+function global:tmux {
+    # Rust resolves the backend and binding from SSOT, then verifies the socket.
+    & (Join-Path (Split-Path $global:MiosNativeEntry) 'mios-launch.exe') --tmux @args
+}

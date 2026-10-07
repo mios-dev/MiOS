@@ -6401,7 +6401,6 @@ pkgs = [
     "jqlang.jq",                     # JSON query
     "GitHub.cli",                    # gh
     "aristocratos.btop4win",         # btop (Windows port)
-    "arndawg.tmux-windows",          # native tmux for Windows (terminal multiplexer)
     "fastfetch-cli.fastfetch",       # fastfetch
     "Anchore.Syft",                  # syft (CycloneDX / SPDX SBOM generator)
 ]
@@ -6437,7 +6436,6 @@ bin_map = [
     "GitHub.cli|gh",
     "fastfetch-cli.fastfetch|fastfetch",
     "aristocratos.btop4win|btop",
-    "arndawg.tmux-windows|tmux",
     "Microsoft.PowerShell|pwsh",
     "JanDeDobbeleer.OhMyPosh|oh-my-posh"
 ]
@@ -8355,6 +8353,7 @@ bootstrap_branch    = "main"
 clone_root          = "M:\\MiOS\\repo"
 
 [terminal]
+windows_tmux_backend = "wsl" # native Rust launcher uses the authenticated Linux namespace
 default_action      = "ai"    # the single launcher enters the unified tmux workspace
 start_directory     = "/"     # deployed MiOS root, never the Windows shim directory
 cols                = 80
@@ -8373,6 +8372,9 @@ cols                = 80
 rows                = 40      # taller for install output + readme
 
 [terminal.monitor]
+windows_backend     = "windows-terminal" # rendered by static Rust mios-launch; no outer Windows tmux
+window_name         = "MiOS-Monitor"
+title               = "MiOS Build Monitor"
 cols                = 80
 rows                = 20      # 80x20 is the native SSOT size globally
 split_landscape_head    = 38  # Golden ratio: head 38.2% on LEFT
