@@ -755,13 +755,18 @@ fn workspace_layout(
                 .checked_sub(minimum + 1)
                 .filter(|n| *n >= 3)
                 .ok_or("portrait terminal is too short")?;
-            let observer_pct = workspace_number(config, "portrait_observer_percent", 10, 80).unwrap_or(62);
+            let observer_pct =
+                workspace_number(config, "portrait_observer_percent", 10, 80).unwrap_or(62);
             let observer_h = (h * observer_pct / 100).clamp(3, maximum);
             let head_h = h - observer_h - 1;
             rect.branch(
                 false,
                 &[
-                    WorkspaceRect { h: observer_h, ..rect }.leaf(observer)?,
+                    WorkspaceRect {
+                        h: observer_h,
+                        ..rect
+                    }
+                    .leaf(observer)?,
                     WorkspaceRect {
                         h: head_h,
                         y: observer_h + 1,
@@ -1270,20 +1275,63 @@ fn workspace(request: &Value) -> Result<Value, String> {
         let storage = format!("mios-workspace-{}", head.trim_start_matches('%'));
         observer_id = if tmux(&["has-session", "-t", &format!("={storage}")]).is_ok() {
             tmux(&[
-                "new-window", "-d", "-P", "-F", "#{pane_id}",
-                "-t", &format!("={storage}:"), "-n", "MiOS AI Agents", &command,
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-t",
+                &format!("={storage}:"),
+                "-n",
+                "MiOS AI Agents",
+                &command,
             ])?
         } else {
             let pane = tmux(&[
-                "new-session", "-d", "-P", "-F", "#{pane_id}",
-                "-s", &storage, "-n", "MiOS AI Agents", &command,
+                "new-session",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-s",
+                &storage,
+                "-n",
+                "MiOS AI Agents",
+                &command,
             ])?;
-            tmux(&["set-option", "-t", &storage, "@mios-workspace-storage-for", &head])?;
+            tmux(&[
+                "set-option",
+                "-t",
+                &storage,
+                "@mios-workspace-storage-for",
+                &head,
+            ])?;
             pane
         };
-        tmux(&["set-option", "-w", "-t", window, "@mios-workspace-observer", &observer_id])?;
-        tmux(&["set-option", "-w", "-t", window, "@mios-workspace-observer-command", &command])?;
-        tmux(&["set-option", "-p", "-t", &observer_id, "@mios-workspace-observer-for", &head])?;
+        tmux(&[
+            "set-option",
+            "-w",
+            "-t",
+            window,
+            "@mios-workspace-observer",
+            &observer_id,
+        ])?;
+        tmux(&[
+            "set-option",
+            "-w",
+            "-t",
+            window,
+            "@mios-workspace-observer-command",
+            &command,
+        ])?;
+        tmux(&[
+            "set-option",
+            "-p",
+            "-t",
+            &observer_id,
+            "@mios-workspace-observer-for",
+            &head,
+        ])?;
     }
     let observer = observer_id.as_str();
     let mut workers = Vec::new();
