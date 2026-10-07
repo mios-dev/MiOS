@@ -1,0 +1,5 @@
+```console
+$ mios-gen standardize-docs --check
+[standardize-docs] specs/ markdown documentation is standardized (1 files).
+
+```

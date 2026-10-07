@@ -1890,6 +1890,23 @@ test_pipe_boundaries() (
     log "check_pipe_boundaries missing and stale manifest controls passed"
 )
 
+test_standardize_docs() (
+    log "Testing check_standardize_docs"
+    local spec="${ROOT}/specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
+    [[ -f "$spec" ]] || die "Tracked spec file is missing"
+    _neg_gate check_standardize_docs || die "check_standardize_docs failed on the unmutated tree"
+    local backup
+    backup="$(mktemp)"
+    cp "$spec" "$backup"
+    trap 'cp "$backup" "$spec"; rm -f "$backup"' EXIT
+    printf '\n<!-- unstandardized corrupted line -->\n' >> "$spec"
+    _neg_gate check_standardize_docs && die "check_standardize_docs accepted unstandardized content"
+    [[ "$_NEG_GATE_OUT" == *"UNSTANDARDIZED"* ]] || die "Unstandardized spec was not diagnosed"
+    cp "$backup" "$spec"
+    _neg_gate check_standardize_docs || die "check_standardize_docs failed after restoration"
+    log "check_standardize_docs unstandardized spec control passed"
+)
+
 test_vllm_name_canonical() {
     log "Testing check_vllm_name_canonical"
     local dummy="${ROOT}/usr/lib/mios/dummy_vllm_negative_test.sh"
@@ -5528,6 +5545,7 @@ _run_test test_leaked_fixtures
     _run_test test_negative_coverage
     _run_test test_verb_templates
     _run_test test_pipe_boundaries
+    _run_test test_standardize_docs
     _run_test test_vllm_name_canonical
     _run_test test_pipe_extraction_parity
     _run_test test_guacamole_consistency

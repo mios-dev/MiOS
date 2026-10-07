@@ -22,6 +22,7 @@ mod render_globals;
 mod render_manpages;
 mod render_ports;
 mod roadmap_index;
+mod standardize_docs;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -234,6 +235,22 @@ enum Commands {
         /// Check mode: verify committed pipe-boundaries.manifest.json matches projection without modifying it
         #[arg(long)]
         check: bool,
+    },
+
+    /// Standardizes headers and footers across specs/ markdown documentation
+    #[command(name = "standardize-docs", alias = "docs-standardize")]
+    StandardizeDocs {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed documentation matches standardized format without modifying it
+        #[arg(long)]
+        check: bool,
+
+        /// Explicit target files or directories to standardize (defaults to specs/ subdirectories)
+        #[arg(value_name = "PATHS")]
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -714,6 +731,32 @@ fn main() -> ExitCode {
                                 println!(
                                     "[gen-pipe-boundary-manifest] Emitted usr/share/mios/pipe-boundaries.manifest.json with {} modules.",
                                     res.modules_count
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
+        Commands::StandardizeDocs { root, check, paths } => {
+            let r = resolve_root(root);
+            (
+                "standardize-docs",
+                "specs/**/*.md",
+                match standardize_docs::run_standardize_docs(&r, check, &paths) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!(
+                                    "[standardize-docs] specs/ markdown documentation is standardized ({} files).",
+                                    res.scanned
+                                );
+                            } else {
+                                println!(
+                                    "[standardize-docs] Standardized {} files ({} modified).",
+                                    res.scanned, res.modified
                                 );
                             }
                         }

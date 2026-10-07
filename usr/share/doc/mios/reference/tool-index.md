@@ -320,7 +320,6 @@ is generated, its generator is here.
 | `tools/provision-agent-mtls.py` | Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key. |
 | `tools/read-ssot-key.py` | Prints one dotted SSOT key, exiting non-zero when it is absent so a shell caller cannot silently default it. |
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
-| `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
 | `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
 | `tools/sync-dotfiles.py` | Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects [dotfiles.devcontainer] and [workspace]... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
@@ -344,7 +343,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 45 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 44 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

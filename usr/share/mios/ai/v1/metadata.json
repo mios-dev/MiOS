@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3763,
-  "total_metadata_entries": 3070,
-  "total_hints": 3059,
-  "total_functions_indexed": 1464,
-  "total_related_links": 5056,
+  "total_files_scanned": 3766,
+  "total_metadata_entries": 3072,
+  "total_hints": 3061,
+  "total_functions_indexed": 1469,
+  "total_related_links": 5063,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5833,6 +5833,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/standardize-docs/cmd.toml",
+      "hint": "Trycmd configuration for standardize-docs golden-master CLI tests (AGY-1067 / AGY-1111).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/Challenge_AST_M2.Tests.ps1",
       "hint": "Validates installer and exporter PowerShell AST structure and syntax.",
       "related": [],
@@ -9878,6 +9890,25 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/standardize_docs.rs",
+      "hint": "SSOT projector and standardizer for specs/ markdown documentation (ADR-0021 gen category).",
+      "related": [
+        "tools/standardize-docs.py",
+        "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
+      ],
+      "functions": [
+        "get_version",
+        "render_header",
+        "render_footer",
+        "extract_ai_hint",
+        "standardize_content",
+        "run_standardize_docs"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/tests/adr_index.rs",
       "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
       "related": [
@@ -10064,6 +10095,19 @@
         "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
         "tools/roadmap-index.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/standardize_docs.rs",
+      "hint": "Two-sided integration test suite for mios-gen standardize-docs (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/standardize_docs.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -11118,17 +11162,6 @@
       "hint": "Opt-in Authenticode signing script for shipped Windows PowerShell scripts.",
       "related": [],
       "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/standardize-docs.py",
-      "hint": "A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links.",
-      "related": [],
-      "functions": [
-        "standardize_file"
-      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": false

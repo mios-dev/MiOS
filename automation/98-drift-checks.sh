@@ -3415,6 +3415,25 @@ check_pipe_boundaries() {
     echo "[98-drift-checks]   pipe-boundaries.manifest.json matches the agent-pipe tree"
 }
 
+# --- specs/ documentation matches standardized format ---
+check_standardize_docs() {
+    local bin out rc=0
+    bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        out="$("$bin" standardize-docs --root "$ROOT" --check 2>&1)" || rc=$?
+    else
+        _violation "mios-gen is not available"
+        return
+    fi
+
+    if (( rc != 0 )); then
+        printf '%s\n' "$out" >&2
+        _violation "specs/ markdown documentation is unstandardized -- run mios-gen standardize-docs"
+        return
+    fi
+    echo "[98-drift-checks]   specs/ markdown documentation matches standardized format"
+}
+
 check_vllm_name_canonical() {
     if grep -rn --exclude="98-drift-checks.sh" "MIOS_AI_VLL[M]_\|MIOS_AI_SGLAN[G]_" "${ROOT}/automation/" "${ROOT}/usr/lib/mios/" >/dev/null 2>&1; then
         _violation "found legacy M""IOS_AI_VLLM_ or M""IOS_AI_SGLANG_ long names in active code or automation"
@@ -4159,6 +4178,7 @@ main() {
     check_negative_coverage
     check_verb_templates
     check_pipe_boundaries
+    check_standardize_docs
     check_vllm_name_canonical
     check_pipe_extraction_parity
     check_desktop_launchers
