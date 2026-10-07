@@ -2053,7 +2053,58 @@ so long. Let a run finish.
      - `python tools/ci-suites.py --check`: 422 suites registered across 3 tiers (exit code 0).
      - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
      - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
-- next: Phase 3 remaining projectors (`tools/generate-metal-vs-hosted.py` → `mios-gen metal-vs-hosted`, `tools/roadmap-index.py` → `mios-gen roadmap-index`, and AGY-1102 `tools/generate-ai-manifest.py` → `mios-gen ai-manifest`).
+- next: Phase 3.4 Metal-vs-Hosted SSOT Projector (T-1010, AGY-1089).
 - blockers: None.
 - unverified: None.
+
+## 2026-10-07 00:55 · antigravity · Phase 3.4 Metal-vs-Hosted SSOT Projector Complete (Commit bd0ec78a)
+- objective: Consolidate seat-vs-blade capability matrix projector into `tools/native/mios-gen metal-vs-hosted` static binary; strangler-delete `tools/generate-metal-vs-hosted.py` and sibling test; enforce two-sided Trycmd controls and Invariant 5 topology modeling; wire automation drift checks and sync projections.
+- status: VERIFIED & COMPLETE.
+- commit: `bd0ec78a` (branch `codex/uncommitted-mcp-ux` in `C:\MiOS`).
+- deliverables:
+  1. `tools/native/mios-gen`: added `metal-vs-hosted` subcommand:
+     - `all_packages`: traverses `[packages]` tree in `usr/share/mios/mios.toml` to extract tracked packages.
+     - `get_tracked_set`: queries git tracked index for precise file wiring checks.
+     - `plane_rows`: computes 6-plane matrix (hypervisor, radio, router, mesh, storage, telemetry) checking markers, missing packages, and wiring.
+     - `policy_rows`: models 13 canonical `[blade.*]` architectural invariants and policies.
+     - `archetype_rows` & `seat_side`: aggregates required capabilities and started units across seat vs blade.
+     - `greenboot_rows` & `gated_off_on_seat`: evaluates critical health checks and withheld capabilities.
+     - `render`: formats byte-identical two-part document matching `usr/share/doc/mios/reference/metal-vs-hosted.md`.
+     - CLI contract: supports `--root`, `--check`, `--format json|text`, and standard return codes (0 clean, 1 violations).
+  2. Deleted legacy python generator and test (atomic strangler migration):
+     - `tools/generate-metal-vs-hosted.py` (deleted)
+     - `tools/test_generate-metal-vs-hosted.py` (deleted)
+  3. `usr/share/mios/mios.toml`:
+     - Registered surface in `[laws.projection_registry]` pointing to `tools/native/mios-gen/src/main.rs`.
+     - Added `tools/generate-metal-vs-hosted.py` to `[rust.categories.gen].replaces` (now 7 deleted scripts tracked).
+  4. Automation & projection wiring:
+     - `automation/98-drift-checks.sh` `check_metal_vs_hosted` invokes `native_bin mios-gen` first.
+     - `tools/sync-generated.sh` step 10 dispatches `mios-gen metal-vs-hosted`.
+  5. Trycmd golden-master fixtures:
+     - `tests/golden/metal-vs-hosted/cmd.toml`
+     - `tests/golden/metal-vs-hosted/cases/positive_check.trycmd`
+     - `tests/golden/metal-vs-hosted/cases/negative_missing_root.trycmd`
+  6. Two-sided verification controls:
+     - `cargo test -p mios-gen`: 16/16 tests pass (3 metal-vs-hosted, 4 adr-index, 2 cosign-policy, 3 egress-firewall, 2 gate-index, 2 pipeline-index).
+     - `cargo clippy -p mios-gen -- -D warnings`: exit code 0 (zero warnings).
+     - WSL2 execution: `/usr/bin/mios-gen metal-vs-hosted --root /mnt/c/MiOS --check` verified in 0.043s.
+     - `tests/drift-gate-negatives.sh test_metal_vs_hosted`: PASS (planted mutation detected; restored clean).
+  7. Standing gates verification:
+     - `phase-registry`: 77/77 registered, 0 on shrink-only register (exit code 0).
+     - `ratchet-direction`: 93 shrink-only ceilings hold (exit code 0).
+     - `credential-literals`: 0 unapproved literals across 253 unit files (exit code 0).
+     - `version-literals-ssot`: 0 divergent literals across 914 files (exit code 0).
+     - `signature-policy`: `usr/lib/containers/policy.json` verified (exit code 0).
+     - `rust-categories`: 34 crates cataloged across 15 categories; 1248 scripts in universe (277 porting-owned, 843 exempt, 128 unowned, ceiling 128); 7 replaces claims verified absent (exit code 0).
+     - `python tools/ci-suites.py --check`: 421 suites registered across 3 tiers (exit code 0).
+     - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
+     - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
+  8. Subagent Trio certification:
+     - Reviewer: VERDICT: APPROVE
+     - Challenger: VERDICT: APPROVE
+     - Auditor: VERDICT: CLEAN
+- next: Phase 3 remaining projectors (`tools/roadmap-index.py` → `mios-gen roadmap-index`, and AGY-1102 `tools/generate-ai-manifest.py` → `mios-gen ai-manifest`).
+- blockers: None.
+- unverified: None.
+
 
