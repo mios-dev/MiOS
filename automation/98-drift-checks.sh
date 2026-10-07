@@ -3879,15 +3879,18 @@ check_ai_metadata_fresh() {
 
 check_ai_manifests_fresh() {
     echo "[98-drift-checks]   checking AI manifest freshness"
-    # generate-ai-manifest.py resolves its targets and relpaths against the CWD,
-    # so it MUST run from $ROOT or it compares the wrong (or no) trees.
+    local bin; bin="$(native_bin mios-gen)" || true
     local out
-    if ! out=$( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check 2>&1 ); then
-        # Surface WHICH manifest drifted AND why. A 'drift|missing' grep was
-        # too narrow -- it filtered out the generator's own entry-level
-        # diagnostics, so the failure stayed unactionable.
-        printf '%s\n' "$out" | grep -v '^Generated ' | head -n 14 >&2
-        _violation "AI manifests are stale or out of date (run 'just sync', or bash tools/sync-generated.sh, which regenerates every projection in dependency order)"
+    if [[ -n "$bin" ]]; then
+        if ! out=$( cd "$ROOT" && "$bin" ai-manifest --root "$ROOT" --check 2>&1 ); then
+            printf '%s\n' "$out" | grep -v '^Generated ' | head -n 14 >&2
+            _violation "AI manifests are stale or out of date (run 'just sync', or bash tools/sync-generated.sh, which regenerates every projection in dependency order)"
+        fi
+    else
+        if ! out=$( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check 2>&1 ); then
+            printf '%s\n' "$out" | grep -v '^Generated ' | head -n 14 >&2
+            _violation "AI manifests are stale or out of date (run 'just sync', or bash tools/sync-generated.sh, which regenerates every projection in dependency order)"
+        fi
     fi
 }
 

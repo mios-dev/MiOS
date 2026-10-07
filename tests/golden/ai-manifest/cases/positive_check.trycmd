@@ -1,0 +1,5 @@
+```console
+$ mios-gen ai-manifest --check
+[OK] AI repository and tool manifests are in sync
+
+```

@@ -60,6 +60,7 @@ def render(members: list[str], version: str) -> str:
         "[workspace.dependencies]\n"
         'clap = { version = "4.5", features = ["derive"] }\n'
         'figment = { version = "0.10", features = ["toml", "env"] }\n'
+        'flate2 = "1.0"\n'
         'miette = { version = "5.10", features = ["fancy"] }\n'
         'regex = "1.10"\n'
         'serde = { version = "1.0", features = ["derive"] }\n'

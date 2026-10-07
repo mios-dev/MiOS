@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3729,
-  "total_metadata_entries": 3057,
-  "total_hints": 3046,
-  "total_functions_indexed": 1476,
-  "total_related_links": 4990,
+  "total_files_scanned": 3737,
+  "total_metadata_entries": 3060,
+  "total_hints": 3049,
+  "total_functions_indexed": 1469,
+  "total_related_links": 5004,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5665,6 +5665,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/ai-manifest/cmd.toml",
+      "hint": "Trycmd configuration for ai-manifest golden-master CLI tests (AGY-1067 / AGY-1102).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/cosign-policy/cmd.toml",
       "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
       "related": [
@@ -9069,15 +9081,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-ai-manifest.py",
-      "hint": "Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/generate-bib-configs.py",
       "hint": "MiOS system and orchestration module providing generate-bib-configs capabilities.",
       "related": [],
@@ -9657,6 +9660,20 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/ai_manifest.rs",
+      "hint": "SSOT projector and verifier for AI repository and tool manifests (ADR-0021 gen category).",
+      "related": [
+        "tools/generate-ai-manifest.py",
+        "automation/manifest.json",
+        "tools/manifest.json",
+        "specs/manifest.json"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/gate_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
       "related": [
@@ -9708,6 +9725,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/roadmap_index.rs",
+      "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14)",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "ROADMAP.md",
+        "tools/roadmap-index.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/tests/adr_index.rs",
       "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
       "related": [
@@ -9717,6 +9747,18 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/ai_manifest.rs",
+      "hint": "Two-sided integration test suite for mios-gen ai-manifest (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/ai_manifest.rs",
+        "tools/generate-ai-manifest.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -9781,6 +9823,19 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/roadmap_index.rs",
+      "hint": "Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/roadmap_index.rs",
+        "ROADMAP.md",
+        "tools/roadmap-index.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10831,23 +10886,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/roadmap-index.py",
-      "hint": "MiOS system and orchestration module providing roadmap-index capabilities.",
-      "related": [],
-      "functions": [
-        "flatten_keys",
-        "make_anchor",
-        "parse_simple_yaml",
-        "main",
-        "check_adr_exists",
-        "generate_metrics_table",
-        "replace_section"
-      ],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },

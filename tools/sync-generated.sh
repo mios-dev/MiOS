@@ -235,7 +235,12 @@ main() {
 
     # 21. AI repository and tool manifests
     step "21/23 [ai.manifests] compile ai repository and tool manifests"
-    "$PY" tools/generate-ai-manifest.py >/dev/null
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" ai-manifest --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/generate-ai-manifest.py >/dev/null
+    fi
 
     # 22. AI header metadata and strict schema catalog
     step "22/23 [ai.metadata] catalog ai header metadata and strict schema"

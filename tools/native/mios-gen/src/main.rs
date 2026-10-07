@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 mod adr_index;
+mod ai_manifest;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
@@ -116,6 +117,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed ROADMAP.md is in sync without modifying it
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates or checks AI repository and tool manifests from Markdown and source files
+    #[command(name = "ai-manifest")]
+    AiManifest {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed manifests are in sync without modifying them
         #[arg(long)]
         check: bool,
     },
@@ -452,6 +465,14 @@ fn main() -> ExitCode {
                 "roadmap-index",
                 "ROADMAP.md",
                 roadmap_index::run_roadmap_index(&r, check, cli.format == "json"),
+            )
+        }
+        Commands::AiManifest { root, check } => {
+            let r = resolve_root(root);
+            (
+                "ai-manifest",
+                "manifests",
+                ai_manifest::run_ai_manifest(&r, check, cli.format == "json"),
             )
         }
     };
