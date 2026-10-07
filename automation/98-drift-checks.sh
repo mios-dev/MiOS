@@ -957,10 +957,19 @@ check_edge_generators() {
     echo "[98-drift-checks] every imperative edge-to-edge generator regenerates the surface the image installs byte-identical"
     _need_python || return 0
     local spec gen arg out n=0
+    local mgen; mgen="$(native_bin mios-gen || true)"
     for spec in "usr/libexec/mios/ux/wm_config_gen.py ." "usr/libexec/mios/desktop/gpu_terminal.py ." \
                 "usr/libexec/mios/win/wt_profile_inject.py ." "usr/libexec/mios/ux/tmux_theme.py ." \
                 "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py ."; do
         read -r gen arg <<<"$spec"
+        if [[ "$gen" == "usr/libexec/mios/ux/tmux_theme.py" && -n "$mgen" ]]; then
+            if out="$(cd "$ROOT" && "$mgen" render-tmux-theme --root "$ROOT" --check 2>&1)"; then
+                n=$(( n + 1 ))
+            else
+                _violations_from "render-tmux-theme --check: " "$out" || :
+            fi
+            continue
+        fi
         if [[ ! -f "$ROOT/$gen" ]]; then
             _violation "$gen absent -- a tracked generator is missing, so its golden cannot be regenerated" || :
             continue
@@ -4226,6 +4235,7 @@ main() {
     check_vllm_name_canonical
     check_pipe_extraction_parity
     check_desktop_launchers
+    check_tmux_theme
     check_guacamole_consistency
     check_no_inert_ssot_tables
     check_profile_integrity
@@ -5060,6 +5070,23 @@ check_desktop_launchers() {
         _run_py_check check_desktop_launchers "tools/render-desktop.py --check"
     else
         _violation "mios-gen binary not found; render-desktop.py was strangler-deleted (ADR-0021)"
+    fi
+}
+check_tmux_theme() {
+    echo "[98-drift-checks]   checking tmux theme matches SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        if ! out=$(cd "$ROOT" && "$bin" render-tmux-theme --root "$ROOT" --check 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "tmux theme drifted from SSOT (run 'just sync' or 'mios-gen render-tmux-theme --root $ROOT')"
+        fi
+        return
+    fi
+    if [[ -f "$ROOT/usr/libexec/mios/ux/tmux_theme.py" ]]; then
+        _run_py_check check_tmux_theme "usr/libexec/mios/ux/tmux_theme.py --check-fixture $ROOT"
+    else
+        _violation "mios-gen binary not found; tmux_theme.py was strangler-deleted (ADR-0021)"
     fi
 }
 

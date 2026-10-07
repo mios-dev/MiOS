@@ -123,7 +123,11 @@ main() {
     # 6. User and system dotfile SSOT projection
     step "6/23 [dotfiles.projection] synchronize editor and environment dotfiles"
     "$PY" tools/sync-dotfiles.py
-    "$PY" usr/libexec/mios/ux/tmux_theme.py --write-fixture "$ROOT" >/dev/null
+    if [ -n "$_gen" ]; then
+        "$_gen" render-tmux-theme --write-fixture "$ROOT" >/dev/null
+    else
+        "$PY" usr/libexec/mios/ux/tmux_theme.py --write-fixture "$ROOT" >/dev/null
+    fi
 
     # 7. WSL host configuration mirror
     step "7/23 [wsl.reference] mirror etc/wsl.conf to usr/lib/wsl.conf"

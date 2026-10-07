@@ -5306,6 +5306,21 @@ test_pod_quadlets() {
     log "check_pod_quadlets negative test passed"
 }
 
+test_tmux_theme() {
+    log "Testing check_tmux_theme"
+    local conf="${ROOT}/usr/share/mios/tmux/mios-theme.tmux.conf"
+    [[ -s "$conf" ]] || die "check_tmux_theme: mios-theme.tmux.conf is missing or empty"
+    local bak; bak="$(mktemp)"; cp "$conf" "$bak"
+    _tt_restore() { cp "$bak" "$conf"; rm -f "$bak"; unset -f _tt_restore; }
+
+    printf '\n# devloop planted mutation\nset -g status off\n' >> "$conf"
+    _neg_gate check_tmux_theme && { _tt_restore; die "check_tmux_theme passed with a hand-edited mios-theme.tmux.conf"; }
+
+    _tt_restore
+    _neg_gate check_tmux_theme || die "check_tmux_theme failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_tmux_theme negative test passed"
+}
+
 test_egress_firewall() {
     log "Testing check_egress_firewall"
     local nft="${ROOT}/usr/share/mios/security/egress.nft"
@@ -5637,6 +5652,7 @@ _run_test test_leaked_fixtures
     _run_test test_pod_quadlets
     _run_test test_egress_firewall
     _run_test test_dotfiles_projection
+    _run_test test_tmux_theme
     _run_test test_edge_generators
     _run_test test_edge_status
     _run_test test_artifact_prompt

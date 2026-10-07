@@ -2359,7 +2359,7 @@ surfaces = [
   { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
   { generator = "usr/libexec/mios/desktop/gpu_terminal.py", check = "check_edge_generators", output = "etc/skel/.config/alacritty/alacritty.toml" },
   { generator = "usr/libexec/mios/win/wt_profile_inject.py", check = "check_edge_generators", output = "usr/share/mios/wsl/terminal-profile.json" },
-  { generator = "usr/libexec/mios/ux/tmux_theme.py", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
   { generator = "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py", check = "check_edge_generators", output = "usr/share/mios/theme/fixtures/edge/portal-term.css, usr/share/mios/theme/fixtures/edge/ttyd-page.json" },
   { generator = "tools/native/mios-edge-status/src/main.rs", check = "check_edge_status", output = "stdout (one reach line per [theme.edge.reach] key)" },
 ]
@@ -8450,7 +8450,7 @@ gtk3-css                 = { reach = "n/a", why = "no GTK3 VTE terminal ships" }
 vte-shell-integration    = { reach = "n/a", why = "etc/profile.d/vte.sh and vte.csh carry prompt/OSC only, no geometry" }
 alacritty                = { reach = "full", why = "new homes get the etc/skel alacritty.toml gpu_terminal.py renders; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; no [packages] section installs alacritty itself", artifact = "etc/skel/.config/alacritty/alacritty.toml" }
 hyprland-sway            = { reach = "full", why = "the hyprland.conf the image ships (and /etc/hypr links) is the wm_config_gen.py render, gaps and border from [theme.edge].wm_*; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; the sway config ships beside it with no sway package", artifact = "usr/share/mios/hyprland/hyprland.conf" }
-tmux-theme               = { reach = "n/a", why = "tmux has no outer padding; the image ships the tmux_theme.py render the Blink tmux config sources, colours only" }
+tmux-theme               = { reach = "n/a", why = "tmux has no outer padding; the image ships the mios-gen render-tmux-theme render the Blink tmux config sources, colours only" }
 tmux-sessions            = { reach = "n/a", why = "agent PTY, war room and key maps carry no inset concept" }
 portal-chrome            = { reach = "full", why = "portal_edge.term_css() is served by agent-pipe on every Portal page", artifact = "usr/share/mios/theme/fixtures/edge/portal-term.css" }
 ttyd-page                = { reach = "full", why = "ttyd serves a patched copy of its page (-I) built from [ttyd].version; the build fails when the .terminal padding rule moves, the page differs from its golden, or the ttyd package is another version", artifact = "usr/share/mios/theme/fixtures/edge/ttyd-page.json" }
@@ -13298,11 +13298,12 @@ replaces = [
   "tools/standardize-docs.py",
   "tools/sync-wiki.py",
   "tools/generate-pod-quadlets.py",
+  "usr/libexec/mios/ux/tmux_theme.py",
 ]
 scope = [
   "tools/generate-*.sh", "tools/generate-*.ps1",
   "usr/libexec/mios/win/*.py",
-  "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",
+  "usr/libexec/mios/ux/btop_theme.py",
   "usr/libexec/mios/ux/fastfetch_gen.py", "usr/libexec/mios/ux/theme_sync.py",
   "usr/libexec/mios/ux/editor_config_gen.py", "usr/libexec/mios/ux/wm_config_gen.py",
 ]

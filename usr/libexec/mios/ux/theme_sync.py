@@ -17,12 +17,18 @@ Synchronizes canonical palette tokens from `mios.toml` [colors] directly into:
 from __future__ import annotations
 
 import argparse
+import importlib.machinery
+import importlib.util
 import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+_TREE = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..")
+)
 
 # Enable relative import of mios_toml
 _LIB_DIR = os.path.normpath(
@@ -307,6 +313,45 @@ class ThemeSyncEngine:
             "dry_run": self.dry_run,
             "mock": self.mock,
         }
+
+def render_prompt(data, remote=False):
+    """Render desktop or portable prompt glyphs with the same layered palette."""
+    loader = importlib.machinery.SourceFileLoader(
+        "mios_terminal_dotfiles", os.path.join(_TREE, "usr/libexec/mios/mios-dotfiles-render")
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    renderer = importlib.util.module_from_spec(spec)
+    loader.exec_module(renderer)
+    template = os.path.join(_TREE, data["dotfiles"]["registry"]["oh-my-posh"]["template"])
+    with open(template, encoding="utf-8") as handle:
+        omp = renderer._render_text(handle.read(), renderer._resolved_for(data, None), data)
+    settings = data["theme"]["prompt"]
+    mode = settings["remote_glyph_mode"] if remote else settings["glyph_mode"]
+    if mode not in {"auto", "nerd", "ascii"}:
+        raise ValueError("[theme.prompt] glyph modes must be auto, nerd or ascii")
+    prompt = json.loads(omp)
+    if mode == "ascii" or (mode == "auto" and (remote or "nerd" not in data["theme"]["font"]["family"].lower())):
+        ascii_style = settings["ascii"]
+        for block in prompt["blocks"]:
+            for segment in block["segments"]:
+                if segment["style"] == "powerline":
+                    segment["style"] = "plain"
+                    segment.pop("powerline_symbol", None)
+                if segment["type"] == "text":
+                    segment["template"] = ascii_style["leader"]
+                elif segment["type"] == "status":
+                    segment["template"] = ascii_style["closer"]
+                elif segment["type"] == "git":
+                    properties = segment.setdefault("properties", {})
+                    properties.update(
+                        fetch_upstream_icon=False,
+                        branch_icon=ascii_style["git_branch"],
+                        commit_icon=ascii_style["git_commit"],
+                    )
+                    segment["template"] = segment["template"].replace("{{ .UpstreamIcon }}", "").replace("✎", ascii_style["git_change"])
+                if segment["style"] == "plain" and segment["type"] not in {"text", "status"}:
+                    segment["template"] += ascii_style["separator"]
+    return json.dumps(prompt, ensure_ascii=True, indent=2) + "\n"
 
 def main() -> int:
     parser = argparse.ArgumentParser(

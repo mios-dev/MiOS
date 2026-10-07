@@ -343,7 +343,7 @@ MIOS_READ_TOOL_ENRICH_ENABLED	usr/lib/mios/agent-pipe/server.py:513
 MIOS_READ_TOOL_ENRICH_MAX	usr/lib/mios/agent-pipe/server.py:514
 MIOS_READ_TOOL_ENRICH_TIMEOUT_S	usr/lib/mios/agent-pipe/server.py:515
 MIOS_REGISTRY_BIN	automation/lib/generate-packages.sh:36
-MIOS_REMOTE_TERMINAL	usr/libexec/mios/ux/tmux_theme.py:199
+MIOS_REMOTE_TERMINAL	tools/native/mios-gen/src/tmux_theme.rs:48
 MIOS_RENAME_DISTRO	build-mios.ps1:4716
 MIOS_REPO	install-mios-agents.sh:14
 MIOS_REPO_BRANCH	automation/build-mios.sh:197

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3772,
-  "total_metadata_entries": 3076,
-  "total_hints": 3065,
-  "total_functions_indexed": 1469,
-  "total_related_links": 5076,
+  "total_files_scanned": 3779,
+  "total_metadata_entries": 3082,
+  "total_hints": 3071,
+  "total_functions_indexed": 1466,
+  "total_related_links": 5096,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -4304,6 +4304,20 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/canonical_bools.rs",
+      "hint": "Asserts [verbs.*] boolean fields carry canonical TOML booleans, not stringly-typed lookalikes -- hidden, sensitive, params[].required, and params[].default (when type=boolean) must parse as real bools.",
+      "related": [
+        "tools/drift-checks.py (strangled by this port",
+        "T-1009 unit 2)",
+        "automation/98-drift-checks.sh",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/credentials.rs",
       "hint": "Law-11 extension gate: fails any credential literal baked into a world-readable unit whose exact path:KEY=value is not on the shrink-only register.",
       "related": [
@@ -4407,6 +4421,21 @@
         "src/mios-rs/mios-gate/src/dispatch.rs",
         "automation/98-drift-checks.sh",
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/negative_coverage.rs",
+      "hint": "Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this gate is what keeps the phantom population at zero.",
+      "related": [
+        "tools/drift-checks.py (strangled by this port",
+        "T-1009 unit 1)",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -4568,6 +4597,19 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/tests/canonical_bools.rs",
+      "hint": "Integration tests for mios-gate's canonical-bools check -- exit-code and diagnostic contract over fixture trees (T-1009 unit 2).",
+      "related": [
+        "src/mios-rs/mios-gate/src/canonical_bools.rs",
+        "tools/drift-checks.py",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/tests/credentials.rs",
       "hint": "Integration tests for mios-gate's credential-literals check, including the value-pinning defect a key-only register could not see.",
       "related": [
@@ -4599,6 +4641,19 @@
         "src/mios-rs/mios-gate/src/laws.rs",
         "usr/share/mios/mios.toml",
         "automation/99-postcheck.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/tests/negative_coverage.rs",
+      "hint": "Integration tests for mios-gate's negative-coverage check -- the exit-code and diagnostic contract over fixture trees, per the tests/<check>.rs convention (T-1009 unit 1).",
+      "related": [
+        "src/mios-rs/mios-gate/src/negative_coverage.rs",
+        "tools/drift-checks.py",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": null,
@@ -5859,6 +5914,18 @@
     {
       "path": "tests/golden/sync-wiki/cmd.toml",
       "hint": "Trycmd configuration for sync-wiki golden-master CLI tests (AGY-1067 / AGY-1112).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/golden/tmux-theme/cmd.toml",
+      "hint": "Trycmd configuration for render-tmux-theme golden-master CLI tests (ADR-0021).",
       "related": [
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
         "tests/golden/README.md"
@@ -9946,6 +10013,20 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/tmux_theme.rs",
+      "hint": "SSOT tmux theme renderer deriving active pane styles and status bar formatting from mios.toml [colors] and [theme.tmux] (ADR-0021 gen category).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/tmux/mios-theme.tmux.conf",
+        "tools/sync-generated.sh",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/tests/adr_index.rs",
       "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
       "related": [
@@ -10169,6 +10250,19 @@
       "hint": "Two-sided integration test suite for mios-gen sync-wiki (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/sync_wiki.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/tmux_theme.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-tmux-theme (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
@@ -27569,24 +27663,6 @@
         "generate_reg_content",
         "generate_gtk3_css",
         "generate_gtk4_css",
-        "main"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "usr/libexec/mios/ux/tmux_theme.py",
-      "hint": "Terminal multiplexer tmux theme generator deriving active pane styles and status bar formatting from SSOT",
-      "related": [
-        "tests/test-ux.py",
-        "usr/share/mios/mios.toml",
-        "usr/lib/mios/mios_toml.py",
-        "usr/share/mios/tmux/mios-theme.tmux.conf"
-      ],
-      "functions": [
-        "TmuxThemeEngine",
-        "generate_tmux_config",
         "main"
       ],
       "doc": null,

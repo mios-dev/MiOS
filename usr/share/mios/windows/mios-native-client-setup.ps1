@@ -129,7 +129,7 @@ if ($LASTEXITCODE -ne 0 -or $check -notcontains 'native-ready') { throw 'Install
 foreach ($value in $config['colors'].Values) {
     if ($value -notmatch '^#[0-9a-fA-F]{6}$') { throw 'Invalid SSOT terminal color; existing projections preserved' }
 }
-$renderPrompt = 'import sys,json;sys.path.insert(0,"/usr/lib/mios");sys.path.insert(0,"/usr/libexec/mios/ux");import mios_toml,tmux_theme;d=mios_toml.load_merged();print(json.dumps({"local":tmux_theme.render_prompt(d),"remote":tmux_theme.render_prompt(d,remote=True)}))'
+$renderPrompt = 'import sys,json;sys.path.insert(0,"/usr/lib/mios");sys.path.insert(0,"/usr/libexec/mios/ux");import mios_toml,theme_sync;d=mios_toml.load_merged();print(json.dumps({"local":theme_sync.render_prompt(d),"remote":theme_sync.render_prompt(d,remote=True)}))'
 $promptBundle = ((& wsl.exe -d $Distro -u $LinuxUser -- python3 -c $renderPrompt) -join "`n") | ConvertFrom-Json
 $promptJson = $promptBundle.local
 if ($LASTEXITCODE -ne 0) { throw 'Could not project the native Oh My Posh theme' }

@@ -1524,14 +1524,18 @@ tt__HERE = os.path.dirname(os.path.abspath(__file__))
 tt__ROOT = os.path.normpath(os.path.join(tt__HERE, ".."))
 tt__TARGET_PATH = os.path.join(tt__ROOT, "usr", "libexec", "mios", "ux", "tmux_theme.py")
 
-tt_spec = importlib.util.spec_from_file_location("tmux_theme", tt__TARGET_PATH)
-if tt_spec and tt_spec.loader:
-    tmux_theme = importlib.util.module_from_spec(tt_spec)
-    sys.modules[tt_spec.name] = tmux_theme
-    tt_spec.loader.exec_module(tmux_theme)
+if os.path.isfile(tt__TARGET_PATH):
+    tt_spec = importlib.util.spec_from_file_location("tmux_theme", tt__TARGET_PATH)
+    if tt_spec and tt_spec.loader:
+        tmux_theme = importlib.util.module_from_spec(tt_spec)
+        sys.modules[tt_spec.name] = tmux_theme
+        tt_spec.loader.exec_module(tmux_theme)
+    else:
+        tmux_theme = None
 else:
-    raise ImportError(f"Could not load module from {tt__TARGET_PATH}")
+    tmux_theme = None
 
+@unittest.skipIf(tmux_theme is None, "tmux_theme.py was strangler-deleted (ported to native mios-gen render-tmux-theme)")
 class tt_TestTmuxTheme(unittest.TestCase):
     """Test suite for tmux theme rendering across powerline, rounded, and minimal styles."""
 

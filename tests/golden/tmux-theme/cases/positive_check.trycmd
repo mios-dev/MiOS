@@ -1,0 +1,5 @@
+```console
+$ mios-gen render-tmux-theme --check
+[tmux-theme] tmux theme matches SSOT (rounded)
+
+```

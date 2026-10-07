@@ -25,6 +25,7 @@ mod roadmap_index;
 mod standardize_docs;
 mod sync_wiki;
 mod pod_quadlets;
+mod tmux_theme;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -289,6 +290,38 @@ enum Commands {
         /// List mode: print all generated unit filenames
         #[arg(long)]
         list: bool,
+    },
+
+    /// Renders tmux theme configuration (usr/share/mios/tmux/mios-theme.tmux.conf) from SSOT
+    #[command(name = "render-tmux-theme", aliases = ["tmux-theme"])]
+    RenderTmuxTheme {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed mios-theme.tmux.conf matches projection
+        #[arg(long)]
+        check: bool,
+
+        /// Check fixture mode: alias matching legacy script CLI (`--check-fixture <ROOT>`)
+        #[arg(long)]
+        check_fixture: Option<PathBuf>,
+
+        /// Write fixture mode: alias matching legacy script CLI (`--write-fixture <ROOT>`)
+        #[arg(long)]
+        write_fixture: Option<PathBuf>,
+
+        /// Output path for tmux configuration file
+        #[arg(long, aliases = ["output", "out"])]
+        out: Option<PathBuf>,
+
+        /// Visual styling format for status line segments (powerline, rounded, minimal)
+        #[arg(long)]
+        style: Option<String>,
+
+        /// Status bar screen position (bottom, top)
+        #[arg(long, alias = "position")]
+        status_position: Option<String>,
     },
 }
 
@@ -872,6 +905,53 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::RenderTmuxTheme {
+            root,
+            check,
+            check_fixture,
+            write_fixture,
+            out,
+            style,
+            status_position,
+        } => {
+            let (effective_root, is_check) = if let Some(cf) = check_fixture {
+                (cf, true)
+            } else if let Some(wf) = write_fixture {
+                (wf, false)
+            } else {
+                (resolve_root(root), check)
+            };
+
+            (
+                "render-tmux-theme",
+                "usr/share/mios/tmux/mios-theme.tmux.conf",
+                match tmux_theme::run_render_tmux_theme(
+                    &effective_root,
+                    is_check,
+                    style.as_deref(),
+                    status_position.as_deref(),
+                    out.as_deref(),
+                ) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if is_check {
+                                println!("[tmux-theme] tmux theme matches SSOT ({})", res.style);
+                            } else {
+                                println!(
+                                    "[tmux-theme] SUCCESS: Generated tmux theme ({} lines) style '{}'",
+                                    res.config_lines, res.style
+                                );
+                                if let Some(p) = res.output_path {
+                                    println!("  Saved config: {}", p.display());
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -913,6 +993,8 @@ fn main() -> ExitCode {
             || msg.starts_with("Wiki documentation embeds are STALE")
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
+            || msg.starts_with("[tmux-theme]")
+            || msg.contains("mios-theme.tmux.conf:")
             || msg.contains("ADR SSOT consistency check failed:")
         {
             eprintln!("{msg}");
