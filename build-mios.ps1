@@ -32,7 +32,7 @@ function Resolve-MiosBuilderDistribution([string]$Machine) {
     throw "No registered WSL distribution for MiOS builder '$Machine'; existing machines are preserved."
 }
 
-function Invoke-MiosNativeImageBuild([string]$Root, [string]$Machine) {
+function Install-MiosNativeCatalog([string]$Root, [string]$Machine) {
     $Root = (Resolve-Path -LiteralPath $Root -ErrorAction Stop).Path
     foreach ($required in @('usr\share\mios\mios.toml','Containerfile','.devcontainer\Containerfile','automation\55-native-build.sh')) {
         if (-not (Test-Path -LiteralPath (Join-Path $Root $required) -PathType Leaf)) {
@@ -46,8 +46,48 @@ function Invoke-MiosNativeImageBuild([string]$Root, [string]$Machine) {
     # build/lint/install the catalog. Use persistent builder output, not the source.
     & wsl.exe -d $distribution -u root -- env CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin CARGO_TARGET_DIR=/var/tmp/mios-native-build MIOS_NATIVE_INSTALL_ROOT=/ bash "$linuxRoot/automation/55-native-build.sh" | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) { throw "Native SSOT build/install failed (exit $LASTEXITCODE)" }
-    & wsl.exe -d $distribution -u root -- /usr/bin/miosd image-build --root $linuxRoot --target all | ForEach-Object { Write-Host $_ }
+    # Publish the vendor layer atomically; /etc and user SSOT layers persist.
+    $pendingVendor = '/usr/share/mios/mios.toml.pending-' + [guid]::NewGuid().ToString('N')
+    & wsl.exe -d $distribution -u root -- install -D -m 0644 "$linuxRoot/usr/share/mios/mios.toml" $pendingVendor
+    if ($LASTEXITCODE -ne 0) { throw 'Current-source vendor SSOT staging failed' }
+    & wsl.exe -d $distribution -u root -- mv -f -- $pendingVendor /usr/share/mios/mios.toml
+    if ($LASTEXITCODE -ne 0) { throw 'Current-source vendor SSOT publication failed' }
+    return @{ Distribution = $distribution; LinuxRoot = $linuxRoot }
+}
+
+function Invoke-MiosNativeImageBuild([string]$Root, [string]$Machine) {
+    $catalog = Install-MiosNativeCatalog $Root $Machine
+    & wsl.exe -d $catalog.Distribution -u root -- /usr/bin/miosd image-build --root $catalog.LinuxRoot --target all | ForEach-Object { Write-Host $_ }
     return $LASTEXITCODE
+}
+
+function Install-MiosNativeWindowsArtifact([string]$Root, [string]$Machine, [string]$Binary, [string]$Destination, [string]$ServiceName = '') {
+    $distribution = Resolve-MiosBuilderDistribution $Machine
+    $linuxRoot = (& wsl.exe -d $distribution -u root -- wslpath -a -u $Root.Replace('\','/')) -join ''
+    if ($LASTEXITCODE -ne 0 -or -not $linuxRoot) { throw 'Windows artifact source is not accessible in MiOS-DEV' }
+    $policyJson = & wsl.exe -d $distribution -u root -- env "MIOS_TOML_ROOT=$linuxRoot" /usr/bin/mios-toml-get --section build.native.windows
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve SSOT Windows artifact policy' }
+    $policy = ($policyJson -join "`n") | ConvertFrom-Json -AsHashtable
+    if ($policy.target -notin @('x86_64-pc-windows-gnu','x86_64-pc-windows-msvc')) { throw 'Invalid SSOT Windows artifact target' }
+    $buildEnv = @('CARGO_HOME=/usr/local/cargo','RUSTUP_HOME=/usr/local/rustup','PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
+    & wsl.exe -d $distribution -u root -- env @buildEnv /usr/bin/miosd native-windows-build --root $linuxRoot --binary $Binary --target-dir /var/tmp/mios-native-build | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "SSOT Windows lint/build/static-artifact verification failed: $Binary" }
+    $built = Join-Path $Root "tools\native\target\$($policy.target)\release\$Binary.exe"
+    if (-not (Test-Path -LiteralPath $built -PathType Leaf)) { throw "Verified Windows artifact was not staged: $Binary" }
+    $pending = $Destination + '.pending-' + [guid]::NewGuid().ToString('N')
+    Copy-Item -LiteralPath $built -Destination $pending -ErrorAction Stop
+    $linuxPending = (& wsl.exe -d $distribution -u root -- wslpath -a -u $pending.Replace('\','/')) -join ''
+    if ($LASTEXITCODE -ne 0 -or -not $linuxPending) { throw 'Windows staged artifact is not accessible in MiOS-DEV' }
+    & wsl.exe -d $distribution -u root -- /usr/bin/miosd native-artifact-check $linuxPending --platform windows --root $linuxRoot | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "Staged Windows artifact failed the SSOT dependency gate: $Binary" }
+    $restart = $false
+    if ($ServiceName) {
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($service -and $service.Status -eq 'Running') { Stop-Service -Name $ServiceName -ErrorAction Stop; $restart = $true }
+    }
+    try { [IO.File]::Move($pending, $Destination, $true) }
+    finally { if ($restart) { Start-Service -Name $ServiceName -ErrorAction Stop } }
+    return $Destination
 }
 
 function Ensure-MiosBuilder([string]$Machine, [hashtable]$Hardware) {
@@ -5781,9 +5821,10 @@ if ($args.Count -gt 0) {
     Log-Ok "MiOS app staged at $hubPath"
     # CMD is also the default Windows OpenSSH shell. A machine-PATH .cmd must
     # exist independently of the user's PowerShell profile, including Xbox.
-    $_nativeSetup = Join-Path $PSScriptRoot 'usr\share\mios\windows\mios-native-client-setup.ps1'
+    $_nativeSetup = Join-Path $MiosRepoDir 'usr\share\mios\windows\mios-native-client-setup.ps1'
     if (-not (Test-Path -LiteralPath $_nativeSetup)) { throw "Native MiOS CMD setup missing: $_nativeSetup" }
-    & $_nativeSetup -Distro $DevDistro -BinDirectory $MiosBinDir -SourceRoot $PSScriptRoot
+    $null = Install-MiosNativeCatalog -Root $MiosRepoDir -Machine $DevDistro
+    & $_nativeSetup -Distro $DevDistro -BinDirectory $MiosBinDir -SourceRoot $MiosRepoDir
     if (-not $?) { throw 'Native MiOS CMD/client setup failed' }
 
     # mios-code.ps1 -- `mios code` verb. Opens code-server in the
@@ -6266,81 +6307,15 @@ $endMark
         Log-Ok "MiOS native launcher staged: $miosLauncher (cols=$_lnchCols rows=$_lnchRows from mios.toml [terminal])"
     }
     # -- mios-wallpaperd (Rust native living wallpaper + gui-watch daemon, T-1132) --
-    $wallpaperd_src = Join-Path $MiosRepoDir 'tools\native\mios-wallpaperd'
     $wallpaperd_exe = Join-Path $MiosBinDir 'mios-wallpaperd.exe'
-    $builtExeCandidates = @(
-        (Join-Path $MiosRepoDir 'tools\native\target\x86_64-pc-windows-gnullvm\release\mios-wallpaperd.exe'),
-        (Join-Path $MiosRepoDir 'tools\native\target\x86_64-pc-windows-gnu\release\mios-wallpaperd.exe'),
-        (Join-Path $MiosRepoDir 'tools\native\target\release\mios-wallpaperd.exe')
-    )
-    $builtExe = $builtExeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-
-    # Cross-build hermetically inside MiOS-DEV if not pre-built
-    if (-not $builtExe) {
-        $devDistroName = if ($script:DevDistro) { $script:DevDistro } elseif ($DevDistro) { $DevDistro } else { 'MiOS-DEV' }
-        $repoWsl = ConvertTo-WslPath $MiosRepoDir
-        $buildCmd = "CARGO_TARGET_DIR=/var/tmp/cargo-target cargo build --manifest-path `"$repoWsl/tools/native/mios-wallpaperd/Cargo.toml`" --target x86_64-pc-windows-gnu --release && mkdir -p `"$repoWsl/tools/native/target/x86_64-pc-windows-gnu/release`" && cp /var/tmp/cargo-target/x86_64-pc-windows-gnu/release/mios-wallpaperd.exe `"$repoWsl/tools/native/target/x86_64-pc-windows-gnu/release/`""
-
-        Log-Info "Cross-compiling mios-wallpaperd inside $devDistroName (x86_64-pc-windows-gnu)..."
-        try {
-            Invoke-DistroSh -Bash $buildCmd -MachineName $devDistroName -NoSudo
-            if ($LASTEXITCODE -eq 0) {
-                $builtExe = $builtExeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-            }
-        } catch {
-            Log-Warn "Cross-compilation in $devDistroName failed: $($_.Exception.Message)"
-        }
+    $svcName = 'MiOS-Wallpaper-Service'
+    $null = Install-MiosNativeWindowsArtifact -Root $MiosRepoDir -Machine $DevDistro -Binary 'mios-wallpaperd' -Destination $wallpaperd_exe -ServiceName $svcName
+    Log-Ok "SSOT Windows wallpaper release verified and installed: $wallpaperd_exe"
+    if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) {
+        & sc.exe create $svcName binPath= "`"$wallpaperd_exe`"" start= auto displayname= 'MiOS Wallpaper Service' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not register the verified MiOS wallpaper service' }
     }
-
-    # Host cargo fallback if still not built
-    if (-not $builtExe -and (Get-Command cargo -ErrorAction SilentlyContinue)) {
-        Log-Info "Compiling mios-wallpaperd via host cargo..."
-        $targetFlag = @()
-        $installedToolchains = & rustup toolchain list 2>$null
-        if ($installedToolchains -match 'gnullvm') {
-            $targetFlag = @('--target', 'x86_64-pc-windows-gnullvm')
-        }
-        $cargoOut = & cargo build --manifest-path "$wallpaperd_src\Cargo.toml" --release @targetFlag 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            $builtExe = $builtExeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-        } else {
-            Log-Warn "Host cargo build for mios-wallpaperd failed: $($cargoOut -join ' ')"
-        }
-    }
-
-    # Verify and provision the built executable at SSOT destination
-    if ($builtExe -and (Test-Path -LiteralPath $builtExe)) {
-        $isVerified = $false
-        try {
-            $bytes = [IO.File]::ReadAllBytes($builtExe)
-            # Must be a valid PE binary (MZ header: 0x4D, 0x5A) with non-trivial size (>100KB)
-            if ($bytes.Length -gt 102400 -and $bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) {
-                $isVerified = $true
-            }
-        } catch {}
-
-        if ($isVerified) {
-            Copy-Item -Path $builtExe -Destination $wallpaperd_exe -Force
-            Log-Ok "mios-wallpaperd verified and staged: $wallpaperd_exe ($([math]::Round((Get-Item $wallpaperd_exe).Length / 1MB, 2)) MB)"
-
-            # Register as a Windows Service only after verification
-            $svcName = 'MiOS-Wallpaper-Service'
-            if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) {
-                $svcPath = "`"$wallpaperd_exe`""
-                & sc.exe create $svcName binPath= $svcPath start= auto displayname= "MiOS Wallpaper Service" | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    Log-Ok "Registered Windows Service: $svcName"
-                    & sc.exe start $svcName | Out-Null
-                } else {
-                    Log-Warn "Failed to register Windows Service: $svcName"
-                }
-            }
-        } else {
-            Log-Warn "Built executable at $builtExe failed PE binary verification -- wallpaper service not registered"
-        }
-    } else {
-        Log-Warn "mios-wallpaperd executable unavailable -- wallpaper service skipped"
-    }
+    Start-Service -Name $svcName -ErrorAction Stop
 
             # Register MiOS-Autostart (AtLogon trigger, RunLevel Highest, hidden).
             # NOTE: aa5f216e replaced the enclosing mios-gui-watch `if ($_gwSrc) { try {`
