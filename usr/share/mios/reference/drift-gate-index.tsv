@@ -160,7 +160,7 @@
 159	check_pipe_boundaries	pipe-boundaries.manifest.json matches the agent-pipe tree
 160	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
 161	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
-162	check_desktop_launchers	Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table
+162	check_desktop_launchers	checking desktop launchers match SSOT
 163	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
 164	check_no_inert_ssot_tables	every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register
 165	check_profile_integrity	mios.toml [profiles] is closed over phases, sections, the floor and targets (ADR-0025)

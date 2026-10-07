@@ -1,0 +1,5 @@
+# AI-hint: Trycmd configuration for render-desktop golden-master CLI tests (AGY-1067 / AGY-1104).
+# AI-related: usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, tests/golden/README.md
+
+bin.name = "mios-gen"
+args = ["render-desktop"]

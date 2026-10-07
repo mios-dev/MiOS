@@ -324,7 +324,6 @@ is generated, its generator is here.
 | `tools/provision-agent-mtls.py` | Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key. |
 | `tools/read-ssot-key.py` | Prints one dotted SSOT key, exiting non-zero when it is absent so a shell caller cannot silently default it. |
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
-| `tools/render-desktop.py` | Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate. |
 | `tools/render-globals.py` | Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ... |
 | `tools/render-manpages.py` | Renders the native roff manual tree from the SSOT, so the operating system manual reader answers about MiOS on the machine. |
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
@@ -345,7 +344,6 @@ is generated, its generator is here.
 | `tools/test_generator_check_agrees_with_write.py` | Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here. |
 | `tools/test_mios_tracked.py` | Fixtures for mios_tracked.py -- proves a dead git and an empty listing both raise instead of reading as a clean, empty tree. |
 | `tools/test_read-ssot-key.py` | Sibling test for tools/read-ssot-key.py; proves an absent key exits non-zero instead of printing a default. |
-| `tools/test_render-desktop.py` | Fixtures for render-desktop.py -- proves the launcher renderer derives its port from SSOT, refuses an empty launcher table, and flags a .desktop file no [desktop.launchers] entry declares. |
 | `tools/test_render-manpages.py` | Sibling test for tools/render-manpages.py; asserts the emitted roff is well-formed and that every declared verb gets a page. |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
 | `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
@@ -355,7 +353,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 56 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 54 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

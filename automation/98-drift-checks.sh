@@ -4897,9 +4897,24 @@ check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py
 check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
 check_blade_karg() { _run_deployment_projection blade-karg; }
 check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners "tools/check-runtime.py firstboot-provisioners"; }
-check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
+check_desktop_launchers() {
+    echo "[98-drift-checks]   checking desktop launchers match SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        if ! out=$(cd "$ROOT" && "$bin" render-desktop --root "$ROOT" --check 2>&1); then
+            printf '%s\n' "$out" | head -n 20 >&2
+            _violation "desktop launchers drifted from SSOT (run 'just sync' or 'mios-gen render-desktop --root $ROOT')"
+        fi
+        return
+    fi
+    if [[ -f "$ROOT/tools/render-desktop.py" ]]; then
+        _run_py_check check_desktop_launchers "tools/render-desktop.py --check"
+    else
+        _violation "mios-gen binary not found; render-desktop.py was strangler-deleted (ADR-0021)"
+    fi
+}
 
-# --- every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register ---
 check_no_inert_ssot_tables() {
     # Ported to mios-gate (ADR-0021, Law 14); python twin deleted (T-1001).
     local bin; bin="$(_gate_bin)" || bin=""

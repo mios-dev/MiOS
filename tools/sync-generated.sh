@@ -102,7 +102,11 @@ main() {
 
     # 4. Freedesktop application entries
     step "4/23 [desktop.projection] render desktop application entries"
-    "$PY" tools/render-desktop.py
+    if [ -n "$_gen" ]; then
+        "$_gen" render-desktop --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/render-desktop.py
+    fi
 
     # 5. Native manual roff pages
     step "5/23 [manpages.projection] validate and render roff documentation"

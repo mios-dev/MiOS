@@ -1,0 +1,5 @@
+```console
+$ mios-gen render-desktop --check
+[render-desktop] All .desktop launchers match SSOT
+
+```

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3740,
-  "total_metadata_entries": 3061,
-  "total_hints": 3050,
-  "total_functions_indexed": 1469,
-  "total_related_links": 5013,
+  "total_files_scanned": 3743,
+  "total_metadata_entries": 3062,
+  "total_hints": 3051,
+  "total_functions_indexed": 1468,
+  "total_related_links": 5018,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5737,6 +5737,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/render-desktop/cmd.toml",
+      "hint": "Trycmd configuration for render-desktop golden-master CLI tests (AGY-1067 / AGY-1104).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/render-ports/cmd.toml",
       "hint": "Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).",
       "related": [
@@ -9737,6 +9749,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/render_desktop.rs",
+      "hint": "Renders usr/share/applications/*.desktop files from SSOT [ports] and [desktop.launchers] table.",
+      "related": [
+        "tools/native/mios-gen/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/render_ports.rs",
       "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
       "related": [
@@ -9849,6 +9874,19 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/render_desktop.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-desktop (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/render_desktop.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10890,15 +10928,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/render-desktop.py",
-      "hint": "Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/render-globals.py",
       "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ...",
       "related": [],
@@ -11149,21 +11178,6 @@
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_render-desktop.py",
-      "hint": "Fixtures for render-desktop.py -- proves the launcher renderer derives its port from SSOT, refuses an empty launcher table, and flags a .desktop file no [desktop.launchers] entry declares.",
-      "related": [
-        "tools/render-desktop.py",
-        "usr/share/mios/mios.toml",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [
-        "main"
-      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
