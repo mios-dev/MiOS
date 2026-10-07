@@ -2250,3 +2250,10 @@ so long. Let a run finish.
 - next: Phase 3 Remaining Projectors (`tools/render-globals.py` or `tools/render-desktop.py`) or Phase 2 Drift Gates (`mios-gate` T-1009).
 - blockers: None.
 - unverified: None.
+
+## 2026-10-07 09:04 · c4425675 · T-1009 unit 1 COMPLETE: commit c4425675
+- objective: Phase 2 mios-gate strangler (T-1009) per orchestrator assignment: first check family ported atomically.
+- done: Commit c4425675 (9 files, +282/-49): negative-coverage check family strangled from tools/drift-checks.py into mios-gate (module + dispatch + USAGE + 4 integration tests; suite 199/199). Parity proved on the live tree — both implementations flagged check_static_linkage identically (a real red gate found and fixed via exempt-with-reason); bash check flipped to native via _gate_bin; python fn + subcommand deleted (-40 lines); max_tooling_python_lines 81188->81148; projections regenerated via native mios-gen. All 7 gates green, ci-suites 416. Earlier this session: AGY-1073 names-registry deletion executed (parity byte-proof, absorbed into Lane 1 commits); AGY-1080/1082 superseded by Lane 1's mios-gen tranche (17 verbs, 10 replaces).
+- next: T-1009 units 2+: continue check-family strangling in drift-checks.py (survey the _SUBCOMMAND_NAMES list; candidates by size/risk: value-aliases, canonical-bools, no-duplicate-value-key), equivalence checks die with their twins; maintain zero-overlap with gen lane (currently clear of pod-quadlets which landed f22b85ff).
+- blockers: None.
+- unverified: Full negatives-suite end-to-end not run on Windows host (Linux CI canonical); test_negative_coverage + test_rust_categories + test_names_registry + test_generator_host_parity + test_dead_git_corpus(skip-on-windows) verified individually.
