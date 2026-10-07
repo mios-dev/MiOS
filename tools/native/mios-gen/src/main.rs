@@ -12,6 +12,7 @@ use std::process::ExitCode;
 mod adr_index;
 mod ai_manifest;
 mod bib_configs;
+mod cargo_manifests;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
@@ -206,6 +207,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed artifact configs match SSOT without modifying them
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Projects tools/native/Cargo.toml workspace members and version from SSOT
+    #[command(name = "cargo-manifests", alias = "cargo-manifest")]
+    CargoManifests {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed tools/native/Cargo.toml matches projection without modifying it
         #[arg(long)]
         check: bool,
     },
@@ -648,6 +661,29 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::CargoManifests { root, check } => {
+            let r = resolve_root(root);
+            (
+                "cargo-manifests",
+                "tools/native/Cargo.toml",
+                match cargo_manifests::run_cargo_manifests(&r, check) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!("PASS: tools/native/Cargo.toml matches its generator projection.");
+                            } else {
+                                println!(
+                                    "Updated tools/native/Cargo.toml: {} members, version {}.",
+                                    res.members_count, res.version
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -682,6 +718,7 @@ fn main() -> ExitCode {
             || msg.starts_with("[render-desktop]")
             || msg.starts_with("[render-globals]")
             || msg.starts_with("[render-manpages]")
+            || msg.starts_with("[generate-cargo-manifests]")
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
             || msg.contains("ADR SSOT consistency check failed:")

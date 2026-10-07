@@ -1896,11 +1896,25 @@ check_cargo_manifest_generated() {
     # The generator carried its member list as a literal and had fallen two
     # crates behind the tree, so regenerating dropped them out of the
     # workspace: on disk, never compiled, never tested, never shipped.
+    local bin; bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" ]]; then
+        local out rc=0
+        out="$( "$bin" cargo-manifests --root "$ROOT" --check 2>&1 )" || rc=$?
+        if (( rc == 0 )); then
+            echo "[98-drift-checks]   tools/native/Cargo.toml matches its generator projection"
+            return 0
+        else
+            echo "$out" >&2
+            _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "tools/native/Cargo.toml"
+            _violation "check_cargo_manifest_generated: tools/native/Cargo.toml drifted from mios-gen cargo-manifests -- re-run mios-gen cargo-manifests (Law 8 SSOT-PROJECTION)"
+            return
+        fi
+    fi
     _need_python || return 0
     local gen="$ROOT/tools/generate-cargo-manifests.py"
     local manifest="$ROOT/tools/native/Cargo.toml"
     if [[ ! -f "$gen" || ! -f "$manifest" ]]; then
-        _violation "check_cargo_manifest_generated: tools/generate-cargo-manifests.py or tools/native/Cargo.toml is absent -- a tracked deliverable is gone, so the workspace projection cannot be compared"
+        _violation "check_cargo_manifest_generated: neither mios-gen nor tools/generate-cargo-manifests.py found -- a tracked deliverable is gone, so the workspace projection cannot be compared"
         return
     fi
     local out
@@ -3398,12 +3412,24 @@ check_pipe_extraction_parity() {
 
 # --- every .desktop launcher matches what render-desktop.py projects from SSOT ---
 check_guacamole_consistency() {
-    # Named for Guacamole and for "unit definitions"; render-desktop.py has no
+    # Named for Guacamole and for "unit definitions"; render-desktop has no
     # Guacamole-specific logic and checks all .desktop launchers, of which
     # mios-svc-guacamole.desktop is one.
-    echo "[98-drift-checks] every .desktop launcher matches what render-desktop.py projects from SSOT"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)" || { _violations_from "check_guacamole_consistency: " "$out"; return; }
-    echo "[98-drift-checks]   $out"
+    echo "[98-drift-checks] every .desktop launcher matches what render-desktop projects from SSOT"
+    local bin; bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" ]]; then
+        local out
+        if ! out=$(cd "$ROOT" && "$bin" render-desktop --root "$ROOT" --check 2>&1); then
+            _violations_from "check_guacamole_consistency: " "$out"
+            return
+        fi
+        echo "[98-drift-checks]   every .desktop launcher in sync"
+        return
+    fi
+    if [[ -f "$ROOT/tools/render-desktop.py" ]]; then
+        local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)" || { _violations_from "check_guacamole_consistency: " "$out"; return; }
+        echo "[98-drift-checks]   $out"
+    fi
 }
 
 check_law_enforcers() {

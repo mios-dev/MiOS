@@ -176,7 +176,12 @@ main() {
 
     # 13. Cargo native workspace members
     step "13/23 [workspace.manifest] synchronize cargo workspace member manifests"
-    "$PY" tools/generate-cargo-manifests.py >/dev/null
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" cargo-manifests --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/generate-cargo-manifests.py >/dev/null
+    fi
 
     # 14. Native deployment units (blade, UKI, and services)
     step "14/23 [deployment.projection] generate blade, uki, and service drop-ins"

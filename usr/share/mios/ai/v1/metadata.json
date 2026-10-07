@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3753,
-  "total_metadata_entries": 3066,
-  "total_hints": 3055,
+  "total_files_scanned": 3756,
+  "total_metadata_entries": 3067,
+  "total_hints": 3056,
   "total_functions_indexed": 1466,
-  "total_related_links": 5035,
+  "total_related_links": 5043,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5689,6 +5689,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/cargo-manifests/cmd.toml",
+      "hint": "Trycmd configuration for cargo-manifests golden-master CLI tests (AGY-1067 / AGY-1108).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/cosign-policy/cmd.toml",
       "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
       "related": [
@@ -9141,15 +9153,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-cargo-manifests.py",
-      "hint": "Generator that projects tools/native/Cargo.toml -- members enumerated from the crate directories, version from mios.toml [meta].mios_version SSOT.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-k3s-manifests.ps1",
       "hint": "GENERATED k3s/k8s manifest for the MiOS mios-node pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh or generate-k3s-manifests.ps1.",
       "related": [
@@ -9735,6 +9738,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/cargo_manifests.rs",
+      "hint": "Native Rust projector for tools/native/Cargo.toml workspace manifest (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml",
+        "tools/sync-generated.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/gate_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
       "related": [
@@ -9877,6 +9893,19 @@
       "hint": "Two-sided integration test suite for mios-gen bib-configs (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/bib_configs.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/cargo_manifests.rs",
+      "hint": "Two-sided integration test suite for mios-gen cargo-manifests (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/cargo_manifests.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
@@ -11197,15 +11226,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_generate-cargo-manifests.py",
-      "hint": "Sibling unit test for tools/generate-cargo-manifests.py -- members come from the crate dirs, --check diffs without writing.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tests.md",
       "comment_style": "hash",
       "has_shebang": true
     },
