@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3769,
-  "total_metadata_entries": 3074,
-  "total_hints": 3063,
+  "total_files_scanned": 3772,
+  "total_metadata_entries": 3076,
+  "total_hints": 3065,
   "total_functions_indexed": 1469,
-  "total_related_links": 5071,
+  "total_related_links": 5076,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5785,6 +5785,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/pod-quadlets/cmd.toml",
+      "hint": "Trycmd configuration for pod-quadlets golden-master CLI tests (AGY-1067 / AGY-1113).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/render-desktop/cmd.toml",
       "hint": "Trycmd configuration for render-desktop golden-master CLI tests (AGY-1067 / AGY-1104).",
       "related": [
@@ -9208,15 +9220,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-pod-quadlets.py",
-      "hint": "Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/get-secureboot-ovmf.sh",
       "hint": "Locates enrolled OVMF Secure Boot varstores by CONTENT verification (the bounded EDK2 variable-store parser) across all known layouts (/usr/share/edk2/ovmf Fedora, /usr/share/edk2/x64 kraxel, /usr/share/OVMF symlinks), checks the CODE/VARS pair against qemu firmware descriptors, and offers a verification-gated repair menu - never installing a blank or unverified varstore, never overwriting existing files, and never touching live NVRAM.",
       "related": [
@@ -9840,6 +9843,15 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/pod_quadlets.rs",
+      "hint": "Generates systemd Quadlet files (.pod, .container, .network, .volume, .image) from mios.toml SSOT (WS-7 pods-as-SSOT).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/render_desktop.rs",
       "hint": "Renders usr/share/applications/*.desktop files from SSOT [ports] and [desktop.launchers] table.",
       "related": [
@@ -10058,6 +10070,19 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/pod_quadlets.rs",
+      "hint": "Two-sided integration test suite for mios-gen pod-quadlets (ADR-0021, Law 6, Law 11, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/pod_quadlets.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },

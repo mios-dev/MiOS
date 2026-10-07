@@ -24,6 +24,7 @@ mod render_ports;
 mod roadmap_index;
 mod standardize_docs;
 mod sync_wiki;
+mod pod_quadlets;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -272,6 +273,22 @@ enum Commands {
         /// Explicit target files to synchronize (defaults to specs/ engineering scripts index and docs)
         #[arg(value_name = "PATHS")]
         paths: Vec<PathBuf>,
+    },
+
+    /// Generates systemd Quadlet files (.pod, .container, .network, .volume, .image) from mios.toml SSOT
+    #[command(name = "pod-quadlets", aliases = ["pod-gen", "generate-pod-quadlets"])]
+    PodQuadlets {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed units match SSOT without modifying them
+        #[arg(long)]
+        check: bool,
+
+        /// List mode: print all generated unit filenames
+        #[arg(long)]
+        list: bool,
     },
 }
 
@@ -809,6 +826,43 @@ fn main() -> ExitCode {
                                 println!(
                                     "[sync-wiki] Synchronized {} files ({} modified).",
                                     res.scanned, res.modified
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
+        Commands::PodQuadlets { root, check, list } => {
+            let r = resolve_root(root);
+            (
+                "pod-quadlets",
+                "usr/share/containers/systemd/*.{pod,container,network,volume,image}",
+                match pod_quadlets::run_pod_quadlets(&r, check, list) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if list {
+                                for f in &res.listed_files {
+                                    println!("{f}");
+                                }
+                            } else if check {
+                                println!(
+                                    "[pod-gen] all {} Quadlet unit(s) match SSOT",
+                                    res.active_units
+                                );
+                            } else {
+                                for w in &res.written_files {
+                                    println!("[pod-gen]   wrote {}", w.display());
+                                }
+                                for rm in &res.removed_files {
+                                    println!("[pod-gen]   removed {}", rm.display());
+                                }
+                                println!(
+                                    "[pod-gen] wrote {} Quadlet unit(s) to {}",
+                                    res.wrote,
+                                    res.out_dir.display()
                                 );
                             }
                         }

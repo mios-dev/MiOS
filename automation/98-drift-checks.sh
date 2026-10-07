@@ -574,6 +574,16 @@ check_surface_parity() {
 }
 
 check_pod_quadlets() {
+    local nb; nb="$(native_bin mios-gen || true)"
+    if [[ -n "$nb" ]]; then
+        if "$nb" pod-quadlets --root "$ROOT" --check; then
+            echo "[98-drift-checks]   Quadlet units in sync with mios.toml SSOT"
+            return 0
+        else
+            _violation "Quadlet unit(s) (.pod, .container, .network, .volume) STALE vs mios.toml SSOT -- regenerate with mios-gen pod-quadlets"
+            return 0
+        fi
+    fi
     _need_python || return 0
     local gen="$ROOT/tools/generate-pod-quadlets.py"
     if [[ ! -f "$gen" ]]; then

@@ -134,7 +134,9 @@ main() {
 
     # 8. Systemd container Quadlets
     step "8/23 [quadlets.projection] render container unit specifications"
-    "$PY" tools/generate-pod-quadlets.py >/dev/null
+    if [ -n "$_gen" ]; then
+        "$_gen" pod-quadlets --root "$ROOT" >/dev/null
+    fi
 
     # 9. Canonical system name registry (AGY-1073: native-only; the Python
     # generator is deleted in the same commit that proved byte parity).
