@@ -2010,6 +2010,50 @@ so long. Let a run finish.
   - `python tools/ci-suites.py --check`: 423 suites registered across 3 tiers (exit code 0).
   - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
   - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
-- next: Phase 3 remaining projectors (`tools/generate-ai-manifest.py` AGY-1102; `generate-metal-vs-hosted.py`, `generate-adr-index.py`, `roadmap-index.py` AGY-1089) and Phase 0 Dev Distro binary staging.
+- next: Phase 3.3 ADR Index Projector (T-1010, AGY-1089).
 - blockers: None.
 - unverified: None.
+
+## 2026-10-07 00:30 · antigravity · Phase 3.3 ADR Index Projector & Agent-Pipe Runtime Complete (Commit 6c37f072)
+- objective: Consolidate ADR index generation into `tools/native/mios-gen adr-index` static binary; strangler-delete `tools/generate-adr-index.py` and sibling test; enforce two-sided Trycmd controls and fast non-recursive shadow walk; heal agent-pipe runtime on 0.0.0.0:8700 with Hyper-V and firewalld rules.
+- status: VERIFIED & COMPLETE.
+- commit: `6c37f072` (branch `codex/uncommitted-mcp-ux` in `C:\MiOS`), mirrored bootstrap commit `ea4f6e5` in `C:\mios-bootstrap`.
+- deliverables:
+  1. `tools/native/mios-gen`: added `adr-index` subcommand:
+     - `parse_front_matter`: parses YAML front matter delimited by `---` with scalar and bracket-list extraction.
+     - `collect`: scans `usr/share/doc/mios/adr/` for `NNNN-*.md`, sorts lexicographically, enforces non-empty `adr:` keys.
+     - `render`: formats byte-identical root `ADR.md` table linking to baked documents, with law tags and `+N` SSOT key truncation.
+     - `validate_adr_ssot_consistency`: validates ADR-0009 (`meta.mios_version`), ADR-0010 (`dotfiles` registry), ADR-0003 (no hardcoded `@sha256:` in `[image]`), and detects shadow ADR namespaces while skipping non-source directories (`.git`, `target`, `node_modules`, hidden dirs).
+     - CLI contract: supports `--root`, `--check`, `--format json|text`, and exit codes (0 clean, 1 violations).
+  2. Deleted legacy python generator and test (atomic strangler migration):
+     - `tools/generate-adr-index.py` (deleted)
+     - `tools/test_generate-adr-index.py` (deleted)
+  3. `usr/share/mios/mios.toml`:
+     - Registered surface in `[laws.projection_registry]` pointing to `tools/native/mios-gen/src/main.rs`.
+     - Added `tools/generate-adr-index.py` to `[rust.categories.gen].replaces` (now 6 deleted scripts tracked).
+  4. Automation & projection wiring:
+     - `automation/98-drift-checks.sh` `check_adr_index` invokes `native_bin mios-gen` first.
+     - `tools/sync-generated.sh` step 11 dispatches `mios-gen adr-index`.
+  5. Trycmd golden-master fixtures:
+     - `tests/golden/adr-index/cmd.toml`
+     - `tests/golden/adr-index/cases/positive_check.trycmd`
+     - `tests/golden/adr-index/cases/negative_missing_root.trycmd`
+  6. Two-sided verification controls:
+     - `cargo test -p mios-gen`: 13/13 tests pass (4 adr-index, 2 cosign-policy, 3 egress-firewall, 2 gate-index, 2 pipeline-index).
+     - `cargo clippy -p mios-gen -- -D warnings`: exit code 0 (zero warnings).
+     - WSL2 execution: `/usr/bin/mios-gen adr-index --root /mnt/c/MiOS --check` verified in 6.0s.
+     - `tests/drift-gate-negatives.sh test_adr_index`: PASS (planted mutation detected; restored clean).
+  7. Standing gates verification:
+     - `phase-registry`: 77/77 registered, 0 on shrink-only register (exit code 0).
+     - `ratchet-direction`: 93 shrink-only ceilings hold (exit code 0).
+     - `credential-literals`: 0 unapproved literals across 253 unit files (exit code 0).
+     - `version-literals-ssot`: 0 divergent literals across 914 files (exit code 0).
+     - `signature-policy`: `usr/lib/containers/policy.json` verified (exit code 0).
+     - `rust-categories`: 34 crates cataloged across 15 categories; 1250 scripts in universe (278 porting-owned, 844 exempt, 128 unowned, ceiling 128); 6 replaces claims verified absent (exit code 0).
+     - `python tools/ci-suites.py --check`: 422 suites registered across 3 tiers (exit code 0).
+     - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
+     - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
+- next: Phase 3 remaining projectors (`tools/generate-metal-vs-hosted.py` → `mios-gen metal-vs-hosted`, `tools/roadmap-index.py` → `mios-gen roadmap-index`, and AGY-1102 `tools/generate-ai-manifest.py` → `mios-gen ai-manifest`).
+- blockers: None.
+- unverified: None.
+
