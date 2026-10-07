@@ -1,0 +1,5 @@
+```console
+$ mios-gen gate-index --check
+PASS: drift-gate-index.tsv is in sync.
+
+```

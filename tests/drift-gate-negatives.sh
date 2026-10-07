@@ -171,10 +171,28 @@ EOF
     log "Check_shellcheck negative test passed"
 }
 
+# AGY-1073: the Python generator is deleted; every site runs the native twin.
+_names_gen_bin() {
+    local c
+    for c in "${ROOT}/tools/native/target/release/generate-names-registry" \
+             "${ROOT}/tools/native/target/debug/generate-names-registry" \
+             "${ROOT}/tools/native/target/release/generate-names-registry.exe" \
+             "${ROOT}/tools/native/target/debug/generate-names-registry.exe" \
+             /usr/libexec/mios/generate-names-registry; do
+        [[ -x "$c" ]] && { printf '%s' "$c"; return 0; }
+    done
+    return 1
+}
+
+_names_gen_run() {
+    local b; b="$(_names_gen_bin)" || return 1
+    "$b" "$@"
+}
+
 test_names_registry() {
     log "Testing check_names_registry"
     local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
-    [[ -f "$reg_file" ]] || python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
+    [[ -f "$reg_file" ]] || _names_gen_run >/dev/null 2>&1 || true
     local bak_file="${reg_file}.bak"
     cp "$reg_file" "$bak_file" 2>/dev/null || true
 
@@ -182,12 +200,12 @@ test_names_registry() {
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
         [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-        python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
+        _names_gen_run >/dev/null 2>&1 || true
         die "Check_names_registry passed despite stale names.generated.txt"
     fi
 
     [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-    python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
+    _names_gen_run >/dev/null 2>&1 || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
         || die "Check_names_registry failed after restoration"
     log "Check_names_registry negative test passed"
@@ -197,8 +215,20 @@ test_names_registry() {
 # directory named build/, so two tracked files left the corpus in silence.
 test_dead_git_corpus() {
     log "Testing the names generator and the version-literal scan against a refusing git"
+    # A PATH shim cannot intercept a native binary's git on Windows:
+    # CreateProcess never executes an extensionless shell script, so the shim
+    # is invisible to the exe and the probe would "succeed" with the REAL git.
+    # The refusal path itself is unit-tested inside the twin's own crate.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*|Windows*)
+            log "dead-git corpus test SKIPPED on Windows (PATH shims cannot intercept native git)"
+            return 0
+            ;;
+    esac
     local shim reg before after VLBIN=""
-    for VLBIN in "${ROOT}/src/mios-rs/target/release/mios-gate" \
+    for VLBIN in "${ROOT}/src/mios-rs/target/release/mios-gate.exe" \
+                 "${ROOT}/src/mios-rs/target/debug/mios-gate.exe" \
+                 "${ROOT}/src/mios-rs/target/release/mios-gate" \
                  "${ROOT}/src/mios-rs/target/debug/mios-gate" \
                  /usr/libexec/mios/mios-gate ""; do
         [[ -n "$VLBIN" && -x "$VLBIN" ]] && break
@@ -210,14 +240,14 @@ test_dead_git_corpus() {
     reg="${ROOT}/usr/share/mios/referenced_names.txt"
     before="$(md5sum "$reg" | cut -d' ' -f1)"
 
-    if PATH="${shim}:$PATH" python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1; then
+    if PATH="${shim}:$PATH" _names_gen_run >/dev/null 2>&1; then
         rm -rf "$shim"
-        die "generate-names-registry.py rewrote the registry on a corpus git never gave it"
+        die "generate-names-registry rewrote the registry on a corpus git never gave it"
     fi
     after="$(md5sum "$reg" | cut -d' ' -f1)"
     if [[ "$before" != "$after" ]]; then
         rm -rf "$shim"
-        die "generate-names-registry.py altered referenced_names.txt while refusing to run"
+        die "generate-names-registry altered referenced_names.txt while refusing to run"
     fi
 
     if PATH="${shim}:$PATH" \
@@ -227,8 +257,8 @@ test_dead_git_corpus() {
     fi
     rm -rf "$shim"
 
-    python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1 \
-        || die "generate-names-registry.py failed with a working git"
+    _names_gen_run >/dev/null 2>&1 \
+        || die "generate-names-registry failed with a working git"
     "$VLBIN" version-literals-ssot --root "$ROOT" >/dev/null 2>&1 \
         || die "version-literals-ssot failed with a working git"
     log "dead-git corpus negative test passed"
@@ -4165,10 +4195,15 @@ test_docs_ratchet_monotone() {
 
 test_generator_host_parity() {
     log "Testing check_generator_host_parity"
-    local script="${ROOT}/tools/generate-names-registry.py"
+    # names-registry.py is deleted (AGY-1073); the probe plants the idiom in
+    # any discovered generator instead of sed-replacing an idiom the victim
+    # may not carry.
+    local script
+    script="$(find "${ROOT}/tools" -maxdepth 1 -name "generate-*.py" 2>/dev/null | sort | head -1)"
+    [[ -n "$script" && -f "$script" ]] || { log "No generator python script found to test"; return 0; }
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
-    sed -i 's/glob\.fnmatch\.fnmatchcase/fnmatch.fnmatch/g' "$script"
+    printf '\nimport fnmatch\nfnmatch.fnmatch("x", "x")\n' >> "$script"
     _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage"
     cp "$backup" "$script"; rm -f "$backup"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"

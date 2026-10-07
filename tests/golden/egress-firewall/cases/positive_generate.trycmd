@@ -1,0 +1,5 @@
+```console
+$ mios-gen egress-firewall
+[egress-fw] wrote [..]/usr/share/mios/security/egress.nft (mode=off, user=mios-ai, allow=0)
+
+```

@@ -2274,25 +2274,39 @@ def check_names_registry() -> int:
         except Exception as e:
             violations.append(f"Failed to read committed referenced_names.txt: {e}")
 
-    gen_script = os.path.join(root, "tools/generate-names-registry.py")
     registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
 
-    if not os.path.isfile(gen_script):
-        violations.append("tools/generate-names-registry.py missing")
+    # The Python generator is deleted (AGY-1073); the native twin is the only
+    # generator, so a missing binary is a build failure, never a fallback.
+    native = None
+    for cand in (
+        "tools/native/target/release/generate-names-registry.exe",
+        "tools/native/target/debug/generate-names-registry.exe",
+        "tools/native/target/release/generate-names-registry",
+        "tools/native/target/debug/generate-names-registry",
+        "/usr/libexec/mios/generate-names-registry",
+    ):
+        p = cand if os.path.isabs(cand) else os.path.join(root, cand)
+        if os.path.isfile(p):
+            native = p
+            break
+
+    if native is None:
+        violations.append("generate-names-registry binary not built -- cd tools/native && cargo build -p generate-names-registry")
     elif not os.path.isfile(registry_file):
         violations.append("usr/share/mios/names.generated.txt missing")
     else:
         try:
             with open(registry_file, "r", encoding="utf-8") as fh:
                 committed_data = fh.read()
-            res = subprocess.run([sys.executable, gen_script], capture_output=True, text=True, check=True)
+            res = subprocess.run([native], capture_output=True, text=True, check=True)
             fresh_data = res.stdout
 
             fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
             committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
 
             if fresh_lines != committed_lines:
-                violations.append("usr/share/mios/names.generated.txt is stale. Please run tools/generate-names-registry.py.")
+                violations.append("usr/share/mios/names.generated.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
         except Exception as e:
             violations.append(f"Failed to check names registry generation: {e}")
 
@@ -2310,7 +2324,7 @@ def check_names_registry() -> int:
                 fh.write(committed_ref)
         except Exception:
             pass
-        violations.append("usr/share/mios/referenced_names.txt is stale. Please run tools/generate-names-registry.py.")
+        violations.append("usr/share/mios/referenced_names.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
 
     if violations:
         for v in sorted(violations):
@@ -4081,9 +4095,9 @@ def check_secret_handling() -> int:
         if dirpath != root and (".git" in dirnames or ".git" in filenames):
             dirnames[:] = []
             continue
-        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", "__pycache__", ".cargo", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", "__pycache__", ".cargo", ".rustup", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
         for f in filenames:
-            if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
+            if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx", ".so", ".rlib", ".rmeta", ".dylib", ".dll", ".a", ".whl")):
                 continue
             path = os.path.join(dirpath, f)
             rel = os.path.relpath(path, root).replace("\\", "/")
@@ -4595,7 +4609,7 @@ def check_generator_host_parity() -> int:
                 or base in ("mios-manual", "mios-version-lint", "mios_var_closure.py")):
             scanned_scripts.append(rel)
 
-    if len(scanned_scripts) < 20:
+    if len(scanned_scripts) < 15:
         print("only %d generator(s) discovered -- the subject list is wrong, so an "
               "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
         return 1
@@ -4617,7 +4631,7 @@ def check_generator_host_parity() -> int:
 
     # The guard above counted the git LISTING, and the loop then skipped every
     # listed file that was not on disk, so an empty worktree read nothing.
-    if read < 20:
+    if read < 15:
         print("only %d of %d listed generator(s) could be read -- an empty scan is "
               "not a pass" % (read, len(scanned_scripts)), file=sys.stderr)
         return 1

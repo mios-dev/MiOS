@@ -126,6 +126,26 @@ _unit_gen_bin() {
     return 1
 }
 
+native_bin() {
+    local name="$1" override="${2:-}" suffix candidate
+    local suffixes=("" ".exe")
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe" "");; esac
+    if [[ -n "$override" && -x "$override" ]]; then
+        printf '%s' "$override"
+        return 0
+    fi
+    for suffix in "${suffixes[@]}"; do
+        for candidate in "$ROOT/tools/native/target/release/$name$suffix" \
+            "$ROOT/tools/native/target/debug/$name$suffix" \
+            "$ROOT/src/mios-rs/target/release/$name$suffix" \
+            "$ROOT/src/mios-rs/target/debug/$name$suffix" \
+            "/usr/libexec/mios/$name$suffix" "/usr/bin/$name$suffix" "/opt/mios/bin/$name$suffix"; do
+            [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+        done
+    done
+    return 1
+}
+
 _run_deployment_projection() {
     local mode="$1" bin output
     bin="$(_unit_gen_bin)" || {
@@ -570,21 +590,32 @@ check_pod_quadlets() {
 }
 
 check_egress_firewall() {
-    _need_python || return 0
-    local gen="$ROOT/tools/generate-egress-firewall.py"
     local committed="$ROOT/usr/share/mios/security/egress.nft"
-    if [[ ! -f "$gen" || ! -f "$committed" ]]; then
-        _violation "egress generator or usr/share/mios/security/egress.nft absent -- a tracked deliverable is missing, so this check cannot run"
+    if [[ ! -f "$committed" ]]; then
+        _violation "usr/share/mios/security/egress.nft absent -- a tracked deliverable is missing, so this check cannot run"
+        return
+    fi
+    local native=""
+    local cand
+    for cand in "${ROOT}/tools/native/target/release/mios-gen" \
+                 "${ROOT}/tools/native/target/debug/mios-gen" \
+                 "${ROOT}/tools/native/target/release/mios-gen.exe" \
+                 "${ROOT}/tools/native/target/debug/mios-gen.exe" \
+                 /usr/bin/mios-gen /usr/libexec/mios/mios-gen ""; do
+        [[ -n "$cand" && -x "$cand" ]] && { native="$cand"; break; }
+    done
+    if [[ -z "$native" ]]; then
+        _violation "mios-gen binary not built -- cd tools/native && cargo build -p mios-gen"
         return
     fi
     local tmp; tmp="$(mktemp)"
-    if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" python3 "$gen" >/dev/null 2>&1 \
+    if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" "$native" egress-firewall --root "$ROOT" >/dev/null 2>&1 \
             && diff -q "$committed" "$tmp" >/dev/null 2>&1; then
         echo "[98-drift-checks]   egress.nft in sync with mios.toml [security.egress] SSOT"
         rm -f "$tmp"
     else
         rm -f "$tmp"
-        _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with tools/generate-egress-firewall.py "
+        _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with mios-gen egress-firewall"
     fi
 }
 
@@ -1039,9 +1070,9 @@ check_names_registry() {
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py names-registry
     then
-        echo "[98-drift-checks]   names registry matches generate-names-registry.py"
+        echo "[98-drift-checks]   names registry matches the generate-names-registry binary"
     else
-        _violation "naming registry drift / tools/generate-names-registry.py stale (run tools/generate-names-registry.py to regenerate; check 30)"
+        _violation "naming registry drift / generate-names-registry stale (build it: cd tools/native && cargo build -p generate-names-registry; check 30)"
     fi
 }
 
@@ -2811,15 +2842,24 @@ check_ssot_lint_equivalence() {
 }
 
 check_gate_index() {
-    if ! _require_python3; then
-        return 0
+    local gen
+    gen="$(native_bin mios-gen || true)"
+    if [ -n "$gen" ]; then
+        if "$gen" gate-index --root "$ROOT" --check >/dev/null 2>&1; then
+            echo "[98-drift-checks]   gate index in sync with main registration"
+            return 0
+        fi
+    elif [ -f "$ROOT/tools/generate-gate-index.py" ]; then
+        if ! _require_python3; then
+            return 0
+        fi
+        if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
+            echo "[98-drift-checks]   gate index in sync with main registration"
+            return 0
+        fi
     fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   gate index in sync with main registration"
-    else
-        _emit_projection_evidence "tools/generate-gate-index.py" "usr/share/mios/reference/drift-gate-index.tsv"
-        _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() -- run python3 tools/generate-gate-index.py"
-    fi
+    _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "usr/share/mios/reference/drift-gate-index.tsv"
+    _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() -- run mios-gen gate-index"
 }
 
 check_oci_archive_path() {
@@ -3533,7 +3573,24 @@ check_pipeline_numbering() {
             is_bad=1
         fi
     fi
-    if [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
+    local _gen
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        _pi_skip=""
+        if [[ -n "${CTX:-}" || "$ROOT" == "/tmp/build" ]]; then
+            _pi_skip="in-image OCI build (drift-gate job enforces on the pristine tree)"
+        elif ! command -v git >/dev/null 2>&1 || ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            _pi_skip="no git work tree"
+        elif git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
+            _pi_skip="incomplete git work tree (tracked files not materialized)"
+        fi
+        if [[ -n "$_pi_skip" ]]; then
+            echo "  [pipeline-index] SKIPPED: $_pi_skip at \$ROOT" >&2
+        elif ! "$_gen" pipeline-index --root "$ROOT" --check >/dev/null 2>&1; then
+            echo "  [pipeline-numbering-drift] pipeline-index.tsv is out of sync with automation/NN-*.sh scripts" >&2
+            is_bad=1
+        fi
+    elif [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
         _pi_skip=""
         if [[ -n "${CTX:-}" || "$ROOT" == "/tmp/build" ]]; then
             _pi_skip="in-image OCI build (drift-gate job enforces on the pristine tree)"
@@ -3621,7 +3678,7 @@ check_signature_policy() {
         echo "[98-drift-checks]   usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]"
         return 0
     else
-        _violation "usr/lib/containers/policy.json does not match the [security.sigstore] projection -- regenerate it: python3 tools/generate-cosign-policy.py"
+        _violation "usr/lib/containers/policy.json does not match the [security.sigstore] projection -- regenerate it: mios-gen cosign-policy"
     fi
 }
 

@@ -5,6 +5,7 @@ ports.forge_ssh  MIOS_PORTS_FORGE_SSH
 ports.cockpit  MIOS_PORTS_COCKPIT
 ports.cockpit_link  MIOS_PORTS_COCKPIT_LINK
 ports.searxng  MIOS_PORTS_SEARXNG
+ports.searxng_internal  MIOS_PORTS_SEARXNG_INTERNAL
 ports.crawl4ai  MIOS_PORTS_CRAWL4AI
 ports.firecrawl  MIOS_PORTS_FIRECRAWL
 ports.hermes  MIOS_PORTS_HERMES
@@ -17,6 +18,7 @@ ports.ceph_dashboard  MIOS_PORTS_CEPH_DASHBOARD
 ports.radosgw  MIOS_PORTS_RADOSGW
 ports.rdp  MIOS_PORTS_RDP
 ports.pgvector  MIOS_PORTS_PGVECTOR
+ports.pgvector_internal  MIOS_PORTS_PGVECTOR_INTERNAL
 ports.llm_light  MIOS_PORTS_LLM_LIGHT
 ports.cpu_node  MIOS_PORTS_CPU_NODE
 ports.agent_pipe  MIOS_PORTS_AGENT_PIPE
@@ -83,6 +85,7 @@ ports.categories.inference.doc  MIOS_PORTS_CATEGORIES_INFERENCE_DOC
 ports.categories.data.base  MIOS_PORTS_CATEGORIES_DATA_BASE
 ports.categories.data.stride  MIOS_PORTS_CATEGORIES_DATA_STRIDE
 ports.categories.data.members  MIOS_PORTS_CATEGORIES_DATA_MEMBERS
+ports.categories.data.pinned.pgvector_internal  MIOS_PORTS_CATEGORIES_DATA_PINNED_PGVECTOR_INTERNAL
 ports.categories.data.doc  MIOS_PORTS_CATEGORIES_DATA_DOC
 ports.categories.agent.base  MIOS_PORTS_CATEGORIES_AGENT_BASE
 ports.categories.agent.stride  MIOS_PORTS_CATEGORIES_AGENT_STRIDE
@@ -91,6 +94,7 @@ ports.categories.agent.doc  MIOS_PORTS_CATEGORIES_AGENT_DOC
 ports.categories.webtools.base  MIOS_PORTS_CATEGORIES_WEBTOOLS_BASE
 ports.categories.webtools.stride  MIOS_PORTS_CATEGORIES_WEBTOOLS_STRIDE
 ports.categories.webtools.members  MIOS_PORTS_CATEGORIES_WEBTOOLS_MEMBERS
+ports.categories.webtools.pinned.searxng_internal  MIOS_PORTS_CATEGORIES_WEBTOOLS_PINNED_SEARXNG_INTERNAL
 ports.categories.webtools.doc  MIOS_PORTS_CATEGORIES_WEBTOOLS_DOC
 ports.categories.devtools.base  MIOS_PORTS_CATEGORIES_DEVTOOLS_BASE
 ports.categories.devtools.stride  MIOS_PORTS_CATEGORIES_DEVTOOLS_STRIDE

@@ -1,0 +1,5 @@
+```console
+$ mios-gen pipeline-index --check
+PASS: pipeline-index.tsv is in sync.
+
+```

@@ -1,0 +1,5 @@
+```console
+$ mios-gen cosign-policy --check
+[OK] usr/lib/containers/policy.json is in sync with SSOT
+
+```

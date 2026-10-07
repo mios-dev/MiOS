@@ -105,6 +105,7 @@ main() {
     # 6. User and system dotfile SSOT projection
     step "6/23 [dotfiles.projection] synchronize editor and environment dotfiles"
     "$PY" tools/sync-dotfiles.py
+    "$PY" usr/libexec/mios/ux/tmux_theme.py --write-fixture "$ROOT" >/dev/null
 
     # 7. WSL host configuration mirror
     step "7/23 [wsl.reference] mirror etc/wsl.conf to usr/lib/wsl.conf"
@@ -117,13 +118,14 @@ main() {
     step "8/23 [quadlets.projection] render container unit specifications"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 
-    # 9. Canonical system name registry
+    # 9. Canonical system name registry (AGY-1073: native-only; the Python
+    # generator is deleted in the same commit that proved byte parity).
     step "9/23 [names.registry] synchronize canonical system names"
     _nr="$(native_bin generate-names-registry || true)"
     if [ -n "$_nr" ]; then
         MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
     else
-        "$PY" tools/generate-names-registry.py >/dev/null
+        echo "[sync-generated]      generate-names-registry not built; names registry NOT regenerated (check_names_registry fails there)." >&2
     fi
 
     # 10. Topology comparison matrix
@@ -132,8 +134,14 @@ main() {
 
     # 11. Core system and governance indexes
     step "11/23 [indexes.projection] generate gate, pipeline, adr, and roadmap indexes"
-    "$PY" tools/generate-gate-index.py >/dev/null
-    "$PY" tools/generate-pipeline-index.py >/dev/null
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" gate-index --root "$ROOT" >/dev/null
+        "$_gen" pipeline-index --root "$ROOT" >/dev/null
+    else
+        "$PY" tools/generate-gate-index.py >/dev/null
+        "$PY" tools/generate-pipeline-index.py >/dev/null
+    fi
     "$PY" tools/generate-adr-index.py >/dev/null
     "$PY" tools/roadmap-index.py >/dev/null
 
@@ -160,9 +168,15 @@ main() {
         "$_unit_gen" "$_projection" --root "$ROOT" >/dev/null
     done
 
-    # 15. Container image signature verification policy
-    step "15/23 [security.policy] generate container image signature policy"
-    "$PY" tools/generate-cosign-policy.py >/dev/null
+    # 15. Container image signature verification policy & egress firewall
+    step "15/23 [security.policy] generate container image signature policy & egress firewall"
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" cosign-policy --root "$ROOT" >/dev/null
+        "$_gen" egress-firewall --root "$ROOT" >/dev/null
+    else
+        echo "[sync-generated]      mios-gen not built; policy.json and egress.nft NOT regenerated." >&2
+    fi
 
     # 16. Daily artifact release prompt template
     step "16/23 [artifacts.prompt] generate daily release prompt template"

@@ -2332,21 +2332,21 @@ surfaces = [
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
-  { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
   { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
   { generator = "tools/native/mios-bake-plan/src/main.rs", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
   { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
   { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
-  { generator = "tools/generate-egress-firewall.py", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
-  { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
   { generator = "tools/gen-pipe-boundary-manifest.py", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_bootc_install_projection", output = "usr/lib/bootc/install/00-mios.toml, usr/lib/repart.d/50-root.conf" },
   { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
-  { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
-  { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
+  { generator = "tools/native/generate-names-registry/src/main.rs", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-task/src/overrides.rs", check = "check_task_store", output = "TASKS.md (rendered from tasks.jsonl)" },
@@ -11803,7 +11803,7 @@ check_index = "usr/share/mios/reference/drift-gate-index.tsv"  # CC<TAB>check_fn
 check_stage = 98
 
 reporter  = "usr/lib/mios/log.sh"               # mios_step / mios_check_* derive NN + CC at runtime
-generator = "tools/generate-pipeline-index.py"  # extends tools/generate-gate-index.py
+generator = "tools/native/mios-gen/src/main.rs"  # extends mios-gen gate-index
 gate      = "98-drift-checks.sh:check_pipeline_numbering"
 
 bands = [
@@ -13270,7 +13270,13 @@ owner = "port-lane"
 install_dir = "/usr/bin"
 role = "cli"
 description = "Configuration generators, Quadlet renderers, and document projectors"
-replaces = []
+replaces = [
+  "tools/generate-names-registry.py",
+  "tools/generate-cosign-policy.py",
+  "tools/generate-egress-firewall.py",
+  "tools/generate-gate-index.py",
+  "tools/generate-pipeline-index.py",
+]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
   "tools/render-*.py", "tools/gen-*.py", "tools/compile-templates.py",
@@ -13281,7 +13287,7 @@ scope = [
   "usr/libexec/mios/ux/editor_config_gen.py", "usr/libexec/mios/ux/wm_config_gen.py",
 ]
 crates = [
-  "generate-names-registry", "mios-render-quadlets", "mios-unit-gen",
+  "generate-names-registry", "mios-gen", "mios-render-quadlets", "mios-unit-gen",
   "mios-template-compile", "mios-template-conform",
 ]
 
