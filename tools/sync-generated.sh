@@ -43,8 +43,8 @@ step() { printf '[sync-generated] %s\n' "$1"; }
 # can contain Linux build artifacts too; select a runnable host suffix first.
 native_bin() {
     local name="$1" override="${2:-}" suffix candidate
-    local suffixes=("" ".exe")
-    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe" "");; esac
+    local suffixes=("")
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe");; esac
     if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
         for suffix in "${suffixes[@]}"; do
             candidate="$MIOS_NATIVE_BIN_DIR/$name$suffix"
@@ -59,10 +59,12 @@ native_bin() {
     for suffix in "${suffixes[@]}"; do
         for candidate in "$ROOT/tools/native/target/release/$name$suffix" \
             "$ROOT/tools/native/target/debug/$name$suffix" \
-            "/usr/libexec/mios/$name$suffix" "/opt/mios/bin/$name$suffix"; do
+            "/usr/bin/$name$suffix" "/usr/libexec/mios/$name$suffix" "/opt/mios/bin/$name$suffix"; do
             [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
         done
     done
+    candidate="$(command -v "$name" || true)"
+    [[ -n "$candidate" && -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
     return 1
 }
 
@@ -89,7 +91,15 @@ _register_new_files() {
 }
 
 main() {
-    local _gen; _gen="$(native_bin mios-gen || true)"
+    local _gen required
+    # Every migrated renderer is mandatory before any projection changes files.
+    for required in mios-gen mios-unit-gen generate-names-registry xtask mios-toolchain-pin mios-ai-config mios-size-ceiling; do
+        if ! native_bin "$required" >/dev/null; then
+            echo "[sync-generated] FATAL: required native tool $required is missing; run bash automation/55-native-build.sh" >&2
+            return 1
+        fi
+    done
+    _gen="$(native_bin mios-gen)"
 
     # 1. Untracked file registration for index visibility
     step "1/23 [index.untracked] register new files in git index"
@@ -97,48 +107,26 @@ main() {
 
     # 2. Port allocation schema projection
     step "2/23 [ports.projection] render category port definitions"
-    if [ -n "$_gen" ]; then
-        "$_gen" render-ports --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/render-ports.py
-    fi
+    "$_gen" render-ports --root "$ROOT" >/dev/null
 
     # 3. System-wide environment globals and constants
     step "3/23 [globals.projection] render shell and powershell constants"
-    if [ -n "$_gen" ]; then
-        "$_gen" render-globals --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/render-globals.py
-    fi
+    "$_gen" render-globals --root "$ROOT" >/dev/null
 
     # 4. Freedesktop application entries
     step "4/23 [desktop.projection] render desktop application entries"
-    if [ -n "$_gen" ]; then
-        "$_gen" render-desktop --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/render-desktop.py
-    fi
+    "$_gen" render-desktop --root "$ROOT" >/dev/null
 
     # 5. Native manual roff pages
     step "5/23 [manpages.projection] validate and render roff documentation"
-    if [ -n "$_gen" ]; then
-        "$_gen" render-manpages --root "$ROOT" --validate >/dev/null
-    else
-        "$PY" tools/render-manpages.py --validate
-    fi
+    "$_gen" render-manpages --root "$ROOT" --validate >/dev/null
 
     # 6. User and system dotfile SSOT projection
     step "6/23 [dotfiles.projection] synchronize editor and environment dotfiles"
     "$PY" tools/sync-dotfiles.py
-    if [ -n "$_gen" ]; then
-        "$_gen" render-tmux-theme --write-fixture "$ROOT" >/dev/null
-        "$_gen" render-btop-theme --root "$ROOT" >/dev/null
-        "$_gen" render-fastfetch --root "$ROOT" --mock --out "$ROOT/tests/golden/fastfetch/mock.jsonc" >/dev/null
-    else
-        # tmux_theme.py was strangled into mios-gen (ADR-0021); there is no python twin to fall back to.
-        echo "[sync-generated] FATAL: mios-gen is required for render-tmux-theme; build it: cd tools/native && cargo build -p mios-gen" >&2
-        return 1
-    fi
+    "$_gen" render-tmux-theme --write-fixture "$ROOT" >/dev/null
+    "$_gen" render-btop-theme --root "$ROOT" >/dev/null
+    "$_gen" render-fastfetch --root "$ROOT" --mock --out "$ROOT/tests/golden/fastfetch/mock.jsonc" >/dev/null
 
     # 7. WSL host configuration mirror
     step "7/23 [wsl.reference] mirror etc/wsl.conf to usr/lib/wsl.conf"
@@ -149,61 +137,36 @@ main() {
 
     # 8. Systemd container Quadlets
     step "8/23 [quadlets.projection] render container unit specifications"
-    if [ -n "$_gen" ]; then
-        "$_gen" pod-quadlets --root "$ROOT" >/dev/null
-    fi
+    "$_gen" pod-quadlets --root "$ROOT" >/dev/null
 
     # 9. Canonical system name registry (AGY-1073: native-only; the Python
     # generator is deleted in the same commit that proved byte parity).
     step "9/23 [names.registry] synchronize canonical system names"
-    _nr="$(native_bin generate-names-registry || true)"
-    if [ -n "$_nr" ]; then
-        MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
-    else
-        echo "[sync-generated]      generate-names-registry not built; names registry NOT regenerated (check_names_registry fails there)." >&2
-    fi
+    _nr="$(native_bin generate-names-registry)"
+    MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
 
     # 10. Topology comparison matrix
     step "10/23 [topology.matrix] compare seat versus blade capabilities"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" metal-vs-hosted --root "$ROOT" >/dev/null
-    else
-        MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" metal-vs-hosted --root "$ROOT" >/dev/null
 
     # 11. Core system and governance indexes
     step "11/23 [indexes.projection] generate gate, pipeline, adr, and roadmap indexes"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" gate-index --root "$ROOT" >/dev/null
-        "$_gen" pipeline-index --root "$ROOT" >/dev/null
-        "$_gen" adr-index --root "$ROOT" >/dev/null
-        "$_gen" roadmap-index --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/generate-gate-index.py >/dev/null
-        "$PY" tools/generate-pipeline-index.py >/dev/null
-        "$PY" tools/generate-adr-index.py >/dev/null
-        "$PY" tools/roadmap-index.py >/dev/null
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" gate-index --root "$ROOT" >/dev/null
+    "$_gen" pipeline-index --root "$ROOT" >/dev/null
+    "$_gen" adr-index --root "$ROOT" >/dev/null
+    "$_gen" roadmap-index --root "$ROOT" >/dev/null
 
     # 12. Agent-pipe module boundary manifest
     step "12/23 [boundaries.manifest] project agent-pipe boundary manifest"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" pipe-boundaries --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/gen-pipe-boundary-manifest.py >/dev/null
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" pipe-boundaries --root "$ROOT" >/dev/null
 
     # 13. Cargo native workspace members
     step "13/23 [workspace.manifest] synchronize cargo workspace member manifests"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" cargo-manifests --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/generate-cargo-manifests.py >/dev/null
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" cargo-manifests --root "$ROOT" >/dev/null
 
     # 14. Native deployment units (blade, UKI, and services)
     step "14/23 [deployment.projection] generate blade, uki, and service drop-ins"
@@ -222,50 +185,30 @@ main() {
 
     # 15. Container image signature verification policy & egress firewall
     step "15/23 [security.policy] generate container image signature policy, egress firewall & bib configs"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" cosign-policy --root "$ROOT" >/dev/null
-        "$_gen" egress-firewall --root "$ROOT" >/dev/null
-        "$_gen" bib-configs --root "$ROOT" >/dev/null
-    else
-        echo "[sync-generated]      mios-gen not built; policy.json, egress.nft and bib configs NOT regenerated." >&2
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" cosign-policy --root "$ROOT" >/dev/null
+    "$_gen" egress-firewall --root "$ROOT" >/dev/null
+    "$_gen" bib-configs --root "$ROOT" >/dev/null
 
     # 16. Daily artifact release prompt template
     step "16/23 [artifacts.prompt] generate daily release prompt template"
-    _ap="$(native_bin xtask || true)"
-    if [ -n "$_ap" ]; then "$_ap" artifact-prompt --root "$ROOT" >/dev/null
-    else echo "[sync-generated]      xtask not built; ARTIFACT-PROMPT.md NOT regenerated (check_artifact_prompt fails there)." >&2; fi
+    _ap="$(native_bin xtask)"
+    "$_ap" artifact-prompt --root "$ROOT" >/dev/null
 
     # 17. Rust toolchain version pin
     step "17/23 [toolchain.pin] project rust toolchain version pin"
-    _tp="$(native_bin mios-toolchain-pin || true)"
-    if [ -n "$_tp" ]; then
-        "$_tp" >/dev/null
-    else
-        echo "[sync-generated]      mios-toolchain-pin not built; rust-toolchain.toml NOT regenerated." >&2
-        echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
-    fi
+    _tp="$(native_bin mios-toolchain-pin)"
+    "$_tp" >/dev/null
 
     # 18. AI client endpoint configurations
     step "18/23 [ai.config] project client and runtime ai endpoint configurations"
-    _ac="$(native_bin mios-ai-config || true)"
-    if [ -n "$_ac" ]; then
-        "$_ac" --root "$ROOT" >/dev/null
-    else
-        echo "[sync-generated]      mios-ai-config not built; the AI client config.json copies NOT regenerated." >&2
-        echo "[sync-generated]      check_ai_config_projection still validates it, so this fails there, not here." >&2
-    fi
+    _ac="$(native_bin mios-ai-config)"
+    "$_ac" --root "$ROOT" >/dev/null
 
     # 19. Tracked repository size ceiling
     step "19/23 [metrics.ceiling] record tracked repository size ceiling"
-    _sc="$(native_bin mios-size-ceiling || true)"
-    if [ -n "$_sc" ]; then
-        "$_sc" >/dev/null
-    else
-        echo "[sync-generated]      mios-size-ceiling not built; max_tracked_mb NOT regenerated." >&2
-        echo "[sync-generated]      check_size_ceiling still validates it, so this fails there, not here." >&2
-    fi
+    _sc="$(native_bin mios-size-ceiling)"
+    "$_sc" >/dev/null
 
     # 20. Clean system environment baseline
     step "20/23 [env.baseline] snapshot clean system environment variables"
@@ -281,12 +224,8 @@ main() {
 
     # 21. AI repository and tool manifests
     step "21/23 [ai.manifests] compile ai repository and tool manifests"
-    _gen="$(native_bin mios-gen || true)"
-    if [ -n "$_gen" ]; then
-        "$_gen" ai-manifest --root "$ROOT" >/dev/null
-    else
-        "$PY" tools/generate-ai-manifest.py >/dev/null
-    fi
+    _gen="$(native_bin mios-gen)"
+    "$_gen" ai-manifest --root "$ROOT" >/dev/null
 
     # 22. AI header metadata and strict schema catalog
     step "22/23 [ai.metadata] catalog ai header metadata and strict schema"
@@ -305,4 +244,4 @@ main() {
     step "done -- 'git status' should now show only intended changes"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi
