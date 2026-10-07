@@ -877,6 +877,7 @@ automation/54-bake-coderun-sandbox.sh	1	3	3	26	e0165578655d	STAY	ai-header		0			
 automation/54-bake-coderun-sandbox.sh	30	31	2	26	2a59c746f954	STAY	midsize-why		0				0
 automation/55-native-build.sh	1	3	3	19	92e22656cf89	STAY	ai-header		0				0
 automation/55-native-build.sh	19	20	2	21	074c84ead8e7	STAY	local-scoped		0				0
+automation/55-native-build.sh	23	25	3	34	95230a3a20fd	STAY	midsize-why		0				0
 automation/56-fonts.sh	1	4	4	26	7f94851ffcb3	STAY	ai-header		0				0
 automation/56-fonts.sh	1	4	4	39	6e3f7f64c911	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:6e3f7f64c911	39	1
 automation/57-gnome.sh	1	4	4	24	de09bdd691a8	STAY	ai-header		0				0
