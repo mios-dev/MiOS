@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod adr_index;
 mod gate_index;
 mod pipeline_index;
 
@@ -77,6 +78,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed TSV is in sync without modifying it
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates repo-root ADR.md breadcrumb index from usr/share/doc/mios/adr/
+    #[command(name = "adr-index")]
+    AdrIndex {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed ADR.md is in sync without modifying it
         #[arg(long)]
         check: bool,
     },
@@ -391,6 +404,14 @@ fn main() -> ExitCode {
                 pipeline_index::run_pipeline_index(&r, check),
             )
         }
+        Commands::AdrIndex { root, check } => {
+            let r = resolve_root(root);
+            (
+                "adr-index",
+                "ADR.md",
+                adr_index::run_adr_index(&r, check, cli.format == "json"),
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -417,7 +438,11 @@ fn main() -> ExitCode {
             }
         }
     } else if let Err((msg, _)) = &result {
-        eprintln!("Error: generate-{subcommand}: {msg}");
+        if msg.starts_with("VIOLATION:") || msg.starts_with("Error:") || msg.contains("ADR SSOT consistency check failed:") {
+            eprintln!("{msg}");
+        } else {
+            eprintln!("Error: generate-{subcommand}: {msg}");
+        }
     }
 
     match result {

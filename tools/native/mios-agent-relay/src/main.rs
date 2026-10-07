@@ -734,16 +734,16 @@ fn workspace_layout(
     }
     let layout = if let Some(observer) = observer {
         if w * 100 >= h * workspace_number(config, "portrait_ratio_percent", 50, 400)? {
-            let right = (w * workspace_number(config, "portrait_observer_percent", 10, 80)? / 100)
-                .clamp(3, w.saturating_sub(24).max(3));
-            let left = w - right - 1;
+            let head_pct = workspace_number(config, "desktop_head_percent", 20, 70).unwrap_or(38);
+            let head_w = (w * head_pct / 100).clamp(3, w.saturating_sub(24).max(3));
+            let observer_w = w - head_w - 1;
             rect.branch(
                 true,
                 &[
-                    WorkspaceRect { w: left, ..rect }.leaf(head)?,
+                    WorkspaceRect { w: head_w, ..rect }.leaf(head)?,
                     WorkspaceRect {
-                        w: right,
-                        x: left + 1,
+                        w: observer_w,
+                        x: head_w + 1,
                         ..rect
                     }
                     .leaf(observer)?,
@@ -755,16 +755,16 @@ fn workspace_layout(
                 .checked_sub(minimum + 1)
                 .filter(|n| *n >= 3)
                 .ok_or("portrait terminal is too short")?;
-            let top = (h * workspace_number(config, "portrait_observer_percent", 10, 80)? / 100)
-                .clamp(3, maximum);
-            let main = top + 1;
+            let observer_pct = workspace_number(config, "portrait_observer_percent", 10, 80).unwrap_or(62);
+            let observer_h = (h * observer_pct / 100).clamp(3, maximum);
+            let head_h = h - observer_h - 1;
             rect.branch(
                 false,
                 &[
-                    WorkspaceRect { h: top, ..rect }.leaf(observer)?,
+                    WorkspaceRect { h: observer_h, ..rect }.leaf(observer)?,
                     WorkspaceRect {
-                        h: h - main,
-                        y: main,
+                        h: head_h,
+                        y: observer_h + 1,
                         ..rect
                     }
                     .leaf(head)?,
@@ -1510,7 +1510,11 @@ fn workspace(request: &Value) -> Result<Value, String> {
     )?;
     let observer_window = tmux(&["display-message", "-p", "-t", observer, "#{window_id}"])?;
     if compact && observer_window != window {
-        tmux(&["join-pane", "-d", "-b", "-v", "-s", observer, "-t", &active])?;
+        if portrait {
+            tmux(&["join-pane", "-d", "-b", "-v", "-s", observer, "-t", &active])?;
+        } else {
+            tmux(&["join-pane", "-d", "-h", "-s", observer, "-t", &active])?;
+        }
     } else if !compact && observer_window == window {
         tmux(&[
             "break-pane",
@@ -1557,7 +1561,11 @@ fn workspace(request: &Value) -> Result<Value, String> {
         .collect::<Result<_, String>>()?;
     cells.sort();
     let mut desired = if portrait {
-        vec![observer.to_string()]
+        vec![if compact {
+            observer.to_string()
+        } else {
+            active.clone()
+        }]
     } else {
         vec![if compact {
             active.clone()

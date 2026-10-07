@@ -4826,7 +4826,13 @@ check_manual_links() {
 # --- ADR architecture decision record index matches committed ADR files ---
 check_adr_index() {
     echo "[98-drift-checks] ADR architecture decision record index matches committed ADR files"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)" || { _violations_from "check_adr_index: " "$out"; return; }
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$bin" adr-index --root "$ROOT" --check 2>&1)" || { _violations_from "check_adr_index: " "$out"; return; }
+    else
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)" || { _violations_from "check_adr_index: " "$out"; return; }
+    fi
     echo "[98-drift-checks]   $out"
 }
 

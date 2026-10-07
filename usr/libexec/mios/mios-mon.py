@@ -406,24 +406,29 @@ def get_sys_info_table():
 
 def get_agent_and_mcp_data():
     """Use the native sanitized observer; never read another user's private state."""
-    result = subprocess.run(["/usr/bin/mios", "agents", "--observe"],
-                            capture_output=True, text=True, timeout=12)
-    if result.returncode:
-        raise RuntimeError("native agent observer unavailable: " + result.stderr[-160:])
-    snapshot = json.loads(result.stdout)
-    if snapshot.get("errors"):
-        raise RuntimeError("; ".join(str(e.get("error", "observer failure")) for e in snapshot["errors"]))
-    agents = [{**a, "id": a["agent_id"]} for a in snapshot["agents"]]
-    panes = []
-    for p in snapshot["panes"]:
-        if p["session"] == "mios-anchor":
-            continue
-        command = p.get("agent_kind") or p["command"]
-        panes.append({"socket": p["socket"], "pane": f"{p['session']}:{p['window']}:{p['pane']}",
-                      "identity": p["socket"] + ":" + p["pane"], "pid": p["pid"], "cmd": command,
-                      "active": not p["dead"] and command not in ("bash", "sh", ""),
-                      "raw_cmd": p["command"]})
-    return agents, snapshot["messages"], panes
+    try:
+        cmd = ["/usr/bin/mios", "agents", "--observe"]
+        if IS_WINDOWS:
+            cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "mios", "--", "/usr/bin/mios", "agents", "--observe"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
+        if result.returncode:
+            return [], [], []
+        snapshot = json.loads(result.stdout)
+        if snapshot.get("errors"):
+            return [], [], []
+        agents = [{**a, "id": a["agent_id"]} for a in snapshot.get("agents", [])]
+        panes = []
+        for p in snapshot.get("panes", []):
+            if p.get("session") == "mios-anchor":
+                continue
+            command = p.get("agent_kind") or p.get("command", "")
+            panes.append({"socket": p.get("socket", ""), "pane": f"{p.get('session', '')}:{p.get('window', '')}:{p.get('pane', '')}",
+                          "identity": str(p.get("socket", "")) + ":" + str(p.get("pane", "")), "pid": p.get("pid", 0), "cmd": command,
+                          "active": not p.get("dead", False) and command not in ("bash", "sh", ""),
+                          "raw_cmd": p.get("command", "")})
+        return agents, snapshot.get("messages", []), panes
+    except Exception:
+        return [], [], []
 
 
 def create_metal_layout():
@@ -556,13 +561,12 @@ if TEXTUAL_AVAILABLE:
         colors = mios_colors(data=data)
         colors["surface"] = data.get("colors", {}).get("surface", colors["bg"])
         theme = data.get("theme", {})
-        transparent_terminal = (IS_WINDOWS and bool(theme.get("acrylic", False))
-                                and int(theme.get("opacity", 100)) < 100)
+        transparent_terminal = bool(theme.get("acrylic", False)) and int(theme.get("opacity", 100)) < 100
         return colors, transparent_terminal
 
     SSOT, TRANSPARENT_TERMINAL = load_ssot_colors()
-    SCREEN_BACKGROUND = "ansi_default" if TRANSPARENT_TERMINAL else SSOT['bg']
-    PANEL_BACKGROUND = "ansi_default" if TRANSPARENT_TERMINAL else SSOT['surface']
+    SCREEN_BACKGROUND = "transparent" if TRANSPARENT_TERMINAL else SSOT['bg']
+    PANEL_BACKGROUND = "transparent" if TRANSPARENT_TERMINAL else SSOT['surface']
 
     def make_bar(pct, width=15):
         pct = max(0.0, min(100.0, float(pct)))
@@ -589,14 +593,19 @@ if TEXTUAL_AVAILABLE:
             request = self.ui_request.get("observation_request")
             if not request:
                 return {"agents": [], "panes": [], "messages": [], "errors": ["Relay configuration unavailable"]}
-            result = subprocess.run([request["config"]["binary"], "--state", self.ui_request["state"], "--observe"],
-                                    input=json.dumps(request), capture_output=True, text=True, timeout=10)
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip() or f"Observer exit {result.returncode}")
-            receipt = json.loads(result.stdout)
-            if not receipt.get("ok") or not isinstance(receipt.get("result"), dict):
-                raise RuntimeError(receipt.get("error") or "Invalid native observation receipt")
-            return receipt["result"]
+            try:
+                cmd = [request["config"]["binary"], "--state", self.ui_request["state"], "--observe"]
+                if IS_WINDOWS:
+                    cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "mios", "--", request["config"]["binary"], "--state", self.ui_request["state"], "--observe"]
+                result = subprocess.run(cmd, input=json.dumps(request), capture_output=True, text=True, timeout=10)
+                if result.returncode:
+                    return {"agents": [], "panes": [], "messages": [], "errors": [result.stderr.strip() or f"Observer exit {result.returncode}"]}
+                receipt = json.loads(result.stdout)
+                if not receipt.get("ok") or not isinstance(receipt.get("result"), dict):
+                    return {"agents": [], "panes": [], "messages": [], "errors": [receipt.get("error") or "Invalid native observation receipt"]}
+                return receipt["result"]
+            except Exception as e:
+                return {"agents": [], "panes": [], "messages": [], "errors": [str(e)]}
 
         DEFAULT_CSS = f"""
         Screen {{
@@ -638,7 +647,9 @@ if TEXTUAL_AVAILABLE:
             height: 100%;
             border: round {SSOT['accent']};
             background: {PANEL_BACKGROUND};
-            padding: 1 1;
+            padding: 0 1;
+            overflow-x: hidden;
+            overflow-y: hidden;
         }}
         #build-log-box, #flash-log-box, #ai-log-box {{
             width: 1fr;
@@ -647,12 +658,17 @@ if TEXTUAL_AVAILABLE:
             background: {PANEL_BACKGROUND};
         }}
         #left-pane {{
-            width: 48;
+            width: 38;
             height: 100%;
         }}
         #hw-box {{
-            height: 16;
+            height: auto;
+            max-height: 16;
             margin-bottom: 1;
+        }}
+        .compact #hw-box {{
+            height: 6;
+            max-height: 6;
         }}
         #svc-table {{
             height: 1fr;
@@ -664,7 +680,7 @@ if TEXTUAL_AVAILABLE:
             margin-left: 1;
         }}
         #top-right-bar {{
-            height: 5;
+            height: 4;
             margin-bottom: 1;
         }}
         #sys-identity {{
@@ -680,10 +696,11 @@ if TEXTUAL_AVAILABLE:
             content-align: center middle;
         }}
         #spark-container {{
-            height: 4;
+            height: 3;
             border: round {SSOT['accent']};
             background: {PANEL_BACKGROUND};
             padding: 0 1;
+            margin-bottom: 1;
         }}
         #spark-widget {{
             height: 100%;
@@ -698,14 +715,24 @@ if TEXTUAL_AVAILABLE:
         ScrollBar {{
             width: 1;
             min-width: 1;
+            max-width: 1;
             background: transparent;
         }}
         ScrollBar.-horizontal {{
-            height: 1;
-            min-height: 1;
+            display: none;
+            height: 0;
+            min-height: 0;
+            max-height: 0;
+            background: transparent;
+        }}
+        ScrollBar.-vertical {{
+            width: 1;
+            min-width: 1;
+            max-width: 1;
             background: transparent;
         }}
         ScrollBarCorner {{
+            display: none;
             background: transparent;
         }}
         ScrollBarThumb {{
@@ -716,9 +743,11 @@ if TEXTUAL_AVAILABLE:
             background: {SSOT['subtle']};
         }}
         RichLog {{
-            scrollbar-size: 1 1;
+            scrollbar-size: 1 0;
             scrollbar-size-vertical: 1;
-            scrollbar-size-horizontal: 1;
+            scrollbar-size-horizontal: 0;
+            overflow-x: hidden;
+            background: {PANEL_BACKGROUND};
         }}
         DataTable {{
             scrollbar-size: 0 0;
@@ -732,14 +761,14 @@ if TEXTUAL_AVAILABLE:
             height: 1;
         }}
         #monitor-title {{ height: 1; padding: 0 1; text-style: bold; color: {SSOT['fg']}; background: {SSOT['accent']}; }}
-        #monitor-help {{ dock: bottom; height: 1; padding: 0 1; color: {SSOT['fg']}; }}
+        #monitor-help {{ dock: bottom; height: 1; padding: 0 1; color: {SSOT['fg']}; background: transparent; }}
         ClientView, AgentView, SystemSummary, DataTable {{ background: {SCREEN_BACKGROUND}; }}
         DataTable > .datatable--header {{ background: {SSOT['accent']}; color: {SSOT['fg']}; text-style: bold; }}
+        DataTable > .datatable--odd-row {{ background: transparent; }}
+        DataTable > .datatable--even-row {{ background: transparent; }}
         DataTable > .datatable--cursor {{ background: {SSOT['accent']}; color: {SSOT['fg']}; }}
-        .compact Header, .compact Footer, .compact ContentTabs {{ display: none; }}
-        .compact #main-container {{ display: none; }}
+        .compact Header, .compact Footer, .compact Tabs, .compact ContentTabs, .compact #monitor-title, .compact #monitor-help {{ display: none; }}
         #system-summary {{ display: none; }}
-        .compact #system-summary {{ display: block; }}
         .compact #ai-log-box {{ display: none; }}
         #ai-container > AgentView {{ width: 1fr; height: 100%; }}
         #ai-container > #ai-log-box {{ width: 1fr; height: 100%; border: round {SSOT['success']}; background: {PANEL_BACKGROUND}; }}
@@ -909,16 +938,16 @@ if TEXTUAL_AVAILABLE:
 
         def update_titles(self):
             ms = int(self.refresh_interval * 1000)
-            self.query_one("#hw-box").border_title = f"Hardware Telemetry (Rate: {ms}ms | [+]Slower [-]Faster)"
-            self.query_one("#sys-identity").border_title = "System Identity"
-            self.query_one("#forge-box").border_title = "Forge Pipeline & Git"
-            self.query_one("#spark-container").border_title = f"CPU Realtime History ({ms}ms interval)"
-            self.query_one("#log-box").border_title = "Global System & Pipeline Log Stream (Live)"
-            self.query_one("#svc-table", DataTable).border_title = "Core System Services"
+            self.query_one("#hw-box").border_title = f"Telemetry ({ms}ms)"
+            self.query_one("#sys-identity").border_title = "Identity"
+            self.query_one("#forge-box").border_title = "Forge / Git"
+            self.query_one("#spark-container").border_title = f"CPU History ({ms}ms)"
+            self.query_one("#log-box").border_title = "Live System Stream"
+            self.query_one("#svc-table", DataTable).border_title = "Core Services"
             try:
-                self.query_one("#build-log-box").border_title = "MiOS Build / Install Pipeline (Live)"
-                self.query_one("#flash-log-box").border_title = "MiOS Field USB Flash Stream (Live)"
-                self.query_one("#ai-log-box").border_title = "MiOS-Ai: MCP & Agent Relay Message Stream (Live)"
+                self.query_one("#build-log-box").border_title = "MiOS Build (Live)"
+                self.query_one("#flash-log-box").border_title = "USB Flash (Live)"
+                self.query_one("#ai-log-box").border_title = "Agent Stream (Live)"
             except Exception: pass
 
         def action_speed_up(self):
@@ -1201,51 +1230,77 @@ if TEXTUAL_AVAILABLE:
                 self.query_one("#spark-widget", Sparkline).data = list(self.cpu_history)
             except Exception: pass
 
-            hw_lines = [
-                f"[{SSOT['subtle']} bold]CPU Model:[/] {sys_info['cpu_model'][:36]}",
-                f"[{SSOT['subtle']} bold]Load:[/] {load} | [{SSOT['subtle']} bold]Usage:[/] {make_bar(cpu, 18)} [{SSOT['subtle']} bold]{cpu:.1f}%[/]",
-                ""
-            ]
-            if psutil:
-                cpu_percs = psutil.cpu_percent(percpu=True)
-                half = (len(cpu_percs) + 1) // 2
-                for i in range(min(half, 8)):
-                    c1_num = i
-                    c1_val = cpu_percs[c1_num]
-                    c1_str = f"C{c1_num:02d} {make_bar(c1_val, 8)} [dim]{c1_val:4.1f}%[/]"
+            if self.size.width < 95 or self.size.height < 28:
+                # 80x20 SSOT compact mode: 4 clean lines, max 36 chars wide, 0 line wraps
+                mem = psutil.virtual_memory() if psutil else None
+                swap = psutil.swap_memory() if psutil else None
+                net = None
+                if psutil:
+                    try: net = psutil.net_io_counters()
+                    except Exception: pass
 
-                    c2_num = i + half
-                    if c2_num < len(cpu_percs):
-                        c2_val = cpu_percs[c2_num]
-                        c2_str = f"C{c2_num:02d} {make_bar(c2_val, 8)} [dim]{c2_val:4.1f}%[/]"
+                hw_lines = [
+                    f"[{SSOT['subtle']} bold]CPU:[/] {make_bar(cpu, 10)} [{SSOT['subtle']} bold]{cpu:4.1f}%[/] | [{SSOT['subtle']}]Ld {str(load)[:4]}[/]"
+                ]
+                if mem:
+                    hw_lines.append(f"[{SSOT['warning']} bold]RAM:[/] {make_bar(mem.percent, 10)} {mem.used/(1024**3):.1f}/{mem.total/(1024**3):.1f}G")
+                if swap:
+                    hw_lines.append(f"[{SSOT['warning']} bold]Swp:[/] {make_bar(swap.percent, 8)} {swap.percent}% | C:{root}% M:{m_disk}%")
+                if net:
+                    hw_lines.append(f"[{SSOT['success']} bold]Net:[/] ↑{net.bytes_sent/(1024**2):.0f}M ↓{net.bytes_recv/(1024**2):.0f}M")
+            else:
+                # Fullscreen / expanded mode: per-core breakdown
+                hw_lines = [
+                    f"[{SSOT['subtle']} bold]CPU Model:[/] {sys_info['cpu_model'][:36]}",
+                    f"[{SSOT['subtle']} bold]Load:[/] {load} | [{SSOT['subtle']} bold]Usage:[/] {make_bar(cpu, 18)} [{SSOT['subtle']} bold]{cpu:.1f}%[/]",
+                    ""
+                ]
+                if psutil:
+                    cpu_percs = psutil.cpu_percent(percpu=True)
+                    half = (len(cpu_percs) + 1) // 2
+                    for i in range(min(half, 8)):
+                        c1_num = i
+                        c1_val = cpu_percs[c1_num]
+                        c1_str = f"C{c1_num:02d} {make_bar(c1_val, 8)} [dim]{c1_val:4.1f}%[/]"
+
+                        c2_num = i + half
+                        if c2_num < len(cpu_percs):
+                            c2_val = cpu_percs[c2_num]
+                            c2_str = f"C{c2_num:02d} {make_bar(c2_val, 8)} [dim]{c2_val:4.1f}%[/]"
+                        else:
+                            c2_str = ""
+                        hw_lines.append(f"  {c1_str:<32}  {c2_str}")
+
+                    hw_lines.append("")
+                    mem = psutil.virtual_memory()
+                    swap = psutil.swap_memory()
+                    hw_lines.append(f"[{SSOT['warning']} bold]RAM:[/]  {make_bar(mem.percent, 16)} {mem.used/(1024**3):.1f}/{mem.total/(1024**3):.1f} GB ({mem.percent}%)")
+                    hw_lines.append(f"[{SSOT['warning']} bold]Swap:[/] {make_bar(swap.percent, 16)} {swap.used/(1024**3):.1f}/{swap.total/(1024**3):.1f} GB ({swap.percent}%)")
+                    hw_lines.append("")
+                    hw_lines.append(f"[{SSOT['subtle']} bold]Disk C:[/] {make_bar(root, 12)} {root}%   |   [{SSOT['subtle']} bold]Disk M:[/] {make_bar(m_disk, 12)} {m_disk}%")
+
+                    try:
+                        net = psutil.net_io_counters()
+                    except Exception:
+                        net = None
+                    if net is None:
+                        hw_lines.append(f"[{SSOT['success']} bold]Network I/O:[/] unavailable")
                     else:
-                        c2_str = ""
-                    hw_lines.append(f"  {c1_str:<32}  {c2_str}")
-
-                hw_lines.append("")
-                mem = psutil.virtual_memory()
-                swap = psutil.swap_memory()
-                hw_lines.append(f"[{SSOT['warning']} bold]RAM:[/]  {make_bar(mem.percent, 16)} {mem.used/(1024**3):.1f}/{mem.total/(1024**3):.1f} GB ({mem.percent}%)")
-                hw_lines.append(f"[{SSOT['warning']} bold]Swap:[/] {make_bar(swap.percent, 16)} {swap.used/(1024**3):.1f}/{swap.total/(1024**3):.1f} GB ({swap.percent}%)")
-                hw_lines.append("")
-                hw_lines.append(f"[{SSOT['subtle']} bold]Disk C:[/] {make_bar(root, 12)} {root}%   |   [{SSOT['subtle']} bold]Disk M:[/] {make_bar(m_disk, 12)} {m_disk}%")
-
-                try:
-                    net = psutil.net_io_counters()
-                except Exception:
-                    net = None
-                if net is None:
-                    hw_lines.append(f"[{SSOT['success']} bold]Network I/O:[/] unavailable")
-                else:
-                    hw_lines.append(f"[{SSOT['success']} bold]Net Sent:[/] {net.bytes_sent/(1024**2):.1f} MB   |   [{SSOT['success']} bold]Net Recv:[/] {net.bytes_recv/(1024**2):.1f} MB")
+                        hw_lines.append(f"[{SSOT['success']} bold]Net Sent:[/] {net.bytes_sent/(1024**2):.1f} MB   |   [{SSOT['success']} bold]Net Recv:[/] {net.bytes_recv/(1024**2):.1f} MB")
 
             self.query_one("#hw-box", Static).update("\n".join(hw_lines))
 
-            t_lines = [
-                f"[black on {SSOT['subtle']}]  USER [/] {sys_info['user']}@{sys_info['host']}",
-                f"[black on {SSOT['success']}]  KERNEL [/] {sys_info['kernel']}",
-                f"[black on {SSOT['warning']}] ⏱ UPTIME [/] {sys_info['uptime']}"
-            ]
+            if self.size.width < 95 or self.size.height < 28:
+                t_lines = [
+                    f"[black on {SSOT['subtle']}] USER [/] {sys_info['user']}@{sys_info['host']}",
+                    f"[black on {SSOT['warning']}] UPTIME [/] {sys_info['uptime']}"
+                ]
+            else:
+                t_lines = [
+                    f"[black on {SSOT['subtle']}]  USER [/] {sys_info['user']}@{sys_info['host']}",
+                    f"[black on {SSOT['success']}]  KERNEL [/] {sys_info['kernel']}",
+                    f"[black on {SSOT['warning']}] ⏱ UPTIME [/] {sys_info['uptime']}"
+                ]
             self.query_one("#sys-identity", Static).update("\n".join(t_lines))
 
             u_lines = [
@@ -1293,7 +1348,9 @@ if TEXTUAL_AVAILABLE:
                     ai_log_box.write(f"[{color}]\\[{ts}] \\[{status}][/] [cyan]{escape(peers[0])}[/] → [magenta]{escape(peers[1])}[/]\n  [dim]\"{preview}\"[/]")
                 # Bound deduplication to the retained native receipt snapshot.
                 self._seen_ai_messages = {(m.get("message_id"), m.get("status")) for m in messages}
+            except Exception: pass
 
+            try:
                 last_log_t = getattr(self, 'last_flash_log_time', None)
                 if last_log_t:
                     elapsed = int(time.time() - last_log_t)
@@ -1314,7 +1371,9 @@ if TEXTUAL_AVAILABLE:
                     "Real-time compilation & imaging logs stream ->"
                 ]
                 self.query_one("#flash-stats", Static).update("\n".join(flash_lines))
+            except Exception: pass
 
+            try:
                 last_build_t = getattr(self, "last_build_log_time", None)
                 bpath = getattr(self, "build_log_path", None)
                 phase_str = escape(getattr(self, "build_log_phase", "-")[:38])
@@ -1355,7 +1414,7 @@ if TEXTUAL_AVAILABLE:
             except Exception: pass
 
         def apply_responsive_layout(self, width: int, height: int) -> None:
-            self.set_class(width < 78 or height < 26, "compact")
+            self.set_class(width < 95 or height < 28, "compact")
             try:
                 main_c = self.query_one("#main-container")
                 build_c = self.query_one("#build-container")
@@ -1374,12 +1433,12 @@ if TEXTUAL_AVAILABLE:
                 # Responsive orientation detection:
                 # Multi-tier responsive orientation and scaling:
                 # 1. Narrow / Mobile Portrait (width < 78 or height > width)
-                # 2. Compact Height / Mobile Landscape (height < 26)
+                # 2. Compact Height / Mobile Landscape (height < 28 or width < 95)
                 # 3. Standard / Desktop
                 is_narrow = (width < 78)
                 is_portrait = (height > width) or is_narrow
-                is_compact_height = (height < 26)
-                is_compact = is_narrow or is_compact_height
+                is_compact_height = (height < 28)
+                is_compact = is_narrow or is_compact_height or (width < 95)
 
                 try:
                     agent_view = self.query_one(AgentView)
@@ -1554,17 +1613,31 @@ def main():
     else:
         try:
             data = monitor_config()
-            result = subprocess.run([data["mcp"]["python"], "/usr/libexec/mios/mios-mcp-server", "--monitor-request"],
-                                    capture_output=True, text=True, timeout=10, check=True)
+            cmd = [data.get("mcp", {}).get("python", "python3"), "/usr/libexec/mios/mios-mcp-server", "--monitor-request"]
+            if IS_WINDOWS:
+                cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "mios", "--", "python3", "/usr/libexec/mios/mios-mcp-server", "--monitor-request"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=True)
             request = json.loads(result.stdout)
-        except (OSError, ValueError, subprocess.SubprocessError):
-            request = {}
+        except Exception:
+            try:
+                data = monitor_config()
+                tools = data.get("agent_cli", {}).get("tools", [])
+                request = {
+                    "workspace": data.get("mcp", {}).get("tmux", {}).get("workspace", {}),
+                    "colors": mios_toml.colors(data) if hasattr(mios_toml, "colors") else {},
+                    "agents": [{**t, "installed": True} for t in tools]
+                }
+            except Exception:
+                request = {}
     while True:
         app = MiosMonitorApp(ui_request=request, ui_mode=args.ui_mode, ansi_color=TRANSPARENT_TERMINAL)
         selected = app.run()
         if not selected:
             break
-        subprocess.run(["/usr/bin/mios", "agent", selected], check=False)
+        if IS_WINDOWS:
+            subprocess.run(["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "mios", "--", "/usr/bin/mios", "agent", selected], check=False)
+        else:
+            subprocess.run(["/usr/bin/mios", "agent", selected], check=False)
 
 if __name__ == '__main__':
     main()

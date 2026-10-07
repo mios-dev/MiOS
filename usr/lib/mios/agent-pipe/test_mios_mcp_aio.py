@@ -919,16 +919,18 @@ class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
             cells = {r[0]: list(map(int, r[1:])) for r in rows}
             self.assertEqual(len(rows), 2 if expected != "desktop" else 5)
             if expected != "desktop":
-                self.assertEqual(cells[receipt["observer"]][1], 0)
                 active = receipt['active']
                 if expected == 'portrait':
                     self.assertEqual(cells[active][0], 0)
-                    self.assertGreater(cells[active][1], cells[receipt["observer"]][3])
+                    self.assertEqual(cells[active][1], 0)
+                    self.assertEqual(cells[receipt["observer"]][0], 0)
+                    self.assertGreater(cells[receipt["observer"]][1], cells[active][3])
                     self.assertGreaterEqual(cells[active][3], min(CONFIG["workspace"]["minimum_head_rows"], height - 4))
                 else:
+                    self.assertEqual(cells[receipt["observer"]][0], 0)
+                    self.assertEqual(cells[receipt["observer"]][1], 0)
                     self.assertEqual(cells[active][1], 0)
-                    self.assertEqual(cells[active][0], 0)
-                    self.assertGreater(cells[receipt['observer']][0], cells[active][2])
+                    self.assertGreater(cells[active][0], cells[receipt["observer"]][2])
                     self.assertEqual(cells[active][3], height)
                 hidden = await bridge.call('mios_tmux_execute_command', {'slot': 2, 'command': 'printf COMPACT-SLOT-RECEIPT'})
                 self.assertFalse(hidden.is_error, hidden)

@@ -104,17 +104,19 @@ umask 077
 python3 /usr/libexec/mios/ux/tmux_theme.py --runtime "$_mios_runtime"
 export MIOS_OMP_THEME="$_mios_runtime/mios.omp.json"
 _mios_bootstrap=""
-if [[ "$_mios_action" == ai ]] && ! tmux -L "${_mios_terminal_config[0]}" has-session -t "=${_mios_terminal_config[1]}" 2>/dev/null; then
-    if ! _mios_bootstrap=$(tmux -L "${_mios_terminal_config[0]}" -f "$_mios_runtime/tmux.conf" new-session -d -s "${_mios_terminal_config[1]}" \
-        -P -F '#{pane_id}:#{pane_pid}' 'exec /usr/bin/sleep infinity' 2>/dev/null); then
-        # Another terminal may have created the session concurrently. Its pane
-        # belongs to that caller and must never become our bootstrap reservation.
-        _mios_bootstrap=""
-        tmux -L "${_mios_terminal_config[0]}" has-session -t "=${_mios_terminal_config[1]}"
+if ! tmux -L "${_mios_terminal_config[0]}" has-session -t "=${_mios_terminal_config[1]}" 2>/dev/null; then
+    if [[ "$_mios_action" == ai ]]; then
+        if ! _mios_bootstrap=$(tmux -L "${_mios_terminal_config[0]}" -f "$_mios_runtime/tmux.conf" new-session -d -s "${_mios_terminal_config[1]}" \
+            -P -F '#{pane_id}:#{pane_pid}' 'exec /usr/bin/sleep infinity' 2>/dev/null); then
+            # Another terminal may have created the session concurrently. Its pane
+            # belongs to that caller and must never become our bootstrap reservation.
+            _mios_bootstrap=""
+            tmux -L "${_mios_terminal_config[0]}" has-session -t "=${_mios_terminal_config[1]}"
+        fi
+    else
+        tmux -L "${_mios_terminal_config[0]}" -f "$_mios_runtime/tmux.conf" new-session -d -s "${_mios_terminal_config[1]}" \
+            /bin/bash --noprofile --rcfile /usr/share/mios/tmux/mios-bashrc
     fi
-else
-    tmux -L "${_mios_terminal_config[0]}" -f "$_mios_runtime/tmux.conf" new-session -d -A -s "${_mios_terminal_config[1]}" \
-        /bin/bash --noprofile --rcfile /usr/share/mios/tmux/mios-bashrc
 fi
 tmux -L "${_mios_terminal_config[0]}" source-file "$_mios_runtime/tmux.conf"
 tmux -L "${_mios_terminal_config[0]}" set-environment -g MIOS_OMP_THEME "$MIOS_OMP_THEME"
@@ -134,7 +136,8 @@ elif [[ "$_mios_action" == ai ]]; then
 elif [[ -n "$_mios_action" && "$_mios_action" != terminal ]]; then
     tmux -L "${_mios_terminal_config[0]}" new-window -n "${_mios_terminal_config[5]}" "${_mios_terminal_config[4]}"
 else
-    tmux -L "${_mios_terminal_config[0]}" select-window -t "${_mios_terminal_config[1]}:0"
+    tmux -L "${_mios_terminal_config[0]}" select-window -t "${_mios_terminal_config[1]}:^" 2>/dev/null || \
+    tmux -L "${_mios_terminal_config[0]}" select-window -t "${_mios_terminal_config[1]}:0" 2>/dev/null || true
 fi
 if [[ -n "$_mios_head" ]]; then
     tmux -L "${_mios_terminal_config[0]}" new-window -n 'MiOS Agent' "$_mios_head"

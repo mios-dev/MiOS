@@ -20,6 +20,7 @@ function Set-MiosTerminalTransparency([Collections.IDictionary]$Appearance, [Col
     }
     $Appearance['opacity'] = $Theme['opacity']
     $Appearance['useAcrylic'] = $Theme['acrylic']
+    if ($Theme['system_backdrop']) { $Appearance['systemBackdrop'] = $Theme['system_backdrop'] }
     if ($Appearance['unfocusedAppearance'] -isnot [Collections.IDictionary]) { $Appearance['unfocusedAppearance'] = @{} }
     $Appearance['unfocusedAppearance']['opacity'] = $Theme['unfocused_opacity']
     $Appearance['unfocusedAppearance']['useAcrylic'] = $Theme['unfocused_acrylic']
@@ -558,6 +559,8 @@ foreach ($path in $terminalPaths) {
     if (-not (Test-Path -LiteralPath $path)) { continue }
     $terminal = Read-MiosJson $path
     Set-MiosTerminalStartup $terminal $config
+    if (-not $terminal.Contains('compatibility')) { $terminal['compatibility'] = @{} }
+    $terminal['compatibility']['enableUnfocusedAcrylic'] = $true
     $palette = $config['colors']
     $scheme = @{name=$config['theme']['terminal']['scheme_name']; background=$palette['bg']; foreground=$palette['fg']; cursorColor=$palette['cursor']; selectionBackground=$palette['muted']}
     $colors = @('black','red','green','yellow','blue','magenta','cyan','white')

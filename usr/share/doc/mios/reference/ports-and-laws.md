@@ -38,6 +38,7 @@ is the obvious case, since it cannot float.
 | cluster | ceph_dashboard | 8460 |
 | cluster | radosgw | 8470 |
 | data | pgvector | 8600 |
+| data | pgvector_internal (pinned) | 5432 |
 | desktop | rdp | 8300 |
 | desktop | ttyd_bash | 8310 |
 | desktop | ttyd_powershell | 8320 |
@@ -66,6 +67,7 @@ is the obvious case, since it cannot float.
 | webtools | searxng | 8800 |
 | webtools | crawl4ai | 8810 |
 | webtools | firecrawl | 8820 |
+| webtools | searxng_internal (pinned) | 8080 |
 | webui | open_webui | 8200 |
 | webui | hermes_dashboard | 8210 |
 | webui | guacamole_web | 8220 |

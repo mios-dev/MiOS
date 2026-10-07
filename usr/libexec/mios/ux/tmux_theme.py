@@ -57,6 +57,10 @@ class TmuxThemeEngine:
         if pane_bg not in {"terminal", "theme"}:
             raise ValueError("[theme.tmux].pane_background must be terminal or theme")
         self.pane_background = pane_bg
+        status_bg_setting = self.settings.get("status_background", "auto")
+        if status_bg_setting not in {"auto", "terminal", "theme"}:
+            raise ValueError("[theme.tmux].status_background must be auto, terminal or theme")
+        self.status_background = status_bg_setting
         mode = self.settings["remote_glyph_mode"] if is_remote_terminal() else self.settings["glyph_mode"]
         if mode not in {"auto", "nerd", "ascii"}:
             raise ValueError("[theme.tmux].glyph_mode must be auto, nerd or ascii")
@@ -86,6 +90,15 @@ class TmuxThemeEngine:
         subtle = p["subtle"]
         success = p["success"]
 
+        theme = self.data.get("theme", {})
+        is_transparent = bool(theme.get("acrylic", False)) and int(theme.get("opacity", 100)) < 100
+        if self.status_background == "terminal":
+            status_bg = "default"
+        elif self.status_background == "theme":
+            status_bg = bg
+        else:  # auto
+            status_bg = "default" if is_transparent else bg
+
         lines = [
             "# AI-hint: tmux theme rendered by tmux_theme.py from mios.toml [colors]; tmux has no outer padding",
             "# =====================================================================",
@@ -98,7 +111,7 @@ class TmuxThemeEngine:
             "set -g status on",
             f"set -g status-interval {self.settings['status_interval_s']}",
             f"set -g status-position {self.status_position}",
-            f'set -g status-style "bg={bg},fg={fg}"',
+            f'set -g status-style "bg={status_bg},fg={fg}"',
             f'set -g window-style "bg={pane_bg},fg={fg}"',
             f'set -g window-active-style "bg={pane_bg},fg={fg}"',
             "",
@@ -129,21 +142,21 @@ class TmuxThemeEngine:
             lines.extend([
                 "# Powerline Segment Formatting",
                 "set -g status-left-length 40",
-                f'set -g status-left "#[fg={fg},bg={accent},bold] #S #[fg={accent},bg={bg},nobold] "',
-                f'set -g window-status-format "#[fg={muted},bg={bg}] #I:#W "',
-                f'set -g window-status-current-format "#[fg={bg},bg={accent}]#[fg={fg},bg={accent},bold] #I:#W #[fg={accent},bg={bg},nobold]"',
+                f'set -g status-left "#[fg={fg},bg={accent},bold] #S #[fg={accent},bg={status_bg},nobold] "',
+                f'set -g window-status-format "#[fg={muted},bg={status_bg}] #I:#W "',
+                f'set -g window-status-current-format "#[fg={status_bg},bg={accent}]#[fg={fg},bg={accent},bold] #I:#W #[fg={accent},bg={status_bg},nobold]"',
                 "set -g status-right-length 80",
-                f'set -g status-right "#[fg={accent},bg={bg}]#[fg={fg},bg={accent}] %Y-%m-%d %H:%M #[fg={cursor},bg={accent}]#[fg={bg},bg={cursor},bold] #H "',
+                f'set -g status-right "#[fg={accent},bg={status_bg}]#[fg={fg},bg={accent}] %Y-%m-%d %H:%M #[fg={cursor},bg={accent}]#[fg={bg},bg={cursor},bold] #H "',
             ])
         elif self.style == "rounded":
             lines.extend([
                 "# Rounded Glyph Formatting & Oh-My-Posh Graphics",
                 "set -g status-left-length 50",
-                f'set -g status-left "#[fg={accent},bg={bg}]#[fg={fg},bg={accent},bold]  MiOS #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  #S #[fg={success},bg={bg}] "',
-                f'set -g window-status-format "#[fg={muted},bg={bg}]  #I  #W  "',
-                f'set -g window-status-current-format "#[fg={cursor},bg={bg}]#[fg={bg},bg={cursor},bold] #I  #W #[fg={cursor},bg={bg}]"',
+                f'set -g status-left "#[fg={accent},bg={status_bg}]#[fg={fg},bg={accent},bold]  MiOS #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  #S #[fg={success},bg={status_bg}] "',
+                f'set -g window-status-format "#[fg={muted},bg={status_bg}]  #I  #W  "',
+                f'set -g window-status-current-format "#[fg={cursor},bg={status_bg}]#[fg={bg},bg={cursor},bold] #I  #W #[fg={cursor},bg={status_bg}]"',
                 "set -g status-right-length 100",
-                f'set -g status-right "#[fg={accent},bg={bg}]#[fg={fg},bg={accent}]  %H:%M #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  %Y-%m-%d #[fg={success},bg={cursor}]#[fg={bg},bg={cursor},bold]  #H #[fg={cursor},bg={bg}]"',
+                f'set -g status-right "#[fg={accent},bg={status_bg}]#[fg={fg},bg={accent}]  %H:%M #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  %Y-%m-%d #[fg={success},bg={cursor}]#[fg={bg},bg={cursor},bold]  #H #[fg={cursor},bg={status_bg}]"',
             ])
         else:  # minimal / plain
             lines.extend([
@@ -240,14 +253,23 @@ def project_runtime(directory, data=None):
     data = data if data is not None else mios_toml.load_merged()
     directory = os.path.abspath(directory)
     os.makedirs(directory, mode=0o700, exist_ok=True)
-    if os.stat(directory).st_uid != os.getuid():
+    if hasattr(os, "getuid") and os.stat(directory).st_uid != os.getuid():
         raise ValueError("tmux projection directory must belong to the caller")
-    os.chmod(directory, 0o700)
+    if hasattr(os, "chmod"):
+        try:
+            os.chmod(directory, 0o700)
+        except OSError:
+            pass
     omp = render_prompt(data, remote=is_remote_terminal())
+    exe_suffix = ".exe" if sys.platform == "win32" else ""
     native = next((path for path in (
+        os.path.join(_TREE, f"tools/native/target/debug/mios-unit-gen{exe_suffix}"),
+        os.path.join(_TREE, f"tools/native/target/release/mios-unit-gen{exe_suffix}"),
+        os.path.join(_TREE, f"usr/libexec/mios/mios-unit-gen{exe_suffix}"),
         os.path.join(_TREE, "usr/libexec/mios/mios-unit-gen"),
         os.path.join(_TREE, "tools/native/target/debug/mios-unit-gen"),
         os.path.join(_TREE, "tools/native/target/release/mios-unit-gen"),
+        f"/usr/libexec/mios/mios-unit-gen{exe_suffix}",
         "/usr/libexec/mios/mios-unit-gen",
     ) if os.path.isfile(path)), "/usr/libexec/mios/mios-unit-gen")
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory) as source:

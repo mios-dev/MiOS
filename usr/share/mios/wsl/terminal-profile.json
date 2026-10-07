@@ -13,7 +13,7 @@
             "opacity": 50,
             "unfocusedAppearance": {
                 "opacity": 50,
-                "useAcrylic": false
+                "useAcrylic": true
             },
             "systemBackdrop": "acrylic"
         }

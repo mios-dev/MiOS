@@ -66,7 +66,7 @@ The concept of "Tmux as the Operating System" synthesizes proven patterns from c
 |        HUMAN DESKTOP PLANE          |             |   HEADLESS AUTOMATION PLANE |
 |   Socket: /tmp/tmux-1000/mios-human |             |   Socket: /run/user/<uid>/  |
 |                                     |             |           mios-tmux/        |
-| [Portrait Observer (above head)]    |             |                             |
+| [Portrait Observer (below head)]    |             |                             |
 | +-----------------+---------------+ |             | - Slot 0: Helper Slot 0     |
 | |                 | Worker 0 | W1 | |             | - Slot 1: Helper Slot 1     |
 | |    HEAD PANE    |----------+----| |             | - Slot 2: Helper Slot 2     |
@@ -81,7 +81,7 @@ The concept of "Tmux as the Operating System" synthesizes proven patterns from c
 - **Layout**: Managed multi-pane responsive layout adhering to the operator's geometry:
   * **Head Pane (Left ~1/3 Width)**: Primary active interaction head (Antigravity, Codex, Claude Code, OpenCode, or Bash shell) chosen via the native paginated head CLI chooser.
   * **Four Blank Worker Panes (Right 2×2 Grid)**: Pre-allocated, caller-owned blank worker slots reserved for dynamic helper tasks and tool executions without hardcoded roles (Worker 0, Worker 1, Worker 2, Worker 3).
-  * **Portrait Observer Pane**: Positioned above the active head pane in portrait display configurations.
+  * **Portrait Observer Pane**: Positioned below the active head pane in portrait display configurations (monitor on bottom; head on top). In compact landscape, the monitor/observer is on the left and active agent on the right.
 - **Keybindings**: SSOT prefix `Ctrl+B` (with `Ctrl+Alt+Shift` desktop shortcuts mapped globally).
 
 ### 3.2 Tier 2: Headless Automation Slots (`/run/user/<uid>/mios-tmux/`)

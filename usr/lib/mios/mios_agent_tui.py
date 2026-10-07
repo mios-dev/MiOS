@@ -50,19 +50,63 @@ class ClientView(Vertical):
             self.name = name
 
     DEFAULT_CSS = """
-    ClientView { height: 1fr; padding: 0 1; }
+    ClientView {
+        height: 1fr;
+        padding: 0 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 0;
+        scrollbar-background: transparent;
+        scrollbar-color: #1A407F;
+        background: transparent;
+    }
+    ScrollBar {
+        width: 1;
+        min-width: 1;
+        max-width: 1;
+        background: transparent;
+    }
+    ScrollBar.-horizontal {
+        height: 0;
+        min-height: 0;
+        display: none;
+    }
+    ScrollBar.-vertical {
+        width: 1;
+        min-width: 1;
+        max-width: 1;
+        background: transparent;
+    }
+    ScrollBarCorner {
+        display: none;
+        background: transparent;
+    }
+    ScrollBarThumb {
+        background: #1A407F;
+        color: #1A407F;
+    }
+    ScrollBarThumb:hover {
+        background: #F35C15;
+    }
     DataTable {
+        height: auto;
         scrollbar-size: 0 0;
         scrollbar-size-vertical: 0;
         scrollbar-size-horizontal: 0;
         overflow-x: hidden;
         overflow-y: hidden;
+        background: transparent;
     }
+    DataTable > .datatable--header { background: #1A407F; color: #E7DFD3; text-style: bold; }
+    DataTable > .datatable--odd-row { background: transparent; }
+    DataTable > .datatable--even-row { background: transparent; }
+    DataTable > .datatable--cursor { background: #1A407F; color: #E7DFD3; }
     #client-intro { height: 2; }
-    #client-table { height: 1fr; min-height: 2; }
+    #client-table { height: auto; min-height: 2; }
     #client-input, #client-status { height: 1; }
-    #client-input { border: none; padding: 0; background: $surface; }
-    #client-status { color: $warning; }
+    #client-input { border: none; padding: 0; background: transparent; }
+    #client-status { color: #F35C15; }
     """
 
     def __init__(self, agents, **kwargs):
@@ -113,19 +157,63 @@ class ClientView(Vertical):
 class AgentView(Vertical):
     """Separate registered peers from detected tmux processes and receipts."""
     DEFAULT_CSS = """
-    AgentView { height: 1fr; padding: 0 1; }
+    AgentView {
+        height: 1fr;
+        padding: 0 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 0;
+        scrollbar-background: transparent;
+        scrollbar-color: #1A407F;
+        background: transparent;
+    }
+    ScrollBar {
+        width: 1;
+        min-width: 1;
+        max-width: 1;
+        background: transparent;
+    }
+    ScrollBar.-horizontal {
+        height: 0;
+        min-height: 0;
+        display: none;
+    }
+    ScrollBar.-vertical {
+        width: 1;
+        min-width: 1;
+        max-width: 1;
+        background: transparent;
+    }
+    ScrollBarCorner {
+        display: none;
+        background: transparent;
+    }
+    ScrollBarThumb {
+        background: #1A407F;
+        color: #1A407F;
+    }
+    ScrollBarThumb:hover {
+        background: #F35C15;
+    }
     DataTable {
+        height: auto;
         scrollbar-size: 0 0;
         scrollbar-size-vertical: 0;
         scrollbar-size-horizontal: 0;
         overflow-x: hidden;
         overflow-y: hidden;
+        background: transparent;
     }
+    DataTable > .datatable--header { background: #1A407F; color: #E7DFD3; text-style: bold; }
+    DataTable > .datatable--odd-row { background: transparent; }
+    DataTable > .datatable--even-row { background: transparent; }
+    DataTable > .datatable--cursor { background: #1A407F; color: #E7DFD3; }
     #relay-count, #worker-count, #receipt, #agent-error { height: 1; }
-    #peer-table { height: 1fr; min-height: 2; }
-    #worker-table { height: 1fr; min-height: 2; }
-    #receipt { color: $text-muted; }
-    #agent-error { color: $warning; }
+    #peer-table { height: auto; min-height: 2; }
+    #worker-table { height: auto; min-height: 2; }
+    #receipt { color: #948E8E; }
+    #agent-error { color: #F35C15; }
     """
 
     def __init__(self, observer, refresh_s=2, **kwargs):
@@ -202,17 +290,53 @@ class AgentView(Vertical):
 class SystemSummary(Vertical):
     """Fixed tables reuse MiOS Monitor's existing hardware/service collectors."""
     DEFAULT_CSS = """
-    SystemSummary { height: 1fr; padding: 0 1; }
+    SystemSummary {
+        height: 1fr;
+        padding: 0 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 0;
+        scrollbar-background: transparent;
+        scrollbar-color: #1A407F;
+        background: transparent;
+    }
+    ScrollBar {
+        width: 1;
+        min-width: 1;
+        background: transparent;
+    }
+    ScrollBar.-horizontal {
+        height: 0;
+        min-height: 0;
+        display: none;
+    }
+    ScrollBarCorner {
+        background: transparent;
+    }
+    ScrollBarThumb {
+        background: #1A407F;
+        color: #1A407F;
+    }
+    ScrollBarThumb:hover {
+        background: #F35C15;
+    }
     DataTable {
+        height: auto;
         scrollbar-size: 0 0;
         scrollbar-size-vertical: 0;
         scrollbar-size-horizontal: 0;
         overflow-x: hidden;
         overflow-y: hidden;
+        background: transparent;
     }
-    #metric-table { height: 5; }
-    #summary-services { height: 1fr; min-height: 2; }
-    #system-status { height: 1; color: $warning; }
+    DataTable > .datatable--header { background: #1A407F; color: #E7DFD3; text-style: bold; }
+    DataTable > .datatable--odd-row { background: transparent; }
+    DataTable > .datatable--even-row { background: transparent; }
+    DataTable > .datatable--cursor { background: #1A407F; color: #E7DFD3; }
+    #metric-table { height: auto; min-height: 2; }
+    #summary-services { height: auto; min-height: 2; }
+    #system-status { height: 1; color: #F35C15; }
     """
 
     def __init__(self, telemetry, services, **kwargs):

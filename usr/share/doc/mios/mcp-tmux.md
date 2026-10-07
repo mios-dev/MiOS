@@ -39,7 +39,7 @@ name selects a client, and `q` returns to the SSOT-themed shell. Desktop layout
 has a head on the left and four empty worker reservations on the right when
 the viewport is large enough. Default launches use the SSOT `[terminal]` size
 (80×20): compact landscape places the live agent view on the left and one active
-agent on the right; portrait stacks the monitor above the active agent. Other
+agent on the right; portrait stacks the active agent above the monitor. Other
 workers keep running in a managed worker window. Ctrl+B then O cycles the active
 agent, and Ctrl+B then F toggles compact/automatic layout. Ctrl+B then W selects
 a pane from the tree; expand with arrows, then use Ctrl+B then Z to zoom. The

@@ -1549,7 +1549,8 @@ class tt_TestTmuxTheme(unittest.TestCase):
         cfg = engine.generate_config()
         self.assertIn("# MiOS Canonical Tmux Theme", cfg)
         self.assertIn("set -g status on", cfg)
-        self.assertIn(f'set -g window-style "bg={engine.palette["bg"]},fg={engine.palette["fg"]}"', cfg)
+        expected_pane_bg = "default" if engine.pane_background == "terminal" else engine.palette["bg"]
+        self.assertIn(f'set -g window-style "bg={expected_pane_bg},fg={engine.palette["fg"]}"', cfg)
         self.assertIn("set -g pane-active-border-style", cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_right"], cfg)
         self.assertIn(engine.data["theme"]["prompt"]["powerline_left"], cfg)
@@ -1574,6 +1575,21 @@ class tt_TestTmuxTheme(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "pane_background"):
             tmux_theme.TmuxThemeEngine(data=data)
 
+    def test_status_background_inherits_terminal_or_acrylic(self):
+        import copy
+        data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
+        data["colors"]["bg"] = "#123456"
+        data["theme"]["acrylic"] = True
+        data["theme"]["opacity"] = 50
+        cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+        self.assertIn('set -g status-style "bg=default,', cfg)
+        data["theme"]["tmux"]["status_background"] = "theme"
+        cfg = tmux_theme.TmuxThemeEngine(data=data).generate_config()
+        self.assertIn('set -g status-style "bg=#123456,', cfg)
+        data["theme"]["tmux"]["status_background"] = "DEVLOOP-PLANTED-INVALID"
+        with self.assertRaisesRegex(ValueError, "status_background"):
+            tmux_theme.TmuxThemeEngine(data=data)
+
     def test_ssot_layout_and_ascii_font_fallback(self):
         import copy
         data = copy.deepcopy(tmux_theme.mios_toml.vendor_tree(tt__ROOT))
@@ -1596,21 +1612,21 @@ class tt_TestTmuxTheme(unittest.TestCase):
         data["keybindings"]["actions"][0]["key"] = "u"
         with tempfile.TemporaryDirectory() as directory:
             tmux_theme.project_runtime(directory, data)
-            with open(os.path.join(directory, "tmux.conf")) as handle:
+            with open(os.path.join(directory, "tmux.conf"), encoding="utf-8") as handle:
                 config = handle.read()
             self.assertIn("bg=#123456", config)
             self.assertIn("set -g status-position top", config)
             self.assertIn("bind-key u new-window", config)
-            with open(os.path.join(directory, "mios.omp.json")) as handle:
+            with open(os.path.join(directory, "mios.omp.json"), encoding="utf-8") as handle:
                 prompt = handle.read()
             self.assertIn("#123456", prompt)
             data["keybindings"]["actions"][1]["key"] = "u"
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 tmux_theme.project_runtime(directory, data)
             self.assertIn("duplicate or non-mobile key: u", raised.exception.stderr)
-            with open(os.path.join(directory, "tmux.conf")) as handle:
+            with open(os.path.join(directory, "tmux.conf"), encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), config)
-            with open(os.path.join(directory, "mios.omp.json")) as handle:
+            with open(os.path.join(directory, "mios.omp.json"), encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), prompt)
 
     def test_mobile_prompt_and_tmux_drop_font_dependencies(self):

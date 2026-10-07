@@ -192,7 +192,7 @@ class TestWtProfileInject(unittest.TestCase):
             "scrollbarState": bar,
             "useAcrylic": True,
             "opacity": 50,
-            "unfocusedAppearance": {"opacity": 50, "useAcrylic": False},
+            "unfocusedAppearance": {"opacity": 50, "useAcrylic": True},
             "systemBackdrop": "acrylic",
         }])
         with open(copy, "w", encoding="utf-8") as f:

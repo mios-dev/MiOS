@@ -2333,7 +2333,7 @@ surfaces = [
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
-  { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_adr_index", output = "ADR.md" },
   { generator = "tools/native/mios-bake-plan/src/main.rs", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
   { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
@@ -13276,6 +13276,7 @@ replaces = [
   "tools/generate-egress-firewall.py",
   "tools/generate-gate-index.py",
   "tools/generate-pipeline-index.py",
+  "tools/generate-adr-index.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
