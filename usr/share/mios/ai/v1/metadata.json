@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3766,
-  "total_metadata_entries": 3072,
-  "total_hints": 3061,
+  "total_files_scanned": 3769,
+  "total_metadata_entries": 3074,
+  "total_hints": 3063,
   "total_functions_indexed": 1469,
-  "total_related_links": 5063,
+  "total_related_links": 5071,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5845,6 +5845,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/sync-wiki/cmd.toml",
+      "hint": "Trycmd configuration for sync-wiki golden-master CLI tests (AGY-1067 / AGY-1112).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/powershell/Challenge_AST_M2.Tests.ps1",
       "hint": "Validates installer and exporter PowerShell AST structure and syntax.",
       "related": [],
@@ -9909,6 +9921,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/sync_wiki.rs",
+      "hint": "Synchronizes metadata in wiki and spec markdown files by injecting current version and RAG sync timestamps into JSON blocks.",
+      "related": [
+        "tools/native/mios-gen/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "VERSION"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/tests/adr_index.rs",
       "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
       "related": [
@@ -10106,6 +10131,19 @@
       "hint": "Two-sided integration test suite for mios-gen standardize-docs (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/standardize_docs.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/sync_wiki.rs",
+      "hint": "Two-sided integration test suite for mios-gen sync-wiki (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/sync_wiki.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
@@ -11192,15 +11230,6 @@
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
       "has_shebang": true
-    },
-    {
-      "path": "tools/sync-wiki.py",
-      "hint": "Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a...",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": false
     },
     {
       "path": "tools/system-profiler.sh",

@@ -23,6 +23,7 @@ mod render_manpages;
 mod render_ports;
 mod roadmap_index;
 mod standardize_docs;
+mod sync_wiki;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -249,6 +250,26 @@ enum Commands {
         check: bool,
 
         /// Explicit target files or directories to standardize (defaults to specs/ subdirectories)
+        #[arg(value_name = "PATHS")]
+        paths: Vec<PathBuf>,
+    },
+
+    /// Synchronizes version and RAG metadata in wiki and markdown documentation
+    #[command(name = "sync-wiki", alias = "wiki-sync")]
+    SyncWiki {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify embedded metadata matches SSOT without modifying it
+        #[arg(long)]
+        check: bool,
+
+        /// Explicit RAG sync date (defaults to manual-corpus.tsv mtime date or current date)
+        #[arg(long)]
+        rag_sync: Option<String>,
+
+        /// Explicit target files to synchronize (defaults to specs/ engineering scripts index and docs)
         #[arg(value_name = "PATHS")]
         paths: Vec<PathBuf>,
     },
@@ -766,6 +787,37 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::SyncWiki {
+            root,
+            check,
+            rag_sync,
+            paths,
+        } => {
+            let r = resolve_root(root);
+            (
+                "sync-wiki",
+                "specs",
+                match sync_wiki::run_sync_wiki(&r, check, rag_sync.as_deref(), &paths) {
+                    Ok(res) => {
+                        if cli.format != "json" {
+                            if check {
+                                println!(
+                                    "[sync-wiki] documentation embeds are in sync ({} files scanned).",
+                                    res.scanned
+                                );
+                            } else {
+                                println!(
+                                    "[sync-wiki] Synchronized {} files ({} modified).",
+                                    res.scanned, res.modified
+                                );
+                            }
+                        }
+                        Ok(())
+                    }
+                    Err(msg) => Err((msg, 1)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -803,6 +855,8 @@ fn main() -> ExitCode {
             || msg.starts_with("[generate-cargo-manifests]")
             || msg.starts_with("[gen-pipe-boundary-manifest]")
             || msg.starts_with("MISSING ")
+            || msg.starts_with("[sync-wiki]")
+            || msg.starts_with("Wiki documentation embeds are STALE")
             || msg.starts_with("man pages out of sync")
             || msg.starts_with("man page validation failed")
             || msg.contains("ADR SSOT consistency check failed:")

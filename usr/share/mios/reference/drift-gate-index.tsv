@@ -159,72 +159,73 @@
 158	check_verb_templates	verb templates compile and validate against SSOT args
 159	check_pipe_boundaries	pipe-boundaries.manifest.json matches the agent-pipe tree
 160	check_standardize_docs	specs/ documentation matches standardized format
-161	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-162	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
-163	check_desktop_launchers	checking desktop launchers match SSOT
-164	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
-165	check_no_inert_ssot_tables	every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register
-166	check_profile_integrity	mios.toml [profiles] is closed over phases, sections, the floor and targets (ADR-0025)
-167	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
-168	check_resolver_differential_parity	differential output between resolvers across platforms is zero
-169	check_generator_host_parity	generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered)
-170	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-171	check_law_enforcers	all [laws].enforced_by targets resolve to live enforcement
-172	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
-173	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-174	check_projection_coverage	every SSOT projector in scope is on the Law 8 registry
-175	check_db_seed_coverage	DB seed coverage gate verified clean
-176	check_verb_stub_backends	verb stub backends gate verified clean
-177	check_account_column_parity	account column parity gate verified clean
-178	check_module_length	shell and script module line counts remain within maintainability limits
-179	check_firstboot_provisioners	firstboot provisioners
-180	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
-181	check_tasks_status_parity	tasks status parity
-182	check_agy_tasks	agy tasks
-183	check_mios_toml_integrity	mios toml integrity
-184	check_privileged_quadlets_minimal	privileged quadlets minimal
-185	check_container_names	container names
-186	check_service_urls	service urls
-187	check_ports_bound	ports bound
-188	check_blade_coverage	blade coverage
-189	check_blade_karg	blade karg
-190	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
-191	check_role_ssot	role ssot
-192	check_port_fallbacks	port fallbacks
-193	check_node_pool	node pool
-194	check_metal_vs_hosted	check_metal_vs_hosted
-195	check_unit_projection	unit projection
-196	check_ssot_consumer_keys	ssot consumer keys
-197	check_fleet_safety	fleet safety
-198	check_adr_index	ADR architecture decision record index matches committed ADR files
-199	check_vendored_assets_non_stub	vendored assets are non-stub
-200	check_resolved_env_lossless	resolved environment is lossless
-201	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
-202	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-203	check_value_aliases	value-alias consistency verified
-204	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-205	check_bash_phase_ratchet	bash phase script count ratchet check
-206	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-207	check_build_tool_dispatch	every bake-time tool-dispatch gate is on the shrink-only register
-208	check_signature_policy	usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]
-209	check_phase_registry	every automation/NN-*.sh on disk is a phase build.sh actually runs
-210	check_drift_stubs	no miosd drift Check claims a verdict about a tree it never reads
-211	check_negatives_are_effective	negative-test effectiveness check
-212	check_pipefail_grep_lint	pipefail grep lint check
-213	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
-214	check_ai_manifests_fresh	checking AI manifest freshness
-215	check_ai_metadata_fresh	usr/share/mios/ai/v1/metadata.json regenerates byte-identically from the tracked AI headers
-216	check_ports_category_schema	checking port category schema (allocation + collisions)
-217	check_globals_generated	checking generated globals resolvers match SSOT
-218	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
-219	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
-220	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
-221	check_rust_categories	[rust.categories] registry: owners, binaries, scopes and the unowned ceiling all hold
-222	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-223	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
-224	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
-225	check_verify_images	container image verification signatures and digests are valid
-226	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
-227	check_negatives_registered	every drift check has a corresponding negative test registered
-228	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
-229	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+161	check_sync_wiki	wiki and spec documentation embeds match SSOT
+162	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
+163	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
+164	check_desktop_launchers	checking desktop launchers match SSOT
+165	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
+166	check_no_inert_ssot_tables	every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register
+167	check_profile_integrity	mios.toml [profiles] is closed over phases, sections, the floor and targets (ADR-0025)
+168	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
+169	check_resolver_differential_parity	differential output between resolvers across platforms is zero
+170	check_generator_host_parity	generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered)
+171	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
+172	check_law_enforcers	all [laws].enforced_by targets resolve to live enforcement
+173	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
+174	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
+175	check_projection_coverage	every SSOT projector in scope is on the Law 8 registry
+176	check_db_seed_coverage	DB seed coverage gate verified clean
+177	check_verb_stub_backends	verb stub backends gate verified clean
+178	check_account_column_parity	account column parity gate verified clean
+179	check_module_length	shell and script module line counts remain within maintainability limits
+180	check_firstboot_provisioners	firstboot provisioners
+181	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
+182	check_tasks_status_parity	tasks status parity
+183	check_agy_tasks	agy tasks
+184	check_mios_toml_integrity	mios toml integrity
+185	check_privileged_quadlets_minimal	privileged quadlets minimal
+186	check_container_names	container names
+187	check_service_urls	service urls
+188	check_ports_bound	ports bound
+189	check_blade_coverage	blade coverage
+190	check_blade_karg	blade karg
+191	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
+192	check_role_ssot	role ssot
+193	check_port_fallbacks	port fallbacks
+194	check_node_pool	node pool
+195	check_metal_vs_hosted	check_metal_vs_hosted
+196	check_unit_projection	unit projection
+197	check_ssot_consumer_keys	ssot consumer keys
+198	check_fleet_safety	fleet safety
+199	check_adr_index	ADR architecture decision record index matches committed ADR files
+200	check_vendored_assets_non_stub	vendored assets are non-stub
+201	check_resolved_env_lossless	resolved environment is lossless
+202	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
+203	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+204	check_value_aliases	value-alias consistency verified
+205	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+206	check_bash_phase_ratchet	bash phase script count ratchet check
+207	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+208	check_build_tool_dispatch	every bake-time tool-dispatch gate is on the shrink-only register
+209	check_signature_policy	usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]
+210	check_phase_registry	every automation/NN-*.sh on disk is a phase build.sh actually runs
+211	check_drift_stubs	no miosd drift Check claims a verdict about a tree it never reads
+212	check_negatives_are_effective	negative-test effectiveness check
+213	check_pipefail_grep_lint	pipefail grep lint check
+214	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
+215	check_ai_manifests_fresh	checking AI manifest freshness
+216	check_ai_metadata_fresh	usr/share/mios/ai/v1/metadata.json regenerates byte-identically from the tracked AI headers
+217	check_ports_category_schema	checking port category schema (allocation + collisions)
+218	check_globals_generated	checking generated globals resolvers match SSOT
+219	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
+220	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
+221	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
+222	check_rust_categories	[rust.categories] registry: owners, binaries, scopes and the unowned ceiling all hold
+223	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
+224	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
+225	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
+226	check_verify_images	container image verification signatures and digests are valid
+227	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
+228	check_negatives_registered	every drift check has a corresponding negative test registered
+229	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+230	check_leaked_fixtures	no transient test fixtures or dump files are committed in git

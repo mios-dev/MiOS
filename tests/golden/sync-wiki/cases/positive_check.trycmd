@@ -1,0 +1,5 @@
+```console
+$ mios-gen sync-wiki --check
+[sync-wiki] documentation embeds are in sync (1 files scanned).
+
+```

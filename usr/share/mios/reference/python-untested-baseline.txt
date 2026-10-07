@@ -16,7 +16,6 @@ tools/journal-sync.py
 tools/pipe-parity-check.py
 tools/provision-agent-mtls.py
 tools/refresh-env.py
-tools/sync-wiki.py
 tools/verb-template-check.py
 usr/libexec/mios/mios-mon.py
 usr/libexec/mios/config-history.py

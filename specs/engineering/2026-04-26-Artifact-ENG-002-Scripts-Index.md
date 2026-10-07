@@ -21,7 +21,7 @@
     "build-pipeline",
     "index"
   ],
-  "version": "0.2.4",
+  "version": "0.3.0",
   "last_rag_sync": "2026-06-13"
 }
 ```

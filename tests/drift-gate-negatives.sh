@@ -1907,6 +1907,23 @@ test_standardize_docs() (
     log "check_standardize_docs unstandardized spec control passed"
 )
 
+test_sync_wiki() (
+    log "Testing check_sync_wiki"
+    local spec="${ROOT}/specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
+    [[ -f "$spec" ]] || die "Tracked spec file is missing"
+    _neg_gate check_sync_wiki || die "check_sync_wiki failed on the unmutated tree"
+    local backup
+    backup="$(mktemp)"
+    cp "$spec" "$backup"
+    trap 'cp "$backup" "$spec"; rm -f "$backup"' EXIT
+    sed -i 's/"version": "0.3.0"/"version": "0.0.1"/' "$spec"
+    _neg_gate check_sync_wiki && die "check_sync_wiki accepted stale version"
+    [[ "$_NEG_GATE_OUT" == *"STALE"* ]] || die "Stale wiki embeds was not diagnosed"
+    cp "$backup" "$spec"
+    _neg_gate check_sync_wiki || die "check_sync_wiki failed after restoration"
+    log "check_sync_wiki stale version control passed"
+)
+
 test_vllm_name_canonical() {
     log "Testing check_vllm_name_canonical"
     local dummy="${ROOT}/usr/lib/mios/dummy_vllm_negative_test.sh"
@@ -5546,6 +5563,7 @@ _run_test test_leaked_fixtures
     _run_test test_verb_templates
     _run_test test_pipe_boundaries
     _run_test test_standardize_docs
+    _run_test test_sync_wiki
     _run_test test_vllm_name_canonical
     _run_test test_pipe_extraction_parity
     _run_test test_guacamole_consistency

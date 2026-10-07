@@ -13290,10 +13290,10 @@ replaces = [
   "tools/compile-templates.py",
   "tools/gen-pipe-boundary-manifest.py",
   "tools/standardize-docs.py",
+  "tools/sync-wiki.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
-  "tools/sync-wiki.py",
   "usr/libexec/mios/win/*.py",
   "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",
   "usr/libexec/mios/ux/fastfetch_gen.py", "usr/libexec/mios/ux/theme_sync.py",

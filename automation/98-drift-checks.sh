@@ -3434,6 +3434,25 @@ check_standardize_docs() {
     echo "[98-drift-checks]   specs/ markdown documentation matches standardized format"
 }
 
+# --- wiki and spec documentation embeds match SSOT ---
+check_sync_wiki() {
+    local bin out rc=0
+    bin="$(native_bin mios-gen)" || true
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        out="$("$bin" sync-wiki --root "$ROOT" --check 2>&1)" || rc=$?
+    else
+        _violation "mios-gen is not available"
+        return
+    fi
+
+    if (( rc != 0 )); then
+        printf '%s\n' "$out" >&2
+        _violation "Wiki documentation embeds are STALE -- run mios-gen sync-wiki"
+        return
+    fi
+    echo "[98-drift-checks]   wiki documentation embeds match SSOT"
+}
+
 check_vllm_name_canonical() {
     if grep -rn --exclude="98-drift-checks.sh" "MIOS_AI_VLL[M]_\|MIOS_AI_SGLAN[G]_" "${ROOT}/automation/" "${ROOT}/usr/lib/mios/" >/dev/null 2>&1; then
         _violation "found legacy M""IOS_AI_VLLM_ or M""IOS_AI_SGLANG_ long names in active code or automation"
@@ -4179,6 +4198,7 @@ main() {
     check_verb_templates
     check_pipe_boundaries
     check_standardize_docs
+    check_sync_wiki
     check_vllm_name_canonical
     check_pipe_extraction_parity
     check_desktop_launchers

@@ -322,7 +322,6 @@ is generated, its generator is here.
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
 | `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
 | `tools/sync-dotfiles.py` | Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects [dotfiles.devcontainer] and [workspace]... |
-| `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
 | `tools/test_check-docs.py` | Sibling unit tests for tools/check-docs.py -- one suite per subcommand, each owning its counters and returning its own verdict. |
 | `tools/test_check-runtime.py` | Sibling unit tests for tools/check-runtime.py -- one suite per subcommand; the unittest suites run under one discovery pass, the script-style suites return their own verdict. |
@@ -343,7 +342,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 44 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 43 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
