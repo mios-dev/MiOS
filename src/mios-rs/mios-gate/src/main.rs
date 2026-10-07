@@ -6,6 +6,7 @@
 
 mod artifact;
 mod artifact_layers;
+mod canonical_bools;
 mod credentials;
 mod dispatch;
 mod doc_refs;
@@ -93,8 +94,8 @@ impl Report {
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
                      \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH]\n\
-                     checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
-                             drift-stubs, image-equivalence, image-freshness, law-enforcers,\n\
+                     checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
+                             doc-refs-resolve, drift-stubs, image-equivalence, image-freshness,\n\
                              negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
@@ -199,6 +200,7 @@ fn main() -> ExitCode {
     let report = match name.as_str() {
         "artifact" => artifact::check(&root),
         "build-tool-dispatch" => dispatch::check(&root),
+        "canonical-bools" => canonical_bools::check(&root),
         "credential-literals" => credentials::check(&root),
         "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),

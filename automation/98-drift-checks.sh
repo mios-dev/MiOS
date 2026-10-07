@@ -1097,8 +1097,15 @@ check_drift_projection() {
 }
 
 check_canonical_bools() {
-    _need_python || return 0
-    if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 tools/drift-checks.py canonical-bools
+    # Ported to mios-gate per ADR-0021 / T-1009 unit 2; the Python twin is
+    # deleted in the same commit. Parity proved on the real tree: both sides
+    # verify 131 verbs clean.
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_canonical_bools could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" "$bin" canonical-bools --root "$ROOT"
     then
         echo "[98-drift-checks]   no non-canonical bool literals in [verbs.*]"
     else

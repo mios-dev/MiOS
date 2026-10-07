@@ -12636,7 +12636,7 @@ max_libexec_verbs     = 312  # verbs only; retired flight-control.sh, mios-dashb
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 81148   # T-1009 unit 1: negative-coverage strangled to mios-gate (-40).
+max_tooling_python_lines = 81101   # T-1009 unit 2: canonical-bools strangled to mios-gate (-47).
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

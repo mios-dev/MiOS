@@ -2697,53 +2697,6 @@ def check_python_untested_ratchet() -> int:
 
     return 0
 
-def check_canonical_bools() -> int:
-    import sys, os
-    import tomllib
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.environ.get("MIOS_TOML", os.path.join(root, "usr/share/mios/mios.toml"))
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_canonical_bools: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    verbs = data.get("verbs", {})
-    for vname, vcfg in verbs.items():
-        if vname == "_defaults":
-            continue
-        if not isinstance(vcfg, dict):
-            continue
-        if "hidden" in vcfg:
-            val = vcfg["hidden"]
-            if not isinstance(val, bool):
-                print(f"Non-canonical hidden value in verb '{vname}': {val!r} (must be true/false)")
-                return 1
-        if "sensitive" in vcfg:
-            val = vcfg["sensitive"]
-            if not isinstance(val, bool):
-                print(f"Non-canonical sensitive value in verb '{vname}': {val!r} (must be true/false)")
-                return 1
-        params = vcfg.get("params", {})
-        if isinstance(params, dict):
-            for p_name, p_cfg in params.items():
-                if not isinstance(p_cfg, dict):
-                    continue
-                if "required" in p_cfg:
-                    req = p_cfg["required"]
-                    if not isinstance(req, bool):
-                        print(f"Non-canonical required value in verb '{vname}' param '{p_name}': {req!r} (must be true/false)")
-                        return 1
-                if "default" in p_cfg and p_cfg.get("type") == "boolean":
-                    d = p_cfg["default"]
-                    if not isinstance(d, bool):
-                        print(f"Non-canonical default boolean value in verb '{vname}' param '{p_name}': {d!r} (must be true/false)")
-                        return 1
-    return 0
-
 def check_dag_integrity() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -4740,7 +4693,7 @@ _SUBCOMMAND_NAMES = (
     "no-duplicate-value-key", "resolver-differential-parity", "legibility-ratchet",
     "header-integrity", "rbac-tiers", "ai-manifest", "capability-manifest",
     "surface-parity", "container-ports", "agent-pipe-budgets", "verb-backends",
-    "python-untested-ratchet", "canonical-bools", "dag-integrity",
+    "python-untested-ratchet", "dag-integrity",
     "ai-endpoint-local", "bake-refs-parity", "cli-eval-safety",
     "resolver-ssot-refs", "bake-budget", "greenboot", "router-intent-coverage",
     "council-gate-ssot", "test-hermeticity", "containerfile-pinned-clones",
