@@ -2157,5 +2157,49 @@ so long. Let a run finish.
 - blockers: None.
 - unverified: None.
 
-
-
+## 2026-10-07 02:04 · antigravity · Phase 3.6 AI Manifest SSOT Projector Complete (Commit f817e079)
+- objective: Consolidate AI repository and tool manifests generator into `tools/native/mios-gen ai-manifest` static binary; strangler-delete `tools/generate-ai-manifest.py` and shrink `python-untested-baseline.txt`; enforce byte-for-byte ASCII escaping parity via `escape_ascii_json`; author two-sided Trycmd controls and integration test; wire automation drift checks and sync projections; verify with full subagent trio.
+- status: VERIFIED & COMPLETE.
+- commit: `f817e079` (branch `codex/uncommitted-mcp-ux` in `C:\MiOS`).
+- deliverables:
+  1. `tools/native/mios-gen`: added `ai-manifest` subcommand:
+     - `parse_markdown_metadata`: extracts H1 title, blockquote metadata attributes (lowercased with underscores), and codeblock json:knowledge.
+     - `escape_ascii_json`: enforces strict byte-for-byte ASCII JSON character escaping matching Python's `ensure_ascii=True` (handling standard ASCII, `\uXXXX` for <= 0xFFFF, and UTF-16 surrogate pairs for code points > 0xFFFF).
+     - Pure Rust `.gz` handling via `flate2::write::GzEncoder` and `flate2::read::GzDecoder`.
+     - Manifest generation and validation for all 9 targets (`specs`, `.ai/foundation/memories`, `artifacts`, `automation`, `tools`, `overlay`, `evals`, `bib-configs`, `agents/research`, `.`).
+     - CLI contract: supports `--root`, `--check`, `--format json|text`, and standard return codes (0 clean, 1 drift/error).
+  2. Deleted legacy python generator and ratcheted untested baseline (atomic strangler migration):
+     - `tools/generate-ai-manifest.py` (deleted)
+     - `usr/share/mios/reference/python-untested-baseline.txt` (shrunk by 1 line)
+  3. `usr/share/mios/mios.toml`:
+     - Registered surface in `[laws.projection_registry]` pointing to `tools/native/mios-gen/src/main.rs`.
+     - Added `tools/generate-ai-manifest.py` to `[rust.categories.gen].replaces` (now 9 deleted scripts tracked).
+  4. Automation & projection wiring:
+     - `automation/98-drift-checks.sh` `check_ai_manifests_fresh` invokes `native_bin mios-gen` first.
+     - `tools/sync-generated.sh` step 21 dispatches `mios-gen ai-manifest`.
+  5. Trycmd golden-master fixtures:
+     - `tests/golden/ai-manifest/cmd.toml`
+     - `tests/golden/ai-manifest/cases/positive_check.trycmd`
+     - `tests/golden/ai-manifest/cases/negative_missing_root.trycmd`
+  6. Two-sided verification controls:
+     - `cargo test -p mios-gen`: 20/20 tests pass (1 ai-manifest, 3 roadmap-index, 3 metal-vs-hosted, 4 adr-index, 2 cosign-policy, 3 egress-firewall, 2 gate-index, 2 pipeline-index).
+     - `cargo clippy -p mios-gen -- -D warnings`: exit code 0 (zero warnings).
+     - WSL2 execution: `/usr/bin/mios-gen ai-manifest --root /mnt/c/MiOS --check` verified.
+     - `tests/drift-gate-negatives.sh test_ai_manifests_fresh`: PASS (planted mutation detected; restored clean).
+  7. Standing gates verification:
+     - `phase-registry`: 77/77 registered, 0 on shrink-only register (exit code 0).
+     - `ratchet-direction`: 93 shrink-only ceilings hold (exit code 0).
+     - `credential-literals`: 0 unapproved literals across 253 unit files (exit code 0).
+     - `version-literals-ssot`: 0 divergent literals across 916 files (exit code 0).
+     - `signature-policy`: `usr/lib/containers/policy.json` verified (exit code 0).
+     - `rust-categories`: 34 crates cataloged across 15 categories; 1246 scripts in universe (275 porting-owned, 843 exempt, 128 unowned, ceiling 128); 9 replaces claims verified absent (exit code 0).
+     - `python tools/ci-suites.py --check`: 421 suites registered across 3 tiers (exit code 0).
+     - `python tools/sync-bootstrap.py --check`: 100% parity across mirrored files and tables (exit code 0).
+     - `tools/sync-generated.sh`: all 23 projection steps clean, 0 unprojected diffs (exit code 0).
+  8. Subagent Trio certification:
+     - Reviewer: VERDICT: APPROVE
+     - Challenger: VERDICT: APPROVE
+     - Auditor: VERDICT: CLEAN
+- next: Phase 3.7 Render Ports Projector (T-1010, AGY-1089) or Phase 2 Drift Gates (T-1009, AGY-1067..AGY-1088).
+- blockers: None.
+- unverified: None.
