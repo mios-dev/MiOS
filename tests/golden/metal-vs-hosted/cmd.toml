@@ -1,0 +1,5 @@
+# AI-hint: Trycmd configuration for metal-vs-hosted golden-master CLI tests (AGY-1067 / AGY-1089).
+# AI-related: usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, tests/golden/README.md
+
+bin.name = "mios-gen"
+args = ["metal-vs-hosted"]

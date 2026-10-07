@@ -11,6 +11,7 @@ use std::process::ExitCode;
 
 mod adr_index;
 mod gate_index;
+mod metal_vs_hosted;
 mod pipeline_index;
 
 #[derive(Parser, Debug)]
@@ -90,6 +91,18 @@ enum Commands {
         root: Option<PathBuf>,
 
         /// Check mode: verify committed ADR.md is in sync without modifying it
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generates usr/share/doc/mios/reference/metal-vs-hosted.md from [blade] SSOT
+    #[command(name = "metal-vs-hosted")]
+    MetalVsHosted {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed markdown is in sync without modifying it
         #[arg(long)]
         check: bool,
     },
@@ -412,6 +425,14 @@ fn main() -> ExitCode {
                 adr_index::run_adr_index(&r, check, cli.format == "json"),
             )
         }
+        Commands::MetalVsHosted { root, check } => {
+            let r = resolve_root(root);
+            (
+                "metal-vs-hosted",
+                "usr/share/doc/mios/reference/metal-vs-hosted.md",
+                metal_vs_hosted::run_metal_vs_hosted(&r, check, cli.format == "json"),
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -438,7 +459,11 @@ fn main() -> ExitCode {
             }
         }
     } else if let Err((msg, _)) = &result {
-        if msg.starts_with("VIOLATION:") || msg.starts_with("Error:") || msg.contains("ADR SSOT consistency check failed:") {
+        if msg.starts_with("VIOLATION:")
+            || msg.starts_with("Error:")
+            || msg.starts_with("generate-metal-vs-hosted:")
+            || msg.contains("ADR SSOT consistency check failed:")
+        {
             eprintln!("{msg}");
         } else {
             eprintln!("Error: generate-{subcommand}: {msg}");

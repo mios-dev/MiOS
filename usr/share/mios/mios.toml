@@ -2344,7 +2344,7 @@ surfaces = [
   { generator = "tools/gen-pipe-boundary-manifest.py", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_bootc_install_projection", output = "usr/lib/bootc/install/00-mios.toml, usr/lib/repart.d/50-root.conf" },
-  { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
   { generator = "tools/native/generate-names-registry/src/main.rs", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
@@ -10785,7 +10785,7 @@ min_ap_capable = 0
 # markers: packages proving the plane is baked. Empty = payload, not RPM.
 
 # wired_by: the file that activates it. Verdicts are DERIVED, never written here.
-# Generator + gate: tools/generate-metal-vs-hosted.py --check (Law 8).
+# Generator + gate: mios-gen metal-vs-hosted --check (Law 8).
 
 [blade.planes.hypervisor]
 role     = "runs the VMs and containers every other plane lands in"
@@ -13277,6 +13277,7 @@ replaces = [
   "tools/generate-gate-index.py",
   "tools/generate-pipeline-index.py",
   "tools/generate-adr-index.py",
+  "tools/generate-metal-vs-hosted.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",

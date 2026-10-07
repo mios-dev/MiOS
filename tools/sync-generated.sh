@@ -130,7 +130,12 @@ main() {
 
     # 10. Topology comparison matrix
     step "10/23 [topology.matrix] compare seat versus blade capabilities"
-    MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
+    _gen="$(native_bin mios-gen || true)"
+    if [ -n "$_gen" ]; then
+        "$_gen" metal-vs-hosted --root "$ROOT" >/dev/null
+    else
+        MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
+    fi
 
     # 11. Core system and governance indexes
     step "11/23 [indexes.projection] generate gate, pipeline, adr, and roadmap indexes"

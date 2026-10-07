@@ -191,7 +191,7 @@
 190	check_role_ssot	role ssot
 191	check_port_fallbacks	port fallbacks
 192	check_node_pool	node pool
-193	check_metal_vs_hosted	GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml
+193	check_metal_vs_hosted	check_metal_vs_hosted
 194	check_unit_projection	unit projection
 195	check_ssot_consumer_keys	ssot consumer keys
 196	check_fleet_safety	fleet safety

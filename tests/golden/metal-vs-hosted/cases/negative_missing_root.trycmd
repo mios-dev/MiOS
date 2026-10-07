@@ -1,0 +1,6 @@
+```console
+$ mios-gen metal-vs-hosted --root [..]/nonexistent --check
+? 1
+generate-metal-vs-hosted: cannot read the SSOT: [..]
+
+```

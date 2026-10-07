@@ -1,0 +1,5 @@
+```console
+$ mios-gen metal-vs-hosted --check
+[generate-metal-vs-hosted] usr/share/doc/mios/reference/metal-vs-hosted.md matches the SSOT
+
+```

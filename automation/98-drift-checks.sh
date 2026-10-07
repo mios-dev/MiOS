@@ -4861,7 +4861,17 @@ check_blade_coverage() { _run_py_check check_blade_coverage "tools/check-ssot.py
 check_fleet_safety() { _run_py_check check_fleet_safety "tools/check-ssot.py fleet-safety" ""; }
 check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys "tools/check-ssot.py consumer-keys" ""; }
 check_unit_projection() { _run_py_check check_unit_projection "tools/check-ssot.py unit-projection" ""; }
-check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-metal-vs-hosted.py --check" ""; }
+check_metal_vs_hosted() {
+    echo "[98-drift-checks]   check_metal_vs_hosted"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$bin" metal-vs-hosted --root "$ROOT" --check 2>&1)" || { _violations_from "check_metal_vs_hosted: " "$out"; return; }
+    else
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-metal-vs-hosted.py --check 2>&1)" || { _violations_from "check_metal_vs_hosted: " "$out"; return; }
+    fi
+    echo "[98-drift-checks]   $out"
+}
 check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool" ""; }
 check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
 check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }

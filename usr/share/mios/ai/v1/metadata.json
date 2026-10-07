@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3726,
-  "total_metadata_entries": 3056,
-  "total_hints": 3045,
+  "total_files_scanned": 3729,
+  "total_metadata_entries": 3057,
+  "total_hints": 3046,
   "total_functions_indexed": 1476,
-  "total_related_links": 4982,
+  "total_related_links": 4990,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5701,6 +5701,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/metal-vs-hosted/cmd.toml",
+      "hint": "Trycmd configuration for metal-vs-hosted golden-master CLI tests (AGY-1067 / AGY-1089).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/pipeline-index/cmd.toml",
       "hint": "Trycmd configuration for pipeline-index golden-master CLI tests (AGY-1067 / AGY-1088).",
       "related": [
@@ -9117,15 +9129,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-metal-vs-hosted.py",
-      "hint": "GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-pod-quadlets.py",
       "hint": "Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT).",
       "related": [],
@@ -9680,6 +9683,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/metal_vs_hosted.rs",
+      "hint": "SSOT projector and verifier for metal-vs-hosted.md (ADR-0021 gen category).",
+      "related": [
+        "usr/share/doc/mios/reference/metal-vs-hosted.md",
+        "usr/share/mios/mios.toml",
+        "tools/generate-metal-vs-hosted.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/pipeline_index.rs",
       "hint": "Generator and validator for usr/share/mios/reference/pipeline-index.tsv from automation/[0-9][0-9]-*.sh and SSOT.",
       "related": [
@@ -9736,6 +9752,19 @@
       "related": [
         "tools/native/mios-gen/src/gate_index.rs",
         "automation/98-drift-checks.sh",
+        "docs/design/doc-rust-static-port.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/metal_vs_hosted.rs",
+      "hint": "Integration tests for mios-gen metal-vs-hosted verb (T-1010, AGY-1089).",
+      "related": [
+        "tools/native/mios-gen/src/metal_vs_hosted.rs",
+        "usr/share/doc/mios/reference/metal-vs-hosted.md",
         "docs/design/doc-rust-static-port.md"
       ],
       "functions": [],
@@ -11015,15 +11044,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_generate-metal-vs-hosted.py",
-      "hint": "Sibling unit test for tools/generate-metal-vs-hosted.py.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
       "has_shebang": true
     },
