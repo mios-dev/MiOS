@@ -110,7 +110,11 @@ main() {
 
     # 5. Native manual roff pages
     step "5/23 [manpages.projection] validate and render roff documentation"
-    "$PY" tools/render-manpages.py --validate
+    if [ -n "$_gen" ]; then
+        "$_gen" render-manpages --root "$ROOT" --validate >/dev/null
+    else
+        "$PY" tools/render-manpages.py --validate
+    fi
 
     # 6. User and system dotfile SSOT projection
     step "6/23 [dotfiles.projection] synchronize editor and environment dotfiles"

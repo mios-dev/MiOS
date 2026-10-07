@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3743,
-  "total_metadata_entries": 3062,
-  "total_hints": 3051,
+  "total_files_scanned": 3746,
+  "total_metadata_entries": 3063,
+  "total_hints": 3052,
   "total_functions_indexed": 1468,
-  "total_related_links": 5018,
+  "total_related_links": 5022,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5749,6 +5749,18 @@
       "has_shebang": false
     },
     {
+      "path": "tests/golden/render-manpages/cmd.toml",
+      "hint": "Trycmd configuration for render-manpages golden-master CLI tests (AGY-1067 / AGY-1105).",
+      "related": [
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tests/golden/README.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tests/golden/render-ports/cmd.toml",
       "hint": "Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).",
       "related": [
@@ -9762,6 +9774,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/render_manpages.rs",
+      "hint": "Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tools/render-manpages.py",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/render_ports.rs",
       "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
       "related": [
@@ -9882,6 +9907,19 @@
       "hint": "Two-sided integration test suite for mios-gen render-desktop (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/render_desktop.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/render_manpages.rs",
+      "hint": "Two-sided integration test suite for mios-gen render-manpages (ADR-0021, Law 14).",
+      "related": [
+        "tools/native/mios-gen/src/render_manpages.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
       ],
@@ -10937,18 +10975,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/render-manpages.py",
-      "hint": "Renders the native roff manual tree from the SSOT, so the operating system manual reader answers about MiOS on the machine.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "tools/sync-generated.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/rtx4090-vfio-configurator.sh",
       "hint": "Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passth...",
       "related": [],
@@ -11176,18 +11202,6 @@
       "related": [
         "tools/read-ssot-key.py",
         "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_render-manpages.py",
-      "hint": "Sibling test for tools/render-manpages.py; asserts the emitted roff is well-formed and that every declared verb gets a page.",
-      "related": [
-        "tools/render-manpages.py",
-        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,

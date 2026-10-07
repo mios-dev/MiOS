@@ -15,6 +15,7 @@ mod gate_index;
 mod metal_vs_hosted;
 mod pipeline_index;
 mod render_desktop;
+mod render_manpages;
 mod render_ports;
 mod roadmap_index;
 
@@ -165,6 +166,22 @@ enum Commands {
         /// Check mode: verify committed .desktop files are in sync without modifying them
         #[arg(long)]
         check: bool,
+    },
+
+    /// Renders and validates the native roff manual tree from SSOT [verbs]
+    #[command(name = "render-manpages", alias = "manpages")]
+    RenderManpages {
+        /// Repository root directory
+        #[arg(long)]
+        root: Option<PathBuf>,
+
+        /// Check mode: verify committed manual pages are in sync without modifying them
+        #[arg(long)]
+        check: bool,
+
+        /// Validate mode: validate roff structural integrity of all rendered pages
+        #[arg(long)]
+        validate: bool,
     },
 }
 
@@ -546,6 +563,26 @@ fn main() -> ExitCode {
                 },
             )
         }
+        Commands::RenderManpages {
+            root,
+            check,
+            validate,
+        } => {
+            let r = resolve_root(root);
+            (
+                "render-manpages",
+                "usr/share/man/**",
+                match render_manpages::run_render_manpages(&r, check, validate) {
+                    Ok((msg, _)) => {
+                        if cli.format != "json" && !msg.is_empty() {
+                            println!("{msg}");
+                        }
+                        Ok(())
+                    }
+                    Err((msg, code)) => Err((msg, code)),
+                },
+            )
+        }
     };
 
     if cli.format == "json" {
@@ -577,6 +614,9 @@ fn main() -> ExitCode {
             || msg.starts_with("generate-metal-vs-hosted:")
             || msg.starts_with("[render-ports]")
             || msg.starts_with("[render-desktop]")
+            || msg.starts_with("[render-manpages]")
+            || msg.starts_with("man pages out of sync")
+            || msg.starts_with("man page validation failed")
             || msg.contains("ADR SSOT consistency check failed:")
         {
             eprintln!("{msg}");

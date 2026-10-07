@@ -4793,9 +4793,19 @@ check_rust_test_coverage() {
 # --- generated manual pages compile cleanly and match CLI help surfaces ---
 check_manpages() {
     echo "[98-drift-checks] generated manual pages compile cleanly and match CLI help surfaces"
-    _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check --validate 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
-    echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
+    local bin; bin="$(native_bin mios-gen)" || true
+    local out
+    if [[ -n "$bin" ]]; then
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" "$bin" render-manpages --root "$ROOT" --check --validate 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
+        echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
+        return
+    fi
+    if [[ -f "$ROOT/tools/render-manpages.py" ]]; then
+        out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check --validate 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
+        echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
+    else
+        _violation "mios-gen binary not found; render-manpages.py was strangler-deleted (ADR-0021)"
+    fi
 }
 
 # --- all workflow CI jobs cover the required test matrix without gaps ---

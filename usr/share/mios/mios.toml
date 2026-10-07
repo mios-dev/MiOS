@@ -2349,7 +2349,7 @@ surfaces = [
   { generator = "tools/native/generate-names-registry/src/main.rs", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
-  { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-task/src/overrides.rs", check = "check_task_store", output = "TASKS.md (rendered from tasks.jsonl)" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
@@ -13283,6 +13283,7 @@ replaces = [
   "tools/generate-ai-manifest.py",
   "tools/render-ports.py",
   "tools/render-desktop.py",
+  "tools/render-manpages.py",
 ]
 scope = [
   "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
