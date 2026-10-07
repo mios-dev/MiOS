@@ -304,7 +304,7 @@ def _resolve_git_status():
         _GIT_STATUS_CACHE = "[dim]Git repo not found[/]"
         return _GIT_STATUS_CACHE
     try:
-        out = subprocess.check_output(["git", "status", "--porcelain", "-b"], cwd=d, text=True, timeout=2.0, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(["git", "--no-optional-locks", "status", "--porcelain", "-b"], cwd=d, text=True, timeout=2.0, stderr=subprocess.DEVNULL)
         lines = out.splitlines()
         branch = lines[0].replace("##", "").strip() if lines and "##" in lines[0] else (lines[0].strip() if lines else "unknown")
         staged = sum(1 for l in lines[1:] if l and l[0] not in (" ", "?"))
