@@ -121,25 +121,37 @@ pub fn parse_markdown_metadata(content: &str) -> (String, serde_json::Map<String
     (title, metadata, knowledge_block)
 }
 
-pub fn get_tracked_files(root: &Path) -> Option<HashSet<String>> {
+pub fn get_tracked_files(root: &Path) -> Result<Option<HashSet<String>>, String> {
+    // A standalone fixture has no index. A checkout with an unreadable index
+    // must fail rather than accidentally publishing ignored operator files.
+    if !root.join(".git").try_exists().map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
     let output = Command::new("git")
         .current_dir(root)
         .args(["ls-files"])
         .output()
-        .ok()?;
+        .map_err(|e| format!("cannot read tracked source index: {e}"))?;
 
     if !output.status.success() {
-        return None;
+        return Err(format!(
+            "cannot read tracked source index: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
 
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = String::from_utf8(output.stdout)
+        .map_err(|e| format!("invalid tracked source index paths: {e}"))?;
     let set: HashSet<String> = text
         .lines()
         .map(|l| l.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
 
-    Some(set)
+    if set.is_empty() {
+        return Err("tracked source index is empty".into());
+    }
+    Ok(Some(set))
 }
 
 fn is_tracked(rel_path: &str, tracked: Option<&HashSet<String>>) -> bool {
@@ -535,7 +547,7 @@ pub fn run_ai_manifest(root: &Path, check: bool, json_format: bool) -> Result<()
         return Err((format!("Repository root not found: {}", root.display()), 1));
     }
 
-    let tracked = get_tracked_files(root);
+    let tracked = get_tracked_files(root).map_err(|e| (e, 1))?;
     let mut has_drift = false;
     let mut first_error = None;
 

@@ -6,14 +6,43 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-fn get_repo_root() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .and_then(|p| p.parent())
-        .and_then(|p| p.parent())
-        .expect("Failed to find repo root from CARGO_MANIFEST_DIR")
-        .to_path_buf()
+fn fixture_root() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("tools")).unwrap();
+    fs::write(dir.path().join("README.md"), "# Fixture\n").unwrap();
+    fs::write(dir.path().join("tools/run.sh"), "#!/bin/sh\nexit 0\n").unwrap();
+    git(dir.path(), &["init", "-q"]);
+    git(dir.path(), &["add", "--", "README.md", "tools/run.sh"]);
+    let output = Command::new(bin())
+        .args(["ai-manifest", "--root"])
+        .arg(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    git(
+        dir.path(),
+        &["add", "--", "tools/manifest.json", "root-manifest.json"],
+    );
+    fs::write(dir.path().join("private.rs"), "operator data\n").unwrap();
+    dir
+}
+
+fn git(root: &std::path::Path, args: &[&str]) {
+    let mut command = Command::new("git");
+    for (key, _) in std::env::vars().filter(|(key, _)| key.starts_with("GIT_")) {
+        command.env_remove(key);
+    }
+    assert!(command
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .status()
+        .unwrap()
+        .success());
 }
 
 fn bin() -> &'static str {
@@ -22,7 +51,8 @@ fn bin() -> &'static str {
 
 #[test]
 fn test_ai_manifest_render_and_check() {
-    let root = get_repo_root();
+    let fixture = fixture_root();
+    let root = fixture.path().to_path_buf();
 
     // 1. Positive check on the clean repository
     let output = Command::new(bin())
@@ -45,6 +75,9 @@ fn test_ai_manifest_render_and_check() {
         stdout.contains("[OK] AI repository and tool manifests are in sync"),
         "Expected sync confirmation message, got: {stdout}"
     );
+    assert!(!fs::read_to_string(root.join("root-manifest.json"))
+        .unwrap()
+        .contains("private.rs"));
 
     // 2. Structured JSON format check
     let output_json = Command::new(bin())
@@ -111,4 +144,26 @@ fn test_ai_manifest_render_and_check() {
             "Expected stderr to report drift on tools/manifest.json, got: {stderr_neg}"
         );
     }
+}
+
+#[test]
+fn unreadable_index_fails_without_overwriting_manifests() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(".git"), "gitdir: missing-repository\n").unwrap();
+    fs::write(
+        dir.path().join("root-manifest.json"),
+        "preserve existing artifact\n",
+    )
+    .unwrap();
+    let output = Command::new(bin())
+        .args(["ai-manifest", "--root"])
+        .arg(dir.path())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot read tracked source index"));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("root-manifest.json")).unwrap(),
+        "preserve existing artifact\n"
+    );
 }
