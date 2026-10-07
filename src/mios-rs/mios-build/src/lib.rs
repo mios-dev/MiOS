@@ -39,6 +39,14 @@ pub struct NativeWindows {
     pub linker: String,
     pub rustflags: Vec<String>,
     pub system_dlls: Vec<String>,
+    #[serde(default = "default_windows_driver")]
+    pub driver: String,
+    #[serde(default)]
+    pub driver_version: Option<String>,
+}
+
+fn default_windows_driver() -> String {
+    "cargo".into()
 }
 
 #[derive(Debug, Deserialize)]
