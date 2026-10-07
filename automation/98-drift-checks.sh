@@ -2134,6 +2134,23 @@ check_ratchet_direction() {
     fi
 }
 
+check_rust_categories() {
+    # T-1197 / ADR-0021: the [rust.categories] registry is the port plan -- this
+    # gate fails it the moment a category loses its owner, a crate vanishes from
+    # disk while still cataloged, a replaces= claim outlives its script, or a
+    # universe script stops being owned by exactly one porting category.
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_rust_categories could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" rust-categories --root "$ROOT"; then
+        echo "[98-drift-checks]   [rust.categories] registry: owners, binaries, scopes and the unowned ceiling all hold"
+    else
+        _violation "the [rust.categories] ADR-0021 registry failed its ownership audit -- see the mios-gate rust-categories findings above"
+    fi
+}
+
 check_target_languages() {
     # `-d "$ROOT/.git"` is FALSE inside a git worktree, where .git is a FILE,
     # so this skipped wherever gates run from a worktree. rev-parse is true for
@@ -4052,6 +4069,7 @@ main() {
     check_ci_suite_coverage
     check_manpages
     check_rust_test_coverage
+    check_rust_categories
     check_header_comment_syntax
     check_variant_registry
     check_deploy_formats

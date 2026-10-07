@@ -3664,11 +3664,12 @@ enabled = true
 tui_python = "python3"         # shared Fedora Textual/Rich packages
 head_agent = ""                # empty opens the client chooser; NAME bypasses it
 worker_panes = 4
-desktop_head_percent = 34
+desktop_head_percent = 38           # Golden ratio: head 38.2% on LEFT, monitor 61.8% on RIGHT
 desktop_min_columns = 100
 desktop_min_rows = 32
 portrait_ratio_percent = 200
-portrait_observer_percent = 55
+portrait_observer_percent = 62        # Golden ratio: monitor 61.8% on TOP, head 38.2% on BOTTOM
+mobile_observer_percent = 62          # Golden ratio: mobile portrait monitor 61.8% on TOP
 minimum_head_rows = 16
 worker_min_columns = 12
 workers_window_name = "MiOS AI Workers"
@@ -7251,6 +7252,7 @@ forge_ssh          = 8410    # Forgejo git+ssh (vacated 2222 for host admin sshd
 cockpit            = 8110     # host Cockpit web console
 cockpit_link       = 8120    # mios-cockpit-link Podman Desktop discovery shim
 searxng            = 8800     # local privacy-respecting metasearch
+searxng_internal   = 8080     # SearXNG internal container listening port (upstream standard 8080; host maps 8800->8080)
 crawl4ai           = 8810    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 firecrawl          = 8820     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3033=open_webui.)
 hermes             = 8720     # Hermes gateway (canonical /v1). ONE key: hermes-worker.service is the only unit running `hermes gateway run` and binds this.
@@ -7265,6 +7267,7 @@ ceph_dashboard     = 8460     # Ceph dashboard
 radosgw            = 8470     # Ceph RADOS Gateway (S3 object storage)
 rdp                = 8300     # GNOME Remote Desktop / xRDP
 pgvector           = 8600     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; sole agent DB since the WS-A3 cutover)
+pgvector_internal  = 5432     # PostgreSQL internal container listening port (upstream standard 5432; host maps 8600->5432)
 llm_light          = 8500    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
 cpu_node           = 8510    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired).
 agent_pipe         = 8700     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
@@ -7356,6 +7359,7 @@ doc     = "Model-serving lanes. Ordered cheapest-to-heaviest: always-on llama.cp
 base    = 8600
 stride  = 10
 members = ["pgvector"]
+pinned  = { pgvector_internal = 5432 }
 doc     = "Datastores (the unified agent DB)."
 
 [ports.categories.agent]
@@ -7368,6 +7372,7 @@ doc     = "Agent plane. Ordered along the request path: pipe -> prefilter -> her
 base    = 8800
 stride  = 10
 members = ["searxng", "crawl4ai", "firecrawl"]
+pinned  = { searxng_internal = 8080 }
 doc     = "Search, crawl and scrape backends (the mios-webtools pod). LOOPBACK-only."
 
 [ports.categories.devtools]
@@ -7446,13 +7451,13 @@ bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 # [observability].otel_endpoint.
 non_addressable = [
   "adguard_dns", "adguard_ui", "agent_pipe", "ai_legacy", "arbiter", "ceph_dashboard",
-  "crawl4ai", "field_live_chat", "hermes", "llm_light", "node", "pgvector",
+  "crawl4ai", "field_live_chat", "hermes", "llm_light", "node", "pgvector", "pgvector_internal",
   "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
   "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
   "otelcol_otlp", "piper", "prefilter", "pxe_hub_api", "radosgw", "rdp", "redis",
-  "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm", "whisper",
+  "searxng_internal", "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm", "whisper",
 ]
 
 # ----------------------------------------------------------------------------
@@ -8322,6 +8327,14 @@ height              = 1000
 cols                = 80
 rows                = 40      # taller for install output + readme
 
+[terminal.monitor]
+cols                = 80
+rows                = 20      # 80x20 is the native SSOT size globally
+split_landscape_head    = 38  # Golden ratio: head 38.2% on LEFT
+split_landscape_monitor = 62  # Golden ratio: monitor 61.8% on RIGHT
+split_portrait_monitor  = 62  # Golden ratio: monitor 61.8% on TOP
+split_portrait_head     = 38  # Golden ratio: head 38.2% on BOTTOM
+
 [terminal.reading]
 cols                = 100
 rows                = 50
@@ -8330,7 +8343,7 @@ rows                = 50
 mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
 acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
-unfocused_acrylic   = false              # Windows 11 unblurred transparency while Terminal is inactive
+unfocused_acrylic   = true               # Windows 11 acrylic transparency while Terminal is inactive
 unfocused_opacity   = 50                 # preserve MiOS transparency while another app has focus
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
 cursor_shape        = "vintage"    # steady half-block; thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
@@ -8387,7 +8400,7 @@ status_position = "bottom"
 status_interval_s = 2
 glyph_mode = "auto"   # auto follows theme.font; ascii works with any SSH font
 remote_glyph_mode = "nerd"  # nerd opts into client glyphs
-pane_background = "theme"
+pane_background = "terminal"
 icon_os = ""
 icon_terminal = ""
 icon_time = ""
@@ -11348,6 +11361,16 @@ dest_dir = "tools/native"
 name_suffix = ".rs"
 emit = "file"
 
+[templates.rust-crate]
+match = "^tools/native/[\\w-]+/(?:Cargo\\.toml|src/[\\w./-]+\\.rs)$"
+comment = "hash"
+required_header = true
+required_markers = ["[package]", "name ="]
+generated = false
+scaffold = true
+dest_dir = "tools/native"
+emit = "directory"
+
 [templates.typescript]
 match = "^[\\w./-]+\\.ts$"
 comment = "slash"
@@ -13198,3 +13221,243 @@ min_bytes = 4194304
 max_untested_crates = 0
 
 [rust.untested_crates]
+
+# ----------------------------------------------------------------------------
+# [rust.categories] -- ADR-0021 Function-Named Binary & Crate SSOT Registry
+# ----------------------------------------------------------------------------
+# Maps script domains and existing crates to destination static binaries,
+# lifecycle roles, install directories, and responsible owners (T-1197).
+# Ownership gate: mios-gate rust-categories.
+# Script layer: scope= globs claim the scripts a category owns for porting;
+# exempt categories (binary = "exempt") carry their reason in description=;
+# universe= fixes the script roots the gate must account for, and max_unowned
+# is the shrink-only ceiling for scripts no category claims yet (T-1197).
+# A replaces= entry is ported-and-deleted evidence: the named script must be
+# absent from the tree in the same commit that proves parity (ADR-0021).
+[rust.categories]
+binaries = [
+  "mios-gate", "mios-gen", "mios-resolver", "mios-serve", "mios-probe",
+  "mios-install", "mios-build", "mios-task", "mios-node", "mios-launch",
+  "mios-wallpaperd", "miosd",
+]
+max_unowned = 128
+universe = [
+  "tools/", "automation/", "usr/libexec/mios/", "usr/lib/mios/",
+  "usr/share/mios/windows/", "installation/", "tests/", ".",
+]
+
+[rust.categories.gate]
+binary = "mios-gate"
+owner = "port-lane"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Standing policy gates, CI verifiers, and drift checkers"
+replaces = []
+scope = [
+  "tools/drift-checks.py", "tools/check-*.py", "tools/check-*.sh",
+  "tools/audit-*.py", "tools/ascii-sweep.py",
+  "automation/97-*.sh", "automation/98-*.sh", "automation/99-*.sh",
+  "usr/lib/mios/mios_comments.py",
+]
+crates = [
+  "mios-gate", "mios-aiplane-lint", "mios-comment-lex", "mios-drift-runner",
+  "mios-hardcode-lint", "mios-size-ceiling", "mios-ssot-lint", "mios-version-check",
+]
+
+[rust.categories.gen]
+binary = "mios-gen"
+owner = "port-lane"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Configuration generators, Quadlet renderers, and document projectors"
+replaces = []
+scope = [
+  "tools/generate-*.py", "tools/generate-*.sh", "tools/generate-*.ps1",
+  "tools/render-*.py", "tools/gen-*.py", "tools/compile-templates.py",
+  "tools/standardize-docs.py", "tools/roadmap-index.py", "tools/sync-wiki.py",
+  "usr/libexec/mios/win/*.py",
+  "usr/libexec/mios/ux/tmux_theme.py", "usr/libexec/mios/ux/btop_theme.py",
+  "usr/libexec/mios/ux/fastfetch_gen.py", "usr/libexec/mios/ux/theme_sync.py",
+  "usr/libexec/mios/ux/editor_config_gen.py", "usr/libexec/mios/ux/wm_config_gen.py",
+]
+crates = [
+  "generate-names-registry", "mios-render-quadlets", "mios-unit-gen",
+  "mios-template-compile", "mios-template-conform",
+]
+
+[rust.categories.resolver]
+binary = "mios-resolver"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Authoritative layered SSOT configuration reader and emitter"
+replaces = []
+scope = [
+  "usr/lib/mios/mios_toml.py", "tools/lib/userenv.sh", "tools/read-ssot-key.py",
+  "tools/refresh-env.py",
+]
+crates = [
+  "mios-resolver", "mios-toml-get", "mios-ai-config", "mios-ssot-walk", "mios-config",
+]
+
+[rust.categories.serve]
+binary = "mios-serve"
+owner = "native-tier"
+install_dir = "/usr/libexec/mios"
+role = "services"
+description = "System daemons, MCP runner, and background workers"
+replaces = []
+scope = [
+  "usr/libexec/mios/ai/*.py", "usr/libexec/mios/audio/*.py",
+  "usr/libexec/mios/db/*.py", "usr/libexec/mios/git/*.py",
+  "usr/libexec/mios/hw/*.py", "usr/libexec/mios/kernel/*.py",
+  "usr/libexec/mios/net/*.py", "usr/libexec/mios/node/*.py",
+  "usr/libexec/mios/sec/*.py", "usr/libexec/mios/storage/*.py",
+  "usr/libexec/mios/user/*.py", "usr/libexec/mios/virt/*.py",
+  "usr/libexec/mios/a2a/*.py",
+  "usr/libexec/mios/ux/living_wallpaper.py", "usr/libexec/mios/ux/wallpaperd.py",
+  "usr/libexec/mios/ux/notification_daemon.py", "usr/libexec/mios/ux/status_bar.py",
+  "usr/libexec/mios/ux/firstboot_wizard.py", "usr/libexec/mios/ux/audio_feedback.py",
+  "usr/libexec/mios/ux/biometric_lock.py", "usr/libexec/mios/ux/clipboard_sync.py",
+  "usr/libexec/mios/ux/diff_auditor.py", "usr/libexec/mios/ux/focus_audio.py",
+  "usr/libexec/mios/ux/gnome_extension.py", "usr/libexec/mios/ux/font_scaler.py",
+]
+crates = ["mios-agent-relay", "mios-service-core"]
+
+[rust.categories.probe]
+binary = "mios-probe"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Host readiness, hardware capabilities, and preflight probing"
+replaces = []
+scope = [
+  "usr/libexec/mios/mios-mon.py", "usr/libexec/mios/*.sh",
+  "usr/lib/mios/mios_agent_tui.py",
+  "tools/system-profiler.sh", "tools/run-all-profilers.sh",
+  "tools/profile-compare.sh", "tools/fetch-image-facts.sh",
+]
+crates = ["mios-probe", "mios-edge-status"]
+
+[rust.categories.install]
+binary = "mios-install"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Bare-metal deployment, bootstrap engine, and OS installer"
+replaces = []
+scope = [
+  "Get-MiOS.ps1", "Uninstall-MiOS.ps1", "install-mios-agents.sh",
+  "installation/*.sh", "installation/*.ps1",
+  "config/bootstrap/*.sh", "config/bootstrap/*.ps1",
+  "usr/libexec/mios/deploy/*.py",
+  "usr/share/mios/windows/mios-native-client-setup.ps1",
+  "usr/share/mios/windows/mios-ai-node.ps1",
+  "tools/install.sh",
+]
+crates = ["mios-install"]
+
+[rust.categories.build]
+binary = "mios-build"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Native compilation, phase registry validation, and artifact packaging"
+replaces = []
+scope = [
+  "build-mios.ps1", "mios-pipeline.ps1", "mios-build-local.ps1",
+  "mios-cloud-build.ps1", "mios-windows-export.ps1", "preflight.ps1",
+  "push-to-github.ps1",
+  "tools/sync-generated.sh", "tools/sync-bootstrap.py",
+  "tools/ci-suites.py",
+  "tools/lib/generate-build-scripts.py", "tools/windows/*.ps1",
+  "tools/mios-overlay.sh", "tools/mios-sysext-pack.sh",
+  "tools/log-to-bootstrap.sh", "tools/mirror-machine-os.sh",
+  "tools/refresh-flatpak-shortcuts.ps1",
+  "usr/libexec/mios/Heal-MiOSLocalhostForwarding.ps1",
+  "usr/libexec/mios/Setup-MiOSLanPortProxy.ps1",
+  "usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1",
+  "usr/share/mios/windows/mios-wsl-keepalive.ps1",
+]
+crates = ["mios-build", "mios-bake-plan", "mios-toolchain-pin", "xtask"]
+
+[rust.categories.task]
+binary = "mios-task"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "Dev-loop task ledger and queue management (tasks.jsonl)"
+replaces = []
+crates = ["mios-task"]
+
+[rust.categories.node]
+binary = "mios-node"
+owner = "native-tier"
+install_dir = "/usr/libexec/mios"
+role = "daemons"
+description = "MiOS edge mesh VPN coordinator and node daemon"
+replaces = []
+crates = ["mios-node"]
+
+[rust.categories.apps]
+binary = "mios-launch"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "apps"
+description = "Windows native terminal launcher and desktop client"
+replaces = []
+crates = ["mios-launch", "mios-browser"]
+
+[rust.categories.wallpaperd]
+binary = "mios-wallpaperd"
+owner = "native-tier"
+install_dir = "/usr/libexec/mios"
+role = "daemons"
+description = "Dynamic live wallpaper daemon and directX GPU supervisor"
+replaces = []
+crates = ["mios-wallpaperd"]
+
+[rust.categories.daemon_meta]
+binary = "miosd"
+owner = "native-tier"
+install_dir = "/usr/bin"
+role = "cli"
+description = "System management meta-CLI and execution dispatcher"
+replaces = []
+crates = ["miosd"]
+
+# -- Exempt script domains (ADR-0011 language-per-domain; NOT porting targets) --
+[rust.categories.ai-plane]
+binary = "exempt"
+owner = "agent-plane"
+install_dir = ""
+role = "exempt"
+description = "Python AI plane exempt per [legibility].python_ai_plane_prefixes: agent-pipe, agents, gateway-agent, OWUI pipes, hermes support tooling"
+replaces = []
+crates = []
+scope = [
+  "usr/lib/mios/agent-pipe/**", "usr/lib/mios/agents/**",
+  "usr/lib/mios/gateway-agent/**", "usr/share/mios/owui/**",
+  "usr/share/mios/hermes/**", "automation/support/**",
+]
+
+[rust.categories.automation-glue]
+binary = "exempt"
+owner = "build-lane"
+install_dir = ""
+role = "exempt"
+description = "Bash thin glue per ADR-0011: the automation NN-* boundary steps stay bash; a porting category scope overrides this claim where a stage converts"
+replaces = []
+crates = []
+scope = ["automation/**/*.sh"]
+
+[rust.categories.tests]
+binary = "exempt"
+owner = "qa-lane"
+install_dir = ""
+role = "exempt"
+description = "Test suites port only with the surface they guard; tools/test_*.py are the python gates' own unit tests"
+replaces = []
+crates = []
+scope = ["tests/**", "tools/test_*.py"]
+

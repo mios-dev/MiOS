@@ -103,6 +103,9 @@ WHERE am.amname IN ('hnsw', 'ivfflat')
 ORDER BY t.relname, c.relname;
 """
 
+# SSOT [ports].pgvector_internal: the in-container listener (host maps 8600->5432).
+DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORT_PGVECTOR_INTERNAL", "5432"))
+
 class PgVectorOptimizer:
     """Orchestrates VACUUM ANALYZE and CONCURRENT REINDEX operations."""
 
@@ -110,7 +113,7 @@ class PgVectorOptimizer:
         self,
         db: str = "mios",
         host: str = "127.0.0.1",
-        port: int = 5432,
+        port: int = DEFAULT_PG_PORT,
         user: str = "postgres",
         parallel: int = 4,
         dry_run: bool = False,

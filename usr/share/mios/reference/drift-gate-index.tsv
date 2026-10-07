@@ -218,11 +218,12 @@
 217	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
 218	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
 219	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
-220	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-221	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
-222	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
-223	check_verify_images	container image verification signatures and digests are valid
-224	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
-225	check_negatives_registered	every drift check has a corresponding negative test registered
-226	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
-227	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+220	check_rust_categories	[rust.categories] registry: owners, binaries, scopes and the unowned ceiling all hold
+221	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
+222	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
+223	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
+224	check_verify_images	container image verification signatures and digests are valid
+225	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
+226	check_negatives_registered	every drift check has a corresponding negative test registered
+227	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+228	check_leaked_fixtures	no transient test fixtures or dump files are committed in git

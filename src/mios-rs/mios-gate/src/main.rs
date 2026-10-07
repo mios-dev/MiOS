@@ -19,6 +19,7 @@ mod projreg;
 mod protected_refs;
 mod ratchet;
 mod rendercov;
+mod rust_categories;
 mod sigpolicy;
 mod static_linkage;
 mod stubs;
@@ -95,7 +96,7 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                              drift-stubs, image-equivalence, image-freshness, law-enforcers,\n\
                              no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
-                             ratchet-direction, render-coverage, signature-policy,\n\
+                             ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
 
 fn main() -> ExitCode {
@@ -215,6 +216,7 @@ fn main() -> ExitCode {
         "protected-refs" => protected_refs::check(&root),
         "ratchet-direction" => ratchet::check(&root),
         "render-coverage" => rendercov::check(&root),
+        "rust-categories" => rust_categories::check(&root),
         "signature-policy" => sigpolicy::check(&root),
         "static-linkage" => static_linkage::check(&static_linkage::Options {
             root: root.clone(),

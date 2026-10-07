@@ -179,15 +179,15 @@ foreach ($s in $SERVICES) {
     }
 }
 
-# Portal FRONT DOOR at the BARE address (https://<node>, no port) -> agent-pipe :8640,
+# Portal FRONT DOOR at the BARE address (https://<node>, no port) -> agent-pipe ($agentPipePort),
 # which serves the MiOS Portal at GET / (password-gated -> /login). Uses --https (port
 # 443 is allowed for --https; HTTP-aware so it forwards X-Forwarded-Proto and the
 # portal's login cookie + 303->/login redirect work, unlike raw tls-terminated-tcp).
-if (Test-Port 8640) {
+if (Test-Port $agentPipePort) {
     if ($DryRun) {
-        Write-Host "  WOULD  tailscale serve --bg --https=443 http://127.0.0.1:8640   (Portal root)" -ForegroundColor Yellow
+        Write-Host ("  WOULD  tailscale serve --bg --https=443 http://127.0.0.1:{0}   (Portal root)" -f $agentPipePort) -ForegroundColor Yellow
     } else {
-        $o = (& $ts serve --bg --https=443 "http://127.0.0.1:8640" 2>&1) -join ' '
+        $o = (& $ts serve --bg --https=443 ("http://127.0.0.1:{0}" -f $agentPipePort) 2>&1) -join ' '
         if ($LASTEXITCODE -eq 0) {
             Write-Host ("  serve  {0,-14} https://{1}   (Portal front door)" -f 'portal', $dns) -ForegroundColor Green
             $served = @(@{ label='MiOS Portal (root)'; port=443 }) + $served
@@ -196,7 +196,7 @@ if (Test-Port 8640) {
         }
     }
 } else {
-    Write-Host "  skip   portal         (agent-pipe :8640 not reachable)" -ForegroundColor DarkGray
+    Write-Host ("  skip   portal         (agent-pipe :{0} not reachable)" -f $agentPipePort) -ForegroundColor DarkGray
 }
 
 Write-Host "`n=== tailscale serve status ===" -ForegroundColor Cyan

@@ -5559,6 +5559,7 @@ _run_test test_leaked_fixtures
     _run_test test_edge_status
     _run_test test_artifact_prompt
     _run_test test_ai_artifacts
+    _run_test test_rust_categories
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s
@@ -5567,6 +5568,38 @@ _run_test test_leaked_fixtures
         exit 1
     fi
     log "All negative tests completed successfully"
+}
+
+test_rust_categories() {
+    log "Testing check_rust_categories"
+    local VLBIN=""
+    for c in "${ROOT}/src/mios-rs/target/release/mios-gate" \
+             "${ROOT}/src/mios-rs/target/debug/mios-gate" \
+             "${ROOT}/src/mios-rs/target/release/mios-gate.exe" \
+             "${ROOT}/src/mios-rs/target/debug/mios-gate.exe" \
+             /usr/libexec/mios/mios-gate ""; do
+        [[ -n "$c" && -x "$c" ]] && { VLBIN="$c"; break; }
+    done
+    [[ -n "$VLBIN" ]] || die "mios-gate is not built, so test_rust_categories has no subject"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup; backup="$(mktemp)"
+    cp -p "$toml" "$backup"
+    # Probe: a category whose owner is empty and whose exemption carries no
+    # reason -- two planted defects the gate must name, assembled dynamically
+    # so the probe never matches a static scan.
+    local probe_owner probe_table
+    probe_owner="$(printf 'ow%sner = ""' 'o')"
+    probe_table="$(printf '[rust.categories.probe-%s]' "$(date +%s)")"
+    printf '\n%s\n%s\n' "$probe_table" "$probe_owner" >> "$toml"
+    if "$VLBIN" rust-categories --root "$ROOT" >/dev/null 2>&1; then
+        cp -p "$backup" "$toml"; rm -f "$backup"
+        die "rust-categories reported clean with a planted owner-less category"
+    fi
+    cp -p "$backup" "$toml"
+    rm -f "$backup"
+    "$VLBIN" rust-categories --root "$ROOT" >/dev/null 2>&1 \
+        || die "rust-categories failed on the clean tree after the probe was removed"
+    log "check_rust_categories negative test passed"
 }
 
 main "$@"

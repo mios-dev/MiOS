@@ -407,14 +407,13 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
     };
 
     let tmpl_file = repo_root.join("usr/share/mios/templates").join(type_name);
-    if !tmpl_file.is_file() {
+    if !tmpl_file.exists() {
         eprintln!(
             "Error: Template for '{}' not found at {:?}",
             type_name, tmpl_file
         );
         std::process::exit(1);
     }
-    let content = std::fs::read_to_string(&tmpl_file)?;
 
     let toml_path = repo_root.join("usr/share/mios/mios.toml");
     let mut placeholders: std::collections::HashMap<String, String> =
@@ -439,6 +438,83 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
             }
         }
     }
+
+    if tmpl_file.is_dir() {
+        let dest_dir = tmpl_cfg
+            .as_ref()
+            .and_then(|c| c.get("dest_dir"))
+            .and_then(|d| d.as_str())
+            .unwrap_or("tools/native");
+        let dest_root = repo_root.join(dest_dir).join(name);
+        std::fs::create_dir_all(&dest_root)?;
+
+        let pascal_name = {
+            let words: Vec<&str> = name.split(&['-', '_'][..]).collect();
+            words
+                .iter()
+                .map(|w| {
+                    let mut c = w.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                    }
+                })
+                .collect::<String>()
+        };
+
+        fn walk_scaffold(
+            src_dir: &std::path::Path,
+            dst_dir: &std::path::Path,
+            crate_name: &str,
+            p_name: &str,
+            p_map: &std::collections::HashMap<String, String>,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            for entry in std::fs::read_dir(src_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                let rel = path.strip_prefix(src_dir)?;
+                let target = dst_dir.join(rel);
+                if path.is_dir() {
+                    std::fs::create_dir_all(&target)?;
+                    walk_scaffold(&path, &target, crate_name, p_name, p_map)?;
+                } else if path.is_file() {
+                    let mut text = std::fs::read_to_string(&path)?;
+                    text = text.replace("{{name}}", crate_name);
+                    text = text.replace("{{PascalName}}", p_name);
+                    for (k, v) in p_map {
+                        text = text.replace(&format!("{{{{{}}}}}", k), v);
+                    }
+                    if let Some(p) = target.parent() {
+                        std::fs::create_dir_all(p)?;
+                    }
+                    std::fs::write(&target, text)?;
+                }
+            }
+            Ok(())
+        }
+
+        walk_scaffold(&tmpl_file, &dest_root, name, &pascal_name, &placeholders)?;
+
+        if type_name == "rust_crate" || type_name == "rust-crate" {
+            let gen_script = repo_root.join("tools/generate-cargo-manifests.py");
+            if gen_script.is_file() {
+                let py = if cfg!(windows) { "python" } else { "python3" };
+                let _ = std::process::Command::new(py)
+                    .arg(&gen_script)
+                    .current_dir(&repo_root)
+                    .output();
+            }
+        }
+
+        println!(
+            "Scaffolded new {} at: {}",
+            type_name,
+            dest_root.display().to_string().replace('\\', "/")
+        );
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(&tmpl_file)?;
 
     // Name BEFORE render: {{id}} must agree with the filename the allocator chose.
     let final_name = match tmpl_cfg.as_ref() {
