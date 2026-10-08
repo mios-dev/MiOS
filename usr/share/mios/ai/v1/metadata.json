@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3818,
-  "total_metadata_entries": 3110,
-  "total_hints": 3100,
+  "total_files_scanned": 3820,
+  "total_metadata_entries": 3112,
+  "total_hints": 3102,
   "total_functions_indexed": 1461,
-  "total_related_links": 5153,
+  "total_related_links": 5159,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -6775,6 +6775,19 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-build-inputs.sh",
+      "hint": "Verifies font archive integrity and shared-base phase prerequisites, plus narrow signing-input exports, without building images or downloading assets.",
+      "related": [
+        "automation/56-fonts.sh",
+        "usr/share/mios/base/Containerfile",
+        "tools/native/mios-resolver/src/emit.rs"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-cat-launcher.py",
       "hint": "Automated unit test suite for WS-CAT tri-launcher hardening and staging separation.",
       "related": [
@@ -7198,6 +7211,19 @@
       "path": "tests/test-firstboot-prestage.sh",
       "hint": "Tests firstboot image prestaging with stubbed podman pulls, checking which images are pulled and in what order.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-flatpak-bake.sh",
+      "hint": "Exercises headless Flatpak installation, failure propagation and browser defaults with a real private D-Bus session and isolated command fixtures.",
+      "related": [
+        "automation/61-flatpak-bake.sh",
+        "usr/libexec/mios/mios-hermes-browser",
+        "usr/share/mios/mios.toml"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
