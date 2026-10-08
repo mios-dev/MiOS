@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3815,
-  "total_metadata_entries": 3107,
-  "total_hints": 3097,
+  "total_files_scanned": 3816,
+  "total_metadata_entries": 3108,
+  "total_hints": 3098,
   "total_functions_indexed": 1462,
-  "total_related_links": 5141,
+  "total_related_links": 5144,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -6491,6 +6491,19 @@
         "usr/libexec/mios/db/mios-db-doctor.py",
         "usr/libexec/mios/db/mios-db-migrate.py",
         "usr/libexec/mios/sec/mios-luks-rotate"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-agent-input-safety.py",
+      "hint": "Regression controls for agent argv boundaries and bounded input normalization; never invokes a model.",
+      "related": [
+        "usr/lib/mios/agents/opencode-gateway/server.py",
+        "usr/lib/mios/agent-pipe/mios_dispatch.py",
+        "usr/lib/mios/agent-pipe/mios_ast_diff.py"
       ],
       "functions": [],
       "doc": null,

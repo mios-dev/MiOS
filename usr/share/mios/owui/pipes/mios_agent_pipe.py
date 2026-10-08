@@ -48,13 +48,6 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
 
 import aiohttp
 
-QWEN_FUNCTION_RE = re.compile(
-    r"<function=([a-zA-Z_-]+)>\s*"
-    r"(?:<parameter=([a-zA-Z_-]+)>\s*(.*?)\s*</parameter>\s*)*"
-    r"</function>(?:\s*</tool_call>)?",
-    re.DOTALL,
-)
-
 NARRATION_LEADERS = [
     r"^let me\b", r"^let.s\b", r"^i.ll\b", r"^i.m going to\b",
     r"^i.m about to\b", r"^i need to\b", r"^i.ll need to\b",
