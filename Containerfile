@@ -73,6 +73,9 @@ ARG MIOS_PROFILES_DEFAULT
 # surface edited by hand still fails the build (Law 8) before it is overwritten.
 # Source drift checks need every tracked consumer, including tests and CI.
 # Restore omitted index entries after provisioning; retain copied edits and exclude caches.
+# The drift gate lints with the self-build toolchain ([drift.lint]: ShellCheck,
+# python3). Every profile installs [packages.self-build], so this only moves it
+# ahead of the gate; a missing compiler fails the gate instead of skipping it.
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     --mount=type=cache,dst=/var/cache/dnf5,sharing=locked \
@@ -105,6 +108,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     source /tmp/build/automation/lib/packages.sh; \
     ${DNF_BIN:-dnf5} clean metadata 2>/dev/null || ${DNF_BIN:-dnf} clean metadata 2>/dev/null || true; \
     install_packages_strict base; \
+    install_packages_strict self-build; \
     git -C /tmp/build ls-files --deleted -z | git -C /tmp/build checkout-index -z --stdin; \
     if [[ -n "${MIOS_DESKTOP_FLATPAKS}" ]]; then \
         echo "${MIOS_DESKTOP_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \

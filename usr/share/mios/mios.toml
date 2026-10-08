@@ -12884,6 +12884,8 @@ unit = [
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
     "tests/test-profile-packages.sh",
+    "tests/test-build-inputs.sh",
+    "tests/test-flatpak-bake.sh",
     "tests/test-image-equivalence.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
