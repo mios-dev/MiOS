@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3799,
-  "total_metadata_entries": 3091,
-  "total_hints": 3081,
+  "total_files_scanned": 3802,
+  "total_metadata_entries": 3094,
+  "total_hints": 3084,
   "total_functions_indexed": 1462,
-  "total_related_links": 5125,
+  "total_related_links": 5131,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5608,6 +5608,18 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/miosd/src/terminal_runtime.rs",
+      "hint": "Validate and repair the SSOT-selected tmux namespace using live peer credentials and inode descriptors; preserve running sessions.",
+      "related": [
+        "usr/libexec/mios/mios-terminal",
+        "usr/share/mios/windows/mios-native-client-setup.ps1"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/root.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -11574,6 +11586,17 @@
       "has_shebang": true
     },
     {
+      "path": "tools/test_configurator_security.py",
+      "hint": "Execute the configurator's real JavaScript serializers and path banner against hostile strings; validate emitted TOML with the standard parser.",
+      "related": [
+        "usr/share/mios/configurator/mios.html"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tools/test_conformance_golden.py",
       "hint": "Golden CLI fixture test runner for check-template-conformance CLI output and behavior.",
       "related": [
@@ -11643,6 +11666,19 @@
       "related": [
         "tools/read-ssot-key.py",
         "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tools/test_routing_security.py",
+      "hint": "Execute actual relay handler bodies with faulting clients to prove exception details remain server-side while success responses remain intact.",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py",
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py",
+        "usr/libexec/mios/mios-model-router"
       ],
       "functions": [],
       "doc": null,
