@@ -26906,7 +26906,7 @@
     },
     {
       "path": "usr/libexec/mios/sec/rotate-quadlet-secrets.py",
-      "hint": "Quadlet container secrets enforcement (0600 permissions) and automated credential rotation.",
+      "hint": "Quadlet secrets enforcement, fail-closed private atomic initialization preserving existing credentials, and explicit token rotation.",
       "related": [
         "tests/test-sec.py",
         "usr/share/doc/mios/manual/sec.md"
