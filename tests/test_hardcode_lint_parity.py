@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive parity test suite for MiOS hardcode linting (Python oracle vs Rust compiled binary).
 # AI-related: usr/libexec/mios/mios-hardcode-lint, usr/share/mios/mios.toml, tools/native/mios-hardcode-lint, automation/98-drift-checks.sh
-# AI-doc: usr/share/doc/mios/adr/0003-sbom-not-hardcode.md, TEST_INFRA.md, PROJECT.md
+# AI-doc: usr/share/doc/mios/adr/0003-sbom-not-hardcode.md, usr/share/doc/mios/manual/tests.md, PROJECT.md
 """Comprehensive parity and two-sided verification test suite for mios-hardcode-lint.
 
 Validates the full behavioral contract of Architectural Law 7 (NO-HARDCODE enforcement):

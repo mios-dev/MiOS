@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration test suite for mios-gen ai-manifest (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/ai_manifest.rs, tools/generate-ai-manifest.py
+// AI-related: tools/native/mios-gen/src/ai_manifest.rs
 
 use std::fs;
 use std::path::PathBuf;

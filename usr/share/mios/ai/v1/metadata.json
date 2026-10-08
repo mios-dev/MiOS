@@ -4,7 +4,7 @@
   "total_metadata_entries": 3105,
   "total_hints": 3095,
   "total_functions_indexed": 1462,
-  "total_related_links": 5144,
+  "total_related_links": 5138,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -453,12 +453,12 @@
     },
     {
       "path": "ADR.md",
-      "hint": "Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by tools/generate-adr-index.py; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy.",
+      "hint": "Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by mios-gen adr-index; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy.",
       "related": [
         "usr/share/doc/mios/adr/",
         "usr/share/doc/mios/adr/README.md",
         "usr/share/mios/mios.toml [laws]",
-        "tools/generate-adr-index.py"
+        "tools/native/mios-gen/src/adr_index.rs"
       ],
       "functions": [],
       "doc": null,
@@ -4336,8 +4336,7 @@
       "path": "src/mios-rs/mios-gate/src/canonical_bools.rs",
       "hint": "Asserts [verbs.*] boolean fields carry canonical TOML booleans, not stringly-typed lookalikes -- hidden, sensitive, params[].required, and params[].default (when type=boolean) must parse as real bools.",
       "related": [
-        "tools/drift-checks.py (strangled by this port",
-        "T-1009 unit 2)",
+        "automation/98-drift-checks.sh",
         "automation/98-drift-checks.sh",
         "usr/share/mios/mios.toml"
       ],
@@ -4353,7 +4352,7 @@
         "usr/share/mios/mios.toml",
         "usr/share/containers/systemd",
         "usr/lib/systemd/system",
-        "tools/generate-pod-quadlets.py"
+        "tools/native/mios-gen/src/pod_quadlets.rs"
       ],
       "functions": [],
       "doc": null,
@@ -4460,8 +4459,7 @@
       "path": "src/mios-rs/mios-gate/src/negative_coverage.rs",
       "hint": "Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this gate is what keeps the phantom population at zero.",
       "related": [
-        "tools/drift-checks.py (strangled by this port",
-        "T-1009 unit 1)",
+        "automation/98-drift-checks.sh",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh",
         "usr/share/mios/mios.toml"
@@ -4575,7 +4573,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "usr/lib/containers/policy.json",
-        "tools/generate-cosign-policy.py",
+        "tools/native/mios-gen/src/main.rs",
         "automation/49-cosign-policy.sh"
       ],
       "functions": [],
@@ -5456,8 +5454,8 @@
       "path": "src/mios-rs/miosd/src/drift/projections.rs",
       "hint": "Heavy regen-and-diff projection checks for miosd drift runner.",
       "related": [
-        "tools/generate-pod-quadlets.py",
-        "tools/generate-egress-firewall.py",
+        "tools/native/mios-gen/src/pod_quadlets.rs",
+        "tools/native/mios-gen/src/main.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -6463,7 +6461,7 @@
         "usr/share/mios/llamacpp/llama-swap.yaml"
       ],
       "functions": [],
-      "doc": "PROJECT.md, TEST_INFRA.md, ORIGINAL_REQUEST.md",
+      "doc": "PROJECT.md, usr/share/doc/mios/manual/tests.md, usr/share/doc/mios/manual/thesis.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -7331,7 +7329,7 @@
         "tests/test_hardcode_lint_parity.py"
       ],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/windows.md, TEST_INFRA.md, PROJECT.md",
+      "doc": "usr/share/doc/mios/manual/windows.md, usr/share/doc/mios/manual/tests.md, PROJECT.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -8146,7 +8144,7 @@
         "/usr/share/containers/systemd",
         "/usr/lib/tmpfiles.d",
         "/usr/share/mios/mios.toml",
-        "/tools/generate-pod-quadlets.py"
+        "tools/native/mios-gen/src/pod_quadlets.rs"
       ],
       "functions": [
         "state_mounts",
@@ -9019,7 +9017,7 @@
       "hint": "Adversarial stress test suite comparing Rust mios-hardcode-lint against Python oracle.",
       "related": [
         "usr/libexec/mios/mios-hardcode-lint",
-        "tools/native/target/debug/mios-hardcode-lint.exe"
+        "tools/native/mios-hardcode-lint/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9050,7 +9048,7 @@
         "tools/native/mios-service-core"
       ],
       "functions": [],
-      "doc": "TEST_INFRA.md, TEST_READY.md, PROJECT.md",
+      "doc": "usr/share/doc/mios/manual/tests.md, usr/share/doc/mios/manual/tests.md, PROJECT.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -9064,7 +9062,7 @@
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
-      "doc": "usr/share/doc/mios/adr/0003-sbom-not-hardcode.md, TEST_INFRA.md, PROJECT.md",
+      "doc": "usr/share/doc/mios/adr/0003-sbom-not-hardcode.md, usr/share/doc/mios/manual/tests.md, PROJECT.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -9079,7 +9077,7 @@
         "tools/sync-bootstrap.py"
       ],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/tests.md, TEST_INFRA.md, PROJECT.md",
+      "doc": "usr/share/doc/mios/manual/tests.md, usr/share/doc/mios/manual/tests.md, PROJECT.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -9363,7 +9361,7 @@
         "usr/share/mios/k3s",
         "usr/share/containers/systemd",
         "usr/share/mios/mios.toml",
-        "tools/generate-ai-manifest.py"
+        "tools/native/mios-gen/src/ai_manifest.rs"
       ],
       "functions": [
         "_emit_header",
@@ -9885,7 +9883,7 @@
       "related": [
         "usr/share/doc/mios/adr/",
         "usr/share/mios/mios.toml",
-        "tools/generate-adr-index.py"
+        "tools/native/mios-gen/src/adr_index.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9896,7 +9894,7 @@
       "path": "tools/native/mios-gen/src/ai_manifest.rs",
       "hint": "SSOT projector and verifier for AI repository and tool manifests (ADR-0021 gen category).",
       "related": [
-        "tools/generate-ai-manifest.py",
+        "tools/native/mios-gen/src/ai_manifest.rs",
         "automation/manifest.json",
         "tools/manifest.json",
         "specs/manifest.json"
@@ -9999,7 +9997,7 @@
       "related": [
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
         "usr/share/mios/mios.toml",
-        "tools/generate-metal-vs-hosted.py"
+        "tools/native/mios-gen/src/metal_vs_hosted.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10082,7 +10080,7 @@
       "hint": "Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).",
       "related": [
         "usr/share/mios/mios.toml",
-        "tools/render-manpages.py",
+        "tools/native/mios-gen/src/render_manpages.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -10095,7 +10093,7 @@
       "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
       "related": [
         "usr/share/mios/mios.toml",
-        "tools/render-ports.py",
+        "tools/native/mios-gen/src/render_ports.rs",
         "automation/35-render-ports.sh",
         "automation/98-drift-checks.sh"
       ],
@@ -10121,7 +10119,7 @@
       "path": "tools/native/mios-gen/src/standardize_docs.rs",
       "hint": "SSOT projector and standardizer for specs/ markdown documentation (ADR-0021 gen category).",
       "related": [
-        "tools/standardize-docs.py",
+        "tools/native/mios-gen/src/standardize_docs.rs",
         "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
       ],
       "functions": [
@@ -10207,8 +10205,7 @@
       "path": "tools/native/mios-gen/tests/ai_manifest.rs",
       "hint": "Two-sided integration test suite for mios-gen ai-manifest (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs",
-        "tools/generate-ai-manifest.py"
+        "tools/native/mios-gen/src/ai_manifest.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10399,7 +10396,6 @@
       "hint": "Two-sided integration test suite for mios-gen render-ports (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/render_ports.rs",
-        "tools/render-ports.py",
         "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
@@ -11725,7 +11721,7 @@
       "path": "tools/test_generate-gate-index.py",
       "hint": "Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check.",
       "related": [
-        "tools/generate-gate-index.py",
+        "tools/native/mios-gen/src/gate_index.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -11737,8 +11733,8 @@
       "path": "tools/test_generator_check_agrees_with_write.py",
       "hint": "Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here.",
       "related": [
-        "tools/generate-bib-configs.py",
-        "tools/generate-gate-index.py",
+        "tools/native/mios-gen/src/bib_configs.rs",
+        "tools/native/mios-gen/src/gate_index.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -17282,7 +17278,7 @@
       "related": [
         "usr/libexec/mios/mios-mcp-server",
         "usr/share/mios/mios.toml [mcp]",
-        "c:/-dev-loop/bridge/src/lib.rs"
+        "usr/lib/mios/mios_translate.py"
       ],
       "functions": [],
       "doc": null,
@@ -28879,7 +28875,7 @@
         "automation/57-mios-sys-build.sh",
         "usr/share/mios/sys/Containerfile",
         "usr/share/mios/cuda/Containerfile",
-        "tools/generate-pod-quadlets.py",
+        "tools/native/mios-gen/src/pod_quadlets.rs",
         "automation/34-render-quadlets.sh",
         "MIOS_SYS_IMAGE",
         "MIOS_CUDA_IMAGE"
@@ -29121,7 +29117,7 @@
         "[nodes]",
         "[profile]",
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
-        "tools/generate-metal-vs-hosted.py",
+        "tools/native/mios-gen/src/metal_vs_hosted.rs",
         "usr/libexec/mios/role-apply",
         "tools/native/mios-unit-gen/src/lib.rs",
         "usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py",
@@ -30098,7 +30094,7 @@
       "hint": "Guide to configuring Blink Shell on iOS (iPhone/iPad) and tmux for Shift+Tab and mobile terminal shortcut combos.",
       "related": [
         "/usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
-        "/usr/libexec/mios/ux/tmux_theme.py",
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "/etc/tmux.conf"
       ],
       "functions": [],
@@ -32584,8 +32580,8 @@
         "usr/lib/mios/log.sh",
         "usr/share/mios/reference/drift-gate-index.tsv",
         "usr/share/mios/reference/pipeline-index.tsv",
-        "tools/generate-gate-index.py",
-        "tools/generate-pipeline-index.py",
+        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/pipeline_index.rs",
         "usr/share/mios/mios.toml",
         "docs/design/doc-unified-pipeline.md"
       ],
@@ -32659,8 +32655,8 @@
         "usr/share/mios/mios.toml",
         ".github/workflows/mios-ci.yml",
         "usr/lib/containers/policy.json",
-        "tools/generate-cosign-policy.py",
-        "tools/generate-egress-firewall.py",
+        "tools/native/mios-gen/src/main.rs",
+        "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/security/egress.nft",
         "usr/share/mios/artifacts/sbom/bound-images.tsv",
         "usr/libexec/mios/mios-bake-group",
@@ -32964,11 +32960,11 @@
     },
     {
       "path": "usr/share/doc/mios/reference/metal-vs-hosted.md",
-      "hint": "GENERATED by tools/generate-metal-vs-hosted.py from mios.toml. DO NOT EDIT -- re-run the generator. Part 1 compares the two PRODUCTS ([blade.planes]); Part 2 the two MODES ([blade.archetypes]). Every count is derived, so neither can go stale. ADR-0016 D10-D14.",
+      "hint": "GENERATED by mios-gen metal-vs-hosted from mios.toml. DO NOT EDIT -- re-run the generator. Part 1 compares the two PRODUCTS ([blade.planes]); Part 2 the two MODES ([blade.archetypes]). Every count is derived, so neither can go stale. ADR-0016 D10-D14.",
       "related": [
         "usr/share/mios/mios.toml",
         "usr/share/doc/mios/adr/0016-blade-node-topology.md",
-        "tools/generate-metal-vs-hosted.py"
+        "tools/native/mios-gen/src/metal_vs_hosted.rs"
       ],
       "functions": [],
       "doc": null,
@@ -36015,7 +36011,7 @@
       "path": "usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
       "hint": "Tmux key bindings and terminal capabilities for iOS Blink Shell, enabling Shift+Tab (backtab) and mobile shortcut combos.",
       "related": [
-        "usr/libexec/mios/ux/tmux_theme.py",
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "usr/share/doc/mios/guides/blink-tmux-mobile-keys.md"
       ],
       "functions": [],
@@ -36190,8 +36186,7 @@
       "path": "usr/share/mios/windows/mios-ai.ps1",
       "hint": "Legacy Windows mios-ai command enters the native AI workspace in the invoking terminal.",
       "related": [
-        "mios-native-entry.ps1",
-        "mios-native-client-setup.ps1",
+        "usr/share/mios/windows/mios-native-client-setup.ps1",
         "build-mios.ps1"
       ],
       "functions": [],
@@ -36236,8 +36231,7 @@
       "path": "usr/share/mios/windows/mios-native-shell.ps1",
       "hint": "Keep MiOS terminal and agent verbs in the invoking PowerShell terminal while retaining the existing Windows management dispatcher.",
       "related": [
-        "mios-native-entry.ps1",
-        "mios-native-client-setup.ps1",
+        "usr/share/mios/windows/mios-native-client-setup.ps1",
         "Get-MiOS.ps1"
       ],
       "functions": [],

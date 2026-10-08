@@ -1,5 +1,5 @@
 // AI-hint: SSOT projector and standardizer for specs/ markdown documentation (ADR-0021 gen category).
-// AI-related: tools/standardize-docs.py, specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md
+// AI-related: tools/native/mios-gen/src/standardize_docs.rs, specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md
 // AI-functions: get_version, render_header, render_footer, extract_ai_hint, standardize_content, run_standardize_docs
 
 use regex::Regex;

@@ -1,5 +1,5 @@
 // AI-hint: Asserts [verbs.*] boolean fields carry canonical TOML booleans, not stringly-typed lookalikes -- hidden, sensitive, params[].required, and params[].default (when type=boolean) must parse as real bools.
-// AI-related: tools/drift-checks.py (strangled by this port, T-1009 unit 2), automation/98-drift-checks.sh, usr/share/mios/mios.toml
+// AI-related: automation/98-drift-checks.sh, automation/98-drift-checks.sh, usr/share/mios/mios.toml
 
 use crate::Report;
 use std::path::Path;

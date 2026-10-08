@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Adversarial stress test suite comparing Rust mios-hardcode-lint against Python oracle.
-# AI-related: usr/libexec/mios/mios-hardcode-lint, tools/native/target/debug/mios-hardcode-lint.exe
+# AI-related: usr/libexec/mios/mios-hardcode-lint, tools/native/mios-hardcode-lint/src/main.rs
 """Adversarial stress harness for mios-hardcode-lint (T-1161 parity and defect detection).
 
 Executes four targeted challenge dimensions:

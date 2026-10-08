@@ -1,5 +1,5 @@
 // AI-hint: SSOT projector and verifier for ADR.md breadcrumb index (ADR-0021 gen category).
-// AI-related: usr/share/doc/mios/adr/, usr/share/mios/mios.toml, tools/generate-adr-index.py
+// AI-related: usr/share/doc/mios/adr/, usr/share/mios/mios.toml, tools/native/mios-gen/src/adr_index.rs
 
 use regex::Regex;
 use std::collections::HashMap;
@@ -134,8 +134,8 @@ pub fn render(rows: &[AdrRow]) -> String {
     let accepted = rows.iter().filter(|r| r.status == "accepted").count();
 
     let mut lines = Vec::new();
-    lines.push("<!-- AI-hint: Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by tools/generate-adr-index.py; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy. -->".to_string());
-    lines.push("<!-- AI-related: usr/share/doc/mios/adr/, usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], tools/generate-adr-index.py -->".to_string());
+    lines.push("<!-- AI-hint: Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by mios-gen adr-index; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy. -->".to_string());
+    lines.push("<!-- AI-related: usr/share/doc/mios/adr/, usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], tools/native/mios-gen/src/adr_index.rs -->".to_string());
     lines.push("".to_string());
     lines.push("# MiOS Architecture Decision Records".to_string());
     lines.push("".to_string());
@@ -333,7 +333,7 @@ pub fn run_adr_index(root: &Path, check: bool, json_mode: bool) -> Result<(), (S
             Ok(c) => c,
             Err(_) => {
                 return Err((
-                    format!("{} is missing -- run tools/generate-adr-index.py", OUT),
+                    format!("{} is missing -- run mios-gen adr-index", OUT),
                     1,
                 ));
             }
@@ -341,7 +341,7 @@ pub fn run_adr_index(root: &Path, check: bool, json_mode: bool) -> Result<(), (S
 
         if current != body {
             return Err((
-                format!("{} is stale -- run tools/generate-adr-index.py", OUT),
+                format!("{} is stale -- run mios-gen adr-index", OUT),
                 1,
             ));
         }

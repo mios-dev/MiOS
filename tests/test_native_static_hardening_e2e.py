@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive E2E test suite for MiOS Native Static Binaries Hardening and Consolidation (T-1148, T-1161, T-1162).
 # AI-related: usr/share/mios/mios.toml, src/mios-rs/mios-gate, tools/native/mios-toml-get, tools/ci-suites.py, tools/sync-bootstrap.py
-# AI-doc: usr/share/doc/mios/manual/tests.md, TEST_INFRA.md, PROJECT.md
+# AI-doc: usr/share/doc/mios/manual/tests.md, usr/share/doc/mios/manual/tests.md, PROJECT.md
 """Comprehensive 4-tier E2E test suite for MiOS Native Static Binaries Hardening and Consolidation.
 
 Tier 1: Feature Coverage (F1..F10, >=5 tests each = 50 tests)

@@ -1,5 +1,5 @@
 // AI-hint: Heavy regen-and-diff projection checks for miosd drift runner.
-// AI-related: tools/generate-pod-quadlets.py, tools/generate-egress-firewall.py, automation/98-drift-checks.sh
+// AI-related: tools/native/mios-gen/src/pod_quadlets.rs, tools/native/mios-gen/src/main.rs, automation/98-drift-checks.sh
 
 use super::regen::{regen_and_diff, regen_and_diff_shell};
 use super::{Check, DriftCtx, Verdict};

@@ -1,5 +1,5 @@
 // AI-hint: SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).
-// AI-related: usr/share/mios/mios.toml, tools/render-ports.py, automation/35-render-ports.sh, automation/98-drift-checks.sh
+// AI-related: usr/share/mios/mios.toml, tools/native/mios-gen/src/render_ports.rs, automation/35-render-ports.sh, automation/98-drift-checks.sh
 
 use regex::Regex;
 use std::collections::BTreeMap;

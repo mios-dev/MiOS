@@ -102,7 +102,7 @@ Second decision details.
         .expect("must execute mios-gen");
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("is stale -- run tools/generate-adr-index.py"));
+    assert!(stderr.contains("is stale -- run mios-gen adr-index"));
 }
 
 #[test]

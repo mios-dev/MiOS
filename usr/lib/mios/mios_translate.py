@@ -1,5 +1,5 @@
 # AI-hint: Pure Python translation engine for loop.v1 events, Responses items, and cross-harness frame normalization.
-# AI-related: usr/libexec/mios/mios-mcp-server, usr/share/mios/mios.toml [mcp], c:/-dev-loop/bridge/src/lib.rs
+# AI-related: usr/libexec/mios/mios-mcp-server, usr/share/mios/mios.toml [mcp], usr/lib/mios/mios_translate.py
 """Pure Python translation engine for cross-harness frames, loop.v1 events and Responses items.
 
 Normalizes frames from AGY, Claude, OpenAI Responses/Codex, and OpenAI Chat Completions
