@@ -28,7 +28,8 @@ cp "${SHIM_SRC}" "${SRC_DIR}/mios_tools.py"
 
 log "  Building localhost/mios-coderun-sandbox:latest"
 # The sandbox now shares the global native terminal/MCP base. This phase runs
-# before phase 57, so provision only that base here; phase 57 builds its peers.
+# after native-build and fonts in the SSOT registry. Provision only that base
+# here; the service image builder builds its peers.
 bash /usr/libexec/mios/57-mios-sys-build.sh --base-only
 _crs_built=0
 for _attempt in 1 2 3; do
