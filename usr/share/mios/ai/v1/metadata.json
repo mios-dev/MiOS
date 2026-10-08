@@ -6499,7 +6499,7 @@
     },
     {
       "path": "tests/test-agent-input-safety.py",
-      "hint": "Regression controls for agent argv boundaries and bounded input normalization; never invokes a model.",
+      "hint": "Regression controls for agent process inputs and bounded input normalization; never invokes a model.",
       "related": [
         "usr/lib/mios/agents/opencode-gateway/server.py",
         "usr/lib/mios/agent-pipe/mios_dispatch.py",

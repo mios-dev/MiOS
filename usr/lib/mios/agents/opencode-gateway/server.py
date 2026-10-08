@@ -60,15 +60,16 @@ TIMEOUT = int(
 )
 
 def _selector(model: str) -> str:
-    """Build opencode's `provider/model` selector.
-
-    opencode's `-m` flag wants `<provider>/<model>`; if the caller already
-    passed a qualified id (contains a slash) honour it verbatim.
-    """
+    """Return the configured selector; requests cannot change providers."""
+    canonical = (OPENCODE_MODEL if "/" in OPENCODE_MODEL
+                 else f"{OPENCODE_PROVIDER}/{OPENCODE_MODEL}")
     selected = model if "/" in model else f"{OPENCODE_PROVIDER}/{model}"
-    if selected.startswith("-") or any(char in selected for char in "\0\r\n"):
-        raise ValueError("invalid opencode model selector")
-    return selected
+    for value in (canonical, selected):
+        if value.startswith("-") or any(char in value for char in "\0\r\n"):
+            raise ValueError("invalid opencode model selector")
+    if selected != canonical:
+        raise ValueError("opencode model selector is not configured")
+    return canonical
 
 def _flatten_messages(messages):
     """Collapse an OpenAI messages array into a single opencode `run` prompt.
@@ -136,11 +137,12 @@ def _run_opencode(prompt: str, model: str):
     if cfg_dir:
         env.setdefault("XDG_CONFIG_HOME", cfg_dir)
 
-    cmd = [OPENCODE_BIN, "run", "--format", "json",
-           "-m", _selector(model), "--", prompt]
+    # Upstream 1.17.7 run.ts reads Bun.stdin.text() for non-TTY input. Keep
+    # request text out of argv, including option-like and multiline prompts.
+    cmd = [OPENCODE_BIN, "run", "--format", "json", "-m", _selector(model)]
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env,
-        stdin=subprocess.DEVNULL,
+        cmd, capture_output=True, text=True, encoding="utf-8", timeout=TIMEOUT, env=env,
+        input=prompt,
     )
     raw = proc.stdout or ""
     texts = []
@@ -225,6 +227,14 @@ class Handler(BaseHTTPRequestHandler):
         messages = req.get("messages", [])
         _req_model = str(req.get("model") or "")
         run_model = _req_model if "/" in _req_model else OPENCODE_MODEL
+        try:
+            _selector(run_model)
+        except ValueError:
+            self._send(400, {"error": {
+                "message": "Requested model is not configured",
+                "type": "invalid_request_error", "code": "model_not_configured",
+            }})
+            return
         model = ADVERTISED_MODEL
         stream = bool(req.get("stream", False))
 
