@@ -16845,7 +16845,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/test_server_import.py",
-      "hint": "Near-runtime import gate for the agent-pipe strangler-fig refactor (WS R0+).",
+      "hint": "Near-runtime agent-pipe import, exact re-export identity and dependency-injection gate with substitution negative controls.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/agent-pipe.md",

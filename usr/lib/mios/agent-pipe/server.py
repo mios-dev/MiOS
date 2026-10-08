@@ -2983,6 +2983,10 @@ from mios_a2a import (   # noqa: E402
 # and were referenced here without ever being imported -- a module-scope
 # NameError that made server.py unimportable.
 from mios_policy import (   # noqa: E402
+    _perm_rank,
+    _effective_perm,
+    _agent_rbac_filter,
+    _dispatch_pdp_reason,
     _match_user_cfg,
     _user_rbac_filter,
     _PERMISSION_TIERS,

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# AI-hint: Near-runtime import gate for the agent-pipe strangler-fig refactor (WS R0+).
+# AI-hint: Near-runtime agent-pipe import, exact re-export identity and dependency-injection gate with substitution negative controls.
 # AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stub-and-import gate: prove server.py imports cleanly with all DI wired (refactor R0+)."""
 
 import os
+import importlib
+import functools
 import sys
 import types
 from unittest import mock
@@ -190,6 +192,50 @@ def _ssot_flag(env: str, key: str, default: str, server) -> str:
     """The [dispatch] value as the SSOT cascade resolves it: env wins, then the TOML."""
     return str(os.environ.get(env) or server._DISPATCH_TOML.get(key, default)).strip().lower()
 
+_EXPORT_ALIASES = {
+    ("mios_pipe.routing.provider_translate", "_scrub_schema"): "scrub_schema",
+    ("mios_pipe.routing.provider_translate", "_oai_msgs_to_anthropic"): "oai_msgs_to_anthropic",
+}
+_TRACED_EXPORTS = {
+    ("mios_pipe.routing.refine", "refine_intent"),
+    ("mios_pipe.routing.swarm", "_plan_swarm"),
+}
+
+def _same_export(server, module, name: str, *, source_name=None, wrapped=False) -> bool:
+    """Aliases and compatibility shims must expose the exact declared object.
+
+    __module__ describes where an object was defined, not the module re-exporting
+    it; matching that string also accepts a different object with a copied label.
+    """
+    expected = getattr(module, source_name or name, None)
+    actual = getattr(server, name, None)
+    if wrapped:
+        actual = getattr(actual, "__wrapped__", None)
+    return expected is not None and actual is expected
+
+def _check_export_identity_controls():
+    canonical = lambda: None
+    spoof = lambda: None
+    spoof.__module__ = canonical.__module__
+    source = types.SimpleNamespace(export=canonical)
+    check("export identity accepts an exact re-export", _same_export(types.SimpleNamespace(export=canonical), source, "export"))
+    check("export identity rejects a copied origin label", not _same_export(types.SimpleNamespace(export=spoof), source, "export"))
+    check("export identity rejects a missing server binding", not _same_export(types.SimpleNamespace(), source, "export"))
+    check("export identity rejects a missing declared export", not _same_export(source, types.SimpleNamespace(), "export"))
+    check("export identity rejects None placeholders", not _same_export(types.SimpleNamespace(export=None), types.SimpleNamespace(export=None), "export"))
+    value = []
+    check("export identity accepts shared data", _same_export(types.SimpleNamespace(export=value), types.SimpleNamespace(export=value), "export"))
+    check("export identity rejects equal but separate data", not _same_export(types.SimpleNamespace(export=[]), types.SimpleNamespace(export=[]), "export"))
+    @functools.wraps(canonical)
+    def traced():
+        return canonical()
+    alias = types.SimpleNamespace(alias=canonical)
+    check("export identity accepts an explicit source alias", _same_export(source, alias, "export", source_name="alias"))
+    check("export identity rejects a wrong source alias", not _same_export(source, alias, "export", source_name="missing"))
+    check("export identity accepts an explicitly traced binding", _same_export(types.SimpleNamespace(export=traced), source, "export", wrapped=True))
+    check("export identity rejects an undeclared wrapper", not _same_export(types.SimpleNamespace(export=traced), source, "export"))
+    check("export identity rejects a wrong wrapped target", not _same_export(types.SimpleNamespace(export=traced), types.SimpleNamespace(export=spoof), "export", wrapped=True))
+
 def _check_scheduler_wiring(server):
     """The [dispatch] scheduler knobs reach their consumers after server's DI runs."""
     import asyncio
@@ -309,6 +355,7 @@ def _check_scheduler_wiring(server):
 def main():
     _resolve_toml()
     _install_stubs()
+    _check_export_identity_controls()
     try:
         import server  # noqa: E402 -- executes ALL module-level code incl. configure() DI
     except Exception as e:  # noqa: BLE001
@@ -318,13 +365,17 @@ def main():
         print(f"\n{_fails} FAILED")
         return 1
     check("import server (no NameError from DI ordering)", True)
+    check("declared export census is nonempty", sum(map(len, _EXTRACTED.values())) > 0)
     for module, names in _EXTRACTED.items():
+        declared = importlib.import_module(module)
         for n in names:
             obj = getattr(server, n, None)
             origin = getattr(obj, "__module__", None)
-            ok = obj is not None and (origin in (module, None))
+            key = (module, n)
+            ok = _same_export(server, declared, n, source_name=_EXPORT_ALIASES.get(key),
+                              wrapped=key in _TRACED_EXPORTS)
             check(f"{n} provided by server (-> {module})", ok,
-                  "" if ok else f"missing or wrong origin: {origin!r}")
+                  "" if ok else f"missing or different declared object (definition origin: {origin!r})")
 
     bh = getattr(server, "_bind_host", None)
     check("_bind_host present + callable", callable(bh))
