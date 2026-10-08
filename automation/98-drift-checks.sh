@@ -1616,9 +1616,8 @@ check_fluff_tokens() {
 
 check_coordination_hygiene() {
     # The two absorbed ledgers, rebuilt from the frozen history in tasks.jsonl (ADR-0028).
-    local bad="" f text bin="$ROOT/tools/native/target/release/mios-task"
-    [[ -x "$bin" ]] || bin="$ROOT/tools/native/target/debug/mios-task"
-    [[ -x "$bin" ]] || { _violation "mios-task is not built, so check_coordination_hygiene could not run"; return; }
+    local bad="" f text bin
+    bin="$(native_bin mios-task)" || { _violation "mios-task is not built, so check_coordination_hygiene could not run -- build it: cd tools/native && cargo build -p mios-task"; return; }
     for f in AGY-TASKS.md TASKS.md; do
         text="$("$bin" source "MiOS:$f" --root "$ROOT")" || { _violation "mios-task could not rebuild $f from tasks.jsonl"; return; }
         local line_num=0
@@ -1964,13 +1963,8 @@ check_size_ceiling() {
     # on the var-closure ledger; adding a second name nothing emits is exactly
     # what that ledger's header forbids, and check_var_closure caught this one
     # the moment it was written.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-size-ceiling" \
-             "$ROOT/tools/native/target/debug/mios-size-ceiling" \
-             /usr/libexec/mios/mios-size-ceiling; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin mios-size-ceiling)"; then
         _violation "mios-size-ceiling is not built, so check_size_ceiling could not run -- build it: cd tools/native && cargo build -p mios-size-ceiling"
         return
     fi
@@ -1983,13 +1977,8 @@ check_size_ceiling() {
 
 check_task_store() {
     # ADR-0028: `mios-task check` over tasks.jsonl, its frozen history, overrides and TASKS.md render.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-task" \
-             "$ROOT/tools/native/target/debug/mios-task" \
-             /usr/libexec/mios/mios-task; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin mios-task)"; then
         _violation "mios-task is not built, so check_task_store could not run -- build it: cd tools/native && cargo build -p mios-task"
         return
     fi
@@ -2007,13 +1996,8 @@ check_render_quadlets() {
     # Asserts every ${MIOS_*} in the render scope RESOLVES -- not that the tree
     # is already rendered. Stage 34 renders in place at bake; the tracked files
     # are templates (T-1040).
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-render-quadlets" \
-             "$ROOT/tools/native/target/debug/mios-render-quadlets" \
-             /usr/libexec/mios/mios-render-quadlets; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin mios-render-quadlets)"; then
         _violation "mios-render-quadlets is not built, so check_render_quadlets could not run -- build it: cd tools/native && cargo build -p mios-render-quadlets"
         return
     fi
@@ -2030,13 +2014,8 @@ check_toolchain_pin() {
     # edit here silently un-pins CI, which is the exact state T-1059 closed:
     # clippy::for_kv_map fired under 1.98.0 and killed four pushes that were
     # clean under the 1.94.1 a contributor happened to have.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-toolchain-pin" \
-             "$ROOT/tools/native/target/debug/mios-toolchain-pin" \
-             /usr/libexec/mios/mios-toolchain-pin; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin mios-toolchain-pin)"; then
         _violation "mios-toolchain-pin is not built, so check_toolchain_pin could not run -- build it: cd tools/native && cargo build -p mios-toolchain-pin"
         return
     fi
@@ -2051,12 +2030,8 @@ check_toolchain_pin() {
 check_ai_config_projection() {
     # Generated from [ai] + [ports]. A hand edit, an unregenerated SSOT move or
     # an unbuilt generator is a violation, never a skip.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-ai-config" \
-             "$ROOT/tools/native/target/debug/mios-ai-config"; do
-        [[ -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin mios-ai-config)"; then
         _violation "mios-ai-config is not built, so check_ai_config_projection could not run -- build it: cd tools/native && cargo build -p mios-ai-config"
         return
     fi
@@ -2072,11 +2047,8 @@ check_artifact_prompt() {
     # The out-of-loop daily task fetches this file from main on every run, so
     # a hand edit or an unregenerated SSOT change reaches that agent directly.
     # An unbuilt generator is cannot-run, which is a violation, never a skip.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/xtask" "$ROOT/tools/native/target/debug/xtask"; do
-        [[ -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
+    local bin
+    if ! bin="$(native_bin xtask)"; then
         _violation "xtask is not built, so check_artifact_prompt could not run -- build it: cd tools/native && cargo build -p xtask"
         return
     fi
