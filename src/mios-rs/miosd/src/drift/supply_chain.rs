@@ -59,21 +59,22 @@ impl Check for SBOMMetadataCheck {
         "Assert SBOM metadata is valid and present"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        let directory = ctx.root.join("usr/share/mios/artifacts/sbom");
-        if !directory.exists() && ctx.root != std::path::Path::new("/") {
-            return Verdict::Skip(
-                "SBOM is produced by the image build; no build artifacts supplied".into(),
-            );
-        }
+        // bound-images.tsv is committed; models.tsv and binaries.tsv are written
+        // by the image build. A source tree or bake context validates what it
+        // carries; only an installed image (root "/") must carry every table.
+        let built = ctx.root == std::path::Path::new("/");
         audit::verdict((|| {
             let mut count = 0;
             let mut errors = Vec::new();
-            for (name, columns) in [
-                ("models.tsv", 5),
-                ("binaries.tsv", 3),
-                ("bound-images.tsv", 3),
+            for (name, columns, produced_by_build) in [
+                ("models.tsv", 5, true),
+                ("binaries.tsv", 3, true),
+                ("bound-images.tsv", 3, false),
             ] {
                 let path = format!("usr/share/mios/artifacts/sbom/{name}");
+                if produced_by_build && !built && !ctx.root.join(&path).is_file() {
+                    continue;
+                }
                 let body = read(&ctx.root, &path)?;
                 for (line, row) in body
                     .lines()

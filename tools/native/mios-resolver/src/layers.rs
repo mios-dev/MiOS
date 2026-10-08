@@ -18,7 +18,9 @@ pub fn normalize_path_str(p: &str) -> String {
         p.strip_prefix(r"\\?\").unwrap_or(p).to_string()
     };
     let mut normalized = plain.replace('\\', "/");
-    if normalized.starts_with('/') && normalized.len() > 2 {
+    // MSYS drive paths (/c/MiOS) exist only on Windows. On Linux /c or /w is a
+    // real directory: translating it emptied every tier of a tree mounted at /w.
+    if cfg!(windows) && normalized.starts_with('/') && normalized.len() > 2 {
         let bytes = normalized.as_bytes();
         if bytes[1].is_ascii_alphabetic() && bytes[2] == b'/' {
             let drive = (bytes[1] as char).to_ascii_lowercase();
@@ -216,7 +218,13 @@ mod tests {
 
     #[test]
     fn test_path_normalization() {
-        assert_eq!(normalize_path_str("/c/MiOS/usr/share"), "c:/MiOS/usr/share");
+        if cfg!(windows) {
+            assert_eq!(normalize_path_str("/c/MiOS/usr/share"), "c:/MiOS/usr/share");
+        } else {
+            // A single-letter top directory is a real path off Windows.
+            assert_eq!(normalize_path_str("/c/MiOS/usr/share"), "/c/MiOS/usr/share");
+            assert_eq!(normalize_path_str("/w/usr/share/mios"), "/w/usr/share/mios");
+        }
         assert_eq!(
             normalize_path_str("C:\\MiOS\\usr\\share"),
             "C:/MiOS/usr/share"

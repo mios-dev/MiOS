@@ -122,8 +122,13 @@ impl Check for DAGIntegrityCheck {
             let mut errors = Vec::new();
             let mut count = 0;
             for directory in ["usr/lib/systemd/system", "usr/share/containers/systemd"] {
+                // System units only, as the legacy listdir did: a user unit
+                // (containers/systemd/users/) cannot order after a system unit,
+                // and its images are baked rather than built at firstboot.
+                let prefix = format!("{directory}/");
                 for path in super::audit::files(&ctx.root, directory)?
                     .iter()
+                    .filter(|p| p.strip_prefix(&prefix).is_some_and(|rest| !rest.contains('/')))
                     .filter(|p| {
                         [".service", ".container", ".pod"]
                             .iter()
