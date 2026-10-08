@@ -1581,7 +1581,7 @@ from mios_agent_call import (  # noqa: E402
     _trip_breaker, _num_predict_cap_for)
 
 from mios_toolexec import (   # noqa: E402
-    _RESCUE_XML_RE, _RESCUE_PARAM_RE, _RESCUE_FENCE_RE, _RESCUE_TOOLCALL_RE)
+    _RESCUE_FENCE_RE, _RESCUE_TOOLCALL_RE)
 
 from mios_toolexec import (   # noqa: E402
     _norm_tool_call, _rescue_tool_calls, _verb_result_cap,
