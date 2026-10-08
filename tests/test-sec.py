@@ -2843,6 +2843,97 @@ class qsr_TestQuadletSecretsRotation(unittest.TestCase):
         self.assertIn("rotate-quadlet-secrets.py --init", content)
         self.assertIn("[Install]", content)
 
+    def test_unreadable_existing_file_never_regenerates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "secrets.env")
+            original = b"POSTGRES_PASSWORD=preserved-test-credential\n"
+            with open(path, "wb") as stream:
+                stream.write(original)
+            failure = PermissionError("injected existing-file read denial")
+            with patch("builtins.open", side_effect=failure), patch.object(os, "open", side_effect=failure):
+                with self.assertRaises(PermissionError):
+                    rotate_quadlet_secrets.init_secrets_env(path)
+            with open(path, "rb") as stream:
+                self.assertEqual(stream.read(), original)
+            self.assertEqual(os.listdir(folder), ["secrets.env"])
+
+    def test_failed_publication_preserves_existing_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "secrets.env")
+            original = b"POSTGRES_PASSWORD=preserved-test-credential\n"
+            with open(path, "wb") as stream:
+                stream.write(original)
+            real_open = open
+            def fail_direct_write(filename, mode="r", *args, **kwargs):
+                if "w" in mode:
+                    raise OSError("injected direct-write failure")
+                return real_open(filename, mode, *args, **kwargs)
+            with patch("builtins.open", side_effect=fail_direct_write), patch.object(os, "replace", side_effect=OSError("injected publication failure")):
+                with self.assertRaises(OSError):
+                    rotate_quadlet_secrets.init_secrets_env(path)
+            with open(path, "rb") as stream:
+                self.assertEqual(stream.read(), original)
+            self.assertEqual(os.listdir(folder), ["secrets.env"])
+
+    def test_private_staging_precedes_first_secret_write(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "secrets.env")
+            observations = []
+            real_open, real_fdopen = open, os.fdopen
+            class ObservedWriter:
+                def __init__(self, stream):
+                    self.stream = stream
+                def __enter__(self):
+                    self.stream.__enter__()
+                    return self
+                def __exit__(self, *args):
+                    return self.stream.__exit__(*args)
+                def __getattr__(self, name):
+                    return getattr(self.stream, name)
+                def write(self, value):
+                    observations.append((os.path.exists(path), stat.S_IMODE(os.fstat(self.stream.fileno()).st_mode)))
+                    return self.stream.write(value)
+            def observed_open(filename, mode="r", *args, **kwargs):
+                stream = real_open(filename, mode, *args, **kwargs)
+                return ObservedWriter(stream) if "w" in mode else stream
+            def observed_fdopen(fd, mode="r", *args, **kwargs):
+                stream = real_fdopen(fd, mode, *args, **kwargs)
+                return ObservedWriter(stream) if "w" in mode else stream
+            with patch("builtins.open", side_effect=observed_open), patch.object(os, "fdopen", side_effect=observed_fdopen):
+                values = rotate_quadlet_secrets.init_secrets_env(path)
+            self.assertTrue(observations, "the production writer must write data")
+            self.assertTrue(all(not visible for visible, _ in observations))
+            if os.name != "nt":
+                self.assertTrue(all(mode == 0o600 for _, mode in observations))
+                self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+            self.assertEqual(os.listdir(folder), ["secrets.env"])
+            with open(path, encoding="utf-8") as stream:
+                content = stream.read()
+            self.assertTrue(all(f"{key}={value}\n" in content for key, value in values.items()))
+
+    def test_permission_failure_is_not_success(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "secrets.env")
+            with patch.object(os, "chmod", side_effect=PermissionError("injected private-mode failure")):
+                with self.assertRaises(PermissionError):
+                    rotate_quadlet_secrets.init_secrets_env(path)
+            self.assertEqual(os.listdir(folder), [])
+
+    @unittest.skipIf(os.name == "nt", "POSIX symlink controls run on Linux; Windows ACL certification remains separate")
+    def test_symlink_target_is_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            victim = os.path.join(folder, "operator.env")
+            path = os.path.join(folder, "secrets.env")
+            original = b"POSTGRES_PASSWORD=preserved-test-credential\n"
+            with open(victim, "wb") as stream:
+                stream.write(original)
+            os.symlink(victim, path)
+            with self.assertRaises(OSError):
+                rotate_quadlet_secrets.init_secrets_env(path)
+            self.assertTrue(os.path.islink(path))
+            with open(victim, "rb") as stream:
+                self.assertEqual(stream.read(), original)
+
 def qsr_main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(qsr_TestQuadletSecretsRotation)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
