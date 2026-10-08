@@ -593,20 +593,28 @@ if TEXTUAL_AVAILABLE:
         def observe_agents(self):
             request = self.ui_request.get("observation_request")
             if not request:
-                return {"agents": [], "panes": [], "messages": [], "errors": ["Relay configuration unavailable"]}
+                raise RuntimeError("Relay configuration unavailable")
             try:
                 cmd = [request["config"]["binary"], "--state", self.ui_request["state"], "--observe"]
                 if IS_WINDOWS:
                     cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "mios", "--", request["config"]["binary"], "--state", self.ui_request["state"], "--observe"]
                 result = subprocess.run(cmd, input=json.dumps(request), capture_output=True, text=True, timeout=10)
                 if result.returncode:
-                    return {"agents": [], "panes": [], "messages": [], "errors": [result.stderr.strip() or f"Observer exit {result.returncode}"]}
+                    raise RuntimeError(result.stderr.strip() or f"Observer exit {result.returncode}")
                 receipt = json.loads(result.stdout)
-                if not receipt.get("ok") or not isinstance(receipt.get("result"), dict):
-                    return {"agents": [], "panes": [], "messages": [], "errors": [receipt.get("error") or "Invalid native observation receipt"]}
-                return receipt["result"]
+                if not isinstance(receipt, dict):
+                    raise RuntimeError("Invalid native observation receipt")
+                if receipt.get("ok") is not True or not isinstance(receipt.get("result"), dict):
+                    raise RuntimeError(receipt.get("error") or "Invalid native observation receipt")
+                snapshot = receipt["result"]
+                if any(not isinstance(snapshot.get(key), list)
+                       for key in ("agents", "panes", "messages", "errors")):
+                    raise RuntimeError("Invalid native observation snapshot")
+                return snapshot
             except Exception as e:
-                return {"agents": [], "panes": [], "messages": [], "errors": [str(e)]}
+                # AgentView displays refresh failures without clearing its last
+                # successful snapshot, rows, cursor or message receipt counts.
+                raise RuntimeError(f"Native relay observation failed: {e}") from e
 
         DEFAULT_CSS = f"""
         Screen {{

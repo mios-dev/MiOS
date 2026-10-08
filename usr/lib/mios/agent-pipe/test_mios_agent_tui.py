@@ -186,6 +186,77 @@ class TestAgentTui(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(RuntimeError, "registry unavailable"):
                 app.observe_agents()
 
+    def test_native_observation_rejects_failed_and_malformed_receipts(self):
+        app = self.app()
+        app.ui_request.update(state="/private", observation_request={"config": {"binary": "/native-relay"}})
+        cases = [
+            (1, "", "observer denied", "observer denied"),
+            (7, "", "", "Observer exit 7"),
+            (0, "not-json", "", "observation failed"),
+            (0, "[]", "", "Invalid native observation receipt"),
+            (0, '{"ok": true, "result": []}', "", "Invalid native observation receipt"),
+            (0, '{"ok": 1, "result": {}}', "", "Invalid native observation receipt"),
+            (0, '{"ok": true, "result": {}}', "", "Invalid native observation snapshot"),
+        ]
+        for key in ("agents", "panes", "messages", "errors"):
+            snapshot = copy.deepcopy(SNAPSHOT)
+            snapshot[key] = None
+            cases.append((0, json.dumps({"ok": True, "result": snapshot}), "", "Invalid native observation snapshot"))
+        for code, output, error, expected in cases:
+            with self.subTest(code=code, output=output), patch.object(monitor.subprocess, "run") as run:
+                run.return_value.returncode, run.return_value.stdout, run.return_value.stderr = code, output, error
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    app.observe_agents()
+        for error, expected in ((monitor.subprocess.TimeoutExpired("observer", 10), "timed out"),
+                                (FileNotFoundError("observer missing"), "observer missing")):
+            with self.subTest(error=error), patch.object(monitor.subprocess, "run", side_effect=error):
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    app.observe_agents()
+        for request, expected in (({}, "configuration unavailable"),
+                                  ({"observation_request": {"config": {}}}, "binary")):
+            with self.subTest(request=request):
+                app.ui_request = request
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    app.observe_agents()
+
+    async def test_native_observation_failure_keeps_last_snapshot_until_recovery(self):
+        app = self.app(mode="agents")
+        app.ui_request.update(state="/private", observation_request={"config": {"binary": "/native-relay"}})
+        async with app.run_test(size=(44, 19)) as pilot:
+            await pilot.pause()
+            view = app.query_one(AgentView)
+            table = app.query_one("#peer-table", DataTable)
+            table.move_cursor(row=1)
+            saved = copy.deepcopy(view.snapshot)
+            receipt = str(app.query_one("#receipt", Static).render())
+            view.observer = app.observe_agents
+            with patch.object(monitor.subprocess, "run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = json.dumps({"ok": False, "error": "registry unavailable"})
+                await view.refresh_snapshot()
+                self.assertEqual(view.snapshot, saved)
+                self.assertEqual(table.row_count, 2)
+                self.assertEqual(table.cursor_row, 1)
+                self.assertEqual(str(app.query_one("#receipt", Static).render()), receipt)
+                self.assertIn("unavailable", str(app.query_one("#agent-error", Static).render()))
+                recovered = copy.deepcopy(SNAPSHOT)
+                recovered["agents"][1]["pending"] = 9
+                run.return_value.stdout = json.dumps({"ok": True, "result": recovered})
+                await view.refresh_snapshot()
+                self.assertEqual(view.snapshot, recovered)
+                self.assertEqual(table.cursor_row, 1)
+                self.assertEqual(table.get_row_at(1)[2].plain, "9")
+                self.assertNotIn("unavailable", str(app.query_one("#agent-error", Static).render()))
+
+    def test_native_observation_accepts_a_healthy_empty_registry(self):
+        app = self.app()
+        app.ui_request.update(state="/private", observation_request={"config": {"binary": "/native-relay"}})
+        snapshot = {key: [] for key in ("agents", "panes", "messages", "errors")}
+        with patch.object(monitor.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = json.dumps({"ok": True, "result": snapshot})
+            self.assertEqual(app.observe_agents(), snapshot)
+
     def test_public_monitor_reads_keys_and_mouse_from_tty_after_piped_configuration(self):
         reader, writer = os.pipe()
         pid, terminal = pty.fork()
