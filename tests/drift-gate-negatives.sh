@@ -139,10 +139,68 @@ EOF
 
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 && die "Check_cli_eval_safety passed despite eval injection"
 
+    # The reviewed-eval exemption is the annotation on the line DIRECTLY above
+    # (twin: miosd drift/security.rs eval_safety). Assembled at run time so the
+    # probe annotation never sits verbatim in this file.
+    local attest
+    attest="$(printf '# TD-%s: eval-safe, input=%s, not agent-controlled' 1 negtest-fixture)"
+    printf '#!/bin/bash\n%s\n\neval "$1"\n' "$attest" > "$temp_verb"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
+        && { rm -f "$temp_verb"; die "Check_cli_eval_safety accepted an annotation that is not on the line directly above the eval"; }
+    printf '#!/bin/bash\n%s\neval "$1"\n' "$attest" > "$temp_verb"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
+        || { rm -f "$temp_verb"; die "Check_cli_eval_safety rejected a reviewed eval carrying the TD-1 annotation directly above it"; }
+
     rm -f "$temp_verb"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
         || die "Check_cli_eval_safety failed after restoration"
     log "Check_cli_eval_safety negative test passed"
+}
+
+test_container_ports() {
+    log "Testing check_container_ports"
+    # The port comes from the SSOT so the plant tracks a retuned [ports]; the
+    # first integer, non-*_internal key is a host-side port by construction.
+    local key port upper
+    read -r key port < <(python3 - "${ROOT}/usr/share/mios/mios.toml" <<'PY'
+import sys, tomllib
+ports = tomllib.load(open(sys.argv[1], "rb")).get("ports") or {}
+for k, v in ports.items():
+    if k != "stack_id" and not k.endswith("_internal") and type(v) is int:
+        print(k, v)
+        break
+PY
+) || true
+    [[ -n "$key" && -n "$port" ]] || die "check_container_ports: no host-side integer port in [ports] to plant"
+    upper="$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
+    local probe="${ROOT}/usr/share/containers/systemd/mios-negtest-ports.container"
+    rm -f "$probe"
+
+    # 1. A hand-copied SSOT port literal on an active line must fail, by name.
+    printf '[Container]\nPublishPort=127.0.0.1:%s:%s\n' "$port" "$port" > "$probe"
+    if _neg_gate check_container_ports; then
+        rm -f "$probe"; die "check_container_ports passed with a hand-copied [ports].${key} literal"
+    fi
+    grep -q "manual port literal ${port} for \[ports\].${key}" <<<"$_NEG_GATE_OUT" \
+        || { rm -f "$probe"; die "check_container_ports failed without naming [ports].${key}: ${_NEG_GATE_OUT}"; }
+
+    # 2. The canonical MIOS_PORTS_ fallback is SSOT-wired and must pass. The
+    #    legacy regex knew only MIOS_PORT_, so every such line was reported.
+    printf '[Container]\nPublishPort=127.0.0.1:${MIOS_PORTS_%s:-%s}:${MIOS_PORTS_%s:-%s}\n' \
+        "$upper" "$port" "$upper" "$port" > "$probe"
+    _neg_gate check_container_ports \
+        || { rm -f "$probe"; die "check_container_ports rejected an SSOT-wired \${MIOS_PORTS_${upper}:-${port}} fallback: ${_NEG_GATE_OUT}"; }
+
+    # 3. Only a whole line starting with # or ; is a systemd comment: a literal
+    #    after a mid-line # (a URL fragment) still reaches the unit.
+    printf '[Container]\nLabel=url=http://localhost/#/%s\n' "$port" > "$probe"
+    if _neg_gate check_container_ports; then
+        rm -f "$probe"; die "check_container_ports passed with a literal hidden behind a mid-line #"
+    fi
+
+    rm -f "$probe"
+    _neg_gate check_container_ports || die "check_container_ports failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_container_ports negative test passed"
 }
 
 test_shellcheck_failure() {
@@ -5509,6 +5567,7 @@ _run_test test_leaked_fixtures
     _run_test test_check_skip_list_covered
     _run_test test_resolver_equivalence
     _run_test test_eval_safety
+    _run_test test_container_ports
     _run_test test_shellcheck_failure
     _run_test test_names_registry
     _run_test test_dead_git_corpus

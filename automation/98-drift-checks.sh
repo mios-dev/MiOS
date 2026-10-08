@@ -764,16 +764,16 @@ check_hummingbird() {
 
 check_container_ports() {
     _need_python || return 0
-    local tmp; tmp="$(mktemp)"
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py container-ports >"$tmp" 2>&1
+    local out
+    if out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/drift-checks.py" container-ports 2>&1)"
     then
         echo "[98-drift-checks]   no manual port literals in container definitions"
-        rm -f "$tmp"
     else
+        # The findings go out BEFORE _violation: it returns 1, and in
+        # single-check mode errexit ends the script there, so anything printed
+        # after it never reached the operator (or a negative test reading why).
+        printf '%s\n' "$out" >&2
         _violation "manual port literal found in container Quadlets"
-        cat "$tmp" >&2
-        rm -f "$tmp"
-        return 1
     fi
 }
 
@@ -5010,7 +5010,9 @@ check_doc_refs_resolve() {
     fi
     local out
     if out="$("$bin" doc-refs-resolve --root "$ROOT" 2>&1)"; then
-        echo "[98-drift-checks]   every path named in an AI header or a markdown link resolves in the tracked tree"
+        # The binary's own line carries the measured count; a fixed sentence
+        # here dropped it, so a clean pass could not be compared with anything.
+        echo "[98-drift-checks]   ${out}"
     else
         _violations_from "check_doc_refs_resolve: " "$out"
     fi

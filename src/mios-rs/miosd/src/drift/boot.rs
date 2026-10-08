@@ -1,5 +1,5 @@
 // AI-hint: Boot-integrity and firstboot degrade-open checks for miosd drift runner.
-// AI-related: usr/libexec/mios/*firstboot*, automation/firstboot/*.sh, automation/78-greenboot.sh, etc/greenboot
+// AI-related: usr/libexec/mios, automation/firstboot, automation/78-greenboot.sh, etc/greenboot
 
 use super::audit::{self, Audit};
 use super::{Check, DriftCtx, Verdict};
