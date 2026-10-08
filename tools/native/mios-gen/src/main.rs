@@ -20,6 +20,7 @@ mod metal_vs_hosted;
 mod pipe_boundaries;
 mod pipeline_index;
 mod pod_quadlets;
+mod projection_evidence;
 mod render_desktop;
 mod render_globals;
 mod render_manpages;
@@ -48,6 +49,15 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Render a native projection in a private tracked-byte snapshot and print capped diffs.
+    ProjectionEvidence {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long, value_parser = ["cargo-manifests", "gate-index", "bib-configs"])]
+        generator: String,
+        #[arg(long = "target", required = true)]
+        targets: Vec<String>,
+    },
     /// Project the complete canonical name registry and tracked consumer census.
     NamesRegistry {
         #[arg(long)]
@@ -93,6 +103,9 @@ enum Commands {
         /// Repository root directory
         #[arg(long)]
         root: Option<PathBuf>,
+        /// Compare the generated rules without writing files.
+        #[arg(long)]
+        check: bool,
     },
 
     /// Generates usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh
@@ -594,7 +607,7 @@ table inet mios_egress {{
     (content, normalized_mode)
 }
 
-fn run_egress_firewall(root: &Path) -> Result<(), (String, i32)> {
+fn run_egress_firewall(root: &Path, check: bool) -> Result<(), (String, i32)> {
     let toml_path = env::var("MIOS_TOML")
         .map(PathBuf::from)
         .unwrap_or_else(|_| root.join("usr/share/mios/mios.toml"));
@@ -641,6 +654,29 @@ fn run_egress_firewall(root: &Path) -> Result<(), (String, i32)> {
     let user = get_agent_user(root);
     let (ruleset, normalized_mode) = build_egress_ruleset(&mode, &allow, &user);
 
+    if check {
+        let current = fs::read(&out_path).map_err(|e| {
+            (
+                format!(
+                    "egress-firewall: cannot compare {}: {e}",
+                    out_path.display()
+                ),
+                1,
+            )
+        })?;
+        if current != ruleset.as_bytes() {
+            return Err((
+                format!(
+                    "egress-firewall: {} is stale -- run mios-gen egress-firewall",
+                    out_path.display()
+                ),
+                1,
+            ));
+        }
+        println!("[egress-fw] {} matches SSOT", out_path.display());
+        return Ok(());
+    }
+
     if let Some(parent) = out_path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
             (
@@ -665,6 +701,20 @@ fn run_egress_firewall(root: &Path) -> Result<(), (String, i32)> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let (subcommand, target, result) = match cli.command {
+        Commands::ProjectionEvidence {
+            root,
+            generator,
+            targets,
+        } => {
+            let root = resolve_root(root);
+            return match projection_evidence::run(&root, &generator, &targets) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("[98-drift-checks][diff] evidence failed: {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
         Commands::NamesRegistry { root } => {
             let root = resolve_root(root);
             return match mios_gen::names_registry::run(&root) {
@@ -728,12 +778,12 @@ fn main() -> ExitCode {
                 run_cosign_policy(&r, check),
             )
         }
-        Commands::EgressFirewall { root } => {
+        Commands::EgressFirewall { root, check } => {
             let r = resolve_root(root);
             (
                 "egress-firewall",
                 "usr/share/mios/security/egress.nft",
-                run_egress_firewall(&r),
+                run_egress_firewall(&r, check),
             )
         }
         Commands::GateIndex {

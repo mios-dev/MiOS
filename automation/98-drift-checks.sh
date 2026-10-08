@@ -186,86 +186,17 @@ _violations_from() {
 }
 
 _emit_projection_evidence() {
-    local pfx='[98-drift-checks][diff]'
-    local gen_rel="$1"; shift
-    local gen="$ROOT/$gen_rel"
-    local cap=200
-    local -a targets=("$@")
-    local -a abs=() bak=() existed=()
-    local t a b i generr gen_rc dtmp total
-
-    echo "$pfx generator: MIOS_DRIFT_ROOT=$ROOT python3 $gen_rel" >&2
-
-    if [[ ! -x "$gen" && ! -f "$gen" ]]; then
-        echo "$pfx generator ABSENT" >&2
-        for t in "${targets[@]}"; do
-            if [[ -f "$ROOT/$t" ]]; then
-                echo "$pfx target $t exists=yes" >&2
-            else
-                echo "$pfx target $t exists=NO" >&2
-            fi
-        done
+    local pfx='[98-drift-checks][diff]' generator="$1" bin target
+    shift
+    bin="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || {
+        echo "$pfx native mios-gen required for isolated evidence" >&2
         return 0
+    }
+    local -a args=(projection-evidence --root "$ROOT" --generator "$generator")
+    for target in "$@"; do args+=(--target "$target"); done
+    if ! "$bin" "${args[@]}"; then
+        echo "$pfx native evidence unavailable; the projection gate remains failed" >&2
     fi
-
-    for t in "${targets[@]}"; do
-        a="$ROOT/$t"
-        abs+=("$a")
-        if [[ -f "$a" ]]; then
-            b="$(mktemp 2>/dev/null)" || b=""
-            if [[ -n "$b" ]] && cp -p "$a" "$b" 2>/dev/null; then
-                bak+=("$b"); existed+=("1")
-            else
-                bak+=(""); existed+=("1")
-            fi
-        else
-            bak+=(""); existed+=("0")
-        fi
-    done
-
-    generr="$(mktemp 2>/dev/null || echo /dev/null)"
-    gen_rc=0
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$gen" >/dev/null 2>"$generr" || gen_rc=$?
-    if [[ "$gen_rc" -ne 0 ]]; then
-        echo "$pfx generator ERRORED rendering expected" >&2
-        sed "s|^|$pfx   |" "$generr" 2>/dev/null >&2 || true
-    else
-        for i in "${!abs[@]}"; do
-            a="${abs[$i]}"; b="${bak[$i]}"; t="${targets[$i]}"
-            if [[ "${existed[$i]}" == "0" ]]; then
-                echo "$pfx target $t: ABSENT on disk before regen" >&2
-                sed "s|^|$pfx +|" "$a" 2>/dev/null | head -n "$cap" >&2 || true
-                continue
-            fi
-            if [[ -z "$b" ]]; then
-                echo "$pfx target $t: snapshot unavailable" >&2
-                continue
-            fi
-            echo "$pfx target $t: actual=$a  generated=$a" >&2
-            dtmp="$(mktemp 2>/dev/null || echo /dev/null)"
-            diff -u --label "a/$t (ACTUAL on-disk)" --label "b/$t (GENERATED from SSOT)" \
-                "$b" "$a" >"$dtmp" 2>/dev/null || true
-            total="$(wc -l <"$dtmp" 2>/dev/null | tr -d ' ' || printf 0)"
-            [[ -n "$total" ]] || total=0
-            sed "s|^|$pfx |" "$dtmp" 2>/dev/null | head -n "$cap" >&2 || true
-            if [[ "$total" -gt "$cap" ]]; then
-                echo "$pfx" >&2
-            fi
-            [[ "$dtmp" != "/dev/null" ]] && rm -f "$dtmp" 2>/dev/null || true
-        done
-    fi
-
-    for i in "${!abs[@]}"; do
-        a="${abs[$i]}"; b="${bak[$i]}"
-        if [[ "${existed[$i]}" == "1" && -n "$b" ]]; then
-            cp -p "$b" "$a" 2>/dev/null || true
-        elif [[ "${existed[$i]}" == "0" ]]; then
-            rm -f "$a" 2>/dev/null || true
-        fi
-        if [[ -n "$b" ]]; then rm -f "$b" 2>/dev/null || true; fi
-    done
-    [[ "$generr" != "/dev/null" ]] && rm -f "$generr" 2>/dev/null || true
-    return 0
 }
 
 _require_python3() {
@@ -588,31 +519,14 @@ check_pod_quadlets() {
 }
 
 check_egress_firewall() {
-    local committed="$ROOT/usr/share/mios/security/egress.nft"
-    if [[ ! -f "$committed" ]]; then
-        _violation "usr/share/mios/security/egress.nft absent -- a tracked deliverable is missing, so this check cannot run"
+    local native
+    native="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || {
+        _violation "check_egress_firewall: native mios-gen is required; build/install the SSOT release catalog"
         return
-    fi
-    local native=""
-    local cand
-    for cand in "${ROOT}/tools/native/target/release/mios-gen" \
-                 "${ROOT}/tools/native/target/debug/mios-gen" \
-                 "${ROOT}/tools/native/target/release/mios-gen.exe" \
-                 "${ROOT}/tools/native/target/debug/mios-gen.exe" \
-                 /usr/bin/mios-gen /usr/libexec/mios/mios-gen ""; do
-        [[ -n "$cand" && -x "$cand" ]] && { native="$cand"; break; }
-    done
-    if [[ -z "$native" ]]; then
-        _violation "mios-gen binary not built -- cd tools/native && cargo build -p mios-gen"
-        return
-    fi
-    local tmp; tmp="$(mktemp)"
-    if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" "$native" egress-firewall --root "$ROOT" >/dev/null 2>&1 \
-            && diff -q "$committed" "$tmp" >/dev/null 2>&1; then
+    }
+    if "$native" egress-firewall --root "$ROOT" --check; then
         echo "[98-drift-checks]   egress.nft in sync with mios.toml [security.egress] SSOT"
-        rm -f "$tmp"
     else
-        rm -f "$tmp"
         _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with mios-gen egress-firewall"
     fi
 }
@@ -1926,7 +1840,7 @@ check_cargo_manifest_generated() {
     # The generator carried its member list as a literal and had fallen two
     # crates behind the tree, so regenerating dropped them out of the
     # workspace: on disk, never compiled, never tested, never shipped.
-    local bin; bin="$(native_bin mios-gen)" || true
+    local bin; bin="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || true
     if [[ -n "$bin" ]]; then
         local out rc=0
         out="$( "$bin" cargo-manifests --root "$ROOT" --check 2>&1 )" || rc=$?
@@ -1935,26 +1849,12 @@ check_cargo_manifest_generated() {
             return 0
         else
             echo "$out" >&2
-            _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "tools/native/Cargo.toml"
+            _emit_projection_evidence "cargo-manifests" "tools/native/Cargo.toml"
             _violation "check_cargo_manifest_generated: tools/native/Cargo.toml drifted from mios-gen cargo-manifests -- re-run mios-gen cargo-manifests (Law 8 SSOT-PROJECTION)"
             return
         fi
     fi
-    _need_python || return 0
-    local gen="$ROOT/tools/generate-cargo-manifests.py"
-    local manifest="$ROOT/tools/native/Cargo.toml"
-    if [[ ! -f "$gen" || ! -f "$manifest" ]]; then
-        _violation "check_cargo_manifest_generated: neither mios-gen nor tools/generate-cargo-manifests.py found -- a tracked deliverable is gone, so the workspace projection cannot be compared"
-        return
-    fi
-    local out
-    if out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$gen" --check 2>&1)"; then
-        echo "[98-drift-checks]   tools/native/Cargo.toml matches its generator projection"
-    else
-        echo "$out" >&2
-        _emit_projection_evidence "tools/generate-cargo-manifests.py" "tools/native/Cargo.toml"
-        _violation "check_cargo_manifest_generated: tools/native/Cargo.toml drifted from tools/generate-cargo-manifests.py -- re-run the generator (Law 8 SSOT-PROJECTION)"
-    fi
+    _violation "check_cargo_manifest_generated: native mios-gen is required; build/install the SSOT release catalog"
 }
 
 check_root_toml_subset() {
@@ -2896,22 +2796,15 @@ check_ssot_lint_equivalence() {
 
 check_gate_index() {
     local gen
-    gen="$(native_bin mios-gen || true)"
-    if [ -n "$gen" ]; then
-        if "$gen" gate-index --root "$ROOT" --check >/dev/null 2>&1; then
-            echo "[98-drift-checks]   gate index in sync with main registration"
-            return 0
-        fi
-    elif [ -f "$ROOT/tools/generate-gate-index.py" ]; then
-        if ! _require_python3; then
-            return 0
-        fi
-        if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
-            echo "[98-drift-checks]   gate index in sync with main registration"
-            return 0
-        fi
+    gen="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || {
+        _violation "check_gate_index: native mios-gen is required; build/install the SSOT release catalog"
+        return
+    }
+    if "$gen" gate-index --root "$ROOT" --check; then
+        echo "[98-drift-checks]   gate index in sync with main registration"
+        return 0
     fi
-    _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "usr/share/mios/reference/drift-gate-index.tsv"
+    _emit_projection_evidence "gate-index" "usr/share/mios/reference/drift-gate-index.tsv"
     _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() -- run mios-gen gate-index"
 }
 
@@ -3100,7 +2993,7 @@ check_installer_family_roles() {
 }
 
 check_bib_configs_projection() {
-    local bin; bin="$(native_bin mios-gen)" || true
+    local bin; bin="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || true
     if [[ -n "$bin" ]]; then
         local out rc=0
         out="$( "$bin" bib-configs --root "$ROOT" --check 2>&1 )" || rc=$?
@@ -3109,24 +3002,12 @@ check_bib_configs_projection() {
             return 0
         else
             echo "$out" >&2
-            _emit_projection_evidence "tools/native/mios-gen/src/main.rs" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
+            _emit_projection_evidence "bib-configs" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
             _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] -- run mios-gen bib-configs"
             return
         fi
     fi
-    if ! _require_python3; then
-        return 0
-    fi
-    if [ ! -f "$ROOT/tools/generate-bib-configs.py" ]; then
-        _violation "check_bib_configs_projection: neither mios-gen nor tools/generate-bib-configs.py found"
-        return
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-bib-configs.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"
-    else
-        _emit_projection_evidence "tools/generate-bib-configs.py" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
-        _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] -- run python3 tools/generate-bib-configs.py"
-    fi
+    _violation "check_bib_configs_projection: native mios-gen is required; build/install the SSOT release catalog"
 }
 
 check_repo_partition_label_ssot() {
