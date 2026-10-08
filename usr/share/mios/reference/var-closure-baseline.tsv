@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 462
+#!ceiling 431
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:663
@@ -57,7 +57,6 @@ MIOS_AGENT_MEMORY_RECALL	usr/lib/mios/agent-pipe/server.py:2387
 MIOS_AGENT_MEMORY_RECALL_K	usr/lib/mios/agent-pipe/server.py:2389
 MIOS_AGENT_MEMORY_RECALL_MIN_SCORE	usr/lib/mios/agent-pipe/server.py:2391
 MIOS_AGENT_MEMORY_TABLE	usr/lib/mios/agent-pipe/server.py:2388
-MIOS_AGENT_USER	tools/generate-egress-firewall.py:23
 MIOS_AGNTCY_AGENT_ID	usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py:406
 MIOS_AGNTCY_LICENSE	usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py:413
 MIOS_AGREEMENT_ACK	Get-MiOS.ps1:1019
@@ -109,20 +108,6 @@ MIOS_COMMENT_LEX_BIN	usr/lib/mios/mios_comments.py:459
 MIOS_COMPACT	usr/libexec/mios/mios-mon.py:1194
 MIOS_CONDUCTOR_STEP_TIMEOUT	usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py:80
 MIOS_CONFIGURATOR_HTML	usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:1272
-MIOS_CONV_GATEWAY_MODE	usr/lib/mios/agent-pipe/server.py:909
-MIOS_CONV_GATEWAY_QUEUE_MAXSIZE	usr/lib/mios/agent-pipe/server.py:911
-MIOS_CONV_GATEWAY_WORKER_CONCURRENCY	usr/lib/mios/agent-pipe/server.py:912
-MIOS_CONV_IMAGE_DISTROLESS_ENABLE	automation/98-drift-checks.sh:728
-MIOS_CONV_IMAGE_MCP_POOL_ENABLE	usr/lib/mios/agent-pipe/server.py:900
-MIOS_CONV_IMAGE_RECHUNK_ENABLE	automation/98-drift-checks.sh:729
-MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE	usr/lib/mios/agent-pipe/server.py:1064
-MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT	automation/98-drift-checks.sh:685
-MIOS_CONV_MEMORY_COLD_EVICT_ENABLE	usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py:572
-MIOS_CONV_MEMORY_COLD_RETENTION_DAYS	automation/98-drift-checks.sh:701
-MIOS_CONV_MEMORY_COLD_STORAGE_DIR	automation/98-drift-checks.sh:695
-MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL	automation/98-drift-checks.sh:707
-MIOS_CONV_MEMORY_SCRATCHPAD_DIR	usr/lib/mios/agent-pipe/mios_dispatch.py:523
-MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE	automation/98-drift-checks.sh:713
 MIOS_CPU_LANE_HINTS	usr/lib/mios/agent-pipe/server.py:1302
 MIOS_CPU_LANE_MICRO_MODEL	usr/lib/mios/agent-pipe/server.py:1305
 MIOS_CRAWL_BIND	usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:39
@@ -160,11 +145,9 @@ MIOS_DIR	automation/24-cpu-affinity.sh:73
 MIOS_DIRS	Uninstall-MiOS.ps1:191
 MIOS_EFFORT	usr/lib/mios/agent-pipe/server.py:646
 MIOS_EFI	docs/agy/w10-live-boot/live-iso.sh:243
-MIOS_EGRESS_OUT	tools/generate-egress-firewall.py:17
 MIOS_EMBED_COOLDOWN_SECS	usr/lib/mios/agent-pipe/mios_pipe/routing/toolsearch.py:28
 MIOS_EMBED_FAIL_LOG_INTERVAL	usr/lib/mios/agent-pipe/server.py:3485
 MIOS_FHS_TOTAL_ROOT_MERGE	installation/mios-install.sh:1285
-MIOS_FIRECRAWL_IMAGE	tools/generate-pod-quadlets.py:68
 MIOS_FIXTURE_DEAD	automation/tests/test-97-ssot-lint.sh:56
 MIOS_FIXTURE_OK	automation/tests/test-97-ssot-lint.sh:46
 MIOS_FLATPAKS_INPUT	automation/build-mios.sh:104
@@ -178,6 +161,7 @@ MIOS_FORGE_ADMIN_USER	usr/libexec/mios/forge-firstboot.sh:33
 MIOS_FORGE_FORCE_FIRSTBOOT	usr/libexec/mios/forge-firstboot.sh:91
 MIOS_FORGE_INITIAL_REPO	usr/libexec/mios/forge-firstboot.sh:96
 MIOS_GATE_BIN	automation/98-drift-checks.sh:105
+MIOS_GEN_BIN	tools/sync-generated.sh:6
 MIOS_GETMIOS_FILE_RELAUNCHED	Get-MiOS.ps1:83
 MIOS_GETMIOS_FUNCTIONS_ONLY	build-mios.ps1:6621
 MIOS_GETMIOS_RELAUNCHED	Get-MiOS.ps1:693
@@ -189,16 +173,14 @@ MIOS_GIT_BRANCH	build-mios.ps1:2734
 MIOS_GIT_CACHE	build-mios.ps1:2735
 MIOS_GIT_ORIGIN	build-mios.ps1:2733
 MIOS_GLOBAL_CONCURRENCY	usr/lib/mios/agent-pipe/server.py:538
-MIOS_GUACAMOLE_PORT	automation/44-firewall-ports.sh:58
-MIOS_GUACD_GID	tools/generate-pod-quadlets.py:734
-MIOS_GUACD_UID	tools/generate-pod-quadlets.py:733
+MIOS_HARDCODE_LINT_BIN	automation/98-drift-checks.sh:541
 MIOS_HARDWARE_DEGRADE_LOG	usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh:25
 MIOS_HEADLESS	build-mios.ps1:575
 MIOS_HIDPI_SCALE_FACTOR	usr/lib/mios/agent-pipe/server.py:3972
+MIOS_HOST_TMUX	Get-MiOS.ps1:3424
 MIOS_HYBRID_ISO_HEADER	usr/libexec/mios/build/liveiso.py:62
 MIOS_IMG_RECHUNK	tools/lib/generate-sbom.py:85
 MIOS_INGRESS_KEY	usr/lib/mios/agent-pipe/mios_events.py:21
-MIOS_INJECTED_PASS	tools/generate-pod-quadlets.py:846
 MIOS_INSTALL_LOG	automation/build-mios.sh:27
 MIOS_INSTALL_MODE	automation/01-system-files-overlay.sh:186
 MIOS_IPA_AUTOMOUNT	usr/libexec/mios/mios-freeipa-enroll.sh:50
@@ -265,6 +247,7 @@ MIOS_MTLS_CN	tools/provision-agent-mtls.py:31
 MIOS_MTLS_DIR	tools/provision-agent-mtls.py:30
 MIOS_MULTIBLADE_ENABLE	usr/lib/mios/agent-pipe/server.py:550
 MIOS_NATIVE_BIN	Get-MiOS.ps1:3942
+MIOS_NATIVE_BIN_DIR	tools/sync-generated.sh:7
 MIOS_NATIVE_DEST_DIR	automation/55-native-build.sh:8
 MIOS_NATIVE_INSTALL_ROOT	automation/55-native-build.sh:61
 MIOS_NATIVE_LOOP	usr/lib/mios/agent-pipe/server.py:4114
@@ -302,6 +285,7 @@ MIOS_OMP_THEME	etc/profile.d/mios-prompt.sh:24
 MIOS_ONLINE_BUILD	automation/05-repos.sh:52
 MIOS_OPENCODE_HOST	usr/lib/mios/agents/opencode-gateway/server.py:30
 MIOS_OPENCODE_TIMEOUT	usr/lib/mios/agents/opencode-gateway/server.py:33
+MIOS_OSCONTROL_EXECUTOR	usr/lib/mios/mios_oscontrol_client.py:17
 MIOS_OTEL_ENABLE	usr/lib/mios/agent-pipe/server.py:329
 MIOS_OTEL_ENDPOINT	usr/lib/mios/agent-pipe/server.py:341
 MIOS_PACKAGE_REGISTRY	automation/98-drift-checks.sh:386
@@ -311,14 +295,12 @@ MIOS_PASSWORD_CONFIRM	automation/build-mios.sh:70
 MIOS_PASSWORD_HASH	automation/build-mios.sh:399
 MIOS_PC_INPUT_SECTION	usr/lib/mios/agent-pipe/server.py:1726
 MIOS_PG_BACKEND	usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py:294
-MIOS_PG_BIND_ADDR	tools/check-runtime.py:929
 MIOS_PG_DSN	usr/lib/mios/agent-pipe/mios_net_anomaly.py:64
 MIOS_PG_URI	usr/libexec/mios/user/roaming_seat.py:83
 MIOS_PHASE_EMOJIS	automation/support/hermes-discord-reactions-patch.py:12
 MIOS_PHASE_TIMERS	automation/support/hermes-discord-reactions-patch.py:13
 MIOS_PIPE_DIR	tools/pipe-parity-check.py:18
 MIOS_PODMAN_PS_SNAPSHOT	etc/profile.d/mios-podman-ps.sh:15
-MIOS_POD_OUT	tools/generate-pod-quadlets.py:21
 MIOS_POLICIES	automation/38-selinux.sh:45
 MIOS_PORT	tools/drift-checks.py:2377
 MIOS_PORT_GUACAMOLE_WEB	usr/libexec/mios/Setup-MiOSLanPortProxy.ps1:38
@@ -343,7 +325,6 @@ MIOS_READ_TOOL_ENRICH_ENABLED	usr/lib/mios/agent-pipe/server.py:513
 MIOS_READ_TOOL_ENRICH_MAX	usr/lib/mios/agent-pipe/server.py:514
 MIOS_READ_TOOL_ENRICH_TIMEOUT_S	usr/lib/mios/agent-pipe/server.py:515
 MIOS_REGISTRY_BIN	automation/lib/generate-packages.sh:36
-MIOS_REMOTE_TERMINAL	tools/native/mios-gen/src/tmux_theme.rs:48
 MIOS_RENAME_DISTRO	build-mios.ps1:4716
 MIOS_REPO	install-mios-agents.sh:14
 MIOS_REPO_BRANCH	automation/build-mios.sh:197
@@ -391,7 +372,6 @@ MIOS_SELF_HEAL_LOG	usr/libexec/mios/ai/self_heal.py:332
 MIOS_SELF_HEAL_STATE	usr/libexec/mios/ai/self_heal.py:335
 MIOS_SERVICE_BASE_IMAGE	usr/libexec/mios/57-mios-sys-build.sh:26
 MIOS_SESSION_ID	usr/libexec/mios/user/session_migrate.py:269
-MIOS_SGLANG	tools/generate-names-registry.py:31
 MIOS_SIGNING_CERT	tools/sign-powershell.ps1:21
 MIOS_SKIP_AI_CLIS	usr/libexec/mios/install-ai-clis.sh:7
 MIOS_SKIP_BIB	installation/mios-install.sh:254
@@ -448,11 +428,9 @@ MIOS_SYSFS_DRM_DIR	usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh:37
 MIOS_SYSFS_NET_DIR	usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh:34
 MIOS_SYS_ENV_TABLE	var/lib/mios/embeddings/ingest_local.py:27
 MIOS_TARGET_USER	.devcontainer/install-root-overlay.sh:67
-MIOS_TCOMPILE_BIN	tools/compile-templates.py:98
 MIOS_TEMPLATE	usr/libexec/mios/user-setup.sh:81
 MIOS_TENANT_MAX_CONCURRENCY	usr/lib/mios/agent-pipe/server.py:556
 MIOS_TENANT_QUOTA_ENABLE	usr/lib/mios/agent-pipe/server.py:553
-MIOS_TEST_OVERRIDE_UID	tools/generate-pod-quadlets.py:806
 MIOS_TMP_DIR	automation/build-mios.sh:194
 MIOS_TOKENIZER_PATH	usr/lib/mios/agent-pipe/server.py:794
 MIOS_TOML_GET	.devcontainer/boot-mios-systems.sh:154
@@ -468,24 +446,15 @@ MIOS_TYPE_RETRY_MAX	usr/lib/mios/agent-pipe/server.py:1779
 MIOS_UID	.devcontainer/cloud-shell/codex-cloud.sh:30
 MIOS_UNIFIED	usr/libexec/mios/user-setup.sh:143
 MIOS_UNIFIED_LOG	build-mios.ps1:515
-MIOS_URL_BIBATA_API	automation/57-gnome.sh:23
-MIOS_URL_BIBATA_DL	automation/57-gnome.sh:30
-MIOS_URL_BIBATA_SUM	automation/57-gnome.sh:37
-MIOS_URL_CROWDSEC_REPO	automation/06-enable-external-repos.sh:131
 MIOS_URL_QUICKSHELL	automation/66-bake-quickshell.sh:18
 MIOS_URL_SURFER	automation/67-bake-surfer.sh:14
-MIOS_URL_TAILSCALE_REPO	automation/06-enable-external-repos.sh:122
-MIOS_URL_TERRA_REPO	automation/06-enable-external-repos.sh:61
-MIOS_URL_UBLUE_REPO	automation/06-enable-external-repos.sh:98
 MIOS_USERNAME	automation/build-mios.sh:64
 MIOS_VALUE_DUP_BASELINE_BUMP	automation/98-drift-checks.sh:3437
 MIOS_VERB_EMBED_PERSIST	usr/lib/mios/agent-pipe/mios_pipe/routing/toolsearch.py:237
 MIOS_VERB_EMBED_URL	usr/lib/mios/agent-pipe/server.py:3482
 MIOS_VERSION_MANIFEST	automation/build.sh:298
 MIOS_VERSION_MANIFEST_FINAL	automation/build.sh:532
-MIOS_VERSION_SSOT	tools/audit-version-literals.py:45
 MIOS_VISION_MAX_BYTES	usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py:113
-MIOS_VLLM	tools/generate-names-registry.py:30
 MIOS_VLLM_BAKE_MODEL	automation/73-model-prep.sh:85
 MIOS_VRAM_BUDGET_MB	usr/lib/mios/agent-pipe/server.py:1222
 MIOS_VRAM_CHECKPOINT	usr/lib/mios/agent-pipe/server.py:1221

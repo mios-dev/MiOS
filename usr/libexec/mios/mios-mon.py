@@ -1584,7 +1584,7 @@ def main():
     args, unknown = parser.parse_known_args()
     PIPELINE_MODE = args.pipeline
     unknown_lower = [a.lower() for a in unknown]
-    AI_MODE = args.ai or (args.tab == "ai") or ("ai" in unknown_lower) or (os.environ.get("MIOS_MON_TAB") == "ai")
+    AI_MODE = args.ai or (args.tab == "ai") or ("ai" in unknown_lower)
     TAB_CHOICE = args.tab
 
     mode = "monitor"
