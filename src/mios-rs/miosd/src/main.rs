@@ -1573,7 +1573,6 @@ fn run_overlay_bind_images(
             }
 
             let dst_file = bdir.join(&name);
-            #[cfg(unix)]
             {
                 // A swallowed symlink failure is an unbound image that still
                 // reports as bound; Law 3 has no way to notice afterwards.
@@ -1588,7 +1587,7 @@ fn run_overlay_bind_images(
                         .into())
                     }
                 }
-                std::os::unix::fs::symlink(&path, &dst_file).map_err(|e| {
+                native_file_symlink(&path, &dst_file).map_err(|e| {
                     format!(
                         "overlay-bind-images: cannot bind {} -> {}: {e}",
                         dst_file.display(),
@@ -1761,7 +1760,6 @@ fn run_harden(root: &str) -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
         let dst = wants_dir.join(u);
-        #[cfg(unix)]
         {
             match std::fs::remove_file(&dst) {
                 Ok(()) => {}
@@ -1770,13 +1768,36 @@ fn run_harden(root: &str) -> Result<(), Box<dyn std::error::Error>> {
                     return Err(format!("harden: cannot replace {}: {e}", dst.display()).into())
                 }
             }
-            std::os::unix::fs::symlink(format!("../{u}"), &dst)
+            native_file_symlink(format!("../{u}"), &dst)
                 .map_err(|e| format!("harden: cannot enable {u}: {e}"))?;
         }
         println!("[miosd] enabled {u}");
     }
 
     Ok(())
+}
+
+/// Both builders must create the link or report the platform's real error.
+fn native_file_symlink(
+    source: impl AsRef<std::path::Path>,
+    destination: impl AsRef<std::path::Path>,
+) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(source, destination)
+    }
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_file(source, destination)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (source, destination);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "native file links require Linux or Windows",
+        ))
+    }
 }
 
 /// One layered-loader read: `mios-toml-get <section> <key>` (vendor < host < user), empty is an error.

@@ -1,6 +1,8 @@
 // AI-hint: Native SSOT catalog build, static-artifact verification and atomic FHS installation.
 // AI-related: automation/55-native-build.sh, usr/share/mios/mios.toml, miosd native-build
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 use std::process::Command;
 
 fn run(command: &mut Command, label: &str) -> Result<(), String> {
@@ -246,6 +248,7 @@ fn install_verified(
     Err("Linux FHS installation requires a Unix builder".into())
 }
 
+#[cfg(unix)]
 fn checked_directory(prefix: &Path, fhs: &str) -> Result<PathBuf, String> {
     if !matches!(fhs, "/usr/bin" | "/usr/libexec/mios") {
         return Err(format!("unsupported native FHS directory {fhs}"));
