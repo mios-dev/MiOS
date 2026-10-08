@@ -3,10 +3,12 @@
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py, usr/lib/mios/gateway-agent/server.py, usr/lib/mios/crawl4ai/mios-crawl4ai-service.py
 """No service startup, browser, model, database server or network is invoked."""
 import ast
+import asyncio
 import json
 import os
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
@@ -153,6 +155,52 @@ class HttpErrorSafety(unittest.IsolatedAsyncioTestCase):
                 client.post.side_effect = None
                 client.post.return_value = SimpleNamespace(status_code=200, json=lambda: {"choices": [{"message": {"content": "answer"}}]})
                 self.assertEqual((await scope["chat_completions"](request)).content["choices"][0]["message"]["content"], "answer")
+
+    async def test_gateway_agent_execution_and_stream_contracts(self):
+        class ActionStep(SimpleNamespace):
+            pass
+
+        class FinalAnswerStep(SimpleNamespace):
+            pass
+
+        max_steps_error = type("AgentMaxStepsError", (Exception,), {})
+        for stream in (False, True):
+            for outcome in ("error", "max_steps", "success"):
+                with self.subTest(stream=stream, outcome=outcome):
+                    failure = max_steps_error(MARKER) if outcome == "max_steps" else RuntimeError(MARKER)
+                    agent = SimpleNamespace(run=Mock(side_effect=None if outcome == "success" else failure))
+                    agent.run.return_value = [FinalAnswerStep(output="answer")] if stream else "answer"
+                    smol = SimpleNamespace(OpenAIServerModel=Mock(), ToolCallingAgent=Mock(return_value=agent))
+                    session = SimpleNamespace(get_session=AsyncMock(return_value=[]), save_session=AsyncMock())
+                    scope = handlers(GATEWAY, ["chat_completions", "openai_error"],
+                                     session_db=session, _toml_section=lambda section: {},
+                                     tool_registry=None, skill_catalog_loader=None,
+                                     asyncio=asyncio, time=time, StreamingResponse=response)
+                    request = SimpleNamespace(messages=[{"role": "user", "content": "task"}],
+                                              metadata={}, model="test", stream=stream)
+                    modules = {"smolagents": smol, "smolagents.memory": SimpleNamespace(ActionStep=ActionStep),
+                               "smolagents.agents": SimpleNamespace(FinalAnswerStep=FinalAnswerStep)}
+                    with patch.dict(sys.modules, modules):
+                        result = await scope["chat_completions"](request)
+                        if stream:
+                            chunks = [chunk async for chunk in result.content]
+                            self.assertNotIn(MARKER, "".join(chunks))
+                            self.assertEqual(chunks[-1], "data: [DONE]\n\n")
+                            payloads = [json.loads(chunk.removeprefix("data: ")) for chunk in chunks[:-1]]
+                            self.assertEqual(payloads[-1]["choices"][0]["finish_reason"],
+                                             "length" if outcome == "max_steps" else "stop")
+                            if outcome == "success":
+                                self.assertIn("answer", "".join(chunks))
+                        elif outcome == "error":
+                            self.assert_redacted(result, 500)
+                            self.assertEqual(result.content["error"]["code"], "agent_loop_failed")
+                        else:
+                            self.assertEqual(result["choices"][0]["finish_reason"],
+                                             "length" if outcome == "max_steps" else "stop")
+                            self.assertEqual(result["choices"][0]["message"]["content"],
+                                             "[Agent Max Steps Reached]" if outcome == "max_steps" else "answer")
+                        if outcome == "error":
+                            self.assertIs(scope["log"].error.call_args.args[1], failure)
 
 
 if __name__ == "__main__":
