@@ -4,6 +4,7 @@
 # AI-functions: (test)
 """Offline regression for mios_toolexec -- rescue corpus + executor shaping."""
 
+import ast
 import asyncio
 import contextvars
 import json
@@ -12,6 +13,18 @@ import sys
 from pathlib import Path
 
 import mios_toolexec as T
+
+# Execute the gateway's actual import declarations against the real shim and
+# executor, so a retired symbol cannot hide behind a permissive import stub.
+_server_path = Path(__file__).with_name("server.py")
+_server_imports = [node for node in ast.parse(_server_path.read_text(encoding="utf-8")).body
+                   if isinstance(node, ast.ImportFrom) and node.module == "mios_toolexec"]
+assert _server_imports, "gateway must exercise the executor import contract"
+_exports = {}
+exec(compile(ast.Module(body=_server_imports, type_ignores=[]), str(_server_path), "exec"), _exports)
+for _node in _server_imports:
+    for _alias in _node.names:
+        assert _exports[_alias.asname or _alias.name] is getattr(T, _alias.name)
 
 _VERB_CATALOG = {
     "web_search": {"permission": "read"},
