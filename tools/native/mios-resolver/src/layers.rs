@@ -80,14 +80,15 @@ pub fn resolve_tier_dirs(
     let (unrooted_vendor, unrooted_host, unrooted_vendor_d) =
         unrooted_defaults(Path::new(FHS_VENDOR).is_file());
 
-    let vendor = if !root.is_empty() {
-        env::var("MIOS_VENDOR_TOML")
-            .unwrap_or_else(|_| format!("{}/usr/share/mios/mios.toml", root))
-    } else {
-        env::var("MIOS_VENDOR_TOML")
-            .or_else(|_| env::var("MIOS_TOML"))
-            .unwrap_or(unrooted_vendor)
-    };
+    let vendor = env::var("MIOS_VENDOR_TOML")
+        .or_else(|_| env::var("MIOS_TOML"))
+        .unwrap_or_else(|_| {
+            if root.is_empty() {
+                unrooted_vendor
+            } else {
+                format!("{}/usr/share/mios/mios.toml", root)
+            }
+        });
 
     let host = env::var("MIOS_HOST_TOML").unwrap_or_else(|_| {
         if !root.is_empty() {

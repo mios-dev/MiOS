@@ -4,6 +4,60 @@ use mios_resolver::emit_json::emit_json;
 use mios_resolver::emit_shell::emit_shell;
 
 #[test]
+fn rooted_cli_honors_explicit_vendor_selectors() {
+    let scratch = tempfile::tempdir().unwrap();
+    let root = scratch.path();
+    let vendor = root.join("usr/share/mios/mios.toml");
+    std::fs::create_dir_all(vendor.parent().unwrap()).unwrap();
+    std::fs::write(&vendor, "[selector_probe]\nvalue = 'root-default'\n").unwrap();
+    let alias = root.join("operator.toml");
+    std::fs::write(&alias, "[selector_probe]\nvalue = 'operator-alias'\n").unwrap();
+    let canonical = root.join("canonical.toml");
+    std::fs::write(&canonical, "[selector_probe]\nvalue = 'canonical-vendor'\n").unwrap();
+
+    // A child environment keeps concurrent tests independent of these inputs.
+    for cli_root in [false, true] {
+        for selector in ["default", "alias", "canonical", "missing"] {
+            let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_mios-resolver"));
+            command.env_clear().arg("--emit=json");
+            command.env("MIOS_HOST_TOML", root.join("absent-host.toml"));
+            command.env("MIOS_USER_TOML", root.join("absent-user.toml"));
+            if cli_root {
+                command.arg("--root").arg(root);
+            } else {
+                command.env("MIOS_TOML_ROOT", root);
+            }
+            if selector != "default" {
+                command.env("MIOS_TOML", &alias);
+            }
+            if selector == "canonical" {
+                command.env("MIOS_VENDOR_TOML", &canonical);
+            } else if selector == "missing" {
+                command.env("MIOS_TOML", root.join("absent-operator.toml"));
+            }
+            let output = command.output().unwrap();
+            assert!(
+                output.status.success(),
+                "{cli_root}/{selector}: {:?}",
+                output
+            );
+            let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            let expected = match selector {
+                "alias" => Some("operator-alias"),
+                "canonical" => Some("canonical-vendor"),
+                "missing" => None,
+                _ => Some("root-default"),
+            };
+            assert_eq!(
+                json["merged"]["selector_probe"]["value"].as_str(),
+                expected,
+                "{cli_root}/{selector}"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_cli_emit_shell_snapshot() {
     let val: toml::Value = toml::from_str(
         r#"
