@@ -566,9 +566,48 @@ pub struct PrivilegedUnitsRoster {
     pub unconfined: Option<Vec<String>>,
 }
 
+/// systemd expands `${VAR}` only in Exec*= command lines. Anywhere else
+/// (Environment=, ListenStream=, ...) a `${MIOS_PORTS_<NAME>}` placeholder
+/// reaches the daemon verbatim, so the projection resolves it from SSOT
+/// [ports] (+ stack_id * 10000) and the shipped unit carries the number. A
+/// name [ports] does not declare is left as written.
+fn resolve_port_placeholders(key: &str, value: &str, ports: Option<&toml::Value>) -> String {
+    let Some(ports) = ports.filter(|_| !key.starts_with("Exec")) else {
+        return value.to_owned();
+    };
+    let offset = ports
+        .get("stack_id")
+        .and_then(|v| v.as_integer().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .unwrap_or(0)
+        * 10000;
+    let mut out = String::with_capacity(value.len());
+    let mut rest = value;
+    while let Some(start) = rest.find("${MIOS_PORTS_") {
+        let Some(len) = rest[start..].find('}') else {
+            break;
+        };
+        let placeholder = &rest[start..start + len + 1];
+        let name = placeholder["${MIOS_PORTS_".len()..placeholder.len() - 1]
+            .split(":-")
+            .next()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        out.push_str(&rest[..start]);
+        match ports.get(&name).and_then(toml::Value::as_integer) {
+            Some(port) => out.push_str(&(port + offset).to_string()),
+            None => out.push_str(placeholder),
+        }
+        rest = &rest[start + len + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Render units from SSOT TOML string. Returns map of relative path -> rendered content.
 pub fn render_units(ssot_toml: &str) -> Result<BTreeMap<String, String>, UnitGenError> {
     let root: SsotRoot = toml::from_str(ssot_toml)?;
+    let doc: toml::Value = toml::from_str(ssot_toml)?;
+    let ports = doc.get("ports");
     let mut rendered = BTreeMap::new();
 
     let unconfined_units: Vec<String> = root
@@ -631,11 +670,13 @@ pub fn render_units(ssot_toml: &str) -> Result<BTreeMap<String, String>, UnitGen
                             existing_keys.insert(k.as_str(), v);
                             match v {
                                 toml::Value::String(s) => {
+                                    let s = resolve_port_placeholders(k, s, ports);
                                     out.push_str(&format!("{}={}\n", k, s));
                                 }
                                 toml::Value::Array(arr) => {
                                     for item in arr {
                                         if let Some(s) = item.as_str() {
+                                            let s = resolve_port_placeholders(k, s, ports);
                                             out.push_str(&format!("{}={}\n", k, s));
                                         }
                                     }
@@ -780,7 +821,11 @@ mod tests {
         let editor: serde_json::Value =
             serde_json::from_str(&profiles["usr/share/mios/keybindings/vscode-keybindings.json"])
                 .unwrap();
-        assert_eq!(editor.as_array().unwrap().len(), 3);
+        // One editor row per SSOT action: the count is the SSOT's, not a literal.
+        let doc: toml::Value = toml::from_str(ssot).unwrap();
+        let actions = doc["keybindings"]["actions"].as_array().unwrap().len();
+        assert!(actions > 0);
+        assert_eq!(editor.as_array().unwrap().len(), actions);
         assert!(editor
             .as_array()
             .unwrap()
@@ -926,6 +971,33 @@ ExecStartPre = ["/usr/bin/a", "/usr/bin/b"]
         assert_eq!(
             out.get("sample.service").unwrap(),
             "[Service]\nExecStartPre=/usr/bin/a\nExecStartPre=/usr/bin/b\n"
+        );
+    }
+
+    /// systemd leaves `${VAR}` unexpanded outside Exec*= lines, so those values
+    /// must ship resolved; Exec lines keep the placeholder systemd expands, and
+    /// a name [ports] does not declare is not invented.
+    #[test]
+    fn test_port_placeholders_resolve_only_where_systemd_cannot() {
+        let toml_str = r#"
+[ports]
+stack_id = 1
+node = 8650
+[units."sample.socket".Socket]
+ListenStream = "0.0.0.0:${MIOS_PORTS_NODE}"
+[units."sample.service".Service]
+ExecStart = "/usr/bin/x --port ${MIOS_PORTS_NODE}"
+Environment = ["A=${MIOS_PORTS_NODE:-1}/v1", "B=${MIOS_PORTS_ABSENT:-9}", "C=${MIOS_OTHER}"]
+"#;
+        let out = render_units(toml_str).unwrap();
+        assert_eq!(
+            out.get("sample.socket").unwrap(),
+            "[Socket]\nListenStream=0.0.0.0:18650\n"
+        );
+        assert_eq!(
+            out.get("sample.service").unwrap(),
+            "[Service]\nExecStart=/usr/bin/x --port ${MIOS_PORTS_NODE}\n\
+             Environment=A=18650/v1\nEnvironment=B=${MIOS_PORTS_ABSENT:-9}\nEnvironment=C=${MIOS_OTHER}\n"
         );
     }
 
