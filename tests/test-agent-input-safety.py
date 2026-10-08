@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# AI-hint: Regression controls for agent argv boundaries and bounded input normalization; never invokes a model.
+# AI-hint: Regression controls for agent process inputs and bounded input normalization; never invokes a model.
 # AI-related: usr/lib/mios/agents/opencode-gateway/server.py, usr/lib/mios/agent-pipe/mios_dispatch.py, usr/lib/mios/agent-pipe/mios_ast_diff.py
 """Exercise production input handling without network or model subprocesses."""
 import ast
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import re
@@ -94,13 +95,16 @@ class InputSafety(unittest.TestCase):
             self.assertTrue(again.startswith("XDG_RUNTIME_DIR=" + directories[0] + " "))
         self.assertEqual(len(directories), len(set(directories)))
 
-    def test_prompt_is_one_positional_argument(self):
+    def test_prompt_is_stdin_data(self):
         response = SimpleNamespace(stdout=json.dumps({"part": {"type": "text", "text": "answer"}}), stderr="", returncode=0)
-        for prompt in ("ordinary task", "--command=touch /tmp/unwanted", "--attach=http://remote", "--auto", "-m other/model", "a\nb 'quoted'"):
-            with self.subTest(prompt=prompt), patch.object(GATEWAY.subprocess, "run", return_value=response) as run:
+        for prompt in ("ordinary task", "--command=touch /tmp/unwanted", "--attach=http://remote", "--auto", "-m other/model", "a\nb 'quoted'", "用户: café\n🙂"):
+            with self.subTest(prompt=prompt), patch.object(GATEWAY, "OPENCODE_MODEL", "model"), patch.object(GATEWAY, "OPENCODE_PROVIDER", "local"), patch.object(GATEWAY.subprocess, "run", return_value=response) as run:
                 self.assertEqual(GATEWAY._run_opencode(prompt, "local/model"), "answer")
                 argv = run.call_args.args[0]
-                self.assertEqual(argv[-4:], ["-m", "local/model", "--", prompt])
+                self.assertEqual(argv, [GATEWAY.OPENCODE_BIN, "run", "--format", "json", "-m", "local/model"])
+                self.assertEqual(run.call_args.kwargs["input"], prompt)
+                self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+                self.assertNotIn("stdin", run.call_args.kwargs)
                 self.assertNotIn("shell", run.call_args.kwargs)
                 self.assertEqual(run.call_args.kwargs["env"]["OPENCODE_CONFIG"], GATEWAY.OPENCODE_CONFIG)
 
@@ -110,7 +114,34 @@ class InputSafety(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "invalid opencode model selector"):
                     GATEWAY._run_opencode("task", model)
                 run.assert_not_called()
-        self.assertEqual(GATEWAY._selector("model"), GATEWAY.OPENCODE_PROVIDER + "/model")
+        self.assertEqual(GATEWAY._selector(GATEWAY.OPENCODE_MODEL),
+                         GATEWAY.OPENCODE_MODEL if "/" in GATEWAY.OPENCODE_MODEL else GATEWAY.OPENCODE_PROVIDER + "/" + GATEWAY.OPENCODE_MODEL)
+
+    def test_unconfigured_selector_never_launches(self):
+        response = SimpleNamespace(stdout='{"part":{"type":"text","text":"answer"}}', stderr="", returncode=0)
+        with patch.object(GATEWAY, "OPENCODE_MODEL", "model"), patch.object(GATEWAY, "OPENCODE_PROVIDER", "local"):
+            for model in ("remote/model", "local/other-model", "other-provider/other-model", "other-model"):
+                with self.subTest(model=model), patch.object(GATEWAY.subprocess, "run", return_value=response) as run:
+                    with self.assertRaisesRegex(ValueError, "not configured"):
+                        GATEWAY._run_opencode("task", model)
+                    run.assert_not_called()
+            self.assertEqual(GATEWAY._selector("model"), "local/model")
+            self.assertEqual(GATEWAY._selector("local/model"), "local/model")
+
+    def test_http_rejects_unconfigured_model_before_execution(self):
+        for model in ("remote/model", "local/not-configured"):
+            with self.subTest(model=model), patch.object(GATEWAY, "OPENCODE_MODEL", "model"), patch.object(GATEWAY, "OPENCODE_PROVIDER", "local"), patch.object(GATEWAY, "_run_opencode", return_value="answer") as run:
+                payload = json.dumps({"model": model, "messages": [{"role": "user", "content": "task"}]}).encode()
+                handler = object.__new__(GATEWAY.Handler)
+                handler.path = "/v1/chat/completions"
+                handler.headers = {"Content-Length": str(len(payload))}
+                handler.rfile = io.BytesIO(payload)
+                handler._send = unittest.mock.Mock()
+                handler.do_POST()
+                status, body = handler._send.call_args.args
+                self.assertEqual(status, 400)
+                self.assertEqual(body["error"]["code"], "model_not_configured")
+                run.assert_not_called()
 
     def test_dispatcher_compatibility(self):
         for tool in (None, "", " web_search(query) ", "`web_search`", "'tool'", "tool(a(b))", "tool(a)\n", "tool(a\nb)", "tool(a)\nsecond(b)", "tool(a) trailing", "tool(()\r\n", "tool(a)\n\n"):

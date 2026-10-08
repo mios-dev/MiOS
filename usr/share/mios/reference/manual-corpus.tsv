@@ -5081,12 +5081,12 @@ tests/test-adversarial-t401-t406.py	539	539	1	12	5adf7c4b1b4a	STAY	local-scoped	
 tests/test-adversarial-t401-t406.py	540	540	1	3	9e0d11fcf0c2	DROP	commented-out-code		0				0
 tests/test-adversarial-t401-t406.py	563	563	1	6	140c81070d3f	STAY	local-scoped		0				0
 tests/test-adversarial-t401-t406.py	587	587	1	7	087d77d776cd	STAY	local-scoped		0				0
-tests/test-agent-input-safety.py	1	3	3	21	50c3ad5d2a42	STAY	ai-header		0				0
+tests/test-agent-input-safety.py	1	3	3	21	67d300e1f9a4	STAY	ai-header		0				0
 tests/test-agent-input-safety.py	4	4	1	9	50334cb806ae	STAY	local-scoped		0				0
-tests/test-agent-input-safety.py	46	46	1	9	d654bf64dedc	STAY	local-scoped		0				0
-tests/test-agent-input-safety.py	57	57	1	5	dd7ccbfd25cd	STAY	inline-scoped		0				0
-tests/test-agent-input-safety.py	81	81	1	8	2f4bed5e9a12	STAY	local-scoped		0				0
-tests/test-agent-input-safety.py	141	141	1	10	4fcf446c0fd1	STAY	local-scoped		0				0
+tests/test-agent-input-safety.py	47	47	1	9	d654bf64dedc	STAY	local-scoped		0				0
+tests/test-agent-input-safety.py	58	58	1	5	dd7ccbfd25cd	STAY	inline-scoped		0				0
+tests/test-agent-input-safety.py	82	82	1	8	2f4bed5e9a12	STAY	local-scoped		0				0
+tests/test-agent-input-safety.py	172	172	1	10	4fcf446c0fd1	STAY	local-scoped		0				0
 tests/test-agent-persona.py	1	3	3	16	1336185f034b	STAY	ai-header		0				0
 tests/test-agent-persona.py	4	7	3	16	e7a3ab27535f	STAY	midsize-why		0				0
 tests/test-agent-persona.py	29	29	1	9	0d212b78f6c0	STAY	local-scoped		0				0
@@ -15967,11 +15967,12 @@ usr/lib/mios/agent-pipe/tests/test_mios_health.py	1	1	1	6	3be3be285f35	STAY	ai-h
 usr/lib/mios/agent-pipe/tests/test_mios_mcp_dispatch.py	1	1	1	6	55c87b7e3759	STAY	ai-header		0				0
 usr/lib/mios/agents/opencode-gateway/server.py	1	3	3	21	16160e28ef42	STAY	ai-header		0				0
 usr/lib/mios/agents/opencode-gateway/server.py	4	35	31	184	99ef421a4520	MIGRATE	narrative-history		0				0
-usr/lib/mios/agents/opencode-gateway/server.py	63	67	5	26	5f488ac9f0a7	STAY	midsize-why		0				0
-usr/lib/mios/agents/opencode-gateway/server.py	74	80	7	47	93ef4e2f3aa3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:93ef4e2f3aa3	47	0
-usr/lib/mios/agents/opencode-gateway/server.py	102	102	1	5	f4ce1b2c5ac6	STAY	inline-scoped		0				0
-usr/lib/mios/agents/opencode-gateway/server.py	119	132	14	109	fd05adc8a631	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:fd05adc8a631	109	0
-usr/lib/mios/agents/opencode-gateway/server.py	264	272	9	71	3242f7b0c8f2	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:3242f7b0c8f2	71	0
+usr/lib/mios/agents/opencode-gateway/server.py	63	63	1	8	2842cd8a11e1	STAY	local-scoped		0				0
+usr/lib/mios/agents/opencode-gateway/server.py	75	81	7	47	93ef4e2f3aa3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:93ef4e2f3aa3	47	0
+usr/lib/mios/agents/opencode-gateway/server.py	103	103	1	5	f4ce1b2c5ac6	STAY	inline-scoped		0				0
+usr/lib/mios/agents/opencode-gateway/server.py	120	133	14	109	fd05adc8a631	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:fd05adc8a631	109	0
+usr/lib/mios/agents/opencode-gateway/server.py	140	141	2	19	eb0e42226870	STAY	local-scoped		0				0
+usr/lib/mios/agents/opencode-gateway/server.py	274	282	9	71	3242f7b0c8f2	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:3242f7b0c8f2	71	0
 usr/lib/mios/ai/cuda_graphs.py	1	3	3	19	b706174ac669	STAY	ai-header		0				0
 usr/lib/mios/ai/cuda_graphs.py	4	8	4	45	5872c205a73f	STAY	midsize-why		0				0
 usr/lib/mios/ai/cuda_graphs.py	35	35	1	10	765dc772d5be	STAY	local-scoped		0				0
