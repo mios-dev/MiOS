@@ -49,6 +49,17 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Compare or apply the SSOT-declared bootstrap mirror, preserving unowned keys.
+    BootstrapSync {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long)]
+        bootstrap: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        check: bool,
+        #[arg(long)]
+        apply: bool,
+    },
     /// Render a native projection in a private tracked-byte snapshot and print capped diffs.
     ProjectionEvidence {
         #[arg(long)]
@@ -711,6 +722,27 @@ fn main() -> ExitCode {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
                     eprintln!("[98-drift-checks][diff] evidence failed: {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Commands::BootstrapSync {
+            root,
+            bootstrap,
+            check: _,
+            apply,
+        } => {
+            let root = resolve_root(root);
+            let boot = bootstrap
+                .or_else(|| env::var_os("MIOS_BOOTSTRAP_ROOT").map(PathBuf::from))
+                .unwrap_or_else(|| root.parent().unwrap_or(&root).join("mios-bootstrap"));
+            return match mios_gen::bootstrap_sync::run(&root, &boot, apply) {
+                Ok(report) => {
+                    println!("[sync-bootstrap] {report}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("[sync-bootstrap] {error}");
                     ExitCode::FAILURE
                 }
             };

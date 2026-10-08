@@ -13,6 +13,17 @@ stages; `sync-generated.sh` is a compatibility dispatcher. The names-registry
 implementation is also folded into `mios-gen names-registry`; its old binary
 delegates to the same implementation.
 
+`mios-gen bootstrap-sync --root <checkout> --bootstrap <bootstrap-checkout> --check`
+checks the vendor `[bootstrap.sync]` manifest without writing either repository.
+`--apply` preflights every authority file, TOML scope and tracked-file declaration,
+then stages replacements and restoration copies before publication. A publication
+failure rolls back earlier files and reports any restoration failures. Paths that
+escape either root or traverse symlinks are rejected. Whole-table mirrors own
+scalar keys; selected-key mirrors preserve bootstrap-owned neighbours and comments.
+The old `sync-bootstrap.py` CLI delegates to this native command and fails when
+the native generator is unavailable. Review local bootstrap contributions before
+applying the declared authority changes.
+
 `mios-gen names --root <checkout>` audits canonical names and compatibility
 metadata without exposing configuration values. Runtime and globals consumers
 share the resolver's canonical `section.key -> MIOS_SECTION_KEY` convention.

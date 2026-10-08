@@ -5080,8 +5080,9 @@ check_blade_reconcile_schema() {
 # --- bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT ---
 check_bootstrap_sync() {
     echo "[98-drift-checks] bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
-            --root "$ROOT" --check 2>&1)" || {
+    local bin; bin="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || {
+        _violation "check_bootstrap_sync: native mios-gen is required; install the SSOT release catalog"; return; }
+    local out; out="$("$bin" bootstrap-sync --root "$ROOT" --check 2>&1)" || {
         _violations_from "check_bootstrap_sync: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
