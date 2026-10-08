@@ -10851,11 +10851,11 @@ tools/native/mios-resolver/src/expand.rs	321	323	3	24	7611480eb7ad	STAY	midsize-
 tools/native/mios-resolver/src/layers.rs	1	2	2	22	63c2a6499bf9	STAY	ai-header		0				0
 tools/native/mios-resolver/src/layers.rs	13	14	2	19	3c31da435b7a	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/layers.rs	60	63	4	47	ccb3a8dc6da9	STAY	midsize-why		0				0
-tools/native/mios-resolver/src/layers.rs	101	102	2	22	10bd0ff6ea0c	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/layers.rs	162	163	2	15	29c3a7c63040	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/layers.rs	197	197	1	1	94bb442e4359	STAY	inline-scoped		0				0
-tools/native/mios-resolver/src/layers.rs	204	204	1	10	664e6d75d18d	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/layers.rs	209	210	2	22	90dd7d73d3c5	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	102	103	2	22	10bd0ff6ea0c	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	163	164	2	15	29c3a7c63040	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	198	198	1	1	94bb442e4359	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	205	205	1	10	664e6d75d18d	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/layers.rs	210	211	2	22	90dd7d73d3c5	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/lib.rs	1	2	2	19	3563417530a8	STAY	ai-header		0				0
 tools/native/mios-resolver/src/lib.rs	4	4	1	11	9ca46611d295	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/lib.rs	35	36	2	19	7d3cb73b5815	STAY	local-scoped		0				0
@@ -10901,7 +10901,8 @@ tools/native/mios-resolver/src/walk.rs	164	167	4	31	8964f725599e	STAY	midsize-wh
 tools/native/mios-resolver/src/walk.rs	212	212	1	2	6f22bfeea3ba	STAY	inline-scoped		0				0
 tools/native/mios-resolver/src/walk.rs	213	213	1	2	9bf9d98fda0f	STAY	inline-scoped		0				0
 tools/native/mios-resolver/tests/cli.rs	1	2	2	12	dd5c0db7aeaa	STAY	ai-header		0				0
-tools/native/mios-resolver/tests/cli.rs	16	19	4	31	ffc4b049346d	STAY	midsize-why		0				0
+tools/native/mios-resolver/tests/cli.rs	18	18	1	10	71f395c368a7	STAY	local-scoped		0				0
+tools/native/mios-resolver/tests/cli.rs	70	73	4	31	ffc4b049346d	STAY	midsize-why		0				0
 tools/native/mios-resolver/tests/differential.rs	1	2	2	19	664f4c5f1b5c	STAY	ai-header		0				0
 tools/native/mios-resolver/tests/fixtures/vendor_host.toml	1	1	1	9	247f37e341c0	STAY	ai-header		0				0
 tools/native/mios-resolver/tests/fixtures/vendor_only.toml	1	1	1	9	71bf214ceb1b	STAY	ai-header		0				0
