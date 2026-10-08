@@ -2820,6 +2820,13 @@ def check_cli_eval_safety() -> int:
               file=sys.stderr)
         return 1
 
+    # A reviewed eval of non-agent input carries this annotation on the line
+    # DIRECTLY above it -- the remedy the message below prescribes. 5f2aadbf
+    # dropped the exemption and kept the message, so following the remedy no
+    # longer cleared the violation. Twin of eval_safety in
+    # src/mios-rs/miosd/src/drift/security.rs (Law 13).
+    attested = re.compile(r"^#\s*TD-1:\s*eval-safe,\s*input=.+,\s*not agent-controlled")
+
     scanned = 0
     for dirpath, dirnames, filenames in os.walk(dir_to_scan):
         dirnames[:] = [d for d in dirnames
@@ -2847,6 +2854,8 @@ def check_cli_eval_safety() -> int:
 
                 code_part = line.split("#")[0].strip()
                 if re.search(r'\beval\b', code_part):
+                    if idx > 0 and attested.match(lines[idx - 1].strip()):
+                        continue
                     viol.append(f"{rel}:{idx+1} has eval: {line.strip()}")
 
     if scanned < 20:

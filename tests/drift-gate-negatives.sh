@@ -139,6 +139,18 @@ EOF
 
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 && die "Check_cli_eval_safety passed despite eval injection"
 
+    # The reviewed-eval exemption is the annotation on the line DIRECTLY above
+    # (twin: miosd drift/security.rs eval_safety). Assembled at run time so the
+    # probe annotation never sits verbatim in this file.
+    local attest
+    attest="$(printf '# TD-%s: eval-safe, input=%s, not agent-controlled' 1 negtest-fixture)"
+    printf '#!/bin/bash\n%s\n\neval "$1"\n' "$attest" > "$temp_verb"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
+        && { rm -f "$temp_verb"; die "Check_cli_eval_safety accepted an annotation that is not on the line directly above the eval"; }
+    printf '#!/bin/bash\n%s\neval "$1"\n' "$attest" > "$temp_verb"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
+        || { rm -f "$temp_verb"; die "Check_cli_eval_safety rejected a reviewed eval carrying the TD-1 annotation directly above it"; }
+
     rm -f "$temp_verb"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
         || die "Check_cli_eval_safety failed after restoration"
