@@ -48,6 +48,7 @@ sha2 = "0.10"
 tempfile = "3.10"
 thiserror = "1.0"
 toml = "0.8"
+toml_edit = "0.20"
 walkdir = "2.4"
 
 # Size-optimized release for the Windows wallpaper daemon (its profile

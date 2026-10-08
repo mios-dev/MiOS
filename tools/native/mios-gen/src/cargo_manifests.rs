@@ -104,6 +104,7 @@ pub fn render_cargo_manifest(members: &[String], version: &str) -> String {
         tempfile = \"3.10\"\n\
         thiserror = \"1.0\"\n\
         toml = \"0.8\"\n\
+        toml_edit = \"0.20\"\n\
         walkdir = \"2.4\"\n\
         \n\
         # Size-optimized release for the Windows wallpaper daemon (its profile\n\

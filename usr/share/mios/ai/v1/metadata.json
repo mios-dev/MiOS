@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3817,
-  "total_metadata_entries": 3109,
-  "total_hints": 3099,
-  "total_functions_indexed": 1462,
-  "total_related_links": 5148,
+  "total_files_scanned": 3818,
+  "total_metadata_entries": 3110,
+  "total_hints": 3100,
+  "total_functions_indexed": 1461,
+  "total_related_links": 5153,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -9945,6 +9945,19 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/bootstrap_sync.rs",
+      "hint": "Native bootstrap mirror with parsed TOML comparisons, confined paths and rollback on publication failure.",
+      "related": [
+        "tools/sync-bootstrap.py",
+        "usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/btop_theme.rs",
       "hint": "SSOT btop theme renderer mapping exact RGB hex colors from mios.toml [colors] (ADR-0021 gen category).",
       "related": [
@@ -11630,8 +11643,11 @@
     },
     {
       "path": "tools/sync-bootstrap.py",
-      "hint": "Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ...",
-      "related": [],
+      "hint": "Compatibility CLI for native mios-gen bootstrap-sync; no Python mirror or silent fallback.",
+      "related": [
+        "tools/native/mios-gen/src/bootstrap_sync.rs",
+        "usr/share/mios/mios.toml"
+      ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
@@ -11852,15 +11868,13 @@
     },
     {
       "path": "tools/test_sync-bootstrap.py",
-      "hint": "Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface the manifest does not declare.",
+      "hint": "Real native bootstrap-sync CLI fixtures prove read-only checks, convergence, confinement and fail-closed dispatch.",
       "related": [
         "tools/sync-bootstrap.py",
-        "usr/share/mios/mios.toml",
-        "automation/98-drift-checks.sh"
+        "tools/native/mios-gen/src/bootstrap_sync.rs",
+        "usr/share/mios/mios.toml"
       ],
-      "functions": [
-        "main"
-      ],
+      "functions": [],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true

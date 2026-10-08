@@ -14,6 +14,7 @@ regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 walkdir = { workspace = true }
 tempfile = { workspace = true }
 mios-resolver = { path = "../mios-resolver" }
