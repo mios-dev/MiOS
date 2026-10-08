@@ -1,3 +1,4 @@
+<!-- AI-hint: Standing MiOS goal: operator objective, measurable stopping conditions with positive and negative evidence, baseline, milestones and non-goals. -->
 # MiOS standing goal
 
 Operator objective (verbatim, 2026-10-07; re-anchored 2026-10-08):
@@ -41,13 +42,35 @@ passes on the real tree or system) and a negative control (a planted defect make
 ## Milestones
 - **M0, current:** recover Codex thread 01a116b2 (unified build console, native dashboard, Windows
   tmux profile, native drift checks) and push PR #61 with drift-gate green (0 MISSING) and the
-  CodeQL highs fixed. Then merge to main per the operator's earlier authorization.
+  CodeQL highs fixed. Merge to main once CI is green and the operator confirms.
 - **M1:** run the literal Windows `irm | iex` bootstrap through to a full SSOT-derived install and build (SC-6).
-- **M2:** MiOS-MODULES consolidation plan. Map the ~40 binaries into domain modules (for example
-  build, ssot or gen, gate or drift, runtime or agent, install), extending `miosd`'s multi-call pattern.
-  Set the SSOT binary-count ceiling.
+- **M2:** MiOS-MODULES consolidation plan. Map the ~40 binaries into domain modules, extending
+  `miosd`'s multi-call pattern, and set the SSOT binary-count ceiling. The operator's rule
+  (2026-10-08): new code goes into the component whose domain it is, not into `miosd` by default.
+  The existing domain homes are:
+  - gates: `mios-gate`
+  - generators and projections: `mios-gen`
+  - build and the progress ledger: `mios-build`
+  - SSOT resolution: `mios-resolver` and `mios-config`
+  - node or edge runtime: `mios-node`
+  - probes: `mios-probe`
+  - daemon and CLI dispatch: `miosd`
+
+  First candidate: the native drift registry (`src/mios-rs/miosd/src/drift/`, 74 checks) belongs to
+  `mios-gate`, which already runs `drift-stubs` and `version-literals-ssot`.
 - **M3:** script-port burn-down by domain, ratcheted per SC-1.
-- **M4:** mios.html ↔ SSOT round trip (SC-4).
+- **M4:** mios.html ↔ SSOT live round trip (SC-4). Operator research (2026-10-08) recommends
+  parent-directory inotify (not file inodes, to survive atomic-rename saves), a debounced persistent
+  watcher with content-hash echo suppression,
+  Operator rule (2026-10-08): mios.html is THE setup interface, and no operator should have to
+  hand-edit or check other files. It must use progressive disclosure: essentials up front, with
+  excess toggles and settings behind an **Admin settings / Extras** sub-menu for power users, so
+  the default view is not overwhelming. Recommended design: the TOML script-island in mios.html as authority with
+  `data-key` form bindings, `toml_edit` for comment-preserving writes into the host or user layer
+  (`/etc/mios/mios.toml`; never `/usr`), write-tmp + fsync + rename + dir-fsync, SSE or
+  peer-credential UDS back to the page, and section-scoped last-write-wins on conflict. Per SC-2, build
+  it as a `miosd` subcommand (one MiOS-MODULE), not a new `mios-syncd` binary. mios.html already
+  POSTs `/portal/config` when embedded and falls back to File System Access or download.
 - **M5:** self-build on installed MiOS (SC-7). Shallow-tree moves (SC-9) land throughout, never as one big rename.
 
 ## Non-goals and blast radius
