@@ -122,15 +122,31 @@ impl Check for DAGIntegrityCheck {
             let mut errors = Vec::new();
             let mut count = 0;
             for directory in ["usr/lib/systemd/system", "usr/share/containers/systemd"] {
-                for path in super::audit::files(&ctx.root, directory)?.iter().filter(|p| [".service", ".container", ".pod"].iter().any(|ext| p.ends_with(ext))) {
+                for path in super::audit::files(&ctx.root, directory)?
+                    .iter()
+                    .filter(|p| {
+                        [".service", ".container", ".pod"]
+                            .iter()
+                            .any(|ext| p.ends_with(ext))
+                    })
+                {
                     count += 1;
                     let body = super::audit::read(&ctx.root, path)?;
-                    if super::audit::ini(&body, "Container", "Image").is_some_and(|s| s.starts_with("localhost/")) || path.ends_with("/mios-webtools.pod") {
+                    if super::audit::ini(&body, "Container", "Image")
+                        .is_some_and(|s| s.starts_with("localhost/"))
+                        || path.ends_with("/mios-webtools.pod")
+                    {
                         let required = "mios-webtools-firstboot.service";
-                        let ordered = body.lines().filter_map(|s| s.trim().split_once('='))
+                        let ordered = body
+                            .lines()
+                            .filter_map(|s| s.trim().split_once('='))
                             .filter(|(key, _)| matches!(key.trim(), "After" | "Requires"))
                             .any(|(_, values)| values.split_whitespace().any(|v| v == required));
-                        if !ordered { errors.push(format!("{path}: local image consumer lacks {required} ordering")); }
+                        if !ordered {
+                            errors.push(format!(
+                                "{path}: local image consumer lacks {required} ordering"
+                            ));
+                        }
                     }
                 }
             }

@@ -2,7 +2,14 @@
 use std::{fs, path::PathBuf, process::Command};
 
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().parent().unwrap().into()
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .into()
 }
 fn run(host: &str, user: &str) -> std::process::Output {
     let tmp = tempfile::tempdir().unwrap();
@@ -11,20 +18,37 @@ fn run(host: &str, user: &str) -> std::process::Output {
     fs::write(&host_path, host).unwrap();
     fs::write(&user_path, user).unwrap();
     Command::new(env!("CARGO_BIN_EXE_mios-gen"))
-        .args(["render-host-tmux", "--root"]).arg(root())
+        .args(["render-host-tmux", "--root"])
+        .arg(root())
         .env("MIOS_VENDOR_TOML", root().join("usr/share/mios/mios.toml"))
-        .env("MIOS_HOST_TOML", host_path).env("MIOS_USER_TOML", user_path)
+        .env("MIOS_HOST_TOML", host_path)
+        .env("MIOS_USER_TOML", user_path)
         .env("MIOS_VENDOR_TOML_D", tmp.path().join("missing-vendor.d"))
         .env("MIOS_HOST_TOML_D", tmp.path().join("missing-host.d"))
         .env("MIOS_USER_TOML_D", tmp.path().join("missing-user.d"))
-        .output().unwrap()
+        .output()
+        .unwrap()
 }
 #[test]
 fn host_cli_renders_layered_overrides_without_shell_or_python() {
-    let output = run("[theme.tmux]\nstatus_position='top'\n[colors]\nfg='#112233'\n", "[colors]\nfg='#FEDCBA'\n[terminal]\nscrollback_rows=4567\n");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = run(
+        "[theme.tmux]\nstatus_position='top'\n[colors]\nfg='#112233'\n",
+        "[colors]\nfg='#FEDCBA'\n[terminal]\nscrollback_rows=4567\n",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let text = String::from_utf8(output.stdout).unwrap();
-    for expected in ["#FEDCBA", "set -g status-position top", "set -g history-limit 4567", "bind-key h select-pane -L"] { assert!(text.contains(expected), "{expected}"); }
+    for expected in [
+        "#FEDCBA",
+        "set -g status-position top",
+        "set -g history-limit 4567",
+        "bind-key h select-pane -L",
+    ] {
+        assert!(text.contains(expected), "{expected}");
+    }
     assert!(!text.contains("#112233"));
     assert!(text.lines().count() > 55);
 }

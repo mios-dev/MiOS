@@ -7,7 +7,6 @@
 use std::collections::BTreeMap;
 use std::env;
 
-
 #[derive(Debug, Clone)]
 pub struct PromptSettings {
     pub powerline_left: String,
@@ -180,7 +179,10 @@ impl TmuxThemeEngine {
         let mut palette = BTreeMap::new();
         for (k, v) in colors_tbl {
             if let Some(s) = v.as_str() {
-                if s.len() != 7 || !s.starts_with('#') || !s.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit) {
+                if s.len() != 7
+                    || !s.starts_with('#')
+                    || !s.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+                {
                     return Err(format!("[colors].{k}: expected #rrggbb"));
                 }
                 palette.insert(k.clone(), s.to_string());
@@ -410,4 +412,3 @@ impl TmuxThemeEngine {
         Ok(translated)
     }
 }
-

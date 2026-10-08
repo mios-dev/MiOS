@@ -14,8 +14,8 @@ mod ai_manifest;
 mod bib_configs;
 mod btop_theme;
 mod cargo_manifests;
-mod fastfetch;
 mod dashboard;
+mod fastfetch;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipe_boundaries;
@@ -734,10 +734,29 @@ fn run_egress_firewall(root: &Path, check: bool) -> Result<(), (String, i32)> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let (subcommand, target, result) = match cli.command {
-        Commands::Dashboard { root, resolved_stdin, width, no_probe, facts } => {
-            return match dashboard::run(&resolve_root(root), resolved_stdin, width, no_probe, cli.format == "json", facts.as_deref()) {
-                Ok(output) => { println!("{output}"); ExitCode::SUCCESS }
-                Err(error) => { eprintln!("[dashboard] {error}"); ExitCode::FAILURE }
+        Commands::Dashboard {
+            root,
+            resolved_stdin,
+            width,
+            no_probe,
+            facts,
+        } => {
+            return match dashboard::run(
+                &resolve_root(root),
+                resolved_stdin,
+                width,
+                no_probe,
+                cli.format == "json",
+                facts.as_deref(),
+            ) {
+                Ok(output) => {
+                    println!("{output}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("[dashboard] {error}");
+                    ExitCode::FAILURE
+                }
             };
         }
         Commands::ProjectionEvidence {
@@ -814,15 +833,26 @@ fn main() -> ExitCode {
                 }
             };
         }
-        Commands::RenderHostTmux { root, font_verified } => {
+        Commands::RenderHostTmux {
+            root,
+            font_verified,
+        } => {
             let root = resolve_root(root);
             let result = mios_resolver::resolve_merged(Some(&root), false)
                 .map_err(|e| e.to_string())
                 .and_then(|merged| serde_json::to_value(merged).map_err(|e| e.to_string()))
-                .and_then(|config| mios_service_core::launcher::host_tmux_config_with_font(&config, font_verified));
+                .and_then(|config| {
+                    mios_service_core::launcher::host_tmux_config_with_font(&config, font_verified)
+                });
             return match result {
-                Ok(rendered) => { print!("{rendered}"); ExitCode::SUCCESS }
-                Err(error) => { eprintln!("[host-tmux] {error}"); ExitCode::FAILURE }
+                Ok(rendered) => {
+                    print!("{rendered}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("[host-tmux] {error}");
+                    ExitCode::FAILURE
+                }
             };
         }
         Commands::TerminalConfig {

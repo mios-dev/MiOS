@@ -1,7 +1,7 @@
 // AI-hint: Build-time tmux fixture and runtime consumers share the native theme engine.
+pub use mios_service_core::tmux_theme::{is_remote_terminal, TmuxThemeEngine};
 use std::fs;
 use std::path::{Path, PathBuf};
-pub use mios_service_core::tmux_theme::{is_remote_terminal, TmuxThemeEngine};
 pub const GOLDEN: &str = "usr/share/mios/tmux/mios-theme.tmux.conf";
 
 #[allow(dead_code)]

@@ -288,9 +288,17 @@ mod desktop {
         use windows_sys::Win32::System::Console::*;
         let family = text(&config["theme"]["font"], "family")?;
         let name = wide(family);
-        if name.len() > 32 { return Err("SSOT theme.font.family exceeds the console face-name limit".into()); }
-        let size = config["theme"]["font"]["size"].as_i64().filter(|s| *s > 0 && *s <= i16::MAX as i64).ok_or("Invalid SSOT theme.font.size")?;
-        let codepage = config["theme"]["terminal"]["windows_codepage"].as_u64().and_then(|v| u32::try_from(v).ok()).ok_or("Invalid SSOT Windows codepage")?;
+        if name.len() > 32 {
+            return Err("SSOT theme.font.family exceeds the console face-name limit".into());
+        }
+        let size = config["theme"]["font"]["size"]
+            .as_i64()
+            .filter(|s| *s > 0 && *s <= i16::MAX as i64)
+            .ok_or("Invalid SSOT theme.font.size")?;
+        let codepage = config["theme"]["terminal"]["windows_codepage"]
+            .as_u64()
+            .and_then(|v| u32::try_from(v).ok())
+            .ok_or("Invalid SSOT Windows codepage")?;
         let handle = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
         let palette = mios_service_core::launcher::windows_console_palette(config)?;
         let mut screen: CONSOLE_SCREEN_BUFFER_INFOEX = unsafe { std::mem::zeroed() };
@@ -306,41 +314,77 @@ mod desktop {
         }
         let mut font: CONSOLE_FONT_INFOEX = unsafe { std::mem::zeroed() };
         font.cbSize = std::mem::size_of::<CONSOLE_FONT_INFOEX>() as u32;
-        if unsafe { GetCurrentConsoleFontEx(handle, 0, &mut font) } == 0 { return Ok(false); }
+        if unsafe { GetCurrentConsoleFontEx(handle, 0, &mut font) } == 0 {
+            return Ok(false);
+        }
         font.FaceName = [0; 32];
         font.FaceName[..name.len()].copy_from_slice(&name);
         font.dwFontSize.Y = size as i16;
-        if unsafe { SetCurrentConsoleFontEx(handle, 0, &font) } == 0 { return Ok(false); }
+        if unsafe { SetCurrentConsoleFontEx(handle, 0, &font) } == 0 {
+            return Ok(false);
+        }
         if unsafe { SetConsoleOutputCP(codepage) } == 0 || unsafe { SetConsoleCP(codepage) } == 0 {
             return Err("Failed to apply the SSOT Windows console codepage".into());
         }
-        if unsafe { GetCurrentConsoleFontEx(handle, 0, &mut font) } == 0 { return Ok(false); }
+        if unsafe { GetCurrentConsoleFontEx(handle, 0, &mut font) } == 0 {
+            return Ok(false);
+        }
         let end = font.FaceName.iter().position(|c| *c == 0).unwrap_or(32);
-        Ok(String::from_utf16_lossy(&font.FaceName[..end]).eq_ignore_ascii_case(family) && family.to_ascii_lowercase().contains("nerd"))
+        Ok(
+            String::from_utf16_lossy(&font.FaceName[..end]).eq_ignore_ascii_case(family)
+                && family.to_ascii_lowercase().contains("nerd"),
+        )
     }
 
-    fn refresh_tmux(executable: &str, socket: Option<&str>, config: &Path, timeout: Duration) -> Result<(), String> {
+    fn refresh_tmux(
+        executable: &str,
+        socket: Option<&str>,
+        config: &Path,
+        timeout: Duration,
+    ) -> Result<(), String> {
         let command = || {
             let mut command = Command::new(executable);
-            if let Some(socket) = socket { command.args(["-L", socket]); }
+            if let Some(socket) = socket {
+                command.args(["-L", socket]);
+            }
             command
         };
-        let probe = mios_service_core::process::output_timeout(command().arg("has-session"), timeout).map_err(|e| format!("tmux probe: {e}"))?;
+        let probe =
+            mios_service_core::process::output_timeout(command().arg("has-session"), timeout)
+                .map_err(|e| format!("tmux probe: {e}"))?;
         if !probe.status.success() {
             let error = String::from_utf8_lossy(&probe.stderr);
-            if probe.status.code() == Some(1) && (error.contains("no server") || error.contains("no sessions") || error.contains("error connecting")) { return Ok(()); }
+            if probe.status.code() == Some(1)
+                && (error.contains("no server")
+                    || error.contains("no sessions")
+                    || error.contains("error connecting"))
+            {
+                return Ok(());
+            }
             return Err(format!("tmux probe failed: {}: {error}", probe.status));
         }
-        let reload = mios_service_core::process::output_timeout(command().arg("source-file").arg(config), timeout).map_err(|e| format!("tmux reload: {e}"))?;
-        if !reload.status.success() { return Err(format!("tmux source-file failed: {}: {}", reload.status, String::from_utf8_lossy(&reload.stderr))); }
+        let reload = mios_service_core::process::output_timeout(
+            command().arg("source-file").arg(config),
+            timeout,
+        )
+        .map_err(|e| format!("tmux reload: {e}"))?;
+        if !reload.status.success() {
+            return Err(format!(
+                "tmux source-file failed: {}: {}",
+                reload.status,
+                String::from_utf8_lossy(&reload.stderr)
+            ));
+        }
         Ok(())
     }
 
     pub fn run(args: &[String]) -> Result<(), String> {
-        if args
-            .first()
-            .is_some_and(|a| matches!(a.as_str(), "--host-terminal" | "--stage-host-terminal" | "--dispatch"))
-        {
+        if args.first().is_some_and(|a| {
+            matches!(
+                a.as_str(),
+                "--host-terminal" | "--stage-host-terminal" | "--dispatch"
+            )
+        }) {
             unsafe {
                 windows_sys::Win32::System::Console::AttachConsole(
                     windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS,
@@ -384,7 +428,10 @@ mod desktop {
         let config = resolved
             .get("merged")
             .ok_or("Native resolver omitted merged SSOT")?;
-        if args.first().is_some_and(|a| matches!(a.as_str(), "--host-terminal" | "--stage-host-terminal")) {
+        if args
+            .first()
+            .is_some_and(|a| matches!(a.as_str(), "--host-terminal" | "--stage-host-terminal"))
+        {
             let stage_only = args[0] == "--stage-host-terminal";
             if !stage_only && std::env::var_os("MIOS_HOST_TMUX").is_some() {
                 return Ok(());
@@ -392,18 +439,41 @@ mod desktop {
             let local = std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?;
             let directory = PathBuf::from(local).join("MiOS").join("terminal");
             let config_path = directory.join("mios-host.tmux.conf");
-            let home = PathBuf::from(std::env::var_os("USERPROFILE").ok_or("USERPROFILE is unavailable")?);
-            let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?);
-            let legacy = [home.join(".tmux.conf"), local.join("tmux/tmux.conf"), local.join("MiOS/tmux/tmux.conf")];
+            let home =
+                PathBuf::from(std::env::var_os("USERPROFILE").ok_or("USERPROFILE is unavailable")?);
+            let local = PathBuf::from(
+                std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?,
+            );
+            let legacy = [
+                home.join(".tmux.conf"),
+                local.join("tmux/tmux.conf"),
+                local.join("MiOS/tmux/tmux.conf"),
+            ];
             let font_verified = configure_host_font(config)?;
-            let owned = mios_service_core::host_tmux::stage(config, &config_path, &legacy, font_verified)?;
-            let arguments = mios_service_core::launcher::host_tmux_args(config, &config_path.to_string_lossy())?;
+            let owned =
+                mios_service_core::host_tmux::stage(config, &config_path, &legacy, font_verified)?;
+            let arguments = mios_service_core::launcher::host_tmux_args(
+                config,
+                &config_path.to_string_lossy(),
+            )?;
             let executable = text(&config["terminal"]["windows"], "executable")?;
-            if stage_only { return Ok(()); }
-            let timeout = config["terminal"]["windows"]["command_timeout_ms"].as_u64().filter(|n| *n > 0 && *n <= 30000).ok_or("Invalid SSOT terminal.windows.command_timeout_ms")?;
+            if stage_only {
+                return Ok(());
+            }
+            let timeout = config["terminal"]["windows"]["command_timeout_ms"]
+                .as_u64()
+                .filter(|n| *n > 0 && *n <= 30000)
+                .ok_or("Invalid SSOT terminal.windows.command_timeout_ms")?;
             let timeout = Duration::from_millis(timeout);
-            refresh_tmux(executable, Some(text(&config["terminal"]["windows"], "socket_name")?), &config_path, timeout)?;
-            if legacy.iter().any(|p| owned.contains(p)) { refresh_tmux(executable, None, &config_path, timeout)?; }
+            refresh_tmux(
+                executable,
+                Some(text(&config["terminal"]["windows"], "socket_name")?),
+                &config_path,
+                timeout,
+            )?;
+            if legacy.iter().any(|p| owned.contains(p)) {
+                refresh_tmux(executable, None, &config_path, timeout)?;
+            }
             let status = Command::new(text(&config["terminal"]["windows"], "executable")?)
                 .args(arguments)
                 .env("MIOS_HOST_TMUX", "1")

@@ -577,7 +577,10 @@ fn resolve_port_placeholders(key: &str, value: &str, ports: Option<&toml::Value>
     };
     let offset = ports
         .get("stack_id")
-        .and_then(|v| v.as_integer().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .and_then(|v| {
+            v.as_integer()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
         .unwrap_or(0)
         * 10000;
     let mut out = String::with_capacity(value.len());

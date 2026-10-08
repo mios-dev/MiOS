@@ -6,14 +6,8 @@ use std::process::Command;
 
 pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("build", &["/usr/libexec/mios/mios-build-driver"]),
-    (
-        "dash",
-        &["/usr/bin/mios-gen", "dashboard", "--root", "/"],
-    ),
-    (
-        "mini",
-        &["/usr/bin/mios-gen", "dashboard", "--root", "/"],
-    ),
+    ("dash", &["/usr/bin/mios-gen", "dashboard", "--root", "/"]),
+    ("mini", &["/usr/bin/mios-gen", "dashboard", "--root", "/"]),
     ("mon", &["/usr/libexec/mios/mios-dashboard", "--monitor"]),
     (
         "monitor",

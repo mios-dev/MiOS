@@ -170,16 +170,28 @@ fn main() -> ExitCode {
     }
 
     if let Some(mode) = runtime_mode {
-        let (endpoint, model) = match runtime::connection(&root) { Ok(v) => v, Err(e) => return die(&e) };
+        let (endpoint, model) = match runtime::connection(&root) {
+            Ok(v) => v,
+            Err(e) => return die(&e),
+        };
         if mode == "--probe" {
             return match runtime::probe(&endpoint, &model) {
-                Ok(count) => { println!("mios-ai-config: route ready: {endpoint}; selected model {model}; {count} advertised model(s); inference not tested"); ExitCode::SUCCESS },
+                Ok(count) => {
+                    println!("mios-ai-config: route ready: {endpoint}; selected model {model}; {count} advertised model(s); inference not tested");
+                    ExitCode::SUCCESS
+                }
                 Err(e) => die(&e),
             };
         }
-        let input = match serde_json::from_reader(std::io::stdin()) { Ok(v) => v, Err(e) => return die(&format!("invalid OpenCode input: {e}")) };
+        let input = match serde_json::from_reader(std::io::stdin()) {
+            Ok(v) => v,
+            Err(e) => return die(&format!("invalid OpenCode input: {e}")),
+        };
         return match runtime::opencode(input, &endpoint, &model) {
-            Ok(value) => { println!("{value}"); ExitCode::SUCCESS },
+            Ok(value) => {
+                println!("{value}");
+                ExitCode::SUCCESS
+            }
             Err(e) => die(&e),
         };
     }

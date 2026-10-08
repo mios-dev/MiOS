@@ -392,7 +392,11 @@ impl Registry {
         let mut executed = 0;
         let mut missing = 0;
         let started = std::time::Instant::now();
-        let total = self.checks.iter().filter(|check| filter.is_none_or(|f| check.id() == f || check.id().contains(f))).count();
+        let total = self
+            .checks
+            .iter()
+            .filter(|check| filter.is_none_or(|f| check.id() == f || check.id().contains(f)))
+            .count();
 
         for check in &self.checks {
             if let Some(f) = filter {
@@ -405,19 +409,39 @@ impl Registry {
             let verdict = check.run(ctx);
             match &verdict {
                 Verdict::Pass(msg) => {
-                    println!("[miosd:drift] [{executed}/{total} PASS +{}s] {}: {}", started.elapsed().as_secs(), check.id(), msg.replace('\n', "\n    "));
+                    println!(
+                        "[miosd:drift] [{executed}/{total} PASS +{}s] {}: {}",
+                        started.elapsed().as_secs(),
+                        check.id(),
+                        msg.replace('\n', "\n    ")
+                    );
                     passed += 1;
                 }
                 Verdict::Fail(msg) => {
-                    eprintln!("[miosd:drift] [{executed}/{total} FAIL +{}s] {}: {}", started.elapsed().as_secs(), check.id(), msg.replace('\n', "\n    "));
+                    eprintln!(
+                        "[miosd:drift] [{executed}/{total} FAIL +{}s] {}: {}",
+                        started.elapsed().as_secs(),
+                        check.id(),
+                        msg.replace('\n', "\n    ")
+                    );
                     failed += 1;
                 }
                 Verdict::Skip(msg) => {
                     if msg.starts_with("NOT IMPLEMENTED:") {
-                        eprintln!("[miosd:drift] [{executed}/{total} MISSING +{}s] {}: {}", started.elapsed().as_secs(), check.id(), msg);
+                        eprintln!(
+                            "[miosd:drift] [{executed}/{total} MISSING +{}s] {}: {}",
+                            started.elapsed().as_secs(),
+                            check.id(),
+                            msg
+                        );
                         missing += 1;
                     } else {
-                        println!("[miosd:drift] [{executed}/{total} SKIP +{}s] {}: {}", started.elapsed().as_secs(), check.id(), msg);
+                        println!(
+                            "[miosd:drift] [{executed}/{total} SKIP +{}s] {}: {}",
+                            started.elapsed().as_secs(),
+                            check.id(),
+                            msg
+                        );
                         skipped += 1;
                     }
                 }
@@ -503,15 +527,25 @@ mod tests {
 
     struct DummyMissingCheck;
     impl Check for DummyMissingCheck {
-        fn id(&self) -> &'static str { "dummy_missing" }
-        fn describe(&self) -> &'static str { "Unimplemented control" }
-        fn run(&self, _ctx: &DriftCtx) -> Verdict { Verdict::Skip("NOT IMPLEMENTED: control".into()) }
+        fn id(&self) -> &'static str {
+            "dummy_missing"
+        }
+        fn describe(&self) -> &'static str {
+            "Unimplemented control"
+        }
+        fn run(&self, _ctx: &DriftCtx) -> Verdict {
+            Verdict::Skip("NOT IMPLEMENTED: control".into())
+        }
     }
     #[test]
-    fn missing_implementation_and_empty_registry_cannot_report_success() -> Result<(), Box<dyn std::error::Error>> {
+    fn missing_implementation_and_empty_registry_cannot_report_success(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
         let ctx = DriftCtx::new(temp.path().into(), false);
-        assert!(!Registry { checks: vec![Box::new(DummyMissingCheck)] }.run_all(&ctx, None));
+        assert!(!Registry {
+            checks: vec![Box::new(DummyMissingCheck)]
+        }
+        .run_all(&ctx, None));
         assert!(!Registry { checks: vec![] }.run_all(&ctx, None));
         Ok(())
     }

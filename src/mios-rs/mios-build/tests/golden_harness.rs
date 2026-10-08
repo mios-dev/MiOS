@@ -65,11 +65,29 @@ fn test_phase_registry_loads_from_ssot() {
     // Sorting IDs would undo the required native -> fonts -> sandbox sequence.
     let mut scripts = std::collections::BTreeSet::new();
     for phase in phases {
-        assert!(scripts.insert(&phase.script), "duplicate selected script {}", phase.script);
+        assert!(
+            scripts.insert(&phase.script),
+            "duplicate selected script {}",
+            phase.script
+        );
     }
-    let positions: Vec<_> = ["55-native-build.sh", "56-fonts.sh", "54-bake-coderun-sandbox.sh"]
-        .iter().map(|script| phases.iter().position(|phase| phase.script == *script).expect("required build dependency is registered")).collect();
-    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "native tools and fonts must precede the sandbox: {positions:?}");
+    let positions: Vec<_> = [
+        "55-native-build.sh",
+        "56-fonts.sh",
+        "54-bake-coderun-sandbox.sh",
+    ]
+    .iter()
+    .map(|script| {
+        phases
+            .iter()
+            .position(|phase| phase.script == *script)
+            .expect("required build dependency is registered")
+    })
+    .collect();
+    assert!(
+        positions.windows(2).all(|pair| pair[0] < pair[1]),
+        "native tools and fonts must precede the sandbox: {positions:?}"
+    );
 }
 
 /// Each way of not having a registry is an error, not a short build.
