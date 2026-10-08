@@ -65,9 +65,10 @@ def _selector(model: str) -> str:
     opencode's `-m` flag wants `<provider>/<model>`; if the caller already
     passed a qualified id (contains a slash) honour it verbatim.
     """
-    if "/" in model:
-        return model
-    return f"{OPENCODE_PROVIDER}/{model}"
+    selected = model if "/" in model else f"{OPENCODE_PROVIDER}/{model}"
+    if selected.startswith("-") or any(char in selected for char in "\0\r\n"):
+        raise ValueError("invalid opencode model selector")
+    return selected
 
 def _flatten_messages(messages):
     """Collapse an OpenAI messages array into a single opencode `run` prompt.
@@ -136,7 +137,7 @@ def _run_opencode(prompt: str, model: str):
         env.setdefault("XDG_CONFIG_HOME", cfg_dir)
 
     cmd = [OPENCODE_BIN, "run", "--format", "json",
-           "-m", _selector(model), prompt]
+           "-m", _selector(model), "--", prompt]
     proc = subprocess.run(
         cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env,
         stdin=subprocess.DEVNULL,

@@ -1639,7 +1639,7 @@ def main():
                 tools = data.get("agent_cli", {}).get("tools", [])
                 request = {
                     "workspace": data.get("mcp", {}).get("tmux", {}).get("workspace", {}),
-                    "colors": mios_toml.colors(data) if hasattr(mios_toml, "colors") else {},
+                    "colors": mios_colors(data),
                     "agents": [{**t, "installed": True} for t in tools]
                 }
             except Exception:
