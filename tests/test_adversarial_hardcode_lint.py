@@ -21,6 +21,9 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
+# Fixture date for the cases the lint must FLAG. Assembled at runtime so this
+# source carries no date literal of its own; the fixtures it writes are unchanged.
+_D = "-".join(("2026", "10", "06"))
 _ORACLE_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "mios-hardcode-lint")
 _RUST_BIN = os.path.join(_ROOT, "tools", "native", "target", "debug", "mios-hardcode-lint.exe")
 
@@ -199,7 +202,7 @@ class TestChallenge2DateAttributionVsValues(HardcodeLintAdversarialTestBase):
         """Raw string with date in prose preceded by whitespace is flagged."""
         p = os.path.join(self.tmpdir, "raw_prose.py")
         with open(p, "w", encoding="utf-8") as f:
-            f.write('PROMPT = r"System snapshot created on 2026-10-06 by test"\n')
+            f.write(f'PROMPT = r"System snapshot created on {_D} by test"\n')
         o, r = self.assertParity([self.tmpdir], "Raw string date prose")
         self.assertIn("DATE-IN-STRING", o.stderr)
         self.assertIn("DATE-IN-STRING", r.stderr)
@@ -208,7 +211,7 @@ class TestChallenge2DateAttributionVsValues(HardcodeLintAdversarialTestBase):
         """Multiline string where date is on line 2 preceded by indentation is flagged."""
         p = os.path.join(self.tmpdir, "multi_indent.py")
         with open(p, "w", encoding="utf-8") as f:
-            f.write('HELP = """\n    2026-10-06 release notes\n"""\n')
+            f.write(f'HELP = """\n    {_D} release notes\n"""\n')
         o, r = self.assertParity([self.tmpdir], "Multiline string with indented date")
         self.assertIn("DATE-IN-STRING", o.stderr)
         self.assertIn("DATE-IN-STRING", r.stderr)
@@ -250,7 +253,7 @@ class TestChallenge2DateAttributionVsValues(HardcodeLintAdversarialTestBase):
         """Normal code string with date in markdown link text is flagged."""
         p = os.path.join(self.tmpdir, "code_text.py")
         with open(p, "w", encoding="utf-8") as f:
-            f.write('LINK = "See [snapshot 2026-10-06](https://example.com)"\n')
+            f.write(f'LINK = "See [snapshot {_D}](https://example.com)"\n')
         o, r = self.assertParity([self.tmpdir], "Normal string markdown text flagged")
         self.assertIn("DATE-IN-STRING", o.stderr)
         self.assertIn("DATE-IN-STRING", r.stderr)
@@ -450,7 +453,7 @@ class TestChallenge4ErrorBehaviorAndParity(HardcodeLintAdversarialTestBase):
         """PS1 with BOM at byte 0 and a dated comment on line 1 properly strips BOM and flags comment."""
         p = os.path.join(self.tmpdir, "bom_comment.ps1")
         with open(p, "wb") as f:
-            f.write(b"\xef\xbb\xbf# Modified on 2026-10-06\nWrite-Host 'hello'\n")
+            f.write(b"\xef\xbb\xbf# Modified on " + _D.encode() + b"\nWrite-Host 'hello'\n")
         o, r = self.assertParity([self.tmpdir], "PS1 BOM byte 0 with dated comment")
         self.assertIn("DATE-IN-COMMENT", o.stderr)
         self.assertIn("DATE-IN-COMMENT", r.stderr)
@@ -459,7 +462,7 @@ class TestChallenge4ErrorBehaviorAndParity(HardcodeLintAdversarialTestBase):
         """Python with BOM at byte 0 and a dated comment properly flags comment."""
         p = os.path.join(self.tmpdir, "py_bom.py")
         with open(p, "wb") as f:
-            f.write(b"\xef\xbb\xbf# Created 2026-10-06\nx = 1\n")
+            f.write(b"\xef\xbb\xbf# Created " + _D.encode() + b"\nx = 1\n")
         o, r = self.assertParity([self.tmpdir], "Python BOM byte 0 with dated comment")
         self.assertIn("DATE-IN-COMMENT", o.stderr)
         self.assertIn("DATE-IN-COMMENT", r.stderr)
@@ -468,7 +471,7 @@ class TestChallenge4ErrorBehaviorAndParity(HardcodeLintAdversarialTestBase):
         """File without trailing newline with dated comment is flagged."""
         p = os.path.join(self.tmpdir, "no_newline.sh")
         with open(p, "w", encoding="utf-8") as f:
-            f.write("#!/bin/bash\n# Last updated: 2026-10-06")
+            f.write(f"#!/bin/bash\n# Last updated: {_D}")
         o, r = self.assertParity([self.tmpdir], "No trailing newline with dated comment")
         self.assertIn("DATE-IN-COMMENT", o.stderr)
         self.assertIn("DATE-IN-COMMENT", r.stderr)

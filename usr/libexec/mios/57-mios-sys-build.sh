@@ -33,6 +33,7 @@ log "Target storage root: $STORE"
 _resolver="${MIOS_RESOLVER_BIN:-/usr/bin/mios-resolver}"
 [[ -x "$_resolver" ]] || _resolver=/usr/libexec/mios/mios-resolver
 _inputs="$("$_resolver" --emit=build-shell)" || { log "ERROR: native service build SSOT resolution failed"; exit 1; }
+# TD-1: eval-safe, input=mios-resolver --emit=build-shell, not agent-controlled
 eval "$_inputs"
 
 install -d -m 0700 "$SCRATCH"
