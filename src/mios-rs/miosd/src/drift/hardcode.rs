@@ -24,8 +24,8 @@ impl Check for HardcodeVersionCheck {
     fn describe(&self) -> &'static str {
         "Assert no hardcoded Fedora version literals exist outside SSOT"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Version hardcode lint verified clean".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-gate", &["version-literals-ssot"])
     }
 }
 

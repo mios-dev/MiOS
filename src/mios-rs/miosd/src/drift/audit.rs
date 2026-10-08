@@ -95,7 +95,10 @@ pub fn native(ctx: &DriftCtx, name: &str, args: &[&str]) -> Verdict {
         let binary = candidates.into_iter().find(|p| p.is_file())
             .ok_or_else(|| format!("required native {name} unavailable; install the SSOT release catalog"))?;
         let output = Command::new(binary).args(args).arg("--root").arg(&ctx.root)
-            .current_dir(&ctx.root).env("MIOS_ROOT", &ctx.root).output()
+            .current_dir(&ctx.root).env("MIOS_ROOT", &ctx.root)
+            .env("MIOS_DRIFT_ROOT", &ctx.root).env("MIOS_SSOT_LINT_ROOT", &ctx.root)
+            .env("MIOS_TOML", ctx.root.join("usr/share/mios/mios.toml"))
+            .env_remove("MIOS_DRIFT_CHECK_SOFT").env_remove("MIOS_SSOT_LINT_SOFT").output()
             .map_err(|e| format!("{name}: {e}"))?;
         let diagnostic = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
         if !output.status.success() { return Err(format!("{name} {args:?} {}: {diagnostic}", output.status)); }
@@ -116,4 +119,34 @@ pub fn ini(text: &str, section: &str, key: &str) -> Option<String> {
         }
     }
     result
+}
+
+#[derive(serde::Deserialize)]
+pub struct PythonImport {
+    pub module: Option<String>,
+    pub names: Vec<String>,
+    pub bindings: Vec<String>,
+    pub level: usize,
+    pub line: usize,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PythonSyntax {
+    pub imports: Vec<PythonImport>,
+    pub names: Vec<String>,
+}
+
+/// Obtain syntax nodes from the language's parser. Rust owns source selection,
+/// policy and verdicts; importing/parsing a subject never executes that subject.
+pub fn python_imports(ctx: &DriftCtx, path: &str) -> Result<Vec<PythonImport>, String> {
+    Ok(python_syntax(ctx, path)?.imports)
+}
+
+pub fn python_syntax(ctx: &DriftCtx, path: &str) -> Result<PythonSyntax, String> {
+    let config = ssot(ctx)?;
+    let python = at(&config, "drift.lint.python")?.as_str().filter(|s| !s.is_empty()).ok_or("Missing Python syntax compiler")?;
+    let parser = "import ast,json,sys; tree=ast.parse(open(sys.argv[1],'rb').read(),sys.argv[1]); print(json.dumps({'imports':[{'module':getattr(n,'module',None),'names':[a.name for a in n.names],'bindings':[a.asname or a.name for a in n.names],'level':getattr(n,'level',0),'line':n.lineno} for n in ast.walk(tree) if isinstance(n,(ast.Import,ast.ImportFrom))],'names':[n.id for n in ast.walk(tree) if isinstance(n,ast.Name)]}))";
+    let output = Command::new(python).args(["-c", parser]).arg(ctx.root.join(path)).output().map_err(|e| format!("Python syntax parser: {e}"))?;
+    if !output.status.success() { return Err(format!("{path}: Python AST {}: {}", output.status, String::from_utf8_lossy(&output.stderr))); }
+    serde_json::from_slice(&output.stdout).map_err(|e| format!("{path}: Invalid Python AST receipt: {e}"))
 }

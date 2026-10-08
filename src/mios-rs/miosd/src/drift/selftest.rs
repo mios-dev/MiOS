@@ -11,8 +11,8 @@ impl Check for NegativeTestCoverageCheck {
     fn describe(&self) -> &'static str {
         "Assert every registered check has a corresponding test in drift-gate-negatives.sh"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Negative test coverage ratchet".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-gate", &["negative-coverage"])
     }
 }
 

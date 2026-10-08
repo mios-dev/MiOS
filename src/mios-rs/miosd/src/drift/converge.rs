@@ -24,8 +24,8 @@ impl Check for GuacamoleConsistencyCheck {
     fn describe(&self) -> &'static str {
         "Assert guacamole configuration matches SSOT"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Guacamole consistency".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-gen", &["render-desktop", "--check"])
     }
 }
 

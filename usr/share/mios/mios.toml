@@ -11933,6 +11933,18 @@ bands = [
   { range = [85, 99], purpose = "finalize/validators" },
 ]
 
+[drift.lint]
+python = "python3"
+shellcheck = "shellcheck"
+shell_severity = "error"
+shell_directories = ["", "automation", "automation/tests", "automation/support", "automation/lib", "tools", "tools/lib", "installation", "tests", "usr/lib/mios", "usr/libexec/mios"]
+shell_exclude = ["automation/lib/globals.sh"]
+# The shipped monitor is a ZIP executable, not a Python source module.
+python_exclude = ["usr/libexec/mios/mios-dashboard"]
+
+[drift.modules]
+import_roots = ["usr/lib/mios/agent-pipe", "usr/libexec/mios", "tools"]
+
 [pipeline.console]
 width = 100
 bar_width = 24

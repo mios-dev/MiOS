@@ -11,8 +11,8 @@ impl Check for AgentPipeBudgetsCheck {
     fn describe(&self) -> &'static str {
         "Assert agent pipe context token budgets are within bounds"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Agent pipe budgets".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-aiplane-lint", &[])
     }
 }
 
@@ -24,8 +24,25 @@ impl Check for VLLMNameCanonicalCheck {
     fn describe(&self) -> &'static str {
         "Assert canonical MIOS_AI_VLLM_* environment variable naming"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: vLLM canonical name".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::verdict((|| {
+            let pattern = regex::Regex::new(r"\bMIOS_AI_(?:VLLM|SGLANG)_").map_err(|e| e.to_string())?;
+            let mut errors = Vec::new();
+            let mut count = 0;
+            for directory in ["automation", "usr/lib/mios"] {
+                for path in super::audit::files(&ctx.root, directory)? {
+                    if path == "automation/98-drift-checks.sh" { continue; }
+                    let bytes = std::fs::read(ctx.root.join(&path)).map_err(|e| format!("{path}: {e}"))?;
+                    if bytes.contains(&0) { continue; }
+                    let Ok(text) = std::str::from_utf8(&bytes) else { continue; };
+                    count += 1;
+                    for (line, text) in text.lines().enumerate() {
+                        if pattern.is_match(text) { errors.push(format!("{path}:{}: legacy long-form inference variable", line + 1)); }
+                    }
+                }
+            }
+            super::audit::finish(count, errors, "canonical inference variable scan")
+        })())
     }
 }
 
