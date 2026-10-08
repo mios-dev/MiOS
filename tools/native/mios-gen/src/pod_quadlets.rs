@@ -905,20 +905,19 @@ pub fn run_pod_quadlets(
     check: bool,
     list_mode: bool,
 ) -> Result<PodQuadletResult, String> {
-    let toml_path = match std::env::var("MIOS_TOML") {
-        Ok(p) => PathBuf::from(p),
-        Err(_) => root.join("usr/share/mios/mios.toml"),
-    };
     let out_dir = match std::env::var("MIOS_POD_OUT") {
         Ok(p) => PathBuf::from(p),
         Err(_) => root.join("usr/share/containers/systemd"),
     };
 
-    let text = fs::read_to_string(&toml_path)
-        .map_err(|e| format!("cannot read {}: {e}", toml_path.display()))?;
-    let doc: toml::Value = text
-        .parse()
-        .map_err(|e| format!("cannot parse {}: {e}", toml_path.display()))?;
+    let vendor = mios_resolver::layers::resolve_tier_dirs(Some(root)).0;
+    if !vendor.is_file() {
+        return Err(format!(
+            "cannot read {}: vendor SSOT is missing",
+            vendor.display()
+        ));
+    }
+    let doc = mios_resolver::resolve_merged(Some(root), false).map_err(|e| e.to_string())?;
 
     let placeholders = load_placeholders(&doc);
     let sidecars = load_sidecars(&doc);

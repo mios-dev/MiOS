@@ -2,9 +2,6 @@
 // AI-related: usr/share/mios/windows/mios-native-client-setup.ps1, usr/share/mios/mios.toml, usr/share/mios/windows/mios-pc-control.ps1
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-#[cfg_attr(not(windows), allow(dead_code))]
-mod monitor;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Bounds {
     x: i32,
@@ -288,6 +285,16 @@ mod desktop {
         Ok(())
     }
     pub fn run(args: &[String]) -> Result<(), String> {
+        if args
+            .first()
+            .is_some_and(|a| matches!(a.as_str(), "--host-terminal" | "--dispatch"))
+        {
+            unsafe {
+                windows_sys::Win32::System::Console::AttachConsole(
+                    windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS,
+                );
+            }
+        }
         unsafe {
             SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
             SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -325,7 +332,87 @@ mod desktop {
         let config = resolved
             .get("merged")
             .ok_or("Native resolver omitted merged SSOT")?;
+        if args.first().is_some_and(|a| a == "--host-terminal") {
+            if std::env::var_os("MIOS_HOST_TMUX").is_some() {
+                return Ok(());
+            }
+            let local = std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?;
+            let directory = PathBuf::from(local).join("MiOS").join("terminal");
+            let config_path = directory.join("mios-host.tmux.conf");
+            let temporary = directory.join(format!(".host-{}.tmp", std::process::id()));
+            let rendered = mios_service_core::launcher::host_tmux_config(config)?;
+            let arguments = mios_service_core::launcher::host_tmux_args(
+                config,
+                &config_path.to_string_lossy(),
+            )?;
+            std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+            std::fs::write(&temporary, rendered).map_err(|e| e.to_string())?;
+            std::fs::rename(&temporary, &config_path).map_err(|e| e.to_string())?;
+            let status = Command::new(text(&config["terminal"]["windows"], "executable")?)
+                .args(arguments)
+                .env("MIOS_HOST_TMUX", "1")
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err(format!("Native Windows tmux failed: {status}"));
+            }
+            return Ok(());
+        }
+        if args.first().is_some_and(|a| a == "--dispatch") {
+            let verb = args.get(1).map(String::as_str).unwrap_or("terminal");
+            let rest = args.get(2..).unwrap_or_default();
+            let command: Vec<String> = match verb {
+                "terminal" | "ai-terminal" => {
+                    let mut command = vec!["/usr/libexec/mios/mios-terminal".into()];
+                    if verb == "ai-terminal" {
+                        command.extend(["--action".into(), "ai".into()]);
+                    }
+                    command.extend_from_slice(rest);
+                    command
+                }
+                "btop" => std::iter::once("/usr/bin/btop".into())
+                    .chain(rest.iter().cloned())
+                    .collect(),
+                "ai" | "agent" | "agents" | "mon" | "monitor" => {
+                    let routed = if verb == "monitor" { "mon" } else { verb };
+                    let mut command = vec!["/usr/bin/mios".into(), routed.into()];
+                    command.extend_from_slice(rest);
+                    command
+                }
+                _ => {
+                    let status = Command::new(engine)
+                        .args(["-NoLogo", "-NoProfile", "-File"])
+                        .arg(bin.join("mios-native-entry.ps1"))
+                        .args(&args[1..])
+                        .status()
+                        .map_err(|e| e.to_string())?;
+                    if !status.success() {
+                        return Err(format!("MiOS {verb} failed: {status}"));
+                    }
+                    return Ok(());
+                }
+            };
+            let policy = mios_service_core::launcher::terminal_config(config, "", false)?;
+            let status = Command::new("wsl.exe")
+                .args([
+                    "-d",
+                    text(&binding, "distro")?,
+                    "-u",
+                    text(&binding, "linuxUser")?,
+                    "--cd",
+                    &policy[7],
+                    "--",
+                ])
+                .args(command)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err(format!("MiOS guest {verb} failed: {status}"));
+            }
+            return Ok(());
+        }
         if args.first().is_some_and(|a| a == "--tmux") {
+            let policy = mios_service_core::launcher::terminal_config(config, "", false)?;
             if config["terminal"]["windows_tmux_backend"].as_str() != Some("wsl") {
                 return Err("Unsupported SSOT terminal.windows_tmux_backend".into());
             }
@@ -351,10 +438,10 @@ mod desktop {
                     "-u",
                     text(&binding, "linuxUser")?,
                     "--cd",
-                    text(&config["terminal"], "start_directory")?,
+                    &policy[7],
                     "--",
                     "env",
-                    &format!("TMUX_TMPDIR={}", text(&config["terminal"], "socket_root")?),
+                    &format!("TMUX_TMPDIR={}", policy[8]),
                     "tmux",
                 ])
                 .args(&args[1..])
@@ -378,7 +465,16 @@ mod desktop {
             if !std::path::Path::new(python).is_file() || !std::path::Path::new(script).is_file() {
                 return Err("Build monitor executable or asset missing".into());
             }
-            let mut rendered = crate::monitor::render(config, python, script)?;
+            let mut point = POINT { x: 0, y: 0 };
+            let _ = unsafe { GetCursorPos(&mut point) };
+            let work = monitor(point)?;
+            let mut rendered = mios_service_core::launcher::render_monitor(
+                config,
+                python,
+                script,
+                engine,
+                work.height > work.width,
+            )?;
             let title_index = rendered
                 .iter()
                 .position(|a| a == "--title")
@@ -590,7 +686,14 @@ fn main() {
     if let Err(error) = result {
         eprintln!("{error}");
         #[cfg(windows)]
-        if !proof && !args.iter().any(|a| a == "--test-launch") {
+        if !proof
+            && !args.iter().any(|a| {
+                matches!(
+                    a.as_str(),
+                    "--test-launch" | "--host-terminal" | "--dispatch"
+                )
+            })
+        {
             desktop::error(&error);
         }
         std::process::exit(if proof { 2 } else { 3 });

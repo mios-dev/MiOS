@@ -47,6 +47,15 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Emit the shared native Linux/Windows terminal policy as nine validated lines.
+    TerminalConfig {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long, default_value = "")]
+        action: String,
+        #[arg(long)]
+        no_default: bool,
+    },
     /// Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT
     #[command(name = "cosign-policy")]
     CosignPolicy {
@@ -402,31 +411,12 @@ fn resolve_root(cli_root: Option<PathBuf>) -> PathBuf {
 }
 
 fn run_cosign_policy(root: &Path, check_mode: bool) -> Result<(), (String, i32)> {
-    let ssot_path = root.join("usr/share/mios/mios.toml");
-    let target_path = root.join("usr/lib/containers/policy.json");
-
-    if !ssot_path.is_file() {
-        return Err((format!("{} not found", ssot_path.display()), 1));
+    let vendor = mios_resolver::layers::resolve_tier_dirs(Some(root)).0;
+    if !vendor.is_file() {
+        return Err((format!("{} not found", vendor.display()), 1));
     }
-
-    let toml_bytes = fs::read(&ssot_path).map_err(|e| {
-        (
-            format!("{} could not be read: {}", ssot_path.display(), e),
-            1,
-        )
-    })?;
-    let toml_str = std::str::from_utf8(&toml_bytes).map_err(|e| {
-        (
-            format!("{} could not be read: {}", ssot_path.display(), e),
-            1,
-        )
-    })?;
-    let val: toml::Value = toml::from_str(toml_str).map_err(|e| {
-        (
-            format!("{} could not be read: {}", ssot_path.display(), e),
-            1,
-        )
-    })?;
+    let target_path = root.join("usr/lib/containers/policy.json");
+    let val = mios_resolver::resolve_merged(Some(root), false).map_err(|e| (e.to_string(), 1))?;
 
     let sigstore = val
         .get("security")
@@ -656,6 +646,22 @@ fn run_egress_firewall(root: &Path) -> Result<(), (String, i32)> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let (subcommand, target, result) = match cli.command {
+        Commands::TerminalConfig {
+            root,
+            action,
+            no_default,
+        } => {
+            let root = resolve_root(root);
+            let result = mios_resolver::resolve_merged(Some(&root), false)
+                .map_err(|e| (e.to_string(), 1))
+                .and_then(|merged| serde_json::to_value(merged).map_err(|e| (e.to_string(), 1)))
+                .and_then(|config| {
+                    mios_service_core::launcher::terminal_config(&config, &action, !no_default)
+                        .map_err(|e| (e, 1))
+                })
+                .map(|lines| println!("{}", lines.join("\n")));
+            ("terminal-config", "runtime terminal policy", result)
+        }
         Commands::CosignPolicy { root, check } => {
             let r = resolve_root(root);
             (

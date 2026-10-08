@@ -1,6 +1,7 @@
 // AI-hint: Shared daemon, relay, and service helpers for MiOS native binaries.
 // AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
 
+pub mod launcher;
 pub mod process;
 pub mod socket;
 pub mod ssot;

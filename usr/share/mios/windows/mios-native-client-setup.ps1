@@ -335,25 +335,7 @@ Write-MiosFile (Join-Path $BinDirectory 'mios-native-entry.ps1') ($entry + "`n")
 $launcher = @"
 @echo off
 setlocal DisableDelayedExpansion
-set "BIN_DIR=%~dp0"
-if "%~1"=="" goto :terminal
-if "%~1"=="mon" goto :mon
-if "%~1"=="monitor" goto :mon
-if "%~1"=="terminal" goto :terminal
-if "%~1"=="ai-terminal" goto :ai_terminal
-"$engine" -NoLogo -NoProfile -File "%BIN_DIR%mios-native-entry.ps1" %*
-exit /b %ERRORLEVEL%
-:mon
-for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
-wsl.exe -d $Distro -u $LinuxUser --cd ~ -- /usr/bin/mios mon %REST%
-exit /b %ERRORLEVEL%
-:terminal
-for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
-"$engine" -NoLogo -NoProfile -File "%BIN_DIR%mios-native-entry.ps1" terminal %REST%
-exit /b %ERRORLEVEL%
-:ai_terminal
-for /f "tokens=1* delims= " %%a in ("%*") do set "REST=%%b"
-wsl.exe -d $Distro -u $LinuxUser --cd ~ -- /usr/libexec/mios/mios-ai-terminal %REST%
+"%~dp0mios-launch.exe" --dispatch %*
 exit /b %ERRORLEVEL%
 "@.Replace("`n","`r`n")
 Write-MiosFile (Join-Path $BinDirectory 'mios.cmd') $launcher
@@ -460,6 +442,11 @@ if not os.getenv("MIOS_COLORS_APPLIED") then
     io.flush()
     os.execute("color 07")
     os.setenv("MIOS_COLORS_APPLIED", "1")
+end
+-- Native host tmux is distinct from the MiOS guest entered by `mios`.
+if not os.getenv("MIOS_HOST_TMUX") and not autorun and not os.getenv("SSH_CONNECTION") and not os.getenv("SSH_CLIENT") and not os.getenv("SSH_TTY") then
+    local launcher = 'call "' .. bin .. '\\mios-launch.exe" --host-terminal'
+    os.execute(launcher)
 end
 settings.set("clink.customprompt", __PROMPT__)
 '@

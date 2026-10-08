@@ -1583,6 +1583,7 @@ dependencies = [
  "clap",
  "flate2",
  "mios-resolver",
+ "mios-service-core",
  "regex",
  "serde",
  "serde_json",

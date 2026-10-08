@@ -6401,6 +6401,7 @@ pkgs = [
     "jqlang.jq",                     # JSON query
     "GitHub.cli",                    # gh
     "aristocratos.btop4win",         # btop (Windows port)
+    "arndawg.tmux-windows",          # native tmux for Windows (terminal multiplexer)
     "fastfetch-cli.fastfetch",       # fastfetch
     "Anchore.Syft",                  # syft (CycloneDX / SPDX SBOM generator)
 ]
@@ -6436,6 +6437,7 @@ bin_map = [
     "GitHub.cli|gh",
     "fastfetch-cli.fastfetch|fastfetch",
     "aristocratos.btop4win|btop",
+    "arndawg.tmux-windows|tmux",
     "Microsoft.PowerShell|pwsh",
     "JanDeDobbeleer.OhMyPosh|oh-my-posh"
 ]
@@ -8364,6 +8366,13 @@ frame_width         = 80      # = cols, edge-to-edge (unified)
 frame_height        = 19      # = rows - 1, reserves 1 row for prompt
 right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-paint
 
+[terminal.windows]
+backend = "native-tmux"
+executable = "tmux.exe"
+socket_name = "mios-windows"
+session_name = "MiOS-WIN"
+shell = "cmd.exe"
+
 [terminal.gui_min]
 width               = 1600
 height              = 1000
@@ -8373,7 +8382,7 @@ cols                = 80
 rows                = 40      # taller for install output + readme
 
 [terminal.monitor]
-windows_backend     = "windows-terminal" # rendered by static Rust mios-launch; no outer Windows tmux
+windows_backend     = "windows-terminal" # native renderer preserves head/monitor and fullscreen 1+4 layouts
 window_name         = "MiOS-Monitor"
 title               = "MiOS Build Monitor"
 cols                = 80
@@ -8382,6 +8391,7 @@ split_landscape_head    = 38  # Golden ratio: head 38.2% on LEFT
 split_landscape_monitor = 62  # Golden ratio: monitor 61.8% on RIGHT
 split_portrait_monitor  = 62  # Golden ratio: monitor 61.8% on TOP
 split_portrait_head     = 38  # Golden ratio: head 38.2% on BOTTOM
+worker_split_percent    = 50  # fullscreen right-side worker grid
 
 [terminal.reading]
 cols                = 100
