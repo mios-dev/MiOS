@@ -71,7 +71,27 @@ passes on the real tree or system) and a negative control (a planted defect make
   peer-credential UDS back to the page, and section-scoped last-write-wins on conflict. Per SC-2, build
   it as a `miosd` subcommand (one MiOS-MODULE), not a new `mios-syncd` binary. mios.html already
   POSTs `/portal/config` when embedded and falls back to File System Access or download.
-- **M5:** self-build on installed MiOS (SC-7). Shallow-tree moves (SC-9) land throughout, never as one big rename.
+- **M5:** self-build on installed MiOS (SC-7).
+- **M6:** shallow-tree collapse (SC-9), in batches, after PR #61 is green. Each batch rewrites every
+  consumer (code, units, CI, Containerfile, docs and links), re-runs `mios-gen sync` and the full gate,
+  and drops no feature. Reference counts below were measured on 2026-10-08 and exclude generated
+  indexes.
+  - **T1, low blast radius:**
+    - merge the duplicate spellings `usr/share/mios/open-webui/` and `openwebui/` (2 files, 14 refs)
+    - `tests/templates/golden/` → `tests/golden/templates/` (20 files, 4 refs)
+    - `docs/agy/w10-live-boot/` → `docs/w10-live-boot/` (28 files, 5 refs)
+    - `usr/share/doc/mios/archive/absorbed-plans-2026-06/` → `archive/` (9 files, 3 refs)
+    - `usr/share/mios/prompts/upstream-researched-patterns/foss/` → `prompts/foss-patterns/` (14 files, 7 refs)
+    - `images/coderun-sandbox/` → fold into `images/` (2 files, 2 refs)
+  - **T2, coupled to M2 (MiOS-MODULES):** unify the two Rust workspaces, `src/mios-rs` (125 files,
+    170 refs) and `tools/native` (165 files, 236 refs), into one domain-organized workspace. That also
+    takes `src/` from a single-child chain to the module root.
+  - **Locked, not moved:**
+    - FHS and OS-mandated paths (`etc/`, `usr/lib/*/*.d`, `usr/share/doc`, `cloud.cfg.d`,
+      `sshd_config.d`, `rancher/k3s`)
+    - harness layouts (`.github/`, `.forgejo/workflows`, `.agents/plugins`, `.claude/commands`)
+    - toolchain conventions: the Android/Gradle app (`tools/mios-portal-app`, the depth-9 branch) keeps
+      Gradle's `src/main/java/<package>` layout unless it moves to its own repository.
 
 ## Non-goals and blast radius
 - Do not rewrite history or force-push shared branches. Do not use `git add -A`; other agents share this tree.
