@@ -990,7 +990,7 @@ node = 8650
 ListenStream = "0.0.0.0:${MIOS_PORTS_NODE}"
 [units."sample.service".Service]
 ExecStart = "/usr/bin/x --port ${MIOS_PORTS_NODE}"
-Environment = ["A=${MIOS_PORTS_NODE:-1}/v1", "B=${MIOS_PORTS_ABSENT:-9}", "C=${MIOS_OTHER}"]
+Environment = ["A=${MIOS_PORTS_NODE:-8650}/v1", "B=${MIOS_PORTS_ABSENT:-9}", "C=${MIOS_OTHER}"]
 "#;
         let out = render_units(toml_str).unwrap();
         assert_eq!(

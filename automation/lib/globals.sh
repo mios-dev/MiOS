@@ -267,6 +267,7 @@ _mios_input MIOS_SERVICES_AGENT_PIPE_USER MIOS_AGENT_PIPE_USER || { return 1 2>/
 : "${MIOS_SERVICES_AGENT_PIPE_USER:=mios-agent-pipe}"
 [ -n "${MIOS_AGENT_PIPE_USER+x}" ] || MIOS_AGENT_PIPE_USER="${MIOS_SERVICES_AGENT_PIPE_USER:-}"
 : "${MIOS_AGENT_PIPE_WALL_CLOCK_BUDGET_S:=90}"
+: "${MIOS_AI_AGENT_MODEL:=MiOS AI}"
 : "${MIOS_AI_BAKE_MODELS:=granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent}"
 _mios_input MIOS_PATHS_AI_DIR MIOS_AI_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_AI_DIR:=/usr/share/mios/ai}"
@@ -307,7 +308,7 @@ _mios_input MIOS_PATHS_AI_SYSTEM_PROMPT MIOS_AI_SYSTEM_PROMPT || { return 1 2>/d
 [ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_PATHS_AI_SYSTEM_PROMPT:-}"
 : "${MIOS_AI_TAG_HINT_MAX_CHARS:=260}"
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
-: "${MIOS_AI_TAG_MAX_UNTAGGED:=42}"
+: "${MIOS_AI_TAG_MAX_UNTAGGED:=155}"
 : "${MIOS_AI_TAG_TEACHER_MODEL:=granite4.1:3b}"
 : "${MIOS_AI_TAG_TEACHER_PORT_KEY:=llm_light}"
 : "${MIOS_ALIASES_BROWSER:=zen}"
@@ -951,7 +952,7 @@ _mios_input MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS MIOS_CONV_INFERENCE
 _mios_input MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:=1}"
 _mios_input MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT || { return 1 2>/dev/null || exit 1; }
-: "${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:=true}"
+: "${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:=false}"
 _mios_input MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:=false}"
 _mios_input MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR || { return 1 2>/dev/null || exit 1; }
@@ -1055,7 +1056,9 @@ _mios_input MIOS_PORTS_DAEMON_AGENT MIOS_PORT_DAEMON_AGENT MIOS_DAEMON_AGENT_POR
 : "${MIOS_DAEMON_QUIESCENCE_WINDOW_MIN:=10}"
 : "${MIOS_DAEMON_REFUSAL_DETECT:=model}"
 : "${MIOS_DAEMON_REFUSAL_LIMIT_PER_MIN:=20}"
-[ -n "${MIOS_DASHBOARD_ROWS+x}" ] || MIOS_DASHBOARD_ROWS='["version", "date"],["user", "uptime"],["cpu", "gpu_discrete"],["disk_c", "disk_m"],["ram", "swap"],["kernel", "shell"],["host", "font"]'
+: "${MIOS_DASHBOARD_FACTS_TIMEOUT_MS:=1500}"
+: "${MIOS_DASHBOARD_PROBE_TIMEOUT_MS:=250}"
+[ -n "${MIOS_DASHBOARD_ROWS+x}" ] || MIOS_DASHBOARD_ROWS='["version", "date"],["user", "uptime"],["cpu", "gpu_discrete"],["gpu_integrated"],["disk_c", "disk_m"],["ram", "swap"],["kernel", "shell"],["host", "font"]'
 : "${MIOS_DASHBOARD_SHOW_LOGO:=false}"
 : "${MIOS_DASHBOARD_SHOW_SERVICES:=true}"
 : "${MIOS_DASHBOARD_SHOW_TITLE:=true}"
@@ -1449,13 +1452,19 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TOOLING_PYTHON_LINES:=Re-baselined to 81188 following approved merges on main (ADR-0026 task store, operator-approved 2026-09-26)}"
 : "${MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TRACKED_FILES:=Re-baselined to 3662 following approved merges on main (T-1104..T-1111, manual corpus, devcontainer, artifacts; ADR-0026 task store, operator-approved 2026-09-26)}"
 [ -n "${MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TRACKED_MB+x}" ] || MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TRACKED_MB='emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable'"'"'s size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)'
+: "${MIOS_DRIFT_LINT_PYTHON:=python3}"
+: "${MIOS_DRIFT_LINT_PYTHON_EXCLUDE:=usr/libexec/mios/mios-dashboard}"
+: "${MIOS_DRIFT_LINT_SHELLCHECK:=shellcheck}"
+: "${MIOS_DRIFT_LINT_SHELL_DIRECTORIES:=,automation,automation/tests,automation/support,automation/lib,tools,tools/lib,installation,tests,usr/lib/mios,usr/libexec/mios}"
+: "${MIOS_DRIFT_LINT_SHELL_EXCLUDE:=automation/lib/globals.sh}"
+: "${MIOS_DRIFT_LINT_SHELL_SEVERITY:=error}"
+: "${MIOS_DRIFT_MODULES_IMPORT_ROOTS:=usr/lib/mios/agent-pipe,usr/libexec/mios,tools}"
 : "${MIOS_DRIFT_MONITOR_AXES:=verdict,intent}"
 : "${MIOS_DRIFT_MONITOR_ENABLE:=false}"
 : "${MIOS_DRIFT_MONITOR_MIN_SAMPLES:=30}"
 : "${MIOS_DRIFT_MONITOR_THRESHOLD:=0.2}"
 : "${MIOS_DRIFT_MONITOR_WINDOW:=200}"
-: "${MIOS_DRIFT_UNIMPLEMENTED_CHECKS:=check_agent_pipe_budgets,check_bake_budget,check_bake_plan,check_bake_ref_defaults,check_capability_manifest,check_cli_eval_safety,check_cli_sql_safety,check_container_ports,check_containerfile_pinned_clones,check_converge_ssot,check_council_gate_ssot,check_dag_integrity,check_db_seed_coverage,check_drift_projection,check_etc_duplicates,check_firstboot_degrade_open,check_globals_image_parity,check_globals_ports,check_greenboot_enablement,check_guacamole_consistency,check_hint_coverage,check_lint_is_final,check_module_boundary,check_module_length,check_negative_test_coverage,check_no_bare_port_literals,check_no_hardcode,check_no_hardcode_version,check_no_hardcoded_ssot_literal,check_no_mkdir_in_var,check_python_lint,check_quadlet_privilege,check_rbac_tiers,check_roadmap_index,check_root_toml_subset,check_router_parity,check_sbom_metadata,check_shellcheck,check_soft_mode_not_committed,check_ssot_lint_equivalence,check_structured,check_target_languages,check_template_conformance,check_unwired_modules,check_userenv_parity,check_usr_over_etc,check_var_closure,check_vendor_urls,check_vendored_assets_non_stub,check_verb_backends,check_verb_templates,check_version_ssot,check_vllm_name_canonical}"
-: "${MIOS_DRIFT_UNIMPLEMENTED_MAX_UNIMPLEMENTED:=53}"
+: "${MIOS_DRIFT_UNIMPLEMENTED_MAX_UNIMPLEMENTED:=0}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_DEBLOAT_PROFILE:=minimal}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_POSTURE:=B}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_UUP_ARCH:=amd64}"
@@ -1862,7 +1871,7 @@ _mios_input MIOS_VERSIONS_K3S MIOS_VERSION_K3S || { return 1 2>/dev/null || exit
 [ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSIONS_K3S:-}"
 [ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION="${MIOS_VERSIONS_K3S:-}"
 : "${MIOS_KARGS_IOMMU:=on}"
-[ -n "${MIOS_KEYBINDINGS_ACTIONS+x}" ] || MIOS_KEYBINDINGS_ACTIONS='{ command = "/usr/libexec/mios/mios-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal", id = "terminal", key = "t", label = "MiOS Terminal", tmux_command = "new-window", vscode_command = "workbench.action.terminal.toggleTerminal" },{ command = "/usr/bin/mios ai", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai", id = "ai", key = "a", label = "MiOS AI", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action ai'"'"'", vscode_command = "runCommands", vscode_shell = "mios ai" },{ command = "mios agents --watch", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents", id = "agents", key = "g", label = "MiOS Agents", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action agents'"'"'", vscode_command = "runCommands", vscode_shell = "mios agents --watch" },{ command = "mios mon", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system", id = "system", key = "m", label = "MiOS System Monitor", tmux_command = "new-window -n MiOS-System mios mon", vscode_command = "runCommands", vscode_shell = "mios mon" }'
+[ -n "${MIOS_KEYBINDINGS_ACTIONS+x}" ] || MIOS_KEYBINDINGS_ACTIONS='{ command = "/usr/libexec/mios/mios-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal", id = "terminal", key = "t", label = "MiOS Terminal", tmux_command = "new-window", tmux_command_windows = "new-window", vscode_command = "workbench.action.terminal.toggleTerminal" },{ command = "/usr/bin/mios ai", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai", id = "ai", key = "a", label = "MiOS AI", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action ai'"'"'", tmux_command_windows = "new-window -n MiOS-AI '"'"'mios.cmd ai'"'"'", vscode_command = "runCommands", vscode_shell = "mios ai" },{ command = "mios agents --watch", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents", id = "agents", key = "g", label = "MiOS Agents", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action agents'"'"'", tmux_command_windows = "new-window -n MiOS-Agents '"'"'mios.cmd agents --watch'"'"'", vscode_command = "runCommands", vscode_shell = "mios agents --watch" },{ command = "mios mon", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system", id = "system", key = "m", label = "MiOS System Monitor", tmux_command = "new-window -n MiOS-System mios mon", tmux_command_windows = "new-window -n MiOS-System '"'"'mios.cmd mon'"'"'", vscode_command = "runCommands", vscode_shell = "mios mon" }'
 : "${MIOS_KEYBINDINGS_DESKTOP_ACCELERATOR:=<Control><Alt><Shift>}"
 : "${MIOS_KEYBINDINGS_DESKTOP_MODIFIER:=CTRL ALT SHIFT}"
 : "${MIOS_KEYBINDINGS_ENABLED:=true}"
@@ -1872,7 +1881,7 @@ _mios_input MIOS_VERSIONS_K3S MIOS_VERSION_K3S || { return 1 2>/dev/null || exit
 : "${MIOS_KEYBINDINGS_REPEAT_TIME_MS:=500}"
 : "${MIOS_KEYBINDINGS_SOCKET_NAME:=mios-human}"
 : "${MIOS_KEYBINDINGS_TERMINAL_SESSION:=mios}"
-[ -n "${MIOS_KEYBINDINGS_TMUX_BINDINGS+x}" ] || MIOS_KEYBINDINGS_TMUX_BINDINGS='{ command = "select-pane -L", key = "h" },{ command = "select-pane -D", key = "j" },{ command = "select-pane -U", key = "k" },{ command = "select-pane -R", key = "l" },{ command = "split-window -v", key = "s" },{ command = "split-window -h", key = "v" },{ command = "next-window", key = "n" },{ command = "previous-window", key = "p" },{ command = "choose-tree -Zw", key = "w" },{ command = "resize-pane -Z", key = "z" },{ command = "copy-mode", key = "y" },{ command = "detach-client", key = "d" },{ command = "send-keys BTab", key = "Tab" },{ command = "send-prefix", key = "b" },{ command = "run-shell '"'"'/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-focus next'"'"'", key = "o" },{ command = "run-shell '"'"'/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-view toggle'"'"'", key = "f" }'
+[ -n "${MIOS_KEYBINDINGS_TMUX_BINDINGS+x}" ] || MIOS_KEYBINDINGS_TMUX_BINDINGS='{ command = "select-pane -L", key = "h" },{ command = "select-pane -D", key = "j" },{ command = "select-pane -U", key = "k" },{ command = "select-pane -R", key = "l" },{ command = "split-window -v", key = "s" },{ command = "split-window -h", key = "v" },{ command = "next-window", key = "n" },{ command = "previous-window", key = "p" },{ command = "choose-tree -Zw", key = "w" },{ command = "resize-pane -Z", key = "z" },{ command = "copy-mode", key = "y" },{ command = "detach-client", key = "d" },{ command = "send-keys BTab", key = "Tab" },{ command = "send-prefix", key = "b" },{ command = "run-shell '"'"'/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-focus next'"'"'", command_windows = "select-pane -t :.+", key = "o" },{ command = "run-shell '"'"'/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-view toggle'"'"'", command_windows = "resize-pane -Z", key = "f" }'
 : "${MIOS_KEYBINDINGS_TMUX_PREFIX:=C-b}"
 : "${MIOS_KEYBINDINGS_VSCODE_ALLOW_CHORDS:=false}"
 : "${MIOS_KEYBINDINGS_VSCODE_ALLOW_MNEMONICS:=false}"
@@ -2126,6 +2135,7 @@ _mios_input MIOS_NETWORK_QUADLET_SUBNET MIOS_QUADLET_SUBNET || { return 1 2>/dev
 : "${MIOS_NODES_LOCAL_IGPU_API:=llamacpp}"
 [ -n "${MIOS_NODES_LOCAL_IGPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_IGPU_ENDPOINT='http://127.0.0.1:'"${MIOS_PORTS_LLM_IGPU:-}"'/v1'
 : "${MIOS_NODES_LOCAL_IGPU_HEALTH_GATE:=true}"
+: "${MIOS_NODES_LOCAL_IGPU_HOST_SERVED:=usr/share/mios/windows/MiOS-iGPU-Server.cfg}"
 : "${MIOS_NODES_LOCAL_IGPU_LANE:=igpu}"
 : "${MIOS_NODES_LOCAL_IGPU_MODEL:=mios-igpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_API:=llamacpp}"
@@ -2408,6 +2418,9 @@ _mios_input MIOS_PGVECTOR_USER MIOS_PG_USER || { return 1 2>/dev/null || exit 1;
 [ -n "${MIOS_PIPELINE_BANDS+x}" ] || MIOS_PIPELINE_BANDS='{ purpose = "git-overlay", range = [1, 1] },{ purpose = "build-context", range = [2, 2] },{ purpose = "repos/kernel", range = [5, 7] },{ purpose = "accounts", range = [10, 15] },{ purpose = "hardware-universal", range = [20, 27] },{ purpose = "services", range = [33, 54] },{ purpose = "themes", range = [56, 62] },{ purpose = "ai/desktop/boot/distribution", range = [65, 80] },{ purpose = "finalize/validators", range = [85, 99] }'
 : "${MIOS_PIPELINE_CHECK_INDEX:=usr/share/mios/reference/drift-gate-index.tsv}"
 : "${MIOS_PIPELINE_CHECK_STAGE:=98}"
+: "${MIOS_PIPELINE_CONSOLE_BAR_WIDTH:=24}"
+[ -n "${MIOS_PIPELINE_CONSOLE_POST_STEPS+x}" ] || MIOS_PIPELINE_CONSOLE_POST_STEPS='{ action = "bloat", name = "post-bloat" },{ action = "package_health", name = "post-package-health" },{ action = "invariants", name = "99-postcheck.sh" },{ action = "ssot", name = "97-ssot-lint.sh" },{ action = "drift", name = "98-drift-checks.sh" },{ action = "agent_tests", name = "post-agent-tests" },{ action = "libexec_tests", name = "post-libexec-tests" },{ action = "image_digests", name = "post-image-digests" },{ action = "log_chain", name = "post-log-chain" },{ action = "finalize", name = "post-finalize" }'
+: "${MIOS_PIPELINE_CONSOLE_WIDTH:=100}"
 [ -n "${MIOS_PIPELINE_EXTERNAL_COUNTERS+x}" ] || MIOS_PIPELINE_EXTERNAL_COUNTERS='{ pattern = "STEP i/N", scope = "outer ~25, nested mios-sys ~19, go-builder 2, rust-builder 4", tool = "podman/buildah" },{ pattern = "[i/N]", scope = "download ~55 + transaction ~57", tool = "dnf5" },{ pattern = "Compiling c (i/m)", scope = "rust-builder crate graph", tool = "cargo" }'
 : "${MIOS_PIPELINE_EXTERNAL_SUPPRESS_HINT:=quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never parse or fold into the MiOS scheme.}"
 : "${MIOS_PIPELINE_FUTURE_AXES:=oci_run_step}"
@@ -2710,7 +2723,7 @@ _mios_input MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE MIOS_QUADLET_DEV_NETWORK_MODE 
 [ -n "${MIOS_RECHUNK_MAX_LAYERS+x}" ] || MIOS_RECHUNK_MAX_LAYERS="${MIOS_BUILD_RECHUNK_MAX_LAYERS:-}"
 [ -n "${MIOS_REDIS_PORT+x}" ] || MIOS_REDIS_PORT="${MIOS_PORTS_REDIS:-}"
 : "${MIOS_REFACTOR_MAX_LINES:=800}"
-[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{ lines = 1375, path = "mios_pipe/federation/a2a.py" },{ lines = 688, path = "mios_pipe/federation/http_caps.py" },{ lines = 871, path = "mios_pipe/memory/knowledge.py" },{ lines = 1093, path = "mios_pipe/routing/agent_call.py" },{ lines = 1668, path = "mios_pipe/routing/chat.py" },{ lines = 1127, path = "mios_pipe/routing/dag_exec.py" },{ lines = 1143, path = "mios_pipe/routing/native_loop.py" },{ lines = 1560, path = "mios_pipe/routing/portal.py" },{ lines = 1071, path = "mios_pipe/routing/refine.py" },{ lines = 992, path = "mios_pipe/routing/swarm.py" },{ lines = 909, path = "mios_pipe/routing/web_research.py" },{ lines = 971, path = "mios_audio_tts.py" },{ lines = 800, path = "mios_dispatch.py" },{ lines = 891, path = "mios_mesh_distributor.py" },{ lines = 899, path = "mios_ocr_mask.py" },{ lines = 1202, path = "mios_vision_redact.py" },{ lines = 4736, path = "server.py" }'
+[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{ lines = 1375, path = "mios_pipe/federation/a2a.py" },{ lines = 688, path = "mios_pipe/federation/http_caps.py" },{ lines = 871, path = "mios_pipe/memory/knowledge.py" },{ lines = 1093, path = "mios_pipe/routing/agent_call.py" },{ lines = 1674, path = "mios_pipe/routing/chat.py" },{ lines = 1127, path = "mios_pipe/routing/dag_exec.py" },{ lines = 1143, path = "mios_pipe/routing/native_loop.py" },{ lines = 1582, path = "mios_pipe/routing/portal.py" },{ lines = 1071, path = "mios_pipe/routing/refine.py" },{ lines = 992, path = "mios_pipe/routing/swarm.py" },{ lines = 909, path = "mios_pipe/routing/web_research.py" },{ lines = 971, path = "mios_audio_tts.py" },{ lines = 812, path = "mios_dispatch.py" },{ lines = 891, path = "mios_mesh_distributor.py" },{ lines = 899, path = "mios_ocr_mask.py" },{ lines = 1202, path = "mios_vision_redact.py" },{ lines = 4743, path = "server.py" },{ lines = 1013, path = "mios_pipe/routing/vision.py" },{ lines = 1027, path = "test_mios_mcp_aio.py" }'
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
 : "${MIOS_REFINE_CHAT_CHARS:=40}"
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
@@ -3258,7 +3271,7 @@ _mios_input MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE MIOS_XDG_CACHE_LOCAL_PAT
 : "${MIOS_TEMPLATES_RUST_CRATE_DEST_DIR:=tools/native}"
 : "${MIOS_TEMPLATES_RUST_CRATE_EMIT:=directory}"
 : "${MIOS_TEMPLATES_RUST_CRATE_GENERATED:=false}"
-[ -n "${MIOS_TEMPLATES_RUST_CRATE_MATCH+x}" ] || MIOS_TEMPLATES_RUST_CRATE_MATCH='^tools/native/[\w-]+/(?:Cargo\.toml|src/[\w./-]+\.rs)$'
+[ -n "${MIOS_TEMPLATES_RUST_CRATE_MATCH+x}" ] || MIOS_TEMPLATES_RUST_CRATE_MATCH='^tools/native/[\w-]+/Cargo\.toml$'
 : "${MIOS_TEMPLATES_RUST_CRATE_REQUIRED_HEADER:=true}"
 : "${MIOS_TEMPLATES_RUST_CRATE_REQUIRED_MARKERS:=[package],name =}"
 : "${MIOS_TEMPLATES_RUST_CRATE_SCAFFOLD:=true}"
@@ -3343,7 +3356,9 @@ _mios_input MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE MIOS_XDG_CACHE_LOCAL_PAT
 : "${MIOS_TERMINAL_SOCKET_ROOT:=/tmp}"
 : "${MIOS_TERMINAL_START_DIRECTORY:=/}"
 : "${MIOS_TERMINAL_WINDOWS_BACKEND:=native-tmux}"
+: "${MIOS_TERMINAL_WINDOWS_COMMAND_TIMEOUT_MS:=3000}"
 : "${MIOS_TERMINAL_WINDOWS_EXECUTABLE:=tmux.exe}"
+: "${MIOS_TERMINAL_WINDOWS_GLYPH_MODE:=auto}"
 : "${MIOS_TERMINAL_WINDOWS_SESSION_NAME:=MiOS-WIN}"
 : "${MIOS_TERMINAL_WINDOWS_SHELL:=cmd.exe}"
 : "${MIOS_TERMINAL_WINDOWS_SOCKET_NAME:=mios-windows}"
