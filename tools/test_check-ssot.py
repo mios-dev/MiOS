@@ -390,7 +390,7 @@ class tpf_TestIdioms(unittest.TestCase):
 
     def test_an_unconditional_environment_pin_is_found(self):
         # The shape that made agent-pipe bind a retired port.
-        f = self._one("Environment=MIOS_PORT_AGENT_PIPE=8640\n",
+        f = self._one("Environment=MIOS_PORTS_AGENT_PIPE=8640\n",
                       "usr/lib/systemd/system/x.service")
         self.assertIn("usr/lib/systemd/system/x.service:AGENT_PIPE", f)
 
@@ -398,34 +398,34 @@ class tpf_TestIdioms(unittest.TestCase):
         # 8450 is DELIBERATELY wrong -- [ports].llm_light is 8500. A fixture
         # carrying the CORRECT value produces no finding, so the assertion
         # would pass over nothing.
-        self.assertTrue(self._one('P="${MIOS_PORT_LLM_LIGHT:-8450}"\n'))
+        self.assertTrue(self._one('P="${MIOS_PORTS_LLM_LIGHT:-8450}"\n'))
 
     def test_a_python_get_default_is_found(self):
-        self.assertTrue(self._one('p = os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")\n'))
+        self.assertTrue(self._one('p = os.environ.get("MIOS_PORTS_LLM_LIGHT", "8450")\n'))
 
     def test_the_second_literal_of_a_double_fallback_is_found(self):
         # get(K, "correct") or WRONG -- the `or` is what runs when the var is
         # empty, and the first sweep of this gate missed it entirely.
-        f = self._one('p = int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8432)\n')
+        f = self._one('p = int(e.get("MIOS_PORTS_PGVECTOR", "8600") or 8432)\n')
         self.assertIn("usr/libexec/mios/probe:PGVECTOR", f)
 
     def test_a_bare_or_fallback_is_found(self):
-        self.assertTrue(self._one('p = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450"\n'))
+        self.assertTrue(self._one('p = os.environ.get("MIOS_PORTS_LLM_LIGHT") or "8450"\n'))
 
     def test_the_powershell_table_shape_is_found(self):
-        self.assertTrue(self._one("_MiosPort 'MIOS_PORT_LLM_LIGHT' 8450\n"))
+        self.assertTrue(self._one("_MiosPort 'MIOS_PORTS_LLM_LIGHT' 8450\n"))
 
     def test_the_alias_spelling_is_found(self):
-        self.assertTrue(self._one('p = os.environ.get("MIOS_ARBITER_PORT", "8650")\n'))
+        self.assertTrue(self._one('p = os.environ.get("MIOS_PORTS_ARBITER", "8650")\n'))
 
     def test_an_agreeing_literal_is_not_a_finding(self):
-        self.assertEqual(self._one('p = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")\n'), {})
+        self.assertEqual(self._one('p = os.environ.get("MIOS_PORTS_LLM_LIGHT", "8500")\n'), {})
 
     def test_a_templated_reference_is_not_a_finding(self):
-        self.assertEqual(self._one('P="${MIOS_PORT_LLM_LIGHT}"\n'), {})
+        self.assertEqual(self._one('P="${MIOS_PORTS_LLM_LIGHT}"\n'), {})
 
     def test_a_comment_is_never_a_finding(self):
-        self.assertEqual(self._one('# MIOS_PORT_LLM_LIGHT used to be 8450\n'), {})
+        self.assertEqual(self._one('# MIOS_PORTS_LLM_LIGHT used to be 8450\n'), {})
 
     def test_a_name_with_no_ports_key_is_ignored(self):
         self.assertEqual(self._one('p = os.environ.get("MIOS_PG_PORT", "5432")\n'), {})
@@ -433,13 +433,13 @@ class tpf_TestIdioms(unittest.TestCase):
 class tpf_TestRegister(unittest.TestCase):
     def test_a_registered_finding_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
+            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORTS_LLM_LIGHT:-8450}"\n'},
                      register=["usr/libexec/mios/probe:LLM_LIGHT"])
             self.assertEqual(tpf_mod.pf_classify(d, tmp), [])
 
     def test_an_unregistered_finding_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
+            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORTS_LLM_LIGHT:-8450}"\n'},
                      register=[])
             self.assertTrue(tpf_mod.pf_classify(d, tmp))
 
@@ -453,7 +453,7 @@ class tpf_TestRegister(unittest.TestCase):
 
     def test_a_duplicated_register_entry_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
+            d = tpf_tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORTS_LLM_LIGHT:-8450}"\n'},
                      register=["usr/libexec/mios/probe:LLM_LIGHT"] * 2)
             self.assertTrue(any("twice" in v for v in tpf_mod.pf_classify(d, tmp)))
 
@@ -1005,7 +1005,7 @@ def tnp_data(nodes, blades=None, vocab=tnp_VOCAB):
         d["blades"] = dict(blades)
     return d
 
-tnp_GPU = {"endpoint": "http://localhost:${MIOS_PORT_SGLANG}/v1",
+tnp_GPU = {"endpoint": "http://localhost:${MIOS_PORTS_SGLANG}/v1",
        "model": "mios-heavy", "lane": "gpu"}
 
 class tnp_TestAliases(unittest.TestCase):

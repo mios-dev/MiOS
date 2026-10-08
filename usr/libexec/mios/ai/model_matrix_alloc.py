@@ -26,8 +26,8 @@ import mios_toml  # noqa: E402 -- the ONE shared layered-mios.toml resolver
 
 
 def llm_light_port() -> int:
-    """SSOT [ports].llm_light: MIOS_PORT_LLM_LIGHT when exported, else the layered mios.toml."""
-    env = os.environ.get("MIOS_PORT_LLM_LIGHT", "")
+    """SSOT [ports].llm_light: MIOS_PORTS_LLM_LIGHT when exported, else the layered mios.toml."""
+    env = os.environ.get("MIOS_PORTS_LLM_LIGHT", "")
     return int(env) if env.isdigit() else int(mios_toml.get("ports", "llm_light"))
 
 TIER_CONSUMER = "consumer"

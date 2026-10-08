@@ -13,7 +13,7 @@ systemd does NOT expand ${VAR} / ${VAR:-default} in ListenStream -- it
 fails "Failed to parse address ... Invalid argument" and the socket
 then refuses with "Unit has no Listen setting", so cockpit never binds.
 The port is therefore a LITERAL mirroring mios.toml [ports].cockpit
-(MIOS_PORT_COCKPIT); keep the two in sync.
+(MIOS_PORTS_COCKPIT); keep the two in sync.
 
 <!-- mios-src:933490c7e200 from usr/lib/systemd/system/cockpit.socket.d/listen.conf:5-14 -->
 

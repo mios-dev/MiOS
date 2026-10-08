@@ -49,7 +49,7 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
                       profile: "mios_sandbox.SandboxProfile",
                       session_id: Optional[str] = None) -> "tuple":
     import subprocess
-    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    cephfs_enable = os.environ.get("MIOS_STORAGE_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if cephfs_enable:
         sess_id = session_id or uuid.uuid4().hex[:8]
         sess_id = "".join(c for c in sess_id if c.isalnum() or c in "-_")[:32]

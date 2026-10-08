@@ -330,10 +330,10 @@ _OTEL_ENABLE = (
     .strip().lower() not in {"false", "0", "no", "off", ""}
 )
 # Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
-# [observability].otel_endpoint ships a ${MIOS_PORT_OTELCOL_OTLP} placeholder and
+# [observability].otel_endpoint ships a ${MIOS_PORTS_OTELCOL_OTLP} placeholder and
 # os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
 # value is not an endpoint -- drop it and rebuild from the resolved port.
-_OTEL_PORT = os.environ.get("MIOS_PORT_OTELCOL_OTLP", "8575")
+_OTEL_PORT = os.environ.get("MIOS_PORTS_OTELCOL_OTLP", "8575")
 _otel_cfg_endpoint = str(_otel_toml.get("otel_endpoint") or "").strip()
 if "${" in _otel_cfg_endpoint:
     _otel_cfg_endpoint = ""
@@ -746,7 +746,7 @@ _configure_authn(
 # Law 5/7: :8000 was the RETIRED SurrealDB lane, and this value is pushed into
 # mios_pipe/db.py via _configure_db(db_url=...) -- so the stale literal here
 # OVERRODE db.py's already-correct SSOT resolution. Resolve the same way it does.
-_DB_PORT = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+_DB_PORT = os.environ.get("MIOS_PORTS_PGVECTOR", "8600")
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:%s" % _DB_PORT)
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
 DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
@@ -897,7 +897,7 @@ async def lifespan(app):
     asyncio.create_task(_a2a_client_startup())
 
     global _GATEWAY_QUEUE, _GATEWAY_WORKER, _GATEWAY_TASK, _MCP_POOL
-    mcp_pool_enable = os.environ.get("MIOS_CONV_IMAGE_MCP_POOL_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    mcp_pool_enable = os.environ.get("MIOS_CONVERGE_IMAGE_MCP_POOL_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if mcp_pool_enable:
         tools_cfg = _toml_section("tools") or {}
         mcp_servers = tools_cfg.get("mcp_servers") or {}
@@ -906,10 +906,10 @@ async def lifespan(app):
         await _MCP_POOL.startup()
         sys.modules["mios_a2a"].configure(mcp_pool=_MCP_POOL)
 
-    conv_gw_mode = os.environ.get("MIOS_CONV_GATEWAY_MODE", "http")
+    conv_gw_mode = os.environ.get("MIOS_CONVERGE_GATEWAY_MODE", "http")
     if conv_gw_mode == "queue":
-        q_maxsize = int(os.environ.get("MIOS_CONV_GATEWAY_QUEUE_MAXSIZE", "64"))
-        w_concurrency = int(os.environ.get("MIOS_CONV_GATEWAY_WORKER_CONCURRENCY", "4"))
+        q_maxsize = int(os.environ.get("MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE", "64"))
+        w_concurrency = int(os.environ.get("MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY", "4"))
 
         mios_gateway_queue.configure(
             verb_catalog=_VERB_CATALOG,
@@ -919,8 +919,8 @@ async def lifespan(app):
         )
 
         # Law 5: the legacy hermes port is RETIRED. [ai].endpoint is
-        # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- mirror that resolution.
-        _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+        # "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1" -- mirror that resolution.
+        _pipe_port = os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700")
         ai_endpoint = os.environ.get(
             "MIOS_AI_ENDPOINT", "http://localhost:%s/v1" % _pipe_port)
         ai_model = os.environ.get("MIOS_AI_MODEL", "granite4.1:8b")
@@ -1007,13 +1007,13 @@ def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: 
 @app.get("/v1/storage/cephfs/users")
 async def cephfs_users():
     import os
-    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    cephfs_enable = os.environ.get("MIOS_STORAGE_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if not cephfs_enable:
         return {"enabled": False}
 
-    tenant_id = os.environ.get("MIOS_CEPHFS_TENANT_ID", "mios")
-    fs_name = os.environ.get("MIOS_CEPHFS_FS_NAME", "cephfs")
-    keyring_dir = os.environ.get("MIOS_CEPHFS_KEYRING_DIR", "/etc/ceph/keyring.d")
+    tenant_id = os.environ.get("MIOS_STORAGE_CEPHFS_TENANT_ID", "mios")
+    fs_name = os.environ.get("MIOS_STORAGE_CEPHFS_FS_NAME", "cephfs")
+    keyring_dir = os.environ.get("MIOS_STORAGE_CEPHFS_KEYRING_DIR", "/etc/ceph/keyring.d")
 
     users = []
     if os.path.exists(keyring_dir):
@@ -1033,7 +1033,7 @@ async def cephfs_health():
     import os
     import subprocess
     import json
-    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    cephfs_enable = os.environ.get("MIOS_STORAGE_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if not cephfs_enable:
         return {"enabled": False}
 
@@ -1061,7 +1061,7 @@ async def cephfs_health():
 
 @app.post("/v1/inference/lora/load")
 async def lora_load(request: Request):
-    heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
+    heavy_mode = os.environ.get("MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE", "dual")
     if heavy_mode != "single":
         return JSONResponse(
             status_code=400,
@@ -1088,7 +1088,7 @@ async def lora_load(request: Request):
 
 @app.get("/v1/inference/lora/list")
 async def lora_list():
-    heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
+    heavy_mode = os.environ.get("MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE", "dual")
     if heavy_mode != "single":
         return {"adapters": [], "enabled": False}
 
@@ -3477,7 +3477,7 @@ from mios_daemons import (daemons_router, selfimprove_report_ep,   # noqa: E402,
 app.include_router(daemons_router)
 
 _VERB_EMBED_MODEL = os.environ.get(
-    "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
+    "MIOS_AI_EMBED_MODEL", "nomic-embed-text")
 _VERB_EMBED_URL = os.environ.get(
     "MIOS_VERB_EMBED_URL", _LIGHT_BASE + "/v1/embeddings")
 

@@ -23,7 +23,7 @@ fine for the short micro job, not a JSON-tool agent. Native ctx 32K (micro lane 
 EXEMPT from the global 128k chat mandate). Symmetric q8_0 KV + flash-attn on (GPU-
 offloadable; NEVER asymmetric k!=v -> issue #20866 CPU-fallback). The qwen3:1.7b
 alias keeps every pipeline-emitted micro name resolving onto the new model.
-Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.
+Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.
 
 <!-- mios-src:47bbd3a1697e from usr/share/mios/llamacpp/mios-llm-light.yaml:39-58 -->
 
@@ -47,7 +47,7 @@ note: avoid CUDA 13.2 (gibberish-output bug). --jinja MANDATORY for tool_calls.
 128k FIT: symmetric q8_0 K+V quantized KV cache + flash-attn on (GPU-offloadable;
 NEVER asymmetric k!=v -> issue #20866 ~40x CPU-fallback). Low-end 8GB profile:
 drop --cache-type-k/-v to q4_0 in the /etc overlay.
-Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.
+Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.
 
 <!-- mios-src:b2aa5f67cf2f from usr/share/mios/llamacpp/mios-llm-light.yaml:72-90 -->
 

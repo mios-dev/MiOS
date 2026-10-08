@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
+# GENERATED IN FULL from usr/share/mios/mios.toml by mios-gen render-globals. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/native/mios-gen/src/render_globals.rs
 # AI-functions: _mios_resolve_version
 #
 # Shell sibling of automation/lib/globals.ps1 -- both are rendered from the same
@@ -20,10 +20,29 @@ _mios_resolve_version() {
             v="$(cat "${_root}/VERSION")"
         fi
     fi
-    printf '%s' "${v:-0.3.0}" | tr -d '[:space:]'
+    printf '%s' "${v:-${MIOS_META_MIOS_VERSION}}" | tr -d '[:space:]'
 }
 : "${MIOS_VERSION:=$(_mios_resolve_version)}"
 export MIOS_VERSION
+
+
+# Legacy environment inputs are accepted only when they have one SSOT owner.
+_mios_input() {
+    local canonical="$1" name value selected='' chosen=''
+    shift
+    [[ -n "${!canonical:-}" ]] && return 0
+    for name do
+        value="${!name:-}"
+        [[ -n "$value" ]] || continue
+        if [[ -n "$chosen" && "$selected" != "$value" ]]; then
+            printf 'conflicting legacy inputs %s and %s; set %s\n' "$chosen" "$name" "$canonical" >&2
+            return 1
+        fi
+        selected="$value"; chosen="$name"
+    done
+    if [[ -n "$chosen" ]]; then printf -v "$canonical" '%s' "$selected"; fi
+    return 0
+}
 
 : "${MIOS_A2A_COUNCIL:=false}"
 : "${MIOS_A2A_DISCOVER_PORT:=8700}"
@@ -34,24 +53,60 @@ export MIOS_VERSION
 : "${MIOS_A2A_PROTOCOL_VERSION:=1.0}"
 : "${MIOS_A2A_ROUTE_ON_CARD_SKILLS:=false}"
 : "${MIOS_A2A_SELF_ID:=local-mios}"
-[ -n "${MIOS_A2O_CLAUDE_EFFORT_FLAG+x}" ] || MIOS_A2O_CLAUDE_EFFORT_FLAG='--effort {e}'
-: "${MIOS_A2O_LANE_A_EFFORT:=xhigh}"
-: "${MIOS_A2O_LANE_A_ENGINE:=claude}"
-: "${MIOS_A2O_LANE_A_MODEL:=claude-opus-4-8}"
-: "${MIOS_A2O_LANE_A_ROLE:=framework + ~80%}"
-: "${MIOS_A2O_LANE_B_EFFORT:=high}"
-: "${MIOS_A2O_LANE_B_ENGINE:=agy}"
-: "${MIOS_A2O_LANE_B_FALLBACK_EFFORT:=high}"
-: "${MIOS_A2O_LANE_B_FALLBACK_ENGINE:=claude}"
-: "${MIOS_A2O_LANE_B_FALLBACK_MODEL:=claude-sonnet-5}"
-: "${MIOS_A2O_LANE_B_MODEL:=Gemini 3.5 Flash (High)}"
-: "${MIOS_A2O_LANE_B_PREFER_FALLBACK:=true}"
-: "${MIOS_A2O_LANE_B_ROLE:=finalize (last ~20%)}"
-: "${MIOS_A2O_ORCH_EFFORT:=high}"
-: "${MIOS_A2O_ORCH_ENGINE:=claude}"
-: "${MIOS_A2O_ORCH_MODEL:=claude-sonnet-5}"
-: "${MIOS_A2O_STREAM_PATH:=/var/lib/mios/hermes-tail/frontier/frontier.jsonl}"
-: "${MIOS_A2O_STREAM_REASONING:=false}"
+_mios_input MIOS_FRONTIER_CLAUDE_EFFORT_FLAG MIOS_A2O_CLAUDE_EFFORT_FLAG || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG+x}" ] || MIOS_FRONTIER_CLAUDE_EFFORT_FLAG='--effort {e}'
+[ -n "${MIOS_A2O_CLAUDE_EFFORT_FLAG+x}" ] || MIOS_A2O_CLAUDE_EFFORT_FLAG="${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG:-}"
+_mios_input MIOS_FRONTIER_LANE_A_EFFORT MIOS_A2O_LANE_A_EFFORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_A_EFFORT:=xhigh}"
+[ -n "${MIOS_A2O_LANE_A_EFFORT+x}" ] || MIOS_A2O_LANE_A_EFFORT="${MIOS_FRONTIER_LANE_A_EFFORT:-}"
+_mios_input MIOS_FRONTIER_LANE_A_ENGINE MIOS_A2O_LANE_A_ENGINE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_A_ENGINE:=claude}"
+[ -n "${MIOS_A2O_LANE_A_ENGINE+x}" ] || MIOS_A2O_LANE_A_ENGINE="${MIOS_FRONTIER_LANE_A_ENGINE:-}"
+_mios_input MIOS_FRONTIER_LANE_A_MODEL MIOS_A2O_LANE_A_MODEL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_A_MODEL:=claude-opus-4-8}"
+[ -n "${MIOS_A2O_LANE_A_MODEL+x}" ] || MIOS_A2O_LANE_A_MODEL="${MIOS_FRONTIER_LANE_A_MODEL:-}"
+_mios_input MIOS_FRONTIER_LANE_A_ROLE MIOS_A2O_LANE_A_ROLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_A_ROLE:=framework + ~80%}"
+[ -n "${MIOS_A2O_LANE_A_ROLE+x}" ] || MIOS_A2O_LANE_A_ROLE="${MIOS_FRONTIER_LANE_A_ROLE:-}"
+_mios_input MIOS_FRONTIER_LANE_B_EFFORT MIOS_A2O_LANE_B_EFFORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_EFFORT:=high}"
+[ -n "${MIOS_A2O_LANE_B_EFFORT+x}" ] || MIOS_A2O_LANE_B_EFFORT="${MIOS_FRONTIER_LANE_B_EFFORT:-}"
+_mios_input MIOS_FRONTIER_LANE_B_ENGINE MIOS_A2O_LANE_B_ENGINE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_ENGINE:=agy}"
+[ -n "${MIOS_A2O_LANE_B_ENGINE+x}" ] || MIOS_A2O_LANE_B_ENGINE="${MIOS_FRONTIER_LANE_B_ENGINE:-}"
+_mios_input MIOS_FRONTIER_LANE_B_FALLBACK_EFFORT MIOS_A2O_LANE_B_FALLBACK_EFFORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_FALLBACK_EFFORT:=high}"
+[ -n "${MIOS_A2O_LANE_B_FALLBACK_EFFORT+x}" ] || MIOS_A2O_LANE_B_FALLBACK_EFFORT="${MIOS_FRONTIER_LANE_B_FALLBACK_EFFORT:-}"
+_mios_input MIOS_FRONTIER_LANE_B_FALLBACK_ENGINE MIOS_A2O_LANE_B_FALLBACK_ENGINE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_FALLBACK_ENGINE:=claude}"
+[ -n "${MIOS_A2O_LANE_B_FALLBACK_ENGINE+x}" ] || MIOS_A2O_LANE_B_FALLBACK_ENGINE="${MIOS_FRONTIER_LANE_B_FALLBACK_ENGINE:-}"
+_mios_input MIOS_FRONTIER_LANE_B_FALLBACK_MODEL MIOS_A2O_LANE_B_FALLBACK_MODEL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_FALLBACK_MODEL:=claude-sonnet-5}"
+[ -n "${MIOS_A2O_LANE_B_FALLBACK_MODEL+x}" ] || MIOS_A2O_LANE_B_FALLBACK_MODEL="${MIOS_FRONTIER_LANE_B_FALLBACK_MODEL:-}"
+_mios_input MIOS_FRONTIER_LANE_B_MODEL MIOS_A2O_LANE_B_MODEL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_MODEL:=Gemini 3.5 Flash (High)}"
+[ -n "${MIOS_A2O_LANE_B_MODEL+x}" ] || MIOS_A2O_LANE_B_MODEL="${MIOS_FRONTIER_LANE_B_MODEL:-}"
+_mios_input MIOS_FRONTIER_LANE_B_PREFER_FALLBACK MIOS_A2O_LANE_B_PREFER_FALLBACK || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_PREFER_FALLBACK:=true}"
+[ -n "${MIOS_A2O_LANE_B_PREFER_FALLBACK+x}" ] || MIOS_A2O_LANE_B_PREFER_FALLBACK="${MIOS_FRONTIER_LANE_B_PREFER_FALLBACK:-}"
+_mios_input MIOS_FRONTIER_LANE_B_ROLE MIOS_A2O_LANE_B_ROLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_LANE_B_ROLE:=finalize (last ~20%)}"
+[ -n "${MIOS_A2O_LANE_B_ROLE+x}" ] || MIOS_A2O_LANE_B_ROLE="${MIOS_FRONTIER_LANE_B_ROLE:-}"
+_mios_input MIOS_FRONTIER_ORCH_EFFORT MIOS_A2O_ORCH_EFFORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_ORCH_EFFORT:=high}"
+[ -n "${MIOS_A2O_ORCH_EFFORT+x}" ] || MIOS_A2O_ORCH_EFFORT="${MIOS_FRONTIER_ORCH_EFFORT:-}"
+_mios_input MIOS_FRONTIER_ORCH_ENGINE MIOS_A2O_ORCH_ENGINE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_ORCH_ENGINE:=claude}"
+[ -n "${MIOS_A2O_ORCH_ENGINE+x}" ] || MIOS_A2O_ORCH_ENGINE="${MIOS_FRONTIER_ORCH_ENGINE:-}"
+_mios_input MIOS_FRONTIER_ORCH_MODEL MIOS_A2O_ORCH_MODEL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_ORCH_MODEL:=claude-sonnet-5}"
+[ -n "${MIOS_A2O_ORCH_MODEL+x}" ] || MIOS_A2O_ORCH_MODEL="${MIOS_FRONTIER_ORCH_MODEL:-}"
+_mios_input MIOS_FRONTIER_STREAM_PATH MIOS_A2O_STREAM_PATH || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_STREAM_PATH:=/var/lib/mios/hermes-tail/frontier/frontier.jsonl}"
+[ -n "${MIOS_A2O_STREAM_PATH+x}" ] || MIOS_A2O_STREAM_PATH="${MIOS_FRONTIER_STREAM_PATH:-}"
+_mios_input MIOS_FRONTIER_STREAM_TO_REASONING MIOS_A2O_STREAM_REASONING || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_FRONTIER_STREAM_TO_REASONING:=false}"
+[ -n "${MIOS_A2O_STREAM_REASONING+x}" ] || MIOS_A2O_STREAM_REASONING="${MIOS_FRONTIER_STREAM_TO_REASONING:-}"
 : "${MIOS_ACCOUNTS_DB_BACKED:=true}"
 : "${MIOS_ACCOUNTS_DB_RENDER_PREFS:=false}"
 : "${MIOS_ACI_HEAD_FRAC:=0.6}"
@@ -61,14 +116,24 @@ export MIOS_VERSION
 : "${MIOS_ADGUARD_BOOTSTRAP:=9.9.9.9,1.1.1.1}"
 : "${MIOS_ADGUARD_CACHE_MAX_TTL:=86400}"
 : "${MIOS_ADGUARD_CACHE_MIN_TTL:=60}"
-: "${MIOS_ADGUARD_DNS_PORT:=53}"
-: "${MIOS_ADGUARD_GID:=825}"
+_mios_input MIOS_PORTS_ADGUARD_DNS MIOS_PORT_ADGUARD_DNS MIOS_ADGUARD_DNS_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_ADGUARD_DNS:=53}"
+[ -n "${MIOS_ADGUARD_DNS_PORT+x}" ] || MIOS_ADGUARD_DNS_PORT="${MIOS_PORTS_ADGUARD_DNS:-}"
+_mios_input MIOS_SERVICES_ADGUARD_GID MIOS_ADGUARD_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_ADGUARD_GID:=825}"
+[ -n "${MIOS_ADGUARD_GID+x}" ] || MIOS_ADGUARD_GID="${MIOS_SERVICES_ADGUARD_GID:-}"
 : "${MIOS_ADGUARD_IMAGE:=docker.io/adguard/adguardhome:latest}"
 : "${MIOS_ADGUARD_MAGICDNS_RESOLVER:=100.100.100.100}"
-: "${MIOS_ADGUARD_UID:=825}"
-: "${MIOS_ADGUARD_UI_PORT:=8050}"
+_mios_input MIOS_SERVICES_ADGUARD_UID MIOS_ADGUARD_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_ADGUARD_UID:=825}"
+[ -n "${MIOS_ADGUARD_UID+x}" ] || MIOS_ADGUARD_UID="${MIOS_SERVICES_ADGUARD_UID:-}"
+_mios_input MIOS_PORTS_ADGUARD_UI MIOS_PORT_ADGUARD_UI MIOS_ADGUARD_UI_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_ADGUARD_UI:=8050}"
+[ -n "${MIOS_ADGUARD_UI_PORT+x}" ] || MIOS_ADGUARD_UI_PORT="${MIOS_PORTS_ADGUARD_UI:-}"
 : "${MIOS_ADGUARD_UPSTREAMS:=https://dns.quad9.net/dns-query,https://dns.cloudflare.com/dns-query}"
-: "${MIOS_ADGUARD_USER:=mios-adguard}"
+_mios_input MIOS_SERVICES_ADGUARD_USER MIOS_ADGUARD_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_ADGUARD_USER:=mios-adguard}"
+[ -n "${MIOS_ADGUARD_USER+x}" ] || MIOS_ADGUARD_USER="${MIOS_SERVICES_ADGUARD_USER:-}"
 : "${MIOS_ADGUARD_VERSION:=latest}"
 : "${MIOS_ADMISSION_MULTIBLADE_ENABLE:=false}"
 : "${MIOS_ADMISSION_TENANT_MAX_CONCURRENCY:=0}"
@@ -80,12 +145,15 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_AI_LOCAL_MODEL:=qwen2.5-3b-instruct-4bit}"
 : "${MIOS_AGENTS_AI_LOCAL_ROLE:=mobile}"
 : "${MIOS_AGENTS_AI_LOCAL_STRENGTHS:=mobile_local_model,on_device,offline_edge}"
-: "${MIOS_PORT_SGLANG:=8530}"
-[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
+_mios_input MIOS_PORTS_SGLANG MIOS_PORT_SGLANG MIOS_SGLANG_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_SGLANG:=8530}"
+[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
 : "${MIOS_AGENTS_HERMES_CPU_MODEL:=mios-heavy}"
 : "${MIOS_AGENTS_HERMES_DEFAULT:=false}"
-: "${MIOS_PORT_HERMES:=8720}"
-[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
+_mios_input MIOS_PORTS_HERMES MIOS_PORT_HERMES MIOS_HERMES_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_HERMES:=8720}"
+_mios_input MIOS_AGENTS_HERMES_ENDPOINT MIOS_HERMES_WORKER_ENDPOINT || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORTS_HERMES:-}"'/v1'
 : "${MIOS_AGENTS_HERMES_FANOUT:=false}"
 : "${MIOS_AGENTS_HERMES_HEALTH_GATE:=true}"
 : "${MIOS_AGENTS_HERMES_JOB:=General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.}"
@@ -94,7 +162,7 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_HERMES_ROLE:=general}"
 : "${MIOS_AGENTS_HERMES_STRENGTHS:=kanban,web_search,skill_invocation,multi_step_reasoning,tool_use}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_DEFAULT:=false}"
-[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
+[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FAILOVER_AGENTS:=hermes}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FANOUT:=true}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_HEALTH_GATE:=true}"
@@ -105,8 +173,9 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_STRENGTHS:=reasoning,second_opinion,summarize,planning,journalctl_tail,log_search,event_query,system_followup,what_just_happened}"
 : "${MIOS_AGENTS_MIOS_NODE_API:=http}"
 : "${MIOS_AGENTS_MIOS_NODE_DEFAULT:=false}"
-: "${MIOS_PORT_NODE:=8650}"
-[ -n "${MIOS_AGENTS_MIOS_NODE_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_NODE_ENDPOINT='http://localhost:'"${MIOS_PORT_NODE:-}"'/v1'
+_mios_input MIOS_PORTS_NODE MIOS_PORT_NODE MIOS_NODE_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_NODE:=8650}"
+[ -n "${MIOS_AGENTS_MIOS_NODE_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_NODE_ENDPOINT='http://localhost:'"${MIOS_PORTS_NODE:-}"'/v1'
 : "${MIOS_AGENTS_MIOS_NODE_FANOUT:=true}"
 : "${MIOS_AGENTS_MIOS_NODE_HEALTH_GATE:=true}"
 : "${MIOS_AGENTS_MIOS_NODE_JOB:=Distributed edge micro-node task execution, Wasm sandboxing, Ed25519 signature checks, and CRDT lock-free state synchronization.}"
@@ -117,8 +186,9 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_MIOS_NODE_STRENGTHS:=wasm_sandboxing,crdt_state_sync,peer_discovery,task_offloading,ed25519_verification}"
 : "${MIOS_AGENTS_OPENCODE_DEFAULT:=false}"
 : "${MIOS_AGENTS_OPENCODE_ENABLED:=true}"
-: "${MIOS_PORT_OPENCODE_GATEWAY:=8780}"
-[ -n "${MIOS_AGENTS_OPENCODE_ENDPOINT+x}" ] || MIOS_AGENTS_OPENCODE_ENDPOINT='http://localhost:'"${MIOS_PORT_OPENCODE_GATEWAY:-}"'/v1'
+_mios_input MIOS_PORTS_OPENCODE_GATEWAY MIOS_PORT_OPENCODE_GATEWAY MIOS_OPENCODE_GATEWAY_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_OPENCODE_GATEWAY:=8780}"
+[ -n "${MIOS_AGENTS_OPENCODE_ENDPOINT+x}" ] || MIOS_AGENTS_OPENCODE_ENDPOINT='http://localhost:'"${MIOS_PORTS_OPENCODE_GATEWAY:-}"'/v1'
 : "${MIOS_AGENTS_OPENCODE_FAILOVER_AGENTS:=hermes}"
 : "${MIOS_AGENTS_OPENCODE_FANOUT:=true}"
 : "${MIOS_AGENTS_OPENCODE_HEALTH_GATE:=true}"
@@ -160,7 +230,7 @@ export MIOS_VERSION
 : "${MIOS_AGENT_CLI_WINDOWS_UV_INSTALLER:=https://astral.sh/uv/install.ps1}"
 : "${MIOS_AGENT_CLI_WINDOWS_UV_INSTALLER_SHA256:=536e6ebe00d41efc96b0ab1121bf6f969b0e9cbd88d1e19cfd09e63722e96160}"
 : "${MIOS_AGENT_PASSPORT_PRINCIPAL_MODE:=off}"
-[ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
+[ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORTS_HERMES:-}"'/v1'
 : "${MIOS_AGENT_PIPE_BACKEND_MODEL:=hermes-agent}"
 : "${MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH:=true}"
 : "${MIOS_AGENT_PIPE_COUNCIL_AGGREGATOR_BYPASS:=false}"
@@ -168,12 +238,15 @@ export MIOS_VERSION
 : "${MIOS_AGENT_PIPE_COUNCIL_DIVERSITY_GATE:=false}"
 : "${MIOS_AGENT_PIPE_COUNCIL_DIVERSITY_THRESHOLD:=0.92}"
 : "${MIOS_AGENT_PIPE_ENABLE:=true}"
-: "${MIOS_PORT_AGENT_PIPE:=8700}"
-[ -n "${MIOS_AGENT_PIPE_ENDPOINT+x}" ] || MIOS_AGENT_PIPE_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
-: "${MIOS_AGENT_PIPE_GID:=822}"
+_mios_input MIOS_PORTS_AGENT_PIPE MIOS_PORT_AGENT_PIPE MIOS_AGENT_PIPE_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_AGENT_PIPE:=8700}"
+[ -n "${MIOS_AGENT_PIPE_ENDPOINT+x}" ] || MIOS_AGENT_PIPE_ENDPOINT='http://localhost:'"${MIOS_PORTS_AGENT_PIPE:-}"'/v1'
+_mios_input MIOS_SERVICES_AGENT_PIPE_GID MIOS_AGENT_PIPE_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_AGENT_PIPE_GID:=822}"
+[ -n "${MIOS_AGENT_PIPE_GID+x}" ] || MIOS_AGENT_PIPE_GID="${MIOS_SERVICES_AGENT_PIPE_GID:-}"
 : "${MIOS_AGENT_PIPE_MAX_CONSECUTIVE_FAILURES:=3}"
 : "${MIOS_AGENT_PIPE_NO_PROGRESS_WINDOW:=2}"
-: "${MIOS_AGENT_PIPE_PORT:=8700}"
+[ -n "${MIOS_AGENT_PIPE_PORT+x}" ] || MIOS_AGENT_PIPE_PORT="${MIOS_PORTS_AGENT_PIPE:-}"
 : "${MIOS_AGENT_PIPE_QUALITY_CHECK_EMPTY:=true}"
 : "${MIOS_AGENT_PIPE_QUALITY_CHECK_JSON:=true}"
 : "${MIOS_AGENT_PIPE_QUALITY_CHECK_PUNT:=true}"
@@ -181,29 +254,57 @@ export MIOS_VERSION
 : "${MIOS_AGENT_PIPE_REFLEXION_ENABLE:=true}"
 : "${MIOS_AGENT_PIPE_REFLEXION_LIMIT:=2}"
 : "${MIOS_AGENT_PIPE_REPLAN_MAX:=5}"
-: "${MIOS_PORT_LLM_LIGHT:=8500}"
-[ -n "${MIOS_AGENT_PIPE_TOOL_BACKEND+x}" ] || MIOS_AGENT_PIPE_TOOL_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
+_mios_input MIOS_PORTS_LLM_LIGHT MIOS_PORT_LLM_LIGHT MIOS_LLM_LIGHT_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_LLM_LIGHT:=8500}"
+[ -n "${MIOS_AGENT_PIPE_TOOL_BACKEND+x}" ] || MIOS_AGENT_PIPE_TOOL_BACKEND='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"'/v1'
 : "${MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL:=granite4.1:8b}"
 : "${MIOS_AGENT_PIPE_TOOL_LOOP_LIMIT:=20}"
 : "${MIOS_AGENT_PIPE_TOOL_MAX_ITERS:=15}"
-: "${MIOS_AGENT_PIPE_UID:=822}"
-: "${MIOS_AGENT_PIPE_USER:=mios-agent-pipe}"
+_mios_input MIOS_SERVICES_AGENT_PIPE_UID MIOS_AGENT_PIPE_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_AGENT_PIPE_UID:=822}"
+[ -n "${MIOS_AGENT_PIPE_UID+x}" ] || MIOS_AGENT_PIPE_UID="${MIOS_SERVICES_AGENT_PIPE_UID:-}"
+_mios_input MIOS_SERVICES_AGENT_PIPE_USER MIOS_AGENT_PIPE_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_AGENT_PIPE_USER:=mios-agent-pipe}"
+[ -n "${MIOS_AGENT_PIPE_USER+x}" ] || MIOS_AGENT_PIPE_USER="${MIOS_SERVICES_AGENT_PIPE_USER:-}"
 : "${MIOS_AGENT_PIPE_WALL_CLOCK_BUDGET_S:=90}"
 : "${MIOS_AI_BAKE_MODELS:=granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent}"
-: "${MIOS_AI_DIR:=/usr/share/mios/ai}"
+_mios_input MIOS_PATHS_AI_DIR MIOS_AI_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_DIR:=/usr/share/mios/ai}"
+[ -n "${MIOS_AI_DIR+x}" ] || MIOS_AI_DIR="${MIOS_PATHS_AI_DIR:-}"
+_mios_input MIOS_AI_EMBED_MODEL MIOS_VERB_EMBED_MODEL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
-: "${MIOS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
-: "${MIOS_AI_LEGACY_PORT:=8640}"
-: "${MIOS_AI_MCP_DIR:=/srv/ai/mcp}"
-: "${MIOS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
+_mios_input MIOS_AI_ENDPOINT MIOS_ENDPOINT || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORTS_AGENT_PIPE:-}"'/v1'
+_mios_input MIOS_PATHS_AI_JOURNAL MIOS_AI_JOURNAL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
+[ -n "${MIOS_AI_JOURNAL+x}" ] || MIOS_AI_JOURNAL="${MIOS_PATHS_AI_JOURNAL:-}"
+_mios_input MIOS_PORTS_AI_LEGACY MIOS_PORT_AI_LEGACY MIOS_AI_LEGACY_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_AI_LEGACY:=8640}"
+[ -n "${MIOS_AI_LEGACY_PORT+x}" ] || MIOS_AI_LEGACY_PORT="${MIOS_PORTS_AI_LEGACY:-}"
+_mios_input MIOS_PATHS_AI_MCP_DIR MIOS_AI_MCP_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_MCP_DIR:=/srv/ai/mcp}"
+[ -n "${MIOS_AI_MCP_DIR+x}" ] || MIOS_AI_MCP_DIR="${MIOS_PATHS_AI_MCP_DIR:-}"
+_mios_input MIOS_PATHS_AI_MEMORY_DIR MIOS_AI_MEMORY_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
+[ -n "${MIOS_AI_MEMORY_DIR+x}" ] || MIOS_AI_MEMORY_DIR="${MIOS_PATHS_AI_MEMORY_DIR:-}"
+_mios_input MIOS_AI_MODEL MIOS_MODEL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_AI_MODEL:=granite4.1:8b}"
-: "${MIOS_AI_MODELS_DIR:=/srv/ai/models}"
+_mios_input MIOS_PATHS_AI_MODELS_DIR MIOS_AI_MODELS_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_MODELS_DIR:=/srv/ai/models}"
+[ -n "${MIOS_AI_MODELS_DIR+x}" ] || MIOS_AI_MODELS_DIR="${MIOS_PATHS_AI_MODELS_DIR:-}"
 : "${MIOS_AI_RAM_FLOOR_GB:=8}"
-: "${MIOS_AI_SCRATCH_DIR:=/var/lib/mios/ai/scratch}"
-: "${MIOS_SHARE_DIR:=/usr/share/mios}"
-[ -n "${MIOS_SHARE_AI_DIR+x}" ] || MIOS_SHARE_AI_DIR="${MIOS_SHARE_DIR:-}"'/ai'
-[ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR:-}"'/system.md'
+_mios_input MIOS_PATHS_AI_SCRATCH_DIR MIOS_AI_SCRATCH_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_AI_SCRATCH_DIR:=/var/lib/mios/ai/scratch}"
+[ -n "${MIOS_AI_SCRATCH_DIR+x}" ] || MIOS_AI_SCRATCH_DIR="${MIOS_PATHS_AI_SCRATCH_DIR:-}"
+_mios_input MIOS_PATHS_SHARE_DIR MIOS_SHARE_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_SHARE_DIR:=/usr/share/mios}"
+[ -n "${MIOS_SHARE_DIR+x}" ] || MIOS_SHARE_DIR="${MIOS_PATHS_SHARE_DIR:-}"
+_mios_input MIOS_PATHS_SHARE_AI_DIR MIOS_SHARE_AI_DIR || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_SHARE_AI_DIR+x}" ] || MIOS_PATHS_SHARE_AI_DIR="${MIOS_SHARE_DIR:-}"'/ai'
+[ -n "${MIOS_SHARE_AI_DIR+x}" ] || MIOS_SHARE_AI_DIR="${MIOS_PATHS_SHARE_AI_DIR:-}"
+_mios_input MIOS_PATHS_AI_SYSTEM_PROMPT MIOS_AI_SYSTEM_PROMPT || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_AI_SYSTEM_PROMPT+x}" ] || MIOS_PATHS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR:-}"'/system.md'
+[ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_PATHS_AI_SYSTEM_PROMPT:-}"
 : "${MIOS_AI_TAG_HINT_MAX_CHARS:=260}"
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
 : "${MIOS_AI_TAG_MAX_UNTAGGED:=42}"
@@ -215,25 +316,63 @@ export MIOS_VERSION
 : "${MIOS_ALIASES_FILE_MANAGER:=nautilus}"
 : "${MIOS_ALIASES_TERMINAL:=ptyxis}"
 : "${MIOS_ALIASES_WEB:=zen}"
-: "${MIOS_ANSI_0_BLACK:=#282262}"
-: "${MIOS_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
-: "${MIOS_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
-: "${MIOS_ANSI_12_BRIGHT_BLUE:=#3D6BA8}"
-: "${MIOS_ANSI_13_BRIGHT_MAGENTA:=#9D7660}"
-: "${MIOS_ANSI_14_BRIGHT_CYAN:=#E0E0E0}"
-: "${MIOS_ANSI_15_BRIGHT_WHITE:=#FFFFFF}"
-: "${MIOS_ANSI_1_RED:=#DC271B}"
-: "${MIOS_ANSI_2_GREEN:=#3E7765}"
-: "${MIOS_ANSI_3_YELLOW:=#F35C15}"
-: "${MIOS_ANSI_4_BLUE:=#1A407F}"
-: "${MIOS_ANSI_5_MAGENTA:=#734F39}"
-: "${MIOS_ANSI_6_CYAN:=#B7C9D7}"
-: "${MIOS_ANSI_7_WHITE:=#E7DFD3}"
-: "${MIOS_ANSI_8_BRIGHT_BLACK:=#948E8E}"
-: "${MIOS_ANSI_9_BRIGHT_RED:=#FF6B5C}"
-: "${MIOS_ANTIFAB_ENABLE:=true}"
-: "${MIOS_ANTIFAB_GROUND_MIN:=0.34}"
-: "${MIOS_ANTIFAB_MIN_ENTITIES:=3}"
+_mios_input MIOS_COLORS_ANSI_0_BLACK MIOS_ANSI_0_BLACK || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_0_BLACK:=#282262}"
+[ -n "${MIOS_ANSI_0_BLACK+x}" ] || MIOS_ANSI_0_BLACK="${MIOS_COLORS_ANSI_0_BLACK:-}"
+_mios_input MIOS_COLORS_ANSI_10_BRIGHT_GREEN MIOS_ANSI_10_BRIGHT_GREEN || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
+[ -n "${MIOS_ANSI_10_BRIGHT_GREEN+x}" ] || MIOS_ANSI_10_BRIGHT_GREEN="${MIOS_COLORS_ANSI_10_BRIGHT_GREEN:-}"
+_mios_input MIOS_COLORS_ANSI_11_BRIGHT_YELLOW MIOS_ANSI_11_BRIGHT_YELLOW || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
+[ -n "${MIOS_ANSI_11_BRIGHT_YELLOW+x}" ] || MIOS_ANSI_11_BRIGHT_YELLOW="${MIOS_COLORS_ANSI_11_BRIGHT_YELLOW:-}"
+_mios_input MIOS_COLORS_ANSI_12_BRIGHT_BLUE MIOS_ANSI_12_BRIGHT_BLUE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_12_BRIGHT_BLUE:=#3D6BA8}"
+[ -n "${MIOS_ANSI_12_BRIGHT_BLUE+x}" ] || MIOS_ANSI_12_BRIGHT_BLUE="${MIOS_COLORS_ANSI_12_BRIGHT_BLUE:-}"
+_mios_input MIOS_COLORS_ANSI_13_BRIGHT_MAGENTA MIOS_ANSI_13_BRIGHT_MAGENTA || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_13_BRIGHT_MAGENTA:=#9D7660}"
+[ -n "${MIOS_ANSI_13_BRIGHT_MAGENTA+x}" ] || MIOS_ANSI_13_BRIGHT_MAGENTA="${MIOS_COLORS_ANSI_13_BRIGHT_MAGENTA:-}"
+_mios_input MIOS_COLORS_ANSI_14_BRIGHT_CYAN MIOS_ANSI_14_BRIGHT_CYAN || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_14_BRIGHT_CYAN:=#E0E0E0}"
+[ -n "${MIOS_ANSI_14_BRIGHT_CYAN+x}" ] || MIOS_ANSI_14_BRIGHT_CYAN="${MIOS_COLORS_ANSI_14_BRIGHT_CYAN:-}"
+_mios_input MIOS_COLORS_ANSI_15_BRIGHT_WHITE MIOS_ANSI_15_BRIGHT_WHITE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_15_BRIGHT_WHITE:=#FFFFFF}"
+[ -n "${MIOS_ANSI_15_BRIGHT_WHITE+x}" ] || MIOS_ANSI_15_BRIGHT_WHITE="${MIOS_COLORS_ANSI_15_BRIGHT_WHITE:-}"
+_mios_input MIOS_COLORS_ANSI_1_RED MIOS_ANSI_1_RED || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_1_RED:=#DC271B}"
+[ -n "${MIOS_ANSI_1_RED+x}" ] || MIOS_ANSI_1_RED="${MIOS_COLORS_ANSI_1_RED:-}"
+_mios_input MIOS_COLORS_ANSI_2_GREEN MIOS_ANSI_2_GREEN || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_2_GREEN:=#3E7765}"
+[ -n "${MIOS_ANSI_2_GREEN+x}" ] || MIOS_ANSI_2_GREEN="${MIOS_COLORS_ANSI_2_GREEN:-}"
+_mios_input MIOS_COLORS_ANSI_3_YELLOW MIOS_ANSI_3_YELLOW || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_3_YELLOW:=#F35C15}"
+[ -n "${MIOS_ANSI_3_YELLOW+x}" ] || MIOS_ANSI_3_YELLOW="${MIOS_COLORS_ANSI_3_YELLOW:-}"
+_mios_input MIOS_COLORS_ANSI_4_BLUE MIOS_ANSI_4_BLUE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_4_BLUE:=#1A407F}"
+[ -n "${MIOS_ANSI_4_BLUE+x}" ] || MIOS_ANSI_4_BLUE="${MIOS_COLORS_ANSI_4_BLUE:-}"
+_mios_input MIOS_COLORS_ANSI_5_MAGENTA MIOS_ANSI_5_MAGENTA || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_5_MAGENTA:=#734F39}"
+[ -n "${MIOS_ANSI_5_MAGENTA+x}" ] || MIOS_ANSI_5_MAGENTA="${MIOS_COLORS_ANSI_5_MAGENTA:-}"
+_mios_input MIOS_COLORS_ANSI_6_CYAN MIOS_ANSI_6_CYAN || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_6_CYAN:=#B7C9D7}"
+[ -n "${MIOS_ANSI_6_CYAN+x}" ] || MIOS_ANSI_6_CYAN="${MIOS_COLORS_ANSI_6_CYAN:-}"
+_mios_input MIOS_COLORS_ANSI_7_WHITE MIOS_ANSI_7_WHITE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_7_WHITE:=#E7DFD3}"
+[ -n "${MIOS_ANSI_7_WHITE+x}" ] || MIOS_ANSI_7_WHITE="${MIOS_COLORS_ANSI_7_WHITE:-}"
+_mios_input MIOS_COLORS_ANSI_8_BRIGHT_BLACK MIOS_ANSI_8_BRIGHT_BLACK || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_8_BRIGHT_BLACK:=#948E8E}"
+[ -n "${MIOS_ANSI_8_BRIGHT_BLACK+x}" ] || MIOS_ANSI_8_BRIGHT_BLACK="${MIOS_COLORS_ANSI_8_BRIGHT_BLACK:-}"
+_mios_input MIOS_COLORS_ANSI_9_BRIGHT_RED MIOS_ANSI_9_BRIGHT_RED || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_COLORS_ANSI_9_BRIGHT_RED:=#FF6B5C}"
+[ -n "${MIOS_ANSI_9_BRIGHT_RED+x}" ] || MIOS_ANSI_9_BRIGHT_RED="${MIOS_COLORS_ANSI_9_BRIGHT_RED:-}"
+_mios_input MIOS_VERITY_ANTIFAB_ENABLE MIOS_ANTIFAB_ENABLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERITY_ANTIFAB_ENABLE:=true}"
+[ -n "${MIOS_ANTIFAB_ENABLE+x}" ] || MIOS_ANTIFAB_ENABLE="${MIOS_VERITY_ANTIFAB_ENABLE:-}"
+_mios_input MIOS_VERITY_ANTIFAB_GROUND_MIN MIOS_ANTIFAB_GROUND_MIN || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERITY_ANTIFAB_GROUND_MIN:=0.34}"
+[ -n "${MIOS_ANTIFAB_GROUND_MIN+x}" ] || MIOS_ANTIFAB_GROUND_MIN="${MIOS_VERITY_ANTIFAB_GROUND_MIN:-}"
+_mios_input MIOS_VERITY_ANTIFAB_MIN_ENTITIES MIOS_ANTIFAB_MIN_ENTITIES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERITY_ANTIFAB_MIN_ENTITIES:=3}"
+[ -n "${MIOS_ANTIFAB_MIN_ENTITIES+x}" ] || MIOS_ANTIFAB_MIN_ENTITIES="${MIOS_VERITY_ANTIFAB_MIN_ENTITIES:-}"
 : "${MIOS_APPEARANCE_ADW_COLOR_SCHEME:=prefer-dark}"
 : "${MIOS_APPEARANCE_CURSOR_SIZE:=24}"
 : "${MIOS_APPEARANCE_CURSOR_THEME:=Bibata-Modern-Classic}"
@@ -253,7 +392,9 @@ export MIOS_VERSION
 : "${MIOS_APPS_SHORTCUTS_MIOS_HELP_ICON:=mios-help.ico}"
 : "${MIOS_APPS_SHORTCUTS_MIOS_HELP_NAME:=MiOS Help}"
 : "${MIOS_APPS_START_MENU_FOLDER:=MiOS}"
-: "${MIOS_ARBITER_PORT:=8760}"
+_mios_input MIOS_PORTS_ARBITER MIOS_PORT_ARBITER MIOS_ARBITER_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_ARBITER:=8760}"
+[ -n "${MIOS_ARBITER_PORT+x}" ] || MIOS_ARBITER_PORT="${MIOS_PORTS_ARBITER:-}"
 [ -n "${MIOS_ARTIFACTS_DAILY_BUNDLE+x}" ] || MIOS_ARTIFACTS_DAILY_BUNDLE='mios-daily-artifact-{utc_yyyymmdd}-{mios_sha12}'
 [ -n "${MIOS_ARTIFACTS_DAILY_CONTENTS_API+x}" ] || MIOS_ARTIFACTS_DAILY_CONTENTS_API='{api_base}/contents/{path}?ref={sha}'
 [ -n "${MIOS_ARTIFACTS_DAILY_HEAD_API+x}" ] || MIOS_ARTIFACTS_DAILY_HEAD_API='{api_base}/commits/{branch}'
@@ -277,7 +418,9 @@ export MIOS_VERSION
 [ -n "${MIOS_ARTIFACTS_DAILY_WEB_FILE+x}" ] || MIOS_ARTIFACTS_DAILY_WEB_FILE='{web_base}/blob/{sha}/{path}'
 : "${MIOS_AUDIT_CHAIN_ENABLE:=true}"
 : "${MIOS_AUTH_PASSWORD:=mios}"
+_mios_input MIOS_AUTH_PASSWORD_POLICY MIOS_PASSWORD_POLICY || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_AUTH_PASSWORD_POLICY:=plain}"
+_mios_input MIOS_AUTH_SSH_KEY_ACTION MIOS_SSH_KEY_ACTION || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_AUTH_SSH_KEY_ACTION:=generate}"
 : "${MIOS_AUTH_SSH_KEY_TYPE:=ed25519}"
 : "${MIOS_BASE_IMAGE:=ghcr.io/ublue-os/ucore-hci:stable-nvidia}"
@@ -309,7 +452,9 @@ export MIOS_VERSION
 : "${MIOS_BLADE_DISCOVERY_HEALTH_PATH:=/v1/models}"
 : "${MIOS_BLADE_DISCOVERY_HEALTH_TIMEOUT_S:=3}"
 : "${MIOS_BLADE_DISCOVERY_ORDER:=localhost,mdns,tailnet,remote}"
-: "${MIOS_BLADE_ENV:=/run/mios/blade.env}"
+_mios_input MIOS_PATHS_BLADE_ENV MIOS_BLADE_ENV || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_BLADE_ENV:=/run/mios/blade.env}"
+[ -n "${MIOS_BLADE_ENV+x}" ] || MIOS_BLADE_ENV="${MIOS_PATHS_BLADE_ENV:-}"
 : "${MIOS_BLADE_FALLBACK:=headless}"
 : "${MIOS_BLADE_FENCING_DISKLESS:=true}"
 : "${MIOS_BLADE_FENCING_METHOD:=sbd}"
@@ -361,6 +506,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_RECONCILE_SESSION:=last-writer-wins}"
 : "${MIOS_BLADE_REQUIRES_HERMES_WORKER:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_K3S:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_LLAMA_RPC_SERVER:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOSD:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_ACCOUNT_SYNC:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_ADGUARD:=service-plane}"
@@ -381,6 +527,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_REQUIRES_MIOS_GIT_ROOT_INIT:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_GUACAMOLE:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_GUACD:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_HEADSCALE:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_HERMES_BROWSER_WORKER:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_K3S:=controller,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_K3S_MASTER:=service-plane}"
@@ -420,13 +567,15 @@ export MIOS_VERSION
 : "${MIOS_BLADE_REQUIRES_MIOS_WOL_PROXY:=service-plane}"
 : "${MIOS_BLADE_ROLE_ALIASES_HA:=ha-node}"
 : "${MIOS_BLADE_ROLE_ALIASES_K3S:=k3s-master}"
-: "${MIOS_BLADE_SEAT_SIDE:=mios-agent-pipe,hermes-dashboard,mios-hermes-browser,mios-hermes-tail,mios-ttyd-bash,mios-ttyd-powershell}"
+: "${MIOS_BLADE_SEAT_SIDE:=mios-agent-pipe,mios-ai-legacy-forward,hermes-dashboard,mios-hermes-browser,mios-hermes-tail,mios-ttyd-bash,mios-ttyd-powershell}"
 : "${MIOS_BLADE_SOFT_OK:=hermes-worker,mios-hermes-browser,mios-ai-firstboot}"
 : "${MIOS_BLADE_STORAGE_AT_REST:=dmcrypt}"
 : "${MIOS_BLADE_STORAGE_REPLICATION:=all}"
 : "${MIOS_BLADE_TYPE:=hybrid}"
 : "${MIOS_BLADE_UPLINK_FAILOVER:=local,peer}"
-: "${MIOS_BOOLEAN_PARAM_KEYWORDS:=enable,force,success,active,dryrun}"
+_mios_input MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS MIOS_BOOLEAN_PARAM_KEYWORDS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS:=enable,force,success,active,dryrun}"
+[ -n "${MIOS_BOOLEAN_PARAM_KEYWORDS+x}" ] || MIOS_BOOLEAN_PARAM_KEYWORDS="${MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS:-}"
 : "${MIOS_BOOTC_INSTALL_BOUND_IMAGES:=stored}"
 : "${MIOS_BOOTC_INSTALL_ROOT_FS_TYPE:=ext4}"
 : "${MIOS_BOOTC_INSTALL_ROOT_MIN_GB:=80}"
@@ -448,12 +597,15 @@ export MIOS_VERSION
 : "${MIOS_BRANDING_TAGLINE:=My Personal Operating System}"
 : "${MIOS_BRANDING_TAGLINE_APP:=My Personal Operating System}"
 : "${MIOS_BRANDING_TAGLINE_LONG:=My Personal Operating System  --  Immutable Fedora AI Workstation}"
-: "${MIOS_BROWSER_ACTION_VERBS:=quote,read,tell,summarise,summarize,what is,what does,what say,what says,first sentence,the content,browse,extract,scrape,headline,article,say}"
+_mios_input MIOS_ROUTING_BROWSER_ACTION_VERBS MIOS_BROWSER_ACTION_VERBS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_BROWSER_ACTION_VERBS:=quote,read,tell,summarise,summarize,what is,what does,what say,what says,first sentence,the content,browse,extract,scrape,headline,article,say}"
+[ -n "${MIOS_BROWSER_ACTION_VERBS+x}" ] || MIOS_BROWSER_ACTION_VERBS="${MIOS_ROUTING_BROWSER_ACTION_VERBS:-}"
 : "${MIOS_BROWSER_AI_ENABLE:=true}"
 : "${MIOS_BROWSER_AI_PACKAGE:=Zen-Team.Zen-Browser.Twilight}"
 : "${MIOS_BROWSER_AI_PREFS:=browser.ml.enable|bool|true,browser.smartwindow.enabled|bool|true,browser.ml.chat.enabled|bool|true,browser.ml.chat.hideLocalhost|bool|false,browser.ml.chat.shortcuts|bool|true,browser.ml.chat.menu|bool|true,browser.ml.pageAssist.enabled|bool|true,browser.ml.linkPreview.enabled|bool|true}"
-: "${MIOS_PORT_OPEN_WEBUI:=8200}"
-[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"
+_mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_OPEN_WEBUI:=8200}"
+[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORTS_OPEN_WEBUI:-}"
 : "${MIOS_BROWSER_FAMILY_CHROMIUM:=chrome,chromium,brave,edge,vivaldi,opera}"
 : "${MIOS_BROWSER_FAMILY_EPIPHANY:=epiphany,gnome.web,gnome.epiphany}"
 : "${MIOS_BROWSER_FAMILY_FIREFOX:=firefox,mozilla,librewolf,waterfox,zen,floorp}"
@@ -476,7 +628,7 @@ export MIOS_VERSION
 : "${MIOS_BUILD_AI_RAM_FLOOR_GB:=12}"
 : "${MIOS_BUILD_ARTIFACTS_OUTPUT_DIR:=build}"
 : "${MIOS_BUILD_BAKE_ADDITIONAL_IMAGE_STORE:=/usr/lib/bootc/storage}"
-: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-piper:latest,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:latest,codeberg.org/forgejo/forgejo:latest,docker.io/adguard/adguardhome:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lizardbyte/sunshine:latest-ubuntu-26.10,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:latest,docker.io/rancher/k3s:latest,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/ggml-org/whisper.cpp:main,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/mios-dev/mios-node:latest,ghcr.io/mios-dev/mios-micro:latest,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:latest,quay.io/poseidon/matchbox:latest}"
+: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-piper:latest,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:latest,codeberg.org/forgejo/forgejo:latest,docker.io/adguard/adguardhome:latest,docker.io/headscale/headscale:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lizardbyte/sunshine:latest-ubuntu-26.10,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:latest,docker.io/rancher/k3s:latest,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/ggml-org/whisper.cpp:main,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/mios-dev/mios-node:latest,ghcr.io/mios-dev/mios-micro:latest,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:latest,quay.io/poseidon/matchbox:latest}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_CRAWL4AI:=Webtools heavy crawl runtime deferred from Day-0 bake}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_FIRECRAWL:=Webtools heavy crawl runtime deferred from Day-0 bake}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_SGLANG:=Heavy GPU inference image (~20GB)}"
@@ -525,114 +677,190 @@ export MIOS_VERSION
 : "${MIOS_BUILD_NATIVE_LINUX_RUSTFLAGS:=-C,target-feature=+crt-static}"
 : "${MIOS_BUILD_NATIVE_LINUX_TARGETS_AARCH64:=aarch64-unknown-linux-musl}"
 : "${MIOS_BUILD_NATIVE_LINUX_TARGETS_X86_64:=x86_64-unknown-linux-musl}"
-: "${MIOS_BUILD_NATIVE_WINDOWS_LINKER:=x86_64-w64-mingw32-gcc}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_DRIVER:=cargo-xwin}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_DRIVER_VERSION:=0.23.1}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_LINKER:=lld-link}"
 : "${MIOS_BUILD_NATIVE_WINDOWS_ONLY:=mios-launch,mios-wallpaperd}"
 : "${MIOS_BUILD_NATIVE_WINDOWS_RUSTFLAGS:=-C,target-feature=+crt-static}"
-: "${MIOS_BUILD_NATIVE_WINDOWS_SYSTEM_DLLS:=kernel32.dll,ntdll.dll,bcrypt.dll,advapi32.dll,user32.dll,gdi32.dll,dwmapi.dll,ole32.dll,oleaut32.dll,shell32.dll,shlwapi.dll,comctl32.dll,comdlg32.dll,ws2_32.dll,userenv.dll,iphlpapi.dll,secur32.dll,crypt32.dll,winmm.dll,version.dll,uxtheme.dll,windowscodecs.dll,dwrite.dll,dxgi.dll,d2d1.dll,d3d11.dll,propsys.dll,msvcrt.dll,ucrtbase.dll,api-ms-win-core-synch-l1-2-0.dll,bcryptprimitives.dll}"
-: "${MIOS_BUILD_NATIVE_WINDOWS_TARGET:=x86_64-pc-windows-gnu}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_SHARED:=generate-names-registry,mios-ai-config,mios-aiplane-lint,mios-bake-plan,mios-browser,mios-comment-lex,mios-drift-runner,mios-edge-status,mios-hardcode-lint,mios-render-quadlets,mios-resolver,mios-size-ceiling,mios-ssot-lint,mios-task,mios-toml-get,mios-template-compile,mios-template-conform,mios-toolchain-pin,mios-unit-gen,mios-version-check,xtask,mios-gate,mios-probe,miosd,mios-install,mios-gen,mios-agent-relay,mios-node}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_SYSTEM_DLLS:=kernel32.dll,ntdll.dll,bcrypt.dll,advapi32.dll,user32.dll,gdi32.dll,dwmapi.dll,ole32.dll,oleaut32.dll,shell32.dll,shlwapi.dll,comctl32.dll,comdlg32.dll,ws2_32.dll,userenv.dll,iphlpapi.dll,secur32.dll,crypt32.dll,winmm.dll,version.dll,uxtheme.dll,windowscodecs.dll,dwrite.dll,dxgi.dll,d2d1.dll,d3d11.dll,propsys.dll,msvcrt.dll,ucrtbase.dll,api-ms-win-core-synch-l1-2-0.dll,bcryptprimitives.dll,wtsapi32.dll}"
+: "${MIOS_BUILD_NATIVE_WINDOWS_TARGET:=x86_64-pc-windows-msvc}"
 : "${MIOS_BUILD_NATIVE_WORKSPACES:=tools/native,src/mios-rs}"
-[ -n "${MIOS_BUILD_PHASES_LIST+x}" ] || MIOS_BUILD_PHASES_LIST='{ apply_class = "containerfile", fatal = true, name = "system-files-overlay", ordinal = "01", script = "01-system-files-overlay.sh" },{ apply_class = "universal", fatal = true, name = "materialize-build-ctx", ordinal = "02", script = "02-materialize-build-ctx.sh" },{ apply_class = "universal", fatal = true, name = "local-rpm-mirror", ordinal = "04", script = "04-local-rpm-mirror.sh" },{ apply_class = "universal", fatal = true, name = "repos", ordinal = "05", script = "05-repos.sh" },{ apply_class = "universal", fatal = false, name = "enable-external-repos", ordinal = "06", script = "06-enable-external-repos.sh" },{ apply_class = "universal", fatal = true, name = "kernel", ordinal = "07", script = "07-kernel.sh" },{ apply_class = "universal", fatal = true, name = "locale-theme", ordinal = "10", script = "10-locale-theme.sh" },{ apply_class = "universal", fatal = true, name = "user", ordinal = "11", script = "11-user.sh" },{ apply_class = "universal", fatal = true, name = "hostname", ordinal = "12", script = "12-hostname.sh" },{ apply_class = "universal", fatal = false, name = "accounts-db", ordinal = "13", script = "13-accounts-db.sh" },{ apply_class = "universal", fatal = false, name = "podman-machine-compat", ordinal = "14", script = "14-podman-machine-compat.sh" },{ apply_class = "universal", fatal = false, name = "freeipa-client", ordinal = "15", script = "15-freeipa-client.sh" },{ apply_class = "universal", fatal = true, name = "hardware", ordinal = "20", script = "20-hardware.sh" },{ apply_class = "universal", fatal = true, name = "virt", ordinal = "21", script = "21-virt.sh" },{ apply_class = "universal", fatal = false, name = "akmod-guards", ordinal = "22", script = "22-akmod-guards.sh" },{ apply_class = "universal", fatal = true, name = "gpu-passthrough", ordinal = "23", script = "23-gpu-passthrough.sh" },{ apply_class = "universal", fatal = true, name = "cpu-affinity", ordinal = "24", script = "24-cpu-affinity.sh" },{ apply_class = "universal", fatal = true, name = "gpu-cdi-toolkits", ordinal = "25", script = "25-gpu-cdi-toolkits.sh" },{ apply_class = "universal", fatal = true, name = "nvidia-cdi-refresh", ordinal = "26", script = "26-nvidia-cdi-refresh.sh" },{ apply_class = "universal", fatal = false, name = "vm-gating", ordinal = "27", script = "27-vm-gating.sh" },{ apply_class = "universal", fatal = false, name = "kdump-config", ordinal = "28", script = "28-kdump-config.sh" },{ apply_class = "universal", fatal = true, name = "dns-config", ordinal = "30", script = "30-dns-config.sh" },{ apply_class = "universal", fatal = true, name = "subuid-alloc", ordinal = "31", script = "31-subuid-alloc.sh" },{ apply_class = "universal", fatal = true, name = "generate-quadlets", ordinal = "33", script = "33-generate-quadlets.sh" },{ apply_class = "universal", fatal = true, name = "render-quadlets", ordinal = "34", script = "34-render-quadlets.sh" },{ apply_class = "universal", fatal = true, name = "render-ports", ordinal = "35", script = "35-render-ports.sh" },{ apply_class = "universal", fatal = false, name = "ceph-k3s", ordinal = "36", script = "36-ceph-k3s.sh" },{ apply_class = "universal", fatal = false, name = "k3s-selinux", ordinal = "37", script = "37-k3s-selinux.sh" },{ apply_class = "universal", fatal = true, name = "selinux", ordinal = "38", script = "38-selinux.sh" },{ apply_class = "universal", fatal = false, name = "moby-engine", ordinal = "39", script = "39-moby-engine.sh" },{ apply_class = "universal", fatal = true, name = "fapolicyd-trust", ordinal = "40", script = "40-fapolicyd-trust.sh" },{ apply_class = "universal", fatal = true, name = "services", ordinal = "41", script = "41-services.sh" },{ apply_class = "universal", fatal = true, name = "chrony-render", ordinal = "42", script = "42-chrony-render.sh" },{ apply_class = "universal", fatal = true, name = "nut-render", ordinal = "43", script = "43-nut-render.sh" },{ apply_class = "universal", fatal = true, name = "firewall-ports", ordinal = "44", script = "44-firewall-ports.sh" },{ apply_class = "universal", fatal = true, name = "firewall", ordinal = "45", script = "45-firewall.sh" },{ apply_class = "universal", fatal = true, name = "sshd-port", ordinal = "46", script = "46-sshd-port.sh" },{ apply_class = "universal", fatal = true, name = "init-service", ordinal = "47", script = "47-init-service.sh" },{ apply_class = "universal", fatal = true, name = "mios-dropin-fanout", ordinal = "48", script = "48-mios-dropin-fanout.sh" },{ apply_class = "universal", fatal = false, name = "cosign-policy", ordinal = "49", script = "49-cosign-policy.sh" },{ apply_class = "universal", fatal = false, name = "uupd-installer", ordinal = "50", script = "50-uupd-installer.sh" },{ apply_class = "universal", fatal = true, name = "hardening", ordinal = "51", script = "51-hardening.sh" },{ apply_class = "universal", fatal = true, name = "apply-boot-fixes", ordinal = "52", script = "52-apply-boot-fixes.sh" },{ apply_class = "universal", fatal = false, name = "enable-log-copy-service", ordinal = "53", script = "53-enable-log-copy-service.sh" },{ apply_class = "universal", fatal = true, name = "bake-coderun-sandbox", ordinal = "54", script = "54-bake-coderun-sandbox.sh" },{ apply_class = "universal", fatal = true, name = "native-build", ordinal = "55", script = "55-native-build.sh" },{ apply_class = "universal", fatal = true, name = "fonts", ordinal = "56", script = "56-fonts.sh" },{ apply_class = "universal", fatal = false, name = "gnome", ordinal = "57", script = "57-gnome.sh" },{ apply_class = "universal", fatal = false, name = "gnome-remote-desktop", ordinal = "58", script = "58-gnome-remote-desktop.sh" },{ apply_class = "universal", fatal = true, name = "tools", ordinal = "59", script = "59-tools.sh" },{ apply_class = "universal", fatal = true, name = "flatpak-env", ordinal = "60", script = "60-flatpak-env.sh" },{ apply_class = "universal", fatal = false, name = "flatpak-bake", ordinal = "61", script = "61-flatpak-bake.sh" },{ apply_class = "universal", fatal = false, name = "oh-my-posh", ordinal = "62", script = "62-oh-my-posh.sh" },{ apply_class = "universal", fatal = false, name = "bake-hyprland", ordinal = "65", script = "65-bake-hyprland.sh" },{ apply_class = "universal", fatal = false, name = "bake-quickshell", ordinal = "66", script = "66-bake-quickshell.sh" },{ apply_class = "universal", fatal = false, name = "bake-surfer", ordinal = "67", script = "67-bake-surfer.sh" },{ apply_class = "universal", fatal = false, name = "bake-kvmfr", ordinal = "68", script = "68-bake-kvmfr.sh" },{ apply_class = "universal", fatal = false, name = "bake-lookingglass-client", ordinal = "69", script = "69-bake-lookingglass-client.sh" },{ apply_class = "universal", fatal = true, name = "hermes-agent", ordinal = "72", script = "72-hermes-agent.sh" },{ apply_class = "universal", fatal = true, name = "model-prep", ordinal = "73", script = "73-model-prep.sh" },{ apply_class = "universal", fatal = true, name = "kargs-render", ordinal = "75", script = "75-kargs-render.sh" },{ apply_class = "universal", fatal = false, name = "uki-render", ordinal = "76", script = "76-uki-render.sh" },{ apply_class = "universal", fatal = true, name = "composefs-verity", ordinal = "77", script = "77-composefs-verity.sh" },{ apply_class = "universal", fatal = true, name = "greenboot", ordinal = "78", script = "78-greenboot.sh" },{ apply_class = "universal", fatal = true, name = "boot-config", ordinal = "79", script = "79-boot-config.sh" },{ apply_class = "universal", fatal = true, name = "distribution", ordinal = "80", script = "80-distribution.sh" },{ apply_class = "universal", fatal = true, name = "bake-plan", ordinal = "85", script = "85-bake-plan.sh" },{ apply_class = "universal", fatal = true, name = "oscap-compliance", ordinal = "86", script = "86-oscap-compliance.sh" },{ apply_class = "universal", fatal = true, name = "finalize", ordinal = "88", script = "88-finalize.sh" },{ apply_class = "universal", fatal = true, name = "generate-sbom", ordinal = "90", script = "90-generate-sbom.sh" },{ apply_class = "universal", fatal = false, name = "strip-build-toolchain", ordinal = "91", script = "91-strip-build-toolchain.sh" },{ apply_class = "universal", fatal = false, name = "export-sbom", ordinal = "92", script = "92-export-sbom.sh" },{ apply_class = "bake-only", fatal = false, name = "composefs-seal", ordinal = "93", script = "93-composefs-seal.sh" },{ apply_class = "universal", fatal = true, name = "cleanup", ordinal = "94", script = "94-cleanup.sh" },{ apply_class = "containerfile", fatal = true, name = "ssot-lint", ordinal = "97", script = "97-ssot-lint.sh" },{ apply_class = "containerfile", fatal = true, name = "drift-checks", ordinal = "98", script = "98-drift-checks.sh" },{ apply_class = "containerfile", fatal = true, name = "postcheck", ordinal = "99", script = "99-postcheck.sh" }'
+[ -n "${MIOS_BUILD_PHASES_LIST+x}" ] || MIOS_BUILD_PHASES_LIST='{ apply_class = "containerfile", fatal = true, name = "system-files-overlay", ordinal = "01", script = "01-system-files-overlay.sh" },{ apply_class = "universal", fatal = true, name = "materialize-build-ctx", ordinal = "02", script = "02-materialize-build-ctx.sh" },{ apply_class = "universal", fatal = true, name = "local-rpm-mirror", ordinal = "04", script = "04-local-rpm-mirror.sh" },{ apply_class = "universal", fatal = true, name = "repos", ordinal = "05", script = "05-repos.sh" },{ apply_class = "universal", fatal = true, name = "enable-external-repos", ordinal = "06", script = "06-enable-external-repos.sh" },{ apply_class = "universal", fatal = true, name = "kernel", ordinal = "07", script = "07-kernel.sh" },{ apply_class = "universal", fatal = true, name = "locale-theme", ordinal = "10", script = "10-locale-theme.sh" },{ apply_class = "universal", fatal = true, name = "user", ordinal = "11", script = "11-user.sh" },{ apply_class = "universal", fatal = true, name = "hostname", ordinal = "12", script = "12-hostname.sh" },{ apply_class = "universal", fatal = false, name = "accounts-db", ordinal = "13", script = "13-accounts-db.sh" },{ apply_class = "universal", fatal = false, name = "podman-machine-compat", ordinal = "14", script = "14-podman-machine-compat.sh" },{ apply_class = "universal", fatal = false, name = "freeipa-client", ordinal = "15", script = "15-freeipa-client.sh" },{ apply_class = "universal", fatal = true, name = "hardware", ordinal = "20", script = "20-hardware.sh" },{ apply_class = "universal", fatal = true, name = "virt", ordinal = "21", script = "21-virt.sh" },{ apply_class = "universal", fatal = false, name = "akmod-guards", ordinal = "22", script = "22-akmod-guards.sh" },{ apply_class = "universal", fatal = true, name = "gpu-passthrough", ordinal = "23", script = "23-gpu-passthrough.sh" },{ apply_class = "universal", fatal = true, name = "cpu-affinity", ordinal = "24", script = "24-cpu-affinity.sh" },{ apply_class = "universal", fatal = true, name = "gpu-cdi-toolkits", ordinal = "25", script = "25-gpu-cdi-toolkits.sh" },{ apply_class = "universal", fatal = true, name = "nvidia-cdi-refresh", ordinal = "26", script = "26-nvidia-cdi-refresh.sh" },{ apply_class = "universal", fatal = false, name = "vm-gating", ordinal = "27", script = "27-vm-gating.sh" },{ apply_class = "universal", fatal = false, name = "kdump-config", ordinal = "28", script = "28-kdump-config.sh" },{ apply_class = "universal", fatal = true, name = "dns-config", ordinal = "30", script = "30-dns-config.sh" },{ apply_class = "universal", fatal = true, name = "subuid-alloc", ordinal = "31", script = "31-subuid-alloc.sh" },{ apply_class = "universal", fatal = true, name = "generate-quadlets", ordinal = "33", script = "33-generate-quadlets.sh" },{ apply_class = "universal", fatal = true, name = "render-quadlets", ordinal = "34", script = "34-render-quadlets.sh" },{ apply_class = "universal", fatal = true, name = "render-ports", ordinal = "35", script = "35-render-ports.sh" },{ apply_class = "universal", fatal = false, name = "ceph-k3s", ordinal = "36", script = "36-ceph-k3s.sh" },{ apply_class = "universal", fatal = false, name = "k3s-selinux", ordinal = "37", script = "37-k3s-selinux.sh" },{ apply_class = "universal", fatal = true, name = "selinux", ordinal = "38", script = "38-selinux.sh" },{ apply_class = "universal", fatal = false, name = "moby-engine", ordinal = "39", script = "39-moby-engine.sh" },{ apply_class = "universal", fatal = true, name = "fapolicyd-trust", ordinal = "40", script = "40-fapolicyd-trust.sh" },{ apply_class = "universal", fatal = true, name = "services", ordinal = "41", script = "41-services.sh" },{ apply_class = "universal", fatal = true, name = "chrony-render", ordinal = "42", script = "42-chrony-render.sh" },{ apply_class = "universal", fatal = true, name = "nut-render", ordinal = "43", script = "43-nut-render.sh" },{ apply_class = "universal", fatal = true, name = "firewall-ports", ordinal = "44", script = "44-firewall-ports.sh" },{ apply_class = "universal", fatal = true, name = "firewall", ordinal = "45", script = "45-firewall.sh" },{ apply_class = "universal", fatal = true, name = "sshd-port", ordinal = "46", script = "46-sshd-port.sh" },{ apply_class = "universal", fatal = true, name = "init-service", ordinal = "47", script = "47-init-service.sh" },{ apply_class = "universal", fatal = true, name = "mios-dropin-fanout", ordinal = "48", script = "48-mios-dropin-fanout.sh" },{ apply_class = "universal", fatal = true, name = "cosign-policy", ordinal = "49", script = "49-cosign-policy.sh" },{ apply_class = "universal", fatal = false, name = "uupd-installer", ordinal = "50", script = "50-uupd-installer.sh" },{ apply_class = "universal", fatal = true, name = "hardening", ordinal = "51", script = "51-hardening.sh" },{ apply_class = "universal", fatal = true, name = "apply-boot-fixes", ordinal = "52", script = "52-apply-boot-fixes.sh" },{ apply_class = "universal", fatal = false, name = "enable-log-copy-service", ordinal = "53", script = "53-enable-log-copy-service.sh" },{ apply_class = "universal", fatal = true, name = "bake-coderun-sandbox", ordinal = "54", script = "54-bake-coderun-sandbox.sh" },{ apply_class = "universal", fatal = true, name = "native-build", ordinal = "55", script = "55-native-build.sh" },{ apply_class = "universal", fatal = true, name = "fonts", ordinal = "56", script = "56-fonts.sh" },{ apply_class = "universal", fatal = false, name = "gnome", ordinal = "57", script = "57-gnome.sh" },{ apply_class = "universal", fatal = false, name = "gnome-remote-desktop", ordinal = "58", script = "58-gnome-remote-desktop.sh" },{ apply_class = "universal", fatal = true, name = "tools", ordinal = "59", script = "59-tools.sh" },{ apply_class = "universal", fatal = true, name = "flatpak-env", ordinal = "60", script = "60-flatpak-env.sh" },{ apply_class = "universal", fatal = false, name = "flatpak-bake", ordinal = "61", script = "61-flatpak-bake.sh" },{ apply_class = "universal", fatal = false, name = "oh-my-posh", ordinal = "62", script = "62-oh-my-posh.sh" },{ apply_class = "universal", fatal = true, name = "bake-hyprland", ordinal = "65", script = "65-bake-hyprland.sh" },{ apply_class = "universal", fatal = true, name = "bake-quickshell", ordinal = "66", script = "66-bake-quickshell.sh" },{ apply_class = "universal", fatal = false, name = "bake-surfer", ordinal = "67", script = "67-bake-surfer.sh" },{ apply_class = "universal", fatal = false, name = "bake-kvmfr", ordinal = "68", script = "68-bake-kvmfr.sh" },{ apply_class = "universal", fatal = false, name = "bake-lookingglass-client", ordinal = "69", script = "69-bake-lookingglass-client.sh" },{ apply_class = "universal", fatal = true, name = "hermes-agent", ordinal = "72", script = "72-hermes-agent.sh" },{ apply_class = "universal", fatal = true, name = "model-prep", ordinal = "73", script = "73-model-prep.sh" },{ apply_class = "universal", fatal = true, name = "kargs-render", ordinal = "75", script = "75-kargs-render.sh" },{ apply_class = "universal", fatal = false, name = "uki-render", ordinal = "76", script = "76-uki-render.sh" },{ apply_class = "universal", fatal = true, name = "composefs-verity", ordinal = "77", script = "77-composefs-verity.sh" },{ apply_class = "universal", fatal = true, name = "greenboot", ordinal = "78", script = "78-greenboot.sh" },{ apply_class = "universal", fatal = true, name = "boot-config", ordinal = "79", script = "79-boot-config.sh" },{ apply_class = "universal", fatal = true, name = "distribution", ordinal = "80", script = "80-distribution.sh" },{ apply_class = "universal", fatal = true, name = "bake-plan", ordinal = "85", script = "85-bake-plan.sh" },{ apply_class = "universal", fatal = true, name = "oscap-compliance", ordinal = "86", script = "86-oscap-compliance.sh" },{ apply_class = "universal", fatal = true, name = "finalize", ordinal = "88", script = "88-finalize.sh" },{ apply_class = "universal", fatal = true, name = "generate-sbom", ordinal = "90", script = "90-generate-sbom.sh" },{ apply_class = "universal", fatal = false, name = "strip-build-toolchain", ordinal = "91", script = "91-strip-build-toolchain.sh" },{ apply_class = "universal", fatal = false, name = "export-sbom", ordinal = "92", script = "92-export-sbom.sh" },{ apply_class = "bake-only", fatal = false, name = "composefs-seal", ordinal = "93", script = "93-composefs-seal.sh" },{ apply_class = "universal", fatal = true, name = "cleanup", ordinal = "94", script = "94-cleanup.sh" },{ apply_class = "containerfile", fatal = true, name = "ssot-lint", ordinal = "97", script = "97-ssot-lint.sh" },{ apply_class = "containerfile", fatal = true, name = "drift-checks", ordinal = "98", script = "98-drift-checks.sh" },{ apply_class = "containerfile", fatal = true, name = "postcheck", ordinal = "99", script = "99-postcheck.sh" }'
 : "${MIOS_BUILD_PHASES_MAX_UNREGISTERED:=0}"
 : "${MIOS_BUILD_QUADLET_RENDER_DIRS:=/etc/containers/systemd,/etc/containers/systemd/users,/usr/share/containers/systemd,/usr/share/containers/systemd/users,/etc/mios,/usr/share/mios/kb,/usr/lib/systemd/system/cockpit.socket.d,/usr/lib/systemd/system,/usr/lib/systemd/user,/etc/systemd/system,/etc/systemd/user}"
 : "${MIOS_BUILD_QUADLET_RENDER_EXTENSIONS:=container,network,volume,pod,image,build,toml,json,conf,service,socket}"
 : "${MIOS_BUILD_QUADLET_RENDER_MAX_DEPTH:=2}"
 : "${MIOS_BUILD_QUADLET_RENDER_RUNTIME_REF_DIRECTIVES:=ExecStart,ExecStartPre,ExecStartPost,ExecStop,ExecStopPost,ExecReload,ExecCondition}"
 : "${MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=79}"
+_mios_input MIOS_BUILD_RECHUNK_MAX_LAYERS MIOS_RECHUNK_MAX_LAYERS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_BUILD_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_BUILD_TOOLCHAIN_CHANNEL:=stable}"
 : "${MIOS_BUILD_TOOLCHAIN_COMPONENTS:=clippy,rustfmt}"
 : "${MIOS_BUILD_TOOL_DISPATCH_MAX_UNREACHABLE:=0}"
-: "${MIOS_CEPHFS_AUTOMOUNT_ENABLE:=true}"
-: "${MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S:=600}"
-: "${MIOS_CEPHFS_CLIENT_CACHE_SIZE:=16384}"
-: "${MIOS_CEPHFS_CLIENT_READAHEAD_MAX_BYTES:=33554432}"
-: "${MIOS_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL:=30}"
-: "${MIOS_CEPHFS_CLUSTER_NAME:=ceph}"
-: "${MIOS_CEPHFS_DATA_POOL_BULK:=cephfs_data_bulk}"
-: "${MIOS_CEPHFS_DATA_POOL_HOT:=cephfs_data_hot}"
-: "${MIOS_CEPHFS_ENABLE:=false}"
-: "${MIOS_CEPHFS_FS_NAME:=cephfs}"
-: "${MIOS_CEPHFS_KEYRING_DIR:=/etc/ceph/keyring.d}"
-: "${MIOS_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB:=4}"
-: "${MIOS_CEPHFS_MDS_SESSION_CAP_MAX:=1024}"
-: "${MIOS_CEPHFS_METADATA_POOL:=cephfs_metadata}"
-: "${MIOS_CEPHFS_MONITORS:=127.0.0.1:6789}"
-: "${MIOS_CEPHFS_MOUNT_OPTIONS:=noatime,fsc,_netdev}"
-: "${MIOS_CEPHFS_PROVISION_SCRIPT:=/usr/libexec/mios/mios-cephfs-provision}"
-: "${MIOS_CEPHFS_SUBVOLUME_MODE:=0700}"
-: "${MIOS_CEPHFS_TENANT_ID:=mios}"
-: "${MIOS_CEPH_DASHBOARD_PORT:=8460}"
-: "${MIOS_CEPH_GID:=819}"
-: "${MIOS_VERSION_CEPH:=latest}"
-[ -n "${MIOS_CEPH_IMAGE+x}" ] || MIOS_CEPH_IMAGE='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH:-}"
-: "${MIOS_CEPH_UID:=819}"
-: "${MIOS_CEPH_USER:=mios-ceph}"
-[ -n "${MIOS_CEPH_VERSION+x}" ] || MIOS_CEPH_VERSION="${MIOS_VERSION_CEPH:-}"
-: "${MIOS_CHROME_CDP_PORT:=9222}"
-: "${MIOS_PORT_CHROME_CDP:=9222}"
-[ -n "${MIOS_CHROME_CDP_URL+x}" ] || MIOS_CHROME_CDP_URL='http://localhost:'"${MIOS_PORT_CHROME_CDP:-}"'/'
-: "${MIOS_CHROME_CDP_WORKER_PORT:=9223}"
-: "${MIOS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
+_mios_input MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE MIOS_CEPHFS_AUTOMOUNT_ENABLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE:=true}"
+[ -n "${MIOS_CEPHFS_AUTOMOUNT_ENABLE+x}" ] || MIOS_CEPHFS_AUTOMOUNT_ENABLE="${MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE:-}"
+_mios_input MIOS_STORAGE_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S:=600}"
+[ -n "${MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S+x}" ] || MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S="${MIOS_STORAGE_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S:-}"
+_mios_input MIOS_STORAGE_CEPHFS_CLIENT_CACHE_SIZE MIOS_CEPHFS_CLIENT_CACHE_SIZE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_CLIENT_CACHE_SIZE:=16384}"
+[ -n "${MIOS_CEPHFS_CLIENT_CACHE_SIZE+x}" ] || MIOS_CEPHFS_CLIENT_CACHE_SIZE="${MIOS_STORAGE_CEPHFS_CLIENT_CACHE_SIZE:-}"
+_mios_input MIOS_STORAGE_CEPHFS_CLIENT_READAHEAD_MAX_BYTES MIOS_CEPHFS_CLIENT_READAHEAD_MAX_BYTES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_CLIENT_READAHEAD_MAX_BYTES:=33554432}"
+[ -n "${MIOS_CEPHFS_CLIENT_READAHEAD_MAX_BYTES+x}" ] || MIOS_CEPHFS_CLIENT_READAHEAD_MAX_BYTES="${MIOS_STORAGE_CEPHFS_CLIENT_READAHEAD_MAX_BYTES:-}"
+_mios_input MIOS_STORAGE_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL MIOS_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL:=30}"
+[ -n "${MIOS_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL+x}" ] || MIOS_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL="${MIOS_STORAGE_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL:-}"
+_mios_input MIOS_STORAGE_CEPHFS_CLUSTER_NAME MIOS_CEPHFS_CLUSTER_NAME || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_CLUSTER_NAME:=ceph}"
+[ -n "${MIOS_CEPHFS_CLUSTER_NAME+x}" ] || MIOS_CEPHFS_CLUSTER_NAME="${MIOS_STORAGE_CEPHFS_CLUSTER_NAME:-}"
+_mios_input MIOS_STORAGE_CEPHFS_DATA_POOL_BULK MIOS_CEPHFS_DATA_POOL_BULK || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_DATA_POOL_BULK:=cephfs_data_bulk}"
+[ -n "${MIOS_CEPHFS_DATA_POOL_BULK+x}" ] || MIOS_CEPHFS_DATA_POOL_BULK="${MIOS_STORAGE_CEPHFS_DATA_POOL_BULK:-}"
+_mios_input MIOS_STORAGE_CEPHFS_DATA_POOL_HOT MIOS_CEPHFS_DATA_POOL_HOT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_DATA_POOL_HOT:=cephfs_data_hot}"
+[ -n "${MIOS_CEPHFS_DATA_POOL_HOT+x}" ] || MIOS_CEPHFS_DATA_POOL_HOT="${MIOS_STORAGE_CEPHFS_DATA_POOL_HOT:-}"
+_mios_input MIOS_STORAGE_CEPHFS_ENABLE MIOS_CEPHFS_ENABLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_ENABLE:=false}"
+[ -n "${MIOS_CEPHFS_ENABLE+x}" ] || MIOS_CEPHFS_ENABLE="${MIOS_STORAGE_CEPHFS_ENABLE:-}"
+_mios_input MIOS_STORAGE_CEPHFS_FS_NAME MIOS_CEPHFS_FS_NAME || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_FS_NAME:=cephfs}"
+[ -n "${MIOS_CEPHFS_FS_NAME+x}" ] || MIOS_CEPHFS_FS_NAME="${MIOS_STORAGE_CEPHFS_FS_NAME:-}"
+_mios_input MIOS_STORAGE_CEPHFS_KEYRING_DIR MIOS_CEPHFS_KEYRING_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_KEYRING_DIR:=/etc/ceph/keyring.d}"
+[ -n "${MIOS_CEPHFS_KEYRING_DIR+x}" ] || MIOS_CEPHFS_KEYRING_DIR="${MIOS_STORAGE_CEPHFS_KEYRING_DIR:-}"
+_mios_input MIOS_STORAGE_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB MIOS_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB:=4}"
+[ -n "${MIOS_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB+x}" ] || MIOS_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB="${MIOS_STORAGE_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB:-}"
+_mios_input MIOS_STORAGE_CEPHFS_MDS_SESSION_CAP_MAX MIOS_CEPHFS_MDS_SESSION_CAP_MAX || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_MDS_SESSION_CAP_MAX:=1024}"
+[ -n "${MIOS_CEPHFS_MDS_SESSION_CAP_MAX+x}" ] || MIOS_CEPHFS_MDS_SESSION_CAP_MAX="${MIOS_STORAGE_CEPHFS_MDS_SESSION_CAP_MAX:-}"
+_mios_input MIOS_STORAGE_CEPHFS_METADATA_POOL MIOS_CEPHFS_METADATA_POOL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_METADATA_POOL:=cephfs_metadata}"
+[ -n "${MIOS_CEPHFS_METADATA_POOL+x}" ] || MIOS_CEPHFS_METADATA_POOL="${MIOS_STORAGE_CEPHFS_METADATA_POOL:-}"
+_mios_input MIOS_STORAGE_CEPHFS_MONITORS MIOS_CEPHFS_MONITORS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_MONITORS:=127.0.0.1:6789}"
+[ -n "${MIOS_CEPHFS_MONITORS+x}" ] || MIOS_CEPHFS_MONITORS="${MIOS_STORAGE_CEPHFS_MONITORS:-}"
+_mios_input MIOS_STORAGE_CEPHFS_MOUNT_OPTIONS MIOS_CEPHFS_MOUNT_OPTIONS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_MOUNT_OPTIONS:=noatime,fsc,_netdev}"
+[ -n "${MIOS_CEPHFS_MOUNT_OPTIONS+x}" ] || MIOS_CEPHFS_MOUNT_OPTIONS="${MIOS_STORAGE_CEPHFS_MOUNT_OPTIONS:-}"
+_mios_input MIOS_STORAGE_CEPHFS_PROVISION_SCRIPT MIOS_CEPHFS_PROVISION_SCRIPT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_PROVISION_SCRIPT:=/usr/libexec/mios/mios-cephfs-provision}"
+[ -n "${MIOS_CEPHFS_PROVISION_SCRIPT+x}" ] || MIOS_CEPHFS_PROVISION_SCRIPT="${MIOS_STORAGE_CEPHFS_PROVISION_SCRIPT:-}"
+_mios_input MIOS_STORAGE_CEPHFS_SUBVOLUME_MODE MIOS_CEPHFS_SUBVOLUME_MODE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_SUBVOLUME_MODE:=0700}"
+[ -n "${MIOS_CEPHFS_SUBVOLUME_MODE+x}" ] || MIOS_CEPHFS_SUBVOLUME_MODE="${MIOS_STORAGE_CEPHFS_SUBVOLUME_MODE:-}"
+_mios_input MIOS_STORAGE_CEPHFS_TENANT_ID MIOS_CEPHFS_TENANT_ID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_STORAGE_CEPHFS_TENANT_ID:=mios}"
+[ -n "${MIOS_CEPHFS_TENANT_ID+x}" ] || MIOS_CEPHFS_TENANT_ID="${MIOS_STORAGE_CEPHFS_TENANT_ID:-}"
+_mios_input MIOS_PORTS_CEPH_DASHBOARD MIOS_PORT_CEPH_DASHBOARD MIOS_CEPH_DASHBOARD_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CEPH_DASHBOARD:=8460}"
+[ -n "${MIOS_CEPH_DASHBOARD_PORT+x}" ] || MIOS_CEPH_DASHBOARD_PORT="${MIOS_PORTS_CEPH_DASHBOARD:-}"
+_mios_input MIOS_SERVICES_CEPH_GID MIOS_CEPH_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_CEPH_GID:=819}"
+[ -n "${MIOS_CEPH_GID+x}" ] || MIOS_CEPH_GID="${MIOS_SERVICES_CEPH_GID:-}"
+_mios_input MIOS_VERSIONS_CEPH MIOS_VERSION_CEPH || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERSIONS_CEPH:=latest}"
+[ -n "${MIOS_CEPH_IMAGE+x}" ] || MIOS_CEPH_IMAGE='quay.io/ceph/ceph:'"${MIOS_VERSIONS_CEPH:-}"
+_mios_input MIOS_SERVICES_CEPH_UID MIOS_CEPH_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_CEPH_UID:=819}"
+[ -n "${MIOS_CEPH_UID+x}" ] || MIOS_CEPH_UID="${MIOS_SERVICES_CEPH_UID:-}"
+_mios_input MIOS_SERVICES_CEPH_USER MIOS_CEPH_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_CEPH_USER:=mios-ceph}"
+[ -n "${MIOS_CEPH_USER+x}" ] || MIOS_CEPH_USER="${MIOS_SERVICES_CEPH_USER:-}"
+[ -n "${MIOS_CEPH_VERSION+x}" ] || MIOS_CEPH_VERSION="${MIOS_VERSIONS_CEPH:-}"
+_mios_input MIOS_PORTS_CHROME_CDP MIOS_PORT_CHROME_CDP MIOS_CHROME_CDP_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CHROME_CDP:=9222}"
+[ -n "${MIOS_CHROME_CDP_PORT+x}" ] || MIOS_CHROME_CDP_PORT="${MIOS_PORTS_CHROME_CDP:-}"
+_mios_input MIOS_URLS_CHROME_CDP MIOS_CHROME_CDP_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_CHROME_CDP+x}" ] || MIOS_URLS_CHROME_CDP='http://localhost:'"${MIOS_PORTS_CHROME_CDP:-}"'/'
+[ -n "${MIOS_CHROME_CDP_URL+x}" ] || MIOS_CHROME_CDP_URL="${MIOS_URLS_CHROME_CDP:-}"
+_mios_input MIOS_PORTS_CHROME_CDP_WORKER MIOS_PORT_CHROME_CDP_WORKER MIOS_CHROME_CDP_WORKER_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CHROME_CDP_WORKER:=9223}"
+[ -n "${MIOS_CHROME_CDP_WORKER_PORT+x}" ] || MIOS_CHROME_CDP_WORKER_PORT="${MIOS_PORTS_CHROME_CDP_WORKER:-}"
+_mios_input MIOS_PATHS_CMD_EXE MIOS_CMD_EXE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
+[ -n "${MIOS_CMD_EXE+x}" ] || MIOS_CMD_EXE="${MIOS_PATHS_CMD_EXE:-}"
 : "${MIOS_COCKPIT_ALLOW_UNENCRYPTED:=true}"
 : "${MIOS_COCKPIT_IDLE_TIMEOUT:=0}"
-: "${MIOS_COCKPIT_LINK_PORT:=8120}"
+_mios_input MIOS_PORTS_COCKPIT_LINK MIOS_PORT_COCKPIT_LINK MIOS_COCKPIT_LINK_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_COCKPIT_LINK:=8120}"
+[ -n "${MIOS_COCKPIT_LINK_PORT+x}" ] || MIOS_COCKPIT_LINK_PORT="${MIOS_PORTS_COCKPIT_LINK:-}"
 : "${MIOS_COCKPIT_LOGIN_TO:=false}"
-: "${MIOS_COCKPIT_PORT:=8110}"
-: "${MIOS_PORT_COCKPIT:=8110}"
-[ -n "${MIOS_COCKPIT_URL+x}" ] || MIOS_COCKPIT_URL='https://localhost:'"${MIOS_PORT_COCKPIT:-}"
-: "${MIOS_CODEMODE_ALLOW_NET:=false}"
-: "${MIOS_CODEMODE_CALL_TIMEOUT_S:=60}"
-: "${MIOS_CODEMODE_ENABLE:=true}"
-: "${MIOS_CODEMODE_GID:=828}"
-: "${MIOS_CODEMODE_HEAVY_LANE_ONLY:=true}"
-: "${MIOS_CODEMODE_MAX_OUTPUT_CHARS:=8000}"
-: "${MIOS_CODEMODE_SOCKET:=/run/coderun.sock}"
-: "${MIOS_CODEMODE_UID:=828}"
-: "${MIOS_CODEMODE_WORKSPACE_ROOT:=/var/lib/mios/codemode}"
-: "${MIOS_CODERUN_SNAPSHOTS_ROOT:=/var/home/mios/.coderun-snapshots}"
-: "${MIOS_CODERUN_WORKSPACE_ROOT:=/var/home/mios/coderuns}"
+_mios_input MIOS_PORTS_COCKPIT MIOS_PORT_COCKPIT MIOS_COCKPIT_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_COCKPIT:=8110}"
+[ -n "${MIOS_COCKPIT_PORT+x}" ] || MIOS_COCKPIT_PORT="${MIOS_PORTS_COCKPIT:-}"
+_mios_input MIOS_URLS_COCKPIT MIOS_COCKPIT_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORTS_COCKPIT:-}"
+[ -n "${MIOS_COCKPIT_URL+x}" ] || MIOS_COCKPIT_URL="${MIOS_URLS_COCKPIT:-}"
+_mios_input MIOS_CODE_MODE_ALLOW_NET MIOS_CODEMODE_ALLOW_NET || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_ALLOW_NET:=false}"
+[ -n "${MIOS_CODEMODE_ALLOW_NET+x}" ] || MIOS_CODEMODE_ALLOW_NET="${MIOS_CODE_MODE_ALLOW_NET:-}"
+_mios_input MIOS_CODE_MODE_CALL_TIMEOUT_S MIOS_CODEMODE_CALL_TIMEOUT_S || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_CALL_TIMEOUT_S:=60}"
+[ -n "${MIOS_CODEMODE_CALL_TIMEOUT_S+x}" ] || MIOS_CODEMODE_CALL_TIMEOUT_S="${MIOS_CODE_MODE_CALL_TIMEOUT_S:-}"
+_mios_input MIOS_CODE_MODE_ENABLE MIOS_CODEMODE_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_ENABLE:=true}"
+[ -n "${MIOS_CODEMODE_ENABLE+x}" ] || MIOS_CODEMODE_ENABLE="${MIOS_CODE_MODE_ENABLE:-}"
+_mios_input MIOS_CODE_MODE_GID MIOS_CODEMODE_GID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_GID:=828}"
+[ -n "${MIOS_CODEMODE_GID+x}" ] || MIOS_CODEMODE_GID="${MIOS_CODE_MODE_GID:-}"
+_mios_input MIOS_CODE_MODE_HEAVY_LANE_ONLY MIOS_CODEMODE_HEAVY_LANE_ONLY || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_HEAVY_LANE_ONLY:=true}"
+[ -n "${MIOS_CODEMODE_HEAVY_LANE_ONLY+x}" ] || MIOS_CODEMODE_HEAVY_LANE_ONLY="${MIOS_CODE_MODE_HEAVY_LANE_ONLY:-}"
+_mios_input MIOS_CODE_MODE_MAX_OUTPUT_CHARS MIOS_CODEMODE_MAX_OUTPUT_CHARS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_MAX_OUTPUT_CHARS:=8000}"
+[ -n "${MIOS_CODEMODE_MAX_OUTPUT_CHARS+x}" ] || MIOS_CODEMODE_MAX_OUTPUT_CHARS="${MIOS_CODE_MODE_MAX_OUTPUT_CHARS:-}"
+_mios_input MIOS_CODE_MODE_SOCKET MIOS_CODEMODE_SOCKET || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_SOCKET:=/run/coderun.sock}"
+[ -n "${MIOS_CODEMODE_SOCKET+x}" ] || MIOS_CODEMODE_SOCKET="${MIOS_CODE_MODE_SOCKET:-}"
+_mios_input MIOS_CODE_MODE_UID MIOS_CODEMODE_UID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CODE_MODE_UID:=828}"
+[ -n "${MIOS_CODEMODE_UID+x}" ] || MIOS_CODEMODE_UID="${MIOS_CODE_MODE_UID:-}"
+_mios_input MIOS_PATHS_CODEMODE_WORKSPACE_ROOT MIOS_CODEMODE_WORKSPACE_ROOT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_CODEMODE_WORKSPACE_ROOT:=/var/lib/mios/codemode}"
+[ -n "${MIOS_CODEMODE_WORKSPACE_ROOT+x}" ] || MIOS_CODEMODE_WORKSPACE_ROOT="${MIOS_PATHS_CODEMODE_WORKSPACE_ROOT:-}"
+_mios_input MIOS_PATHS_CODERUN_SNAPSHOTS_ROOT MIOS_CODERUN_SNAPSHOTS_ROOT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_CODERUN_SNAPSHOTS_ROOT:=/var/home/mios/.coderun-snapshots}"
+[ -n "${MIOS_CODERUN_SNAPSHOTS_ROOT+x}" ] || MIOS_CODERUN_SNAPSHOTS_ROOT="${MIOS_PATHS_CODERUN_SNAPSHOTS_ROOT:-}"
+_mios_input MIOS_PATHS_CODERUN_WORKSPACE_ROOT MIOS_CODERUN_WORKSPACE_ROOT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_CODERUN_WORKSPACE_ROOT:=/var/home/mios/coderuns}"
+[ -n "${MIOS_CODERUN_WORKSPACE_ROOT+x}" ] || MIOS_CODERUN_WORKSPACE_ROOT="${MIOS_PATHS_CODERUN_WORKSPACE_ROOT:-}"
 : "${MIOS_CODE_SERVER_IMAGE:=ghcr.io/coder/code-server:4.139.1}"
-: "${MIOS_CODE_SERVER_PORT:=8900}"
-: "${MIOS_PORT_CODE_SERVER:=8900}"
-[ -n "${MIOS_CODE_SERVER_URL+x}" ] || MIOS_CODE_SERVER_URL='http://localhost:'"${MIOS_PORT_CODE_SERVER:-}"'/'
+_mios_input MIOS_PORTS_CODE_SERVER MIOS_PORT_CODE_SERVER MIOS_CODE_SERVER_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CODE_SERVER:=8900}"
+[ -n "${MIOS_CODE_SERVER_PORT+x}" ] || MIOS_CODE_SERVER_PORT="${MIOS_PORTS_CODE_SERVER:-}"
+_mios_input MIOS_URLS_CODE_SERVER MIOS_CODE_SERVER_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORTS_CODE_SERVER:-}"'/'
+[ -n "${MIOS_CODE_SERVER_URL+x}" ] || MIOS_CODE_SERVER_URL="${MIOS_URLS_CODE_SERVER:-}"
 : "${MIOS_CODE_SERVER_VERSION:=4.139.1}"
+_mios_input MIOS_COLORS_ACCENT MIOS_COLOR_ACCENT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_ACCENT:=#1A407F}"
-: "${MIOS_COLORS_ANSI_0_BLACK:=#282262}"
-: "${MIOS_COLORS_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
-: "${MIOS_COLORS_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
-: "${MIOS_COLORS_ANSI_12_BRIGHT_BLUE:=#3D6BA8}"
-: "${MIOS_COLORS_ANSI_13_BRIGHT_MAGENTA:=#9D7660}"
-: "${MIOS_COLORS_ANSI_14_BRIGHT_CYAN:=#E0E0E0}"
-: "${MIOS_COLORS_ANSI_15_BRIGHT_WHITE:=#FFFFFF}"
-: "${MIOS_COLORS_ANSI_1_RED:=#DC271B}"
-: "${MIOS_COLORS_ANSI_2_GREEN:=#3E7765}"
-: "${MIOS_COLORS_ANSI_3_YELLOW:=#F35C15}"
-: "${MIOS_COLORS_ANSI_4_BLUE:=#1A407F}"
-: "${MIOS_COLORS_ANSI_5_MAGENTA:=#734F39}"
-: "${MIOS_COLORS_ANSI_6_CYAN:=#B7C9D7}"
-: "${MIOS_COLORS_ANSI_7_WHITE:=#E7DFD3}"
-: "${MIOS_COLORS_ANSI_8_BRIGHT_BLACK:=#948E8E}"
-: "${MIOS_COLORS_ANSI_9_BRIGHT_RED:=#FF6B5C}"
+_mios_input MIOS_COLORS_BG MIOS_COLOR_BG || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_BG:=#282262}"
+_mios_input MIOS_COLORS_CURSOR MIOS_COLOR_CURSOR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_CURSOR:=#F35C15}"
+_mios_input MIOS_COLORS_EARTH MIOS_COLOR_EARTH || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_EARTH:=#734F39}"
+_mios_input MIOS_COLORS_ERROR MIOS_COLOR_ERROR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_ERROR:=#DC271B}"
+_mios_input MIOS_COLORS_FG MIOS_COLOR_FG || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_FG:=#E7DFD3}"
+_mios_input MIOS_COLORS_INFO MIOS_COLOR_INFO || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_INFO:=#1A407F}"
+_mios_input MIOS_COLORS_MUTED MIOS_COLOR_MUTED || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_MUTED:=#948E8E}"
+_mios_input MIOS_COLORS_SILVER MIOS_COLOR_SILVER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_SILVER:=#E0E0E0}"
+_mios_input MIOS_COLORS_SUBTLE MIOS_COLOR_SUBTLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_SUBTLE:=#B7C9D7}"
+_mios_input MIOS_COLORS_SUCCESS MIOS_COLOR_SUCCESS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_SUCCESS:=#3E7765}"
+_mios_input MIOS_COLORS_WARNING MIOS_COLOR_WARNING || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_COLORS_WARNING:=#F35C15}"
-: "${MIOS_COLOR_ACCENT:=#1A407F}"
+[ -n "${MIOS_COLOR_ACCENT+x}" ] || MIOS_COLOR_ACCENT="${MIOS_COLORS_ACCENT:-}"
 : "${MIOS_COLOR_ANSI_0_BLACK:=#282262}"
 : "${MIOS_COLOR_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
 : "${MIOS_COLOR_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
@@ -649,27 +877,35 @@ export MIOS_VERSION
 : "${MIOS_COLOR_ANSI_7_WHITE:=#E7DFD3}"
 : "${MIOS_COLOR_ANSI_8_BRIGHT_BLACK:=#948E8E}"
 : "${MIOS_COLOR_ANSI_9_BRIGHT_RED:=#FF6B5C}"
-: "${MIOS_COLOR_BG:=#282262}"
-: "${MIOS_COLOR_CURSOR:=#F35C15}"
-: "${MIOS_COLOR_EARTH:=#734F39}"
-: "${MIOS_COLOR_ERROR:=#DC271B}"
-: "${MIOS_COLOR_FG:=#E7DFD3}"
-: "${MIOS_COLOR_INFO:=#1A407F}"
-: "${MIOS_COLOR_MUTED:=#948E8E}"
-: "${MIOS_COLOR_SCHEME:=prefer-dark}"
-: "${MIOS_COLOR_SILVER:=#E0E0E0}"
-: "${MIOS_COLOR_SUBTLE:=#B7C9D7}"
-: "${MIOS_COLOR_SUCCESS:=#3E7765}"
-: "${MIOS_COLOR_WARNING:=#F35C15}"
+[ -n "${MIOS_COLOR_BG+x}" ] || MIOS_COLOR_BG="${MIOS_COLORS_BG:-}"
+[ -n "${MIOS_COLOR_CURSOR+x}" ] || MIOS_COLOR_CURSOR="${MIOS_COLORS_CURSOR:-}"
+[ -n "${MIOS_COLOR_EARTH+x}" ] || MIOS_COLOR_EARTH="${MIOS_COLORS_EARTH:-}"
+[ -n "${MIOS_COLOR_ERROR+x}" ] || MIOS_COLOR_ERROR="${MIOS_COLORS_ERROR:-}"
+[ -n "${MIOS_COLOR_FG+x}" ] || MIOS_COLOR_FG="${MIOS_COLORS_FG:-}"
+[ -n "${MIOS_COLOR_INFO+x}" ] || MIOS_COLOR_INFO="${MIOS_COLORS_INFO:-}"
+[ -n "${MIOS_COLOR_MUTED+x}" ] || MIOS_COLOR_MUTED="${MIOS_COLORS_MUTED:-}"
+_mios_input MIOS_DESKTOP_COLOR_SCHEME MIOS_COLOR_SCHEME || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_DESKTOP_COLOR_SCHEME:=prefer-dark}"
+[ -n "${MIOS_COLOR_SCHEME+x}" ] || MIOS_COLOR_SCHEME="${MIOS_DESKTOP_COLOR_SCHEME:-}"
+[ -n "${MIOS_COLOR_SILVER+x}" ] || MIOS_COLOR_SILVER="${MIOS_COLORS_SILVER:-}"
+[ -n "${MIOS_COLOR_SUBTLE+x}" ] || MIOS_COLOR_SUBTLE="${MIOS_COLORS_SUBTLE:-}"
+[ -n "${MIOS_COLOR_SUCCESS+x}" ] || MIOS_COLOR_SUCCESS="${MIOS_COLORS_SUCCESS:-}"
+[ -n "${MIOS_COLOR_WARNING+x}" ] || MIOS_COLOR_WARNING="${MIOS_COLORS_WARNING:-}"
 : "${MIOS_COMPLIANCE_ENABLED:=false}"
 : "${MIOS_COMPLIANCE_FETCH_REMOTE_RESOURCES:=false}"
 : "${MIOS_COMPLIANCE_PROFILE:=standard}"
 : "${MIOS_COMPLIANCE_REMEDIATE:=false}"
 : "${MIOS_COMPLIANCE_REPORT_PATH:=/usr/share/mios/compliance}"
 : "${MIOS_COMPLIANCE_SEVERITY_GATE:=high}"
-: "${MIOS_COMPOUND_ACTIONS:=type,write,enter,input,paste,put}"
-: "${MIOS_COMPOUND_CONJUNCTIONS:=and,then}"
-: "${MIOS_COMPOUND_CONNECTIVES:=in,and,then,with,on,to}"
+_mios_input MIOS_ROUTING_COMPOUND_ACTIONS MIOS_COMPOUND_ACTIONS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_COMPOUND_ACTIONS:=type,write,enter,input,paste,put}"
+[ -n "${MIOS_COMPOUND_ACTIONS+x}" ] || MIOS_COMPOUND_ACTIONS="${MIOS_ROUTING_COMPOUND_ACTIONS:-}"
+_mios_input MIOS_ROUTING_COMPOUND_CONJUNCTIONS MIOS_COMPOUND_CONJUNCTIONS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_COMPOUND_CONJUNCTIONS:=and,then}"
+[ -n "${MIOS_COMPOUND_CONJUNCTIONS+x}" ] || MIOS_COMPOUND_CONJUNCTIONS="${MIOS_ROUTING_COMPOUND_CONJUNCTIONS:-}"
+_mios_input MIOS_ROUTING_COMPOUND_CONNECTIVES MIOS_COMPOUND_CONNECTIVES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_COMPOUND_CONNECTIVES:=in,and,then,with,on,to}"
+[ -n "${MIOS_COMPOUND_CONNECTIVES+x}" ] || MIOS_COMPOUND_CONNECTIVES="${MIOS_ROUTING_COMPOUND_CONNECTIVES:-}"
 : "${MIOS_COMPUTER_USE_BIND_ADDRESS:=127.0.0.1}"
 : "${MIOS_COMPUTER_USE_CAPTURE_BACKEND:=auto}"
 : "${MIOS_COMPUTER_USE_DOCGEN_ENABLE:=true}"
@@ -690,29 +926,75 @@ export MIOS_VERSION
 : "${MIOS_CONSENSUS_THRESHOLD:=0.5}"
 : "${MIOS_CONSENSUS_TIMEOUT_S:=20.0}"
 : "${MIOS_CONSENSUS_WEIGHT_FLOOR:=0.1}"
-[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
+_mios_input MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP MIOS_CONV_GATEWAY_FALLBACK_HTTP || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORTS_HERMES:-}"'/v1'
+_mios_input MIOS_CONVERGE_GATEWAY_MODE MIOS_CONV_GATEWAY_MODE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_GATEWAY_MODE:=http}"
+_mios_input MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE MIOS_CONV_GATEWAY_QUEUE_MAXSIZE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE:=64}"
+_mios_input MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY MIOS_CONV_GATEWAY_WORKER_CONCURRENCY || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY:=4}"
+_mios_input MIOS_CONVERGE_IMAGE_DISTROLESS_BASE MIOS_CONV_IMAGE_DISTROLESS_BASE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_DISTROLESS_BASE:=localhost/mios-base:latest}"
+_mios_input MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE MIOS_CONV_IMAGE_DISTROLESS_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE:=false}"
+_mios_input MIOS_CONVERGE_IMAGE_MCP_POOL_ENABLE MIOS_CONV_IMAGE_MCP_POOL_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_MCP_POOL_ENABLE:=false}"
+_mios_input MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE MIOS_CONV_IMAGE_RECHUNK_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:=false}"
+_mios_input MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION:=1}"
+_mios_input MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE:=single}"
+_mios_input MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:=0}"
+_mios_input MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:=1}"
+_mios_input MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:=true}"
+_mios_input MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:=false}"
+_mios_input MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR:=/var/lib/mios/lora-adapters/}"
+_mios_input MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE MIOS_CONV_MEMORY_COLD_EVICT_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE:=false}"
+_mios_input MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS MIOS_CONV_MEMORY_COLD_RETENTION_DAYS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS:=90}"
+_mios_input MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR MIOS_CONV_MEMORY_COLD_STORAGE_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR:=/var/lib/mios/history/}"
+_mios_input MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL:=10}"
+_mios_input MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR MIOS_CONV_MEMORY_SCRATCHPAD_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR+x}" ] || MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR='/run/user/{uid}'
+_mios_input MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE:=false}"
-: "${MIOS_CORE_NET_GATEWAY:=10.89.0.1}"
-: "${MIOS_CORE_NET_SUBNET:=10.89.0.0/24}"
+[ -n "${MIOS_CONV_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONV_GATEWAY_FALLBACK_HTTP="${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP:-}"
+[ -n "${MIOS_CONV_GATEWAY_MODE+x}" ] || MIOS_CONV_GATEWAY_MODE="${MIOS_CONVERGE_GATEWAY_MODE:-}"
+[ -n "${MIOS_CONV_GATEWAY_QUEUE_MAXSIZE+x}" ] || MIOS_CONV_GATEWAY_QUEUE_MAXSIZE="${MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE:-}"
+[ -n "${MIOS_CONV_GATEWAY_WORKER_CONCURRENCY+x}" ] || MIOS_CONV_GATEWAY_WORKER_CONCURRENCY="${MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY:-}"
+[ -n "${MIOS_CONV_IMAGE_DISTROLESS_BASE+x}" ] || MIOS_CONV_IMAGE_DISTROLESS_BASE="${MIOS_CONVERGE_IMAGE_DISTROLESS_BASE:-}"
+[ -n "${MIOS_CONV_IMAGE_DISTROLESS_ENABLE+x}" ] || MIOS_CONV_IMAGE_DISTROLESS_ENABLE="${MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE:-}"
+[ -n "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE+x}" ] || MIOS_CONV_IMAGE_MCP_POOL_ENABLE="${MIOS_CONVERGE_IMAGE_MCP_POOL_ENABLE:-}"
+[ -n "${MIOS_CONV_IMAGE_RECHUNK_ENABLE+x}" ] || MIOS_CONV_IMAGE_RECHUNK_ENABLE="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-}"
+[ -n "${MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION+x}" ] || MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION="${MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION:-}"
+[ -n "${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE+x}" ] || MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE="${MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE:-}"
+[ -n "${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS+x}" ] || MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS="${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-}"
+[ -n "${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS+x}" ] || MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS="${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:-}"
+[ -n "${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT+x}" ] || MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT="${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:-}"
+[ -n "${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA+x}" ] || MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA="${MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:-}"
+[ -n "${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR+x}" ] || MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR="${MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR:-}"
+[ -n "${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE+x}" ] || MIOS_CONV_MEMORY_COLD_EVICT_ENABLE="${MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE:-}"
+[ -n "${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS+x}" ] || MIOS_CONV_MEMORY_COLD_RETENTION_DAYS="${MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS:-}"
+[ -n "${MIOS_CONV_MEMORY_COLD_STORAGE_DIR+x}" ] || MIOS_CONV_MEMORY_COLD_STORAGE_DIR="${MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR:-}"
+[ -n "${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL+x}" ] || MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL="${MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL:-}"
+[ -n "${MIOS_CONV_MEMORY_SCRATCHPAD_DIR+x}" ] || MIOS_CONV_MEMORY_SCRATCHPAD_DIR="${MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR:-}"
+[ -n "${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE+x}" ] || MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE="${MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE:-}"
+_mios_input MIOS_NETWORK_QUADLET_CORE_GATEWAY MIOS_CORE_NET_GATEWAY || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_NETWORK_QUADLET_CORE_GATEWAY:=10.89.0.1}"
+[ -n "${MIOS_CORE_NET_GATEWAY+x}" ] || MIOS_CORE_NET_GATEWAY="${MIOS_NETWORK_QUADLET_CORE_GATEWAY:-}"
+_mios_input MIOS_NETWORK_QUADLET_CORE_SUBNET MIOS_CORE_NET_SUBNET || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_NETWORK_QUADLET_CORE_SUBNET:=10.89.0.0/24}"
+[ -n "${MIOS_CORE_NET_SUBNET+x}" ] || MIOS_CORE_NET_SUBNET="${MIOS_NETWORK_QUADLET_CORE_SUBNET:-}"
 : "${MIOS_COST_BUDGET_USD:=0.0}"
 : "${MIOS_COST_ENABLE:=true}"
 : "${MIOS_COST_GPU_WATTS:=350.0}"
@@ -722,17 +1004,31 @@ export MIOS_VERSION
 : "${MIOS_COUNCIL_AGGREGATOR_BYPASS_THRESHOLD:=0.95}"
 : "${MIOS_COUNCIL_DIVERSITY_GATE:=false}"
 : "${MIOS_COUNCIL_DIVERSITY_THRESHOLD:=0.92}"
-: "${MIOS_CPU_NODE_PORT:=8510}"
-: "${MIOS_CPU_NODE_THREADS:=14}"
-: "${MIOS_CRAWL4AI_PORT:=8810}"
-: "${MIOS_CRAWL_CAMOUFOX:=true}"
-[ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP:-}"
-: "${MIOS_CRAWL_MIN_CHARS:=200}"
+_mios_input MIOS_PORTS_CPU_NODE MIOS_PORT_CPU_NODE MIOS_CPU_NODE_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CPU_NODE:=8510}"
+[ -n "${MIOS_CPU_NODE_PORT+x}" ] || MIOS_CPU_NODE_PORT="${MIOS_PORTS_CPU_NODE:-}"
+_mios_input MIOS_LLAMACPP_CPU_NODE_THREADS MIOS_CPU_NODE_THREADS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_LLAMACPP_CPU_NODE_THREADS:=14}"
+[ -n "${MIOS_CPU_NODE_THREADS+x}" ] || MIOS_CPU_NODE_THREADS="${MIOS_LLAMACPP_CPU_NODE_THREADS:-}"
+_mios_input MIOS_PORTS_CRAWL4AI MIOS_PORT_CRAWL4AI MIOS_CRAWL4AI_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_CRAWL4AI:=8810}"
+[ -n "${MIOS_CRAWL4AI_PORT+x}" ] || MIOS_CRAWL4AI_PORT="${MIOS_PORTS_CRAWL4AI:-}"
+_mios_input MIOS_SERVICES_WEBTOOLS_CAMOUFOX MIOS_CRAWL_CAMOUFOX || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:=true}"
+[ -n "${MIOS_CRAWL_CAMOUFOX+x}" ] || MIOS_CRAWL_CAMOUFOX="${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:-}"
+_mios_input MIOS_SERVICES_WEBTOOLS_CDP_URL MIOS_CRAWL_CDP_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_SERVICES_WEBTOOLS_CDP_URL+x}" ] || MIOS_SERVICES_WEBTOOLS_CDP_URL='http://127.0.0.1:'"${MIOS_PORTS_CHROME_CDP:-}"
+[ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL="${MIOS_SERVICES_WEBTOOLS_CDP_URL:-}"
+_mios_input MIOS_SERVICES_WEBTOOLS_MIN_CHARS MIOS_CRAWL_MIN_CHARS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_WEBTOOLS_MIN_CHARS:=200}"
+[ -n "${MIOS_CRAWL_MIN_CHARS+x}" ] || MIOS_CRAWL_MIN_CHARS="${MIOS_SERVICES_WEBTOOLS_MIN_CHARS:-}"
 : "${MIOS_CROWDSEC_IMAGE:=docker.io/crowdsecurity/crowdsec:latest}"
 : "${MIOS_CROWDSEC_VERSION:=latest}"
 : "${MIOS_CUDA_IMAGE:=ghcr.io/mostlygeek/llama-swap:cuda}"
 : "${MIOS_CUDA_VERSION:=cuda}"
-: "${MIOS_DAEMON_AGENT_PORT:=8740}"
+_mios_input MIOS_PORTS_DAEMON_AGENT MIOS_PORT_DAEMON_AGENT MIOS_DAEMON_AGENT_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_DAEMON_AGENT:=8740}"
+[ -n "${MIOS_DAEMON_AGENT_PORT+x}" ] || MIOS_DAEMON_AGENT_PORT="${MIOS_PORTS_DAEMON_AGENT:-}"
 : "${MIOS_DAEMON_CALM_MAX_TICK_S:=300}"
 : "${MIOS_DAEMON_CLASSIFY_DEDUP_S:=600}"
 : "${MIOS_DAEMON_CLASSIFY_LIMIT_PER_MIN:=10}"
@@ -788,17 +1084,37 @@ export MIOS_VERSION
 : "${MIOS_DATABASE_REPLICATION_SLOT_PREFIX:=mios_blade_}"
 : "${MIOS_DATA_DISK_LETTER:=M}"
 : "${MIOS_DATA_DISK_MB:=262656}"
-: "${MIOS_DB_BACKEND:=postgres}"
-: "${MIOS_DB_RLS_ENABLE:=false}"
+_mios_input MIOS_PGVECTOR_DB_BACKEND MIOS_DB_BACKEND || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PGVECTOR_DB_BACKEND:=postgres}"
+[ -n "${MIOS_DB_BACKEND+x}" ] || MIOS_DB_BACKEND="${MIOS_PGVECTOR_DB_BACKEND:-}"
+_mios_input MIOS_PGVECTOR_RLS_ENABLE MIOS_DB_RLS_ENABLE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PGVECTOR_RLS_ENABLE:=false}"
+[ -n "${MIOS_DB_RLS_ENABLE+x}" ] || MIOS_DB_RLS_ENABLE="${MIOS_PGVECTOR_RLS_ENABLE:-}"
 : "${MIOS_DCI_FLOW_ENABLED:=false}"
-: "${MIOS_DEFAULT_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
-: "${MIOS_DEFAULT_HOST:=mios}"
-: "${MIOS_DEFAULT_KEYBOARD:=us}"
-: "${MIOS_DEFAULT_LOCALE:=en_US.UTF-8}"
-: "${MIOS_DEFAULT_PASSWORD:=mios}"
-: "${MIOS_DEFAULT_SHELL:=/bin/bash}"
-: "${MIOS_DEFAULT_TIMEZONE:=UTC}"
-: "${MIOS_DEFAULT_USER:=user}"
+_mios_input MIOS_IDENTITY_GROUPS MIOS_USER_GROUPS MIOS_DEFAULT_GROUPS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_IDENTITY_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
+[ -n "${MIOS_DEFAULT_GROUPS+x}" ] || MIOS_DEFAULT_GROUPS="${MIOS_IDENTITY_GROUPS:-}"
+_mios_input MIOS_IDENTITY_HOSTNAME MIOS_HOSTNAME MIOS_DEFAULT_HOST || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_IDENTITY_HOSTNAME:=mios}"
+[ -n "${MIOS_DEFAULT_HOST+x}" ] || MIOS_DEFAULT_HOST="${MIOS_IDENTITY_HOSTNAME:-}"
+_mios_input MIOS_LOCALE_KEYBOARD_LAYOUT MIOS_KEYBOARD MIOS_DEFAULT_KEYBOARD || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_LOCALE_KEYBOARD_LAYOUT:=us}"
+[ -n "${MIOS_DEFAULT_KEYBOARD+x}" ] || MIOS_DEFAULT_KEYBOARD="${MIOS_LOCALE_KEYBOARD_LAYOUT:-}"
+_mios_input MIOS_LOCALE_LANGUAGE MIOS_LOCALE MIOS_DEFAULT_LOCALE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_LOCALE_LANGUAGE:=en_US.UTF-8}"
+[ -n "${MIOS_DEFAULT_LOCALE+x}" ] || MIOS_DEFAULT_LOCALE="${MIOS_LOCALE_LANGUAGE:-}"
+_mios_input MIOS_IDENTITY_DEFAULT_PASSWORD MIOS_DEFAULT_PASSWORD || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_IDENTITY_DEFAULT_PASSWORD:=mios}"
+[ -n "${MIOS_DEFAULT_PASSWORD+x}" ] || MIOS_DEFAULT_PASSWORD="${MIOS_IDENTITY_DEFAULT_PASSWORD:-}"
+_mios_input MIOS_IDENTITY_SHELL MIOS_USER_SHELL MIOS_DEFAULT_SHELL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_IDENTITY_SHELL:=/bin/bash}"
+[ -n "${MIOS_DEFAULT_SHELL+x}" ] || MIOS_DEFAULT_SHELL="${MIOS_IDENTITY_SHELL:-}"
+_mios_input MIOS_LOCALE_TIMEZONE MIOS_TIMEZONE MIOS_DEFAULT_TIMEZONE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_LOCALE_TIMEZONE:=UTC}"
+[ -n "${MIOS_DEFAULT_TIMEZONE+x}" ] || MIOS_DEFAULT_TIMEZONE="${MIOS_LOCALE_TIMEZONE:-}"
+_mios_input MIOS_IDENTITY_USERNAME MIOS_USER MIOS_DEFAULT_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_IDENTITY_USERNAME:=user}"
+[ -n "${MIOS_DEFAULT_USER+x}" ] || MIOS_DEFAULT_USER="${MIOS_IDENTITY_USERNAME:-}"
 : "${MIOS_DEPLOYMENT_TARGET_AMI:=false}"
 : "${MIOS_DEPLOYMENT_TARGET_ANACONDA_ISO:=true}"
 : "${MIOS_DEPLOYMENT_TARGET_GCE:=false}"
@@ -874,7 +1190,7 @@ export MIOS_VERSION
 : "${MIOS_DEPLOY_VERIFY_MIN_BYTES:=4194304}"
 [ -n "${MIOS_DESKTOP_APPS+x}" ] || MIOS_DESKTOP_APPS='{ default = true, description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native dark, WSLg-compatible with the split-renderer override below).", id = "org.gnome.Epiphany", remote = "flathub", role = "browser", overrides = { GDK_BACKEND = "x11", WEBKIT_DISABLE_COMPOSITING_MODE = 1, WEBKIT_DISABLE_DMABUF_RENDERER = 1 } },{ default = true, description = "GNOME Files (Nautilus). Devel build because Flathub stable is EOL on GNOME 3.28 runtime.", id = "org.gnome.Nautilus.Devel", remote = "gnome-nightly", role = "file-manager" },{ default = true, description = "Ptyxis -- GNOME 47-era libadwaita terminal (the rename of org.gnome.Ptyxis).", id = "app.devsuite.Ptyxis", remote = "flathub", role = "terminal" },{ default = false, description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-Agent CDP target. `launcher = mios-chrome` so dispatch sets the CDP port + WSLg env BEFORE flatpak-run.", id = "com.google.ChromeDev", launcher = "mios-chrome", remote = "flathub", role = "browser", com = { google = { ChromeDev = { overrides = { CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1", GDK_BACKEND = "wayland" } } } } },{ default = false, description = "Chromium Web Browser (FOSS upstream). Operator-facing alt browser + CDP automation target.", id = "org.chromium.Chromium", launcher = "mios-chromium", remote = "flathub", role = "browser", org = { chromium = { Chromium = { overrides = { CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1", GDK_BACKEND = "wayland" } } } } },{ default = true, description = "GNOME shell extensions manager.", id = "com.mattjakeman.ExtensionManager", remote = "flathub", role = "extensions" },{ default = true, description = "Flatseal -- per-flatpak permissions UI.", id = "com.github.tchx84.Flatseal", remote = "flathub", role = "flatpak-permissions" },{ description = "adw-gtk3-dark theme extension (consumed by GTK3 apps inside flatpak sandboxes).", id = "org.gtk.Gtk3theme.adw-gtk3-dark", remote = "flathub" },{ description = "adw-gtk3 theme extension (light variant, kept for apps that auto-switch).", id = "org.gtk.Gtk3theme.adw-gtk3", remote = "flathub" }'
 [ -n "${MIOS_DESKTOP_APP_TYPES+x}" ] || MIOS_DESKTOP_APP_TYPES='{ default = "epiphany", description = "Web browser -- Linux flatpak by default; Zen (the Windows default browser) on Windows / '"'"'my browser'"'"' intent.", os_pref = "linux-first", type = "browser", windows_default = "zen" },{ default = "nautilus", description = "File manager.", os_pref = "linux-first", type = "files" },{ default = "gedit", description = "Text editor.", os_pref = "linux-first", type = "editor" },{ default = "ptyxis", description = "Terminal emulator.", os_pref = "linux-first", type = "terminal" },{ default = "showtime", description = "Media / video player.", os_pref = "linux-first", type = "media" },{ description = "Games + game launchers -- the Windows side (Steam/Epic/GOG/Xbox).", os_pref = "windows", type = "games", windows_default = "steam" },{ default = "gnome-control-center", description = "System settings -- both OSes have one; agent picks by which system the ask targets.", os_pref = "both", type = "settings" },{ description = "System / OS apps -- assume either side; agent discerns from context.", os_pref = "both", type = "system" },{ os_priority = "windows", type = "games" },{ os_priority = "both", type = "settings" },{ os_priority = "both", type = "system" },{ linux_default = "org.gnome.Epiphany", os_priority = "linux-first", type = "browser", windows_default = "zen" },{ os_priority = "linux-first", type = "fallback" }'
-: "${MIOS_DESKTOP_COLOR_SCHEME:=prefer-dark}"
+_mios_input MIOS_DESKTOP_FLATPAKS MIOS_FLATPAKS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_DESKTOP_FLATPAKS:=org.gtk.Gtk3theme.adw-gtk3-dark,org.gtk.Gtk3theme.adw-gtk3,app.devsuite.Ptyxis,gnome-nightly:org.gnome.Nautilus.Devel,fedora:org.gnome.Epiphany,com.github.tchx84.Flatseal,com.mattjakeman.ExtensionManager,org.chromium.Chromium,com.google.ChromeDev}"
 [ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_HINT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_HINT='Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:{port}/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop).'
 [ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_RELATED+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_RELATED='/etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:{port}/configure'
@@ -1167,7 +1483,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_XBOX_COLORS_ACCENT:=#282262}"
 : "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ARBITRATION:=static}"
 : "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
-[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
+[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT="${MIOS_AI_ENDPOINT:-}"
 : "${MIOS_ENHANCED_SESSION_ENABLED:=true}"
 : "${MIOS_ENHANCED_SESSION_PORT:=13389}"
 : "${MIOS_ENHANCED_SESSION_RESOLUTION:=auto}"
@@ -1178,12 +1494,24 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_ENV_MIOS_URL_TAILSCALE_REPO:=https://pkgs.tailscale.com/stable/fedora/tailscale.repo}"
 : "${MIOS_ENV_MIOS_URL_TERRA_REPO:=https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}"
 [ -n "${MIOS_ENV_MIOS_URL_UBLUE_REPO+x}" ] || MIOS_ENV_MIOS_URL_UBLUE_REPO='https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-${FEDORA_VERSION}/ublue-os-packages-fedora-${FEDORA_VERSION}.repo'
-: "${MIOS_ETC_DIR:=/etc/mios}"
-[ -n "${MIOS_ETC_AI_DIR+x}" ] || MIOS_ETC_AI_DIR="${MIOS_ETC_DIR:-}"'/ai'
-[ -n "${MIOS_ETC_ENVD_DIR+x}" ] || MIOS_ETC_ENVD_DIR="${MIOS_ETC_DIR:-}"'/env.d'
-[ -n "${MIOS_ETC_FORGE_DIR+x}" ] || MIOS_ETC_FORGE_DIR="${MIOS_ETC_DIR:-}"'/forge'
-: "${MIOS_EVERYTHING_CLI:=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe}"
-: "${MIOS_EVERYTHING_CLI_VERSION:=1.1.0.37}"
+_mios_input MIOS_PATHS_ETC_DIR MIOS_ETC_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_ETC_DIR:=/etc/mios}"
+[ -n "${MIOS_ETC_DIR+x}" ] || MIOS_ETC_DIR="${MIOS_PATHS_ETC_DIR:-}"
+_mios_input MIOS_PATHS_ETC_AI_DIR MIOS_ETC_AI_DIR || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_ETC_AI_DIR+x}" ] || MIOS_PATHS_ETC_AI_DIR="${MIOS_ETC_DIR:-}"'/ai'
+[ -n "${MIOS_ETC_AI_DIR+x}" ] || MIOS_ETC_AI_DIR="${MIOS_PATHS_ETC_AI_DIR:-}"
+_mios_input MIOS_PATHS_ETC_ENVD_DIR MIOS_ETC_ENVD_DIR || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_ETC_ENVD_DIR+x}" ] || MIOS_PATHS_ETC_ENVD_DIR="${MIOS_ETC_DIR:-}"'/env.d'
+[ -n "${MIOS_ETC_ENVD_DIR+x}" ] || MIOS_ETC_ENVD_DIR="${MIOS_PATHS_ETC_ENVD_DIR:-}"
+_mios_input MIOS_PATHS_ETC_FORGE_DIR MIOS_ETC_FORGE_DIR || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_ETC_FORGE_DIR+x}" ] || MIOS_PATHS_ETC_FORGE_DIR="${MIOS_ETC_DIR:-}"'/forge'
+[ -n "${MIOS_ETC_FORGE_DIR+x}" ] || MIOS_ETC_FORGE_DIR="${MIOS_PATHS_ETC_FORGE_DIR:-}"
+_mios_input MIOS_PATHS_EVERYTHING_CLI MIOS_EVERYTHING_CLI || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_EVERYTHING_CLI:=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe}"
+[ -n "${MIOS_EVERYTHING_CLI+x}" ] || MIOS_EVERYTHING_CLI="${MIOS_PATHS_EVERYTHING_CLI:-}"
+_mios_input MIOS_PATHS_EVERYTHING_CLI_VERSION MIOS_EVERYTHING_CLI_VERSION || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_EVERYTHING_CLI_VERSION:=1.1.0.37}"
+[ -n "${MIOS_EVERYTHING_CLI_VERSION+x}" ] || MIOS_EVERYTHING_CLI_VERSION="${MIOS_PATHS_EVERYTHING_CLI_VERSION:-}"
 : "${MIOS_FAPOLICYD_OBSERVE_ENABLE:=false}"
 : "${MIOS_FIELD_BUILD_XBOX:=Enabled}"
 [ -n "${MIOS_FIELD_CACHE_PATH+x}" ] || MIOS_FIELD_CACHE_PATH='M:\MediCat.USB.v21.12.7z'
@@ -1333,65 +1661,74 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_FINETUNE_MICRO_PREFER_UNSLOTH:=true}"
 : "${MIOS_FINETUNE_MICRO_TARGET_MODULES:=auto}"
 : "${MIOS_FINETUNE_MICRO_TARGET_ROLE:=micro}"
-[ -n "${MIOS_FINETUNE_MICRO_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_MICRO_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
+[ -n "${MIOS_FINETUNE_MICRO_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_MICRO_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"
 : "${MIOS_FINETUNE_MICRO_WARMUP_RATIO:=0.03}"
 : "${MIOS_FINETUNE_MICRO_WORK_DIR:=/var/lib/mios/finetune/micro}"
 : "${MIOS_FINETUNE_MIN_EXAMPLES:=24}"
 : "${MIOS_FINETUNE_OUTPUT_TAG:=mios-sys-agent-ft}"
-[ -n "${MIOS_FINETUNE_PIPE_URL+x}" ] || MIOS_FINETUNE_PIPE_URL='http://127.0.0.1:'"${MIOS_PORT_AGENT_PIPE:-}"
+[ -n "${MIOS_FINETUNE_PIPE_URL+x}" ] || MIOS_FINETUNE_PIPE_URL='http://127.0.0.1:'"${MIOS_PORTS_AGENT_PIPE:-}"
 : "${MIOS_FINETUNE_PREFER_UNSLOTH:=true}"
 : "${MIOS_FINETUNE_SEEDS_PER_CAPABILITY:=4}"
 : "${MIOS_FINETUNE_SERVE_PORT:=11438}"
 : "${MIOS_FINETUNE_TARGET_MODULES:=auto}"
 : "${MIOS_FINETUNE_TARGET_ROLE:=refiner}"
-[ -n "${MIOS_FINETUNE_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
+[ -n "${MIOS_FINETUNE_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"
 : "${MIOS_FINETUNE_WARMUP_RATIO:=0.03}"
 : "${MIOS_FINETUNE_WORK_DIR:=/var/lib/mios/finetune}"
-: "${MIOS_FIRECRAWL_BULL_KEY:=mios}"
-: "${MIOS_FIRECRAWL_LOG_LEVEL:=INFO}"
-: "${MIOS_FIRECRAWL_PORT:=8820}"
-: "${MIOS_FIRECRAWL_WORKERS:=2}"
-: "${MIOS_FIREWALLD_ZONE:=drop}"
+_mios_input MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY MIOS_FIRECRAWL_BULL_KEY || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:=mios}"
+[ -n "${MIOS_FIRECRAWL_BULL_KEY+x}" ] || MIOS_FIRECRAWL_BULL_KEY="${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:-}"
+_mios_input MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL MIOS_FIRECRAWL_LOG_LEVEL || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:=INFO}"
+[ -n "${MIOS_FIRECRAWL_LOG_LEVEL+x}" ] || MIOS_FIRECRAWL_LOG_LEVEL="${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:-}"
+_mios_input MIOS_PORTS_FIRECRAWL MIOS_PORT_FIRECRAWL MIOS_FIRECRAWL_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_FIRECRAWL:=8820}"
+[ -n "${MIOS_FIRECRAWL_PORT+x}" ] || MIOS_FIRECRAWL_PORT="${MIOS_PORTS_FIRECRAWL:-}"
+_mios_input MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS MIOS_FIRECRAWL_WORKERS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:=2}"
+[ -n "${MIOS_FIRECRAWL_WORKERS+x}" ] || MIOS_FIRECRAWL_WORKERS="${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:-}"
+_mios_input MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE MIOS_FIREWALLD_ZONE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE:=drop}"
+[ -n "${MIOS_FIREWALLD_ZONE+x}" ] || MIOS_FIREWALLD_ZONE="${MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE:-}"
 : "${MIOS_FIREWALL_OPEN_PORTS:=forge_http,open_webui,code_server,hermes,searxng,cockpit,hermes_dashboard,llm_light,pgvector,cockpit_link,adguard_ui,ssh,forge_ssh,vllm,sglang,cpu_node}"
-: "${MIOS_VAR_DIR:=/var/lib/mios}"
-[ -n "${MIOS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR:-}"'/.wsl-firstboot-done'
-: "${MIOS_FLATPAKS:=org.gtk.Gtk3theme.adw-gtk3-dark,org.gtk.Gtk3theme.adw-gtk3,app.devsuite.Ptyxis,gnome-nightly:org.gnome.Nautilus.Devel,fedora:org.gnome.Epiphany,com.github.tchx84.Flatseal,com.mattjakeman.ExtensionManager,org.chromium.Chromium,com.google.ChromeDev}"
+_mios_input MIOS_PATHS_VAR_DIR MIOS_VAR_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_VAR_DIR:=/var/lib/mios}"
+[ -n "${MIOS_VAR_DIR+x}" ] || MIOS_VAR_DIR="${MIOS_PATHS_VAR_DIR:-}"
+_mios_input MIOS_PATHS_FIRSTBOOT_SENTINEL MIOS_FIRSTBOOT_SENTINEL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_PATHS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR:-}"'/.wsl-firstboot-done'
+[ -n "${MIOS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_FIRSTBOOT_SENTINEL="${MIOS_PATHS_FIRSTBOOT_SENTINEL:-}"
+[ -n "${MIOS_FLATPAKS+x}" ] || MIOS_FLATPAKS="${MIOS_DESKTOP_FLATPAKS:-}"
 : "${MIOS_FLATPAK_DEFAULT_REMOTE:=flathub}"
 : "${MIOS_FLATPAK_DEFAULT_SCOPE:=system}"
 : "${MIOS_FLATPAK_NONINTERACTIVE:=true}"
 : "${MIOS_FLATPAK_PREFER_BETA:=true}"
-: "${MIOS_FORGE_GID:=816}"
-: "${MIOS_FORGE_HTTP_PORT:=8400}"
-: "${MIOS_VERSION_FORGEJO:=latest}"
-[ -n "${MIOS_FORGE_IMAGE+x}" ] || MIOS_FORGE_IMAGE='codeberg.org/forgejo/forgejo:'"${MIOS_VERSION_FORGEJO:-}"
+_mios_input MIOS_SERVICES_FORGE_GID MIOS_FORGE_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_FORGE_GID:=816}"
+[ -n "${MIOS_FORGE_GID+x}" ] || MIOS_FORGE_GID="${MIOS_SERVICES_FORGE_GID:-}"
+_mios_input MIOS_PORTS_FORGE_HTTP MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_FORGE_HTTP:=8400}"
+[ -n "${MIOS_FORGE_HTTP_PORT+x}" ] || MIOS_FORGE_HTTP_PORT="${MIOS_PORTS_FORGE_HTTP:-}"
+_mios_input MIOS_VERSIONS_FORGEJO MIOS_VERSION_FORGEJO || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERSIONS_FORGEJO:=latest}"
+[ -n "${MIOS_FORGE_IMAGE+x}" ] || MIOS_FORGE_IMAGE='codeberg.org/forgejo/forgejo:'"${MIOS_VERSIONS_FORGEJO:-}"
 : "${MIOS_FORGE_RUNNER_IMAGE:=code.forgejo.org/forgejo/runner:latest}"
 : "${MIOS_FORGE_RUNNER_VERSION:=latest}"
-: "${MIOS_FORGE_SSH_PORT:=8410}"
-: "${MIOS_FORGE_UID:=816}"
-: "${MIOS_PORT_FORGE_HTTP:=8400}"
-[ -n "${MIOS_FORGE_URL+x}" ] || MIOS_FORGE_URL='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"
-: "${MIOS_FORGE_USER:=mios-forge}"
-[ -n "${MIOS_FORGE_VERSION+x}" ] || MIOS_FORGE_VERSION="${MIOS_VERSION_FORGEJO:-}"
-[ -n "${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG+x}" ] || MIOS_FRONTIER_CLAUDE_EFFORT_FLAG='--effort {e}'
-: "${MIOS_FRONTIER_LANE_A_EFFORT:=xhigh}"
-: "${MIOS_FRONTIER_LANE_A_ENGINE:=claude}"
-: "${MIOS_FRONTIER_LANE_A_MODEL:=claude-opus-4-8}"
-: "${MIOS_FRONTIER_LANE_A_ROLE:=framework + ~80%}"
-: "${MIOS_FRONTIER_LANE_B_EFFORT:=high}"
-: "${MIOS_FRONTIER_LANE_B_ENGINE:=agy}"
-: "${MIOS_FRONTIER_LANE_B_FALLBACK_EFFORT:=high}"
-: "${MIOS_FRONTIER_LANE_B_FALLBACK_ENGINE:=claude}"
-: "${MIOS_FRONTIER_LANE_B_FALLBACK_MODEL:=claude-sonnet-5}"
-: "${MIOS_FRONTIER_LANE_B_MODEL:=Gemini 3.5 Flash (High)}"
-: "${MIOS_FRONTIER_LANE_B_PREFER_FALLBACK:=true}"
-: "${MIOS_FRONTIER_LANE_B_ROLE:=finalize (last ~20%)}"
-: "${MIOS_FRONTIER_ORCH_EFFORT:=high}"
-: "${MIOS_FRONTIER_ORCH_ENGINE:=claude}"
-: "${MIOS_FRONTIER_ORCH_MODEL:=claude-sonnet-5}"
-: "${MIOS_FRONTIER_STREAM_PATH:=/var/lib/mios/hermes-tail/frontier/frontier.jsonl}"
-: "${MIOS_FRONTIER_STREAM_TO_REASONING:=false}"
-: "${MIOS_FS_WATCHER_DIRS:=/var/lib/mios/hermes-tail,/var/lib/mios/delegation-prefilter,/var/lib/mios/log-watcher,/var/lib/mios/daemon,/var/lib/mios/scratch,/var/lib/mios/agent-nudger,/var/lib/mios/cron-director,/var/lib/mios/ai/scratch}"
+_mios_input MIOS_PORTS_FORGE_SSH MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_FORGE_SSH:=8410}"
+[ -n "${MIOS_FORGE_SSH_PORT+x}" ] || MIOS_FORGE_SSH_PORT="${MIOS_PORTS_FORGE_SSH:-}"
+_mios_input MIOS_SERVICES_FORGE_UID MIOS_FORGE_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_FORGE_UID:=816}"
+[ -n "${MIOS_FORGE_UID+x}" ] || MIOS_FORGE_UID="${MIOS_SERVICES_FORGE_UID:-}"
+_mios_input MIOS_URLS_FORGE MIOS_FORGE_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORTS_FORGE_HTTP:-}"
+[ -n "${MIOS_FORGE_URL+x}" ] || MIOS_FORGE_URL="${MIOS_URLS_FORGE:-}"
+_mios_input MIOS_SERVICES_FORGE_USER MIOS_FORGE_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_FORGE_USER:=mios-forge}"
+[ -n "${MIOS_FORGE_USER+x}" ] || MIOS_FORGE_USER="${MIOS_SERVICES_FORGE_USER:-}"
+[ -n "${MIOS_FORGE_VERSION+x}" ] || MIOS_FORGE_VERSION="${MIOS_VERSIONS_FORGEJO:-}"
+_mios_input MIOS_FS_WATCHER_WATCH_DIRS MIOS_FS_WATCHER_DIRS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_FS_WATCHER_WATCH_DIRS:=/var/lib/mios/hermes-tail,/var/lib/mios/delegation-prefilter,/var/lib/mios/log-watcher,/var/lib/mios/daemon,/var/lib/mios/scratch,/var/lib/mios/agent-nudger,/var/lib/mios/cron-director,/var/lib/mios/ai/scratch}"
+[ -n "${MIOS_FS_WATCHER_DIRS+x}" ] || MIOS_FS_WATCHER_DIRS="${MIOS_FS_WATCHER_WATCH_DIRS:-}"
 : "${MIOS_GATEWAY_CONTEXT_LENGTH:=8192}"
 : "${MIOS_GATEWAY_ENABLE:=false}"
 : "${MIOS_GATEWAY_MAX_STEPS:=30}"
@@ -1403,7 +1740,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GATEWAY_SKILL_CATALOG_STATIC_PATH:=/var/lib/mios/skills/catalog.json}"
 : "${MIOS_GATEWAY_SKILL_REFRESH_SECONDS:=300}"
 : "${MIOS_GATEWAY_TOOL_LOOP_ENGINE:=smolagents}"
-: "${MIOS_GENERATOR_PLACEHOLDERS:=FEDORA_VERSION,MIOS_VERSION,MIOS_VERSION_FEDORA}"
+: "${MIOS_GENERATOR_PLACEHOLDERS:=FEDORA_VERSION,MIOS_VERSION,MIOS_VERSIONS_FEDORA}"
 : "${MIOS_GITCONFIG_ALIAS_BR:=branch}"
 : "${MIOS_GITCONFIG_ALIAS_CI:=commit}"
 : "${MIOS_GITCONFIG_ALIAS_CO:=checkout}"
@@ -1436,51 +1773,64 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GUACAMOLE_IMAGE:=docker.io/guacamole/guacamole:latest}"
 : "${MIOS_GUACAMOLE_VERSION:=latest}"
 : "${MIOS_GUACD_IMAGE:=docker.io/guacamole/guacd:latest}"
-: "${MIOS_GUACD_PORT:=8560}"
+_mios_input MIOS_PORTS_GUACD MIOS_PORT_GUACD MIOS_GUACD_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_GUACD:=8560}"
+[ -n "${MIOS_GUACD_PORT+x}" ] || MIOS_GUACD_PORT="${MIOS_PORTS_GUACD:-}"
 : "${MIOS_GUACD_VERSION:=latest}"
 : "${MIOS_HEADSCALE_BASE_DOMAIN:=mesh.mios.local}"
 : "${MIOS_HEADSCALE_CONFIG_PATH:=/etc/headscale/config.yaml}"
 : "${MIOS_HEADSCALE_DB_PATH:=/var/lib/headscale/db.sqlite}"
 : "${MIOS_HEADSCALE_ENABLED:=false}"
-: "${MIOS_HEADSCALE_GID:=833}"
+_mios_input MIOS_SERVICES_HEADSCALE_GID MIOS_HEADSCALE_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HEADSCALE_GID:=833}"
+[ -n "${MIOS_HEADSCALE_GID+x}" ] || MIOS_HEADSCALE_GID="${MIOS_SERVICES_HEADSCALE_GID:-}"
 : "${MIOS_HEADSCALE_IMAGE:=docker.io/headscale/headscale:latest}"
 : "${MIOS_HEADSCALE_LISTEN_ADDR:=0.0.0.0:8085}"
 : "${MIOS_HEADSCALE_METRICS_LISTEN_ADDR:=127.0.0.1:9090}"
 : "${MIOS_HEADSCALE_POLICY_PATH:=/usr/share/mios/mini/headscale-policy.hujson}"
 : "${MIOS_HEADSCALE_PORT:=8085}"
 : "${MIOS_HEADSCALE_SERVER_URL:=http://mesh.mios.local:8085}"
-: "${MIOS_HEADSCALE_UID:=833}"
-: "${MIOS_HEADSCALE_USER:=mios-headscale}"
+_mios_input MIOS_SERVICES_HEADSCALE_UID MIOS_HEADSCALE_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HEADSCALE_UID:=833}"
+[ -n "${MIOS_HEADSCALE_UID+x}" ] || MIOS_HEADSCALE_UID="${MIOS_SERVICES_HEADSCALE_UID:-}"
+_mios_input MIOS_SERVICES_HEADSCALE_USER MIOS_HEADSCALE_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HEADSCALE_USER:=mios-headscale}"
+[ -n "${MIOS_HEADSCALE_USER+x}" ] || MIOS_HEADSCALE_USER="${MIOS_SERVICES_HEADSCALE_USER:-}"
 : "${MIOS_HEADSCALE_VERSION:=latest}"
 : "${MIOS_HEADSCALE_VNET_CIDR:=100.64.0.0/10}"
 : "${MIOS_HERMES_AGENT_REF:=main}"
 : "${MIOS_HERMES_AGENT_REPO:=https://github.com/NousResearch/hermes-agent.git}"
-[ -n "${MIOS_HERMES_BACKEND+x}" ] || MIOS_HERMES_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
-[ -n "${MIOS_HERMES_BACKEND_URL+x}" ] || MIOS_HERMES_BACKEND_URL='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
-: "${MIOS_HERMES_DASHBOARD_PORT:=8210}"
+[ -n "${MIOS_HERMES_BACKEND+x}" ] || MIOS_HERMES_BACKEND='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"
+[ -n "${MIOS_HERMES_BACKEND_URL+x}" ] || MIOS_HERMES_BACKEND_URL='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"'/v1'
+_mios_input MIOS_PORTS_HERMES_DASHBOARD MIOS_PORT_HERMES_DASHBOARD MIOS_HERMES_DASHBOARD_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_HERMES_DASHBOARD:=8210}"
+[ -n "${MIOS_HERMES_DASHBOARD_PORT+x}" ] || MIOS_HERMES_DASHBOARD_PORT="${MIOS_PORTS_HERMES_DASHBOARD:-}"
 : "${MIOS_HERMES_DIR:=/usr/lib/mios/agents/hermes-agent}"
 : "${MIOS_HERMES_ENABLE:=true}"
-[ -n "${MIOS_HERMES_ENDPOINT+x}" ] || MIOS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
-: "${MIOS_HERMES_GID:=820}"
+[ -n "${MIOS_HERMES_ENDPOINT+x}" ] || MIOS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORTS_AGENT_PIPE:-}"'/v1'
+_mios_input MIOS_SERVICES_HERMES_GID MIOS_HERMES_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HERMES_GID:=820}"
+[ -n "${MIOS_HERMES_GID+x}" ] || MIOS_HERMES_GID="${MIOS_SERVICES_HERMES_GID:-}"
 : "${MIOS_HERMES_IMAGE:=docker.io/nousresearch/hermes-agent:latest}"
 : "${MIOS_HERMES_MODEL:=granite4.1:8b}"
-: "${MIOS_HERMES_PORT:=8720}"
-: "${MIOS_HERMES_UID:=820}"
-: "${MIOS_HERMES_USER:=mios-hermes}"
+[ -n "${MIOS_HERMES_PORT+x}" ] || MIOS_HERMES_PORT="${MIOS_PORTS_HERMES:-}"
+_mios_input MIOS_SERVICES_HERMES_UID MIOS_HERMES_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HERMES_UID:=820}"
+[ -n "${MIOS_HERMES_UID+x}" ] || MIOS_HERMES_UID="${MIOS_SERVICES_HERMES_UID:-}"
+_mios_input MIOS_SERVICES_HERMES_USER MIOS_HERMES_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_HERMES_USER:=mios-hermes}"
+[ -n "${MIOS_HERMES_USER+x}" ] || MIOS_HERMES_USER="${MIOS_SERVICES_HERMES_USER:-}"
 : "${MIOS_HERMES_VENV:=/usr/lib/mios/agents/.venv}"
 : "${MIOS_HERMES_VERSION:=latest}"
-[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
+[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT="${MIOS_AGENTS_HERMES_ENDPOINT:-}"
 : "${MIOS_HITL_ENABLE:=true}"
 : "${MIOS_HITL_MODE:=log}"
-: "${MIOS_HOSTNAME:=mios}"
+[ -n "${MIOS_HOSTNAME+x}" ] || MIOS_HOSTNAME="${MIOS_IDENTITY_HOSTNAME:-}"
 : "${MIOS_HWCAPS_LD_SO_HWCAPS_AUTOSELECT:=true}"
 : "${MIOS_HWCAPS_LEVEL:=v1}"
 : "${MIOS_HWCAPS_NATIVE_REBUILD:=false}"
-: "${MIOS_IDENTITY_DEFAULT_PASSWORD:=mios}"
 : "${MIOS_IDENTITY_EMAIL:=mios@localhost}"
 : "${MIOS_IDENTITY_FULLNAME:=MiOS Operator}"
-: "${MIOS_IDENTITY_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
-: "${MIOS_IDENTITY_HOSTNAME:=mios}"
 : "${MIOS_IDENTITY_IPA_DOMAIN:=mios.internal}"
 : "${MIOS_IDENTITY_IPA_ENABLED:=false}"
 : "${MIOS_IDENTITY_IPA_ENROLL_PRINCIPAL:=admin}"
@@ -1489,8 +1839,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_IDENTITY_IPA_REALM:=MIOS.INTERNAL}"
 : "${MIOS_IDENTITY_IPA_SERVER:=ipa.mios.internal}"
 : "${MIOS_IDENTITY_NAME:=mios}"
-: "${MIOS_IDENTITY_SHELL:=/bin/bash}"
-: "${MIOS_IDENTITY_USERNAME:=user}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_IMAGE_IMAGE:=quay.io/centos-bootc/bootc-image-builder:latest}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_SERVICE_TIMEOUTSTARTSEC:=3600}"
 [ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE='${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}'
@@ -1500,12 +1848,19 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_IMAGE_NAME:=ghcr.io/mios-dev/mios}"
 : "${MIOS_IMAGE_REF:=ghcr.io/mios-dev/mios:latest}"
 : "${MIOS_IMAGE_TAG:=latest}"
-: "${MIOS_INSTALL_ENV:=/etc/mios/install.env}"
-: "${MIOS_INTEGER_PARAM_KEYWORDS:=limit,count,timeout,port,every,concurrency,maxsize}"
-: "${MIOS_K3S_API_PORT:=8450}"
-: "${MIOS_VERSION_K3S:=latest}"
-[ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S:-}"
-[ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION="${MIOS_VERSION_K3S:-}"
+_mios_input MIOS_PATHS_INSTALL_ENV MIOS_INSTALL_ENV || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_INSTALL_ENV:=/etc/mios/install.env}"
+[ -n "${MIOS_INSTALL_ENV+x}" ] || MIOS_INSTALL_ENV="${MIOS_PATHS_INSTALL_ENV:-}"
+_mios_input MIOS_ROUTING_INTEGER_PARAM_KEYWORDS MIOS_INTEGER_PARAM_KEYWORDS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_INTEGER_PARAM_KEYWORDS:=limit,count,timeout,port,every,concurrency,maxsize}"
+[ -n "${MIOS_INTEGER_PARAM_KEYWORDS+x}" ] || MIOS_INTEGER_PARAM_KEYWORDS="${MIOS_ROUTING_INTEGER_PARAM_KEYWORDS:-}"
+_mios_input MIOS_PORTS_K3S_API MIOS_PORT_K3S_API MIOS_K3S_API_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_K3S_API:=8450}"
+[ -n "${MIOS_K3S_API_PORT+x}" ] || MIOS_K3S_API_PORT="${MIOS_PORTS_K3S_API:-}"
+_mios_input MIOS_VERSIONS_K3S MIOS_VERSION_K3S || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERSIONS_K3S:=latest}"
+[ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSIONS_K3S:-}"
+[ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION="${MIOS_VERSIONS_K3S:-}"
 : "${MIOS_KARGS_IOMMU:=on}"
 [ -n "${MIOS_KEYBINDINGS_ACTIONS+x}" ] || MIOS_KEYBINDINGS_ACTIONS='{ command = "/usr/libexec/mios/mios-terminal", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal", id = "terminal", key = "t", label = "MiOS Terminal", tmux_command = "new-window", vscode_command = "workbench.action.terminal.toggleTerminal" },{ command = "/usr/bin/mios ai", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai", id = "ai", key = "a", label = "MiOS AI", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action ai'"'"'", vscode_command = "runCommands", vscode_shell = "mios ai" },{ command = "mios agents --watch", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents", id = "agents", key = "g", label = "MiOS Agents", tmux_command = "run-shell '"'"'/usr/libexec/mios/mios-terminal --action agents'"'"'", vscode_command = "runCommands", vscode_shell = "mios agents --watch" },{ command = "mios mon", desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system", id = "system", key = "m", label = "MiOS System Monitor", tmux_command = "new-window -n MiOS-System mios mon", vscode_command = "runCommands", vscode_shell = "mios mon" }'
 : "${MIOS_KEYBINDINGS_DESKTOP_ACCELERATOR:=<Control><Alt><Shift>}"
@@ -1524,7 +1879,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_KEYBINDINGS_VSCODE_PASSTHROUGH_COMMANDS:=workbench.action.toggleSidebarVisibility}"
 : "${MIOS_KEYBINDINGS_VSCODE_PREFIX:=ctrl+b}"
 : "${MIOS_KEYBINDINGS_WINDOWS_HOTKEY_MODIFIER:=CTRL+ALT+SHIFT}"
-: "${MIOS_KEYBOARD:=us}"
+[ -n "${MIOS_KEYBOARD+x}" ] || MIOS_KEYBOARD="${MIOS_LOCALE_KEYBOARD_LAYOUT:-}"
 : "${MIOS_KNOWLEDGE_EVICT_BATCH:=500}"
 : "${MIOS_KNOWLEDGE_EVICT_DRYRUN:=false}"
 : "${MIOS_KNOWLEDGE_EVICT_ENABLE:=true}"
@@ -1557,12 +1912,24 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LANES_VLLM_REASONING_PARSER:=qwen3}"
 : "${MIOS_LANES_VLLM_STREAM_THINKING:=true}"
 : "${MIOS_LANES_VLLM_TOOL_CALL_PARSER:=hermes}"
-: "${MIOS_LAUNCHER_SOCKET:=/run/mios-launcher/launcher.sock}"
-: "${MIOS_LAUNCH_FILLER_PHRASES:=for me please,on my desktop,on the desktop,right now,real quick,thank you,for me,please,thanks,now}"
-[ -n "${MIOS_LAUNCH_FOLLOWUP_PHRASES+x}" ] || MIOS_LAUNCH_FOLLOWUP_PHRASES='didn'"'"'t launch,did not launch,didn'"'"'t open,did not open,didn'"'"'t start,did not start,didn'"'"'t come up,did not come up,didn'"'"'t work,did not work,wouldn'"'"'t open,would not open,no window,nothing happened,nothing opened,never opened,never launched,not opening,not launching,isn'"'"'t open,is not open,isn'"'"'t running,is not running,won'"'"'t open,won'"'"'t launch,doesn'"'"'t open,does not open,failed to open,failed to launch'
-: "${MIOS_LAUNCH_RETRY_PHRASES:=attempt to launch and verify,launch and verify,launch it and verify,try to launch and verify,open and verify,open it and verify,try launching it again,try launching again,try opening it again,try opening again,launch it again,open it again,start it again,run it again,try again,attempt again,retry,relaunch,re-launch,reopen,re-open,try once more,one more time,attempt to launch,attempt the launch,verify the launch,launch and confirm,open and confirm}"
-: "${MIOS_LAUNCH_TARGET_LEAD_PHRASES:=the,a,an,my}"
-: "${MIOS_LAUNCH_TARGET_TRAIL_PHRASES:=application,program,app,window}"
+_mios_input MIOS_PATHS_LAUNCHER_SOCKET MIOS_LAUNCHER_SOCKET || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_LAUNCHER_SOCKET:=/run/mios-launcher/launcher.sock}"
+[ -n "${MIOS_LAUNCHER_SOCKET+x}" ] || MIOS_LAUNCHER_SOCKET="${MIOS_PATHS_LAUNCHER_SOCKET:-}"
+_mios_input MIOS_ROUTING_LAUNCH_FILLER_PHRASES MIOS_LAUNCH_FILLER_PHRASES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_LAUNCH_FILLER_PHRASES:=for me please,on my desktop,on the desktop,right now,real quick,thank you,for me,please,thanks,now}"
+[ -n "${MIOS_LAUNCH_FILLER_PHRASES+x}" ] || MIOS_LAUNCH_FILLER_PHRASES="${MIOS_ROUTING_LAUNCH_FILLER_PHRASES:-}"
+_mios_input MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES MIOS_LAUNCH_FOLLOWUP_PHRASES || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES+x}" ] || MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES='didn'"'"'t launch,did not launch,didn'"'"'t open,did not open,didn'"'"'t start,did not start,didn'"'"'t come up,did not come up,didn'"'"'t work,did not work,wouldn'"'"'t open,would not open,no window,nothing happened,nothing opened,never opened,never launched,not opening,not launching,isn'"'"'t open,is not open,isn'"'"'t running,is not running,won'"'"'t open,won'"'"'t launch,doesn'"'"'t open,does not open,failed to open,failed to launch'
+[ -n "${MIOS_LAUNCH_FOLLOWUP_PHRASES+x}" ] || MIOS_LAUNCH_FOLLOWUP_PHRASES="${MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES:-}"
+_mios_input MIOS_ROUTING_LAUNCH_RETRY_PHRASES MIOS_LAUNCH_RETRY_PHRASES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_LAUNCH_RETRY_PHRASES:=attempt to launch and verify,launch and verify,launch it and verify,try to launch and verify,open and verify,open it and verify,try launching it again,try launching again,try opening it again,try opening again,launch it again,open it again,start it again,run it again,try again,attempt again,retry,relaunch,re-launch,reopen,re-open,try once more,one more time,attempt to launch,attempt the launch,verify the launch,launch and confirm,open and confirm}"
+[ -n "${MIOS_LAUNCH_RETRY_PHRASES+x}" ] || MIOS_LAUNCH_RETRY_PHRASES="${MIOS_ROUTING_LAUNCH_RETRY_PHRASES:-}"
+_mios_input MIOS_ROUTING_LAUNCH_TARGET_LEAD_PHRASES MIOS_LAUNCH_TARGET_LEAD_PHRASES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_LAUNCH_TARGET_LEAD_PHRASES:=the,a,an,my}"
+[ -n "${MIOS_LAUNCH_TARGET_LEAD_PHRASES+x}" ] || MIOS_LAUNCH_TARGET_LEAD_PHRASES="${MIOS_ROUTING_LAUNCH_TARGET_LEAD_PHRASES:-}"
+_mios_input MIOS_ROUTING_LAUNCH_TARGET_TRAIL_PHRASES MIOS_LAUNCH_TARGET_TRAIL_PHRASES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_LAUNCH_TARGET_TRAIL_PHRASES:=application,program,app,window}"
+[ -n "${MIOS_LAUNCH_TARGET_TRAIL_PHRASES+x}" ] || MIOS_LAUNCH_TARGET_TRAIL_PHRASES="${MIOS_ROUTING_LAUNCH_TARGET_TRAIL_PHRASES:-}"
 [ -n "${MIOS_LAWS_LAWS+x}" ] || MIOS_LAWS_LAWS='{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_usr_over_etc", id = 1, slug = "USR-OVER-ETC" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_no_mkdir_in_var", id = 2, slug = "NO-MKDIR-IN-VAR" },{ applies_to = "bootc", enforced_by = "99-postcheck.sh:BOUND-IMAGES", id = 3, slug = "BOUND-IMAGES" },{ applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_lint_is_final", id = 4, slug = "BOOTC-CONTAINER-LINT" },{ applies_to = "both", enforced_by = "99-postcheck.sh:UNIFIED-AI-REDIRECTS", id = 5, slug = "UNIFIED-AI-REDIRECTS" },{ applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_quadlet_privilege", id = 6, slug = "UNPRIVILEGED-QUADLETS" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_no_hardcode", id = 7, slug = "NO-HARDCODE" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_projection_registry", id = 8, slug = "SSOT-PROJECTION" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_var_closure", id = 9, slug = "ONE-CANONICAL-NAME" },{ applies_to = "both", enforced_by = "99-postcheck.sh:BARE-SAFE-ENV", id = 10, slug = "BARE-SAFE-ENV" },{ applies_to = "bootc", enforced_by = "99-postcheck.sh:SECRETS-NEVER-IN-ENV", id = 11, slug = "SECRETS-NEVER-IN-ENV" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open", id = 12, slug = "BAKE-NOT-FETCH" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_resolver_twin_parity", id = 13, slug = "NATIVE-DROPINS" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_target_languages", id = 14, slug = "TARGET-LANGUAGES" },{ applies_to = "both", enforced_by = "process:CLAUDE.md/AGENTS.md (both repos); parity via 98-drift-checks.sh checks 22+27", id = 15, slug = "DOUBLE-REPO-TRIPLE-CHECK" },{ applies_to = "both", enforced_by = "98-drift-checks.sh:check_template_conformance", id = 16, slug = "ONE-TEMPLATE-PER-TYPE" }'
 : "${MIOS_LAWS_PROJECTION_REGISTRY_GENERATOR_GLOBS:=tools/generate-*.py,tools/render-*.py,tools/gen-*.py}"
 : "${MIOS_LAWS_PROJECTION_REGISTRY_MAX_EXEMPT:=0}"
@@ -1577,27 +1944,37 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LEGIBILITY_MAX_TRACKED_MB:=323}"
 : "${MIOS_LEGIBILITY_PYTHON_AI_PLANE_PREFIXES:=usr/lib/mios/agent-pipe/,usr/lib/mios/agents/}"
 : "${MIOS_LEGIBILITY_TRACKED_MB_HEADROOM:=1}"
-: "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
+_mios_input MIOS_PATHS_LIBEXEC_DIR MIOS_LIBEXEC_DIR || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PATHS_LIBEXEC_DIR:=/usr/libexec/mios}"
+[ -n "${MIOS_LIBEXEC_DIR+x}" ] || MIOS_LIBEXEC_DIR="${MIOS_PATHS_LIBEXEC_DIR:-}"
 : "${MIOS_LLAMACPP_BAKE_MODELS:=granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf}"
 : "${MIOS_LLAMACPP_CONFIG:=/usr/share/mios/llamacpp/mios-llm-light.yaml}"
-: "${MIOS_LLAMACPP_CPU_NODE_THREADS:=14}"
 : "${MIOS_LLAMACPP_ENABLE:=true}"
-: "${MIOS_LLAMACPP_GID:=827}"
+_mios_input MIOS_SERVICES_LLAMACPP_GID MIOS_LLAMACPP_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_LLAMACPP_GID:=827}"
+[ -n "${MIOS_LLAMACPP_GID+x}" ] || MIOS_LLAMACPP_GID="${MIOS_SERVICES_LLAMACPP_GID:-}"
 : "${MIOS_LLAMACPP_MODELS_DIR:=/usr/share/mios/llamacpp/models}"
 : "${MIOS_LLAMACPP_SLOT_DIR:=/var/lib/mios/llamacpp/slots}"
-: "${MIOS_LLAMACPP_UID:=827}"
-: "${MIOS_LLAMACPP_USER:=mios-llamacpp}"
-: "${MIOS_LLM_IGPU_PORT:=8540}"
+_mios_input MIOS_SERVICES_LLAMACPP_UID MIOS_LLAMACPP_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_LLAMACPP_UID:=827}"
+[ -n "${MIOS_LLAMACPP_UID+x}" ] || MIOS_LLAMACPP_UID="${MIOS_SERVICES_LLAMACPP_UID:-}"
+_mios_input MIOS_SERVICES_LLAMACPP_USER MIOS_LLAMACPP_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_LLAMACPP_USER:=mios-llamacpp}"
+[ -n "${MIOS_LLAMACPP_USER+x}" ] || MIOS_LLAMACPP_USER="${MIOS_SERVICES_LLAMACPP_USER:-}"
+_mios_input MIOS_PORTS_LLM_IGPU MIOS_PORT_LLM_IGPU MIOS_LLM_IGPU_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_LLM_IGPU:=8540}"
+[ -n "${MIOS_LLM_IGPU_PORT+x}" ] || MIOS_LLM_IGPU_PORT="${MIOS_PORTS_LLM_IGPU:-}"
 : "${MIOS_LLM_LIGHT_IMAGE:=ghcr.io/mostlygeek/llama-swap:cuda}"
-: "${MIOS_LLM_LIGHT_PORT:=8500}"
+[ -n "${MIOS_LLM_LIGHT_PORT+x}" ] || MIOS_LLM_LIGHT_PORT="${MIOS_PORTS_LLM_LIGHT:-}"
 : "${MIOS_LLM_LIGHT_VERSION:=cuda}"
-: "${MIOS_LOCALE:=en_US.UTF-8}"
-: "${MIOS_LOCALE_KEYBOARD_LAYOUT:=us}"
-: "${MIOS_LOCALE_LANGUAGE:=en_US.UTF-8}"
-: "${MIOS_LOCALE_TIMEZONE:=UTC}"
-[ -n "${MIOS_LOCAL_FORGE_REPO+x}" ] || MIOS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"'/mios/mios.git'
+[ -n "${MIOS_LOCALE+x}" ] || MIOS_LOCALE="${MIOS_LOCALE_LANGUAGE:-}"
+_mios_input MIOS_URLS_LOCAL_FORGE_REPO MIOS_LOCAL_FORGE_REPO || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORTS_FORGE_HTTP:-}"'/mios/mios.git'
+[ -n "${MIOS_LOCAL_FORGE_REPO+x}" ] || MIOS_LOCAL_FORGE_REPO="${MIOS_URLS_LOCAL_FORGE_REPO:-}"
 : "${MIOS_LOCAL_TAG:=localhost/mios:latest}"
-: "${MIOS_LOCATION_SENSITIVE_PHRASES:=weather,forecast,near me,nearby,near here,around here,local news,local,my area,things to do,restaurants,closest,directions to}"
+_mios_input MIOS_ROUTING_LOCATION_SENSITIVE_PHRASES MIOS_LOCATION_SENSITIVE_PHRASES || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_LOCATION_SENSITIVE_PHRASES:=weather,forecast,near me,nearby,near here,around here,local news,local,my area,things to do,restaurants,closest,directions to}"
+[ -n "${MIOS_LOCATION_SENSITIVE_PHRASES+x}" ] || MIOS_LOCATION_SENSITIVE_PHRASES="${MIOS_ROUTING_LOCATION_SENSITIVE_PHRASES:-}"
 : "${MIOS_LOGGING_PIPELINE_BATCH_SIZE:=50}"
 : "${MIOS_LOGGING_PIPELINE_EMBEDDING_DIM:=768}"
 : "${MIOS_LOGGING_PIPELINE_ENABLE:=true}"
@@ -1627,7 +2004,9 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_MCP_AGENTS_OBSERVATION_WINDOW_NAME:=MiOS Agents}"
 : "${MIOS_MCP_AGENTS_QUEUE_OFFLINE:=true}"
 : "${MIOS_MCP_AGENTS_STATE_DIRECTORY:=mios/agent-relay}"
-: "${MIOS_MCP_PORT:=8770}"
+_mios_input MIOS_PORTS_MCP MIOS_PORT_MCP MIOS_MCP_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_MCP:=8770}"
+[ -n "${MIOS_MCP_PORT+x}" ] || MIOS_MCP_PORT="${MIOS_PORTS_MCP:-}"
 : "${MIOS_MCP_PROTOCOL_VERSION:=2026-07-28}"
 : "${MIOS_MCP_PYTHON:=/usr/lib/mios/mcp/.venv/bin/python3}"
 : "${MIOS_MCP_PYTHON_PACKAGES:=mcp,uvicorn,openai}"
@@ -1699,147 +2078,74 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_METAL_MESH_VNET_CIDR:=100.64.0.0/10}"
 : "${MIOS_META_EDITOR_URL:=/usr/share/mios/configurator/mios.html}"
 : "${MIOS_META_FORMAT:=toml}"
+_mios_input MIOS_META_MIOS_VERSION MIOS_VERSION || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_META_MIOS_VERSION:=0.3.0}"
 : "${MIOS_META_SCHEMA_VERSION:=1.1.0}"
 : "${MIOS_META_SPEC_URL:=https://toml.io/en/v1.0.0}"
-[ -n "${MIOS_MICRO_ENDPOINT+x}" ] || MIOS_MICRO_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
+[ -n "${MIOS_MICRO_ENDPOINT+x}" ] || MIOS_MICRO_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"'/v1'
 : "${MIOS_MIGRATION_USE_COMPILED_AINODE:=true}"
 : "${MIOS_MIGRATION_USE_COMPILED_OSCONTROL:=false}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_INSTALL_ENV:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_POWERSHELL:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_PYTHON:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:=true}"
-: "${MIOS_MIOS_DEVELOPER:=MiOS}"
-: "${MIOS_MIOS_FIND_ALIASES_CALCULATOR:=gnome-calculator}"
-: "${MIOS_MIOS_FIND_ALIASES_CALCULATOR_WIN:=calc}"
-: "${MIOS_MIOS_FIND_ALIASES_CALENDAR:=gnome-calendar}"
-: "${MIOS_MIOS_FIND_ALIASES_CENTER_WINDOW:=mios-window}"
-: "${MIOS_MIOS_FIND_ALIASES_CLOCK:=gnome-clocks}"
-: "${MIOS_MIOS_FIND_ALIASES_CODE:=codium}"
-: "${MIOS_MIOS_FIND_ALIASES_COMMAND_PROMPT:=cmd}"
-: "${MIOS_MIOS_FIND_ALIASES_CONFIGURATOR:=mios-html}"
-: "${MIOS_MIOS_FIND_ALIASES_CONTROL_PANEL:=control}"
-: "${MIOS_MIOS_FIND_ALIASES_CUSTOMIZE:=mios-html}"
-: "${MIOS_MIOS_FIND_ALIASES_DISKS:=gnome-disks}"
-: "${MIOS_MIOS_FIND_ALIASES_DOCUMENTS:=papers}"
-: "${MIOS_MIOS_FIND_ALIASES_EDITOR:=gedit}"
-: "${MIOS_MIOS_FIND_ALIASES_EXTENSIONS:=extension-manager}"
-: "${MIOS_MIOS_FIND_ALIASES_FILES:=nautilus}"
-: "${MIOS_MIOS_FIND_ALIASES_FILE_EXPLORER:=explorer}"
-: "${MIOS_MIOS_FIND_ALIASES_FOCUS_WINDOW:=mios-window}"
-: "${MIOS_MIOS_FIND_ALIASES_GAMES:=lutris}"
-: "${MIOS_MIOS_FIND_ALIASES_HELP:=yelp}"
-: "${MIOS_MIOS_FIND_ALIASES_INSTALL:=mios-installer}"
-: "${MIOS_MIOS_FIND_ALIASES_INSTALLER:=mios-installer}"
-: "${MIOS_MIOS_FIND_ALIASES_MAIL:=evolution}"
-: "${MIOS_MIOS_FIND_ALIASES_MAPS:=gnome-maps}"
-: "${MIOS_MIOS_FIND_ALIASES_MARKDOWN:=mios-md}"
-: "${MIOS_MIOS_FIND_ALIASES_MD:=mios-md}"
-: "${MIOS_MIOS_FIND_ALIASES_MIOSCONFIG:=mios-html}"
-: "${MIOS_MIOS_FIND_ALIASES_MIOS_HTML:=mios-html}"
-: "${MIOS_MIOS_FIND_ALIASES_MIOS_SETTINGS:=mios-html}"
-: "${MIOS_MIOS_FIND_ALIASES_MOBILE_CONTROL_PANEL:=mobi.phosh.MobileSettings}"
-: "${MIOS_MIOS_FIND_ALIASES_MOBILE_SETTINGS:=mobi.phosh.MobileSettings}"
-: "${MIOS_MIOS_FIND_ALIASES_MOVE_WINDOW:=mios-window}"
-: "${MIOS_MIOS_FIND_ALIASES_MUSIC:=decibels}"
-: "${MIOS_MIOS_FIND_ALIASES_NOTEPAD_APP:=notepad}"
-: "${MIOS_MIOS_FIND_ALIASES_NOTES:=mios-md}"
-: "${MIOS_MIOS_FIND_ALIASES_PACKAGE:=mios-installer}"
-: "${MIOS_MIOS_FIND_ALIASES_PAINT:=mspaint}"
-: "${MIOS_MIOS_FIND_ALIASES_PHOTOS:=loupe}"
-: "${MIOS_MIOS_FIND_ALIASES_POWER_SHELL:=powershell}"
-: "${MIOS_MIOS_FIND_ALIASES_PREVIEW_MD:=mios-md}"
-: "${MIOS_MIOS_FIND_ALIASES_PRTSCR:=mios-screenshot}"
-: "${MIOS_MIOS_FIND_ALIASES_PWSH_SHELL:=pwsh}"
-: "${MIOS_MIOS_FIND_ALIASES_REGISTRY_EDITOR:=regedit}"
-: "${MIOS_MIOS_FIND_ALIASES_RENDER_MD:=mios-md}"
-: "${MIOS_MIOS_FIND_ALIASES_SCREENCAP:=mios-screenshot}"
-: "${MIOS_MIOS_FIND_ALIASES_SCREENSHOT:=mios-screenshot}"
-: "${MIOS_MIOS_FIND_ALIASES_SCREEN_CAPTURE:=mios-screenshot}"
-: "${MIOS_MIOS_FIND_ALIASES_SETTINGS:=gnome-control-center}"
-: "${MIOS_MIOS_FIND_ALIASES_SNAP:=mios-screenshot}"
-: "${MIOS_MIOS_FIND_ALIASES_SNIP:=snipping-tool}"
-: "${MIOS_MIOS_FIND_ALIASES_SOFTWARE:=gnome-software}"
-: "${MIOS_MIOS_FIND_ALIASES_STEAMCMD:=mios-steamcmd}"
-: "${MIOS_MIOS_FIND_ALIASES_STEAM_CMD:=mios-steamcmd}"
-: "${MIOS_MIOS_FIND_ALIASES_STEAM_GAME:=mios-steamcmd}"
-: "${MIOS_MIOS_FIND_ALIASES_STEAM_INSTALL:=mios-steamcmd}"
-: "${MIOS_MIOS_FIND_ALIASES_TASK_MANAGER:=taskmgr}"
-: "${MIOS_MIOS_FIND_ALIASES_TERMINAL:=ptyxis}"
-: "${MIOS_MIOS_FIND_ALIASES_VIDEO:=showtime}"
-: "${MIOS_MIOS_FIND_ALIASES_WEATHER:=gnome-weather}"
-: "${MIOS_MIOS_FIND_ALIASES_WEB:=epiphany}"
-: "${MIOS_MIOS_FIND_ALIASES_WINDOW:=mios-window}"
-: "${MIOS_MIOS_FIND_ALIASES_WINDOWS_EXPLORER:=explorer}"
-: "${MIOS_MIOS_FIND_ALIASES_WINDOWS_MGR:=mios-window}"
-: "${MIOS_MIOS_FIND_ALIASES_WINGET:=mios-installer}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_AGENT_CLI:=5}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_LINUX_FLATPAK:=3}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_LINUX_RPM_GUI:=4}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_MIOS_SHIM:=6}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_SERVICE_URL:=7}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_WINDOWS_APP:=1}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_WINDOWS_BROWSER:=1}"
-: "${MIOS_MIOS_FIND_CATEGORY_PRIORITY_WINDOWS_GUI:=2}"
-: "${MIOS_MIOS_FIND_RANKER_FUZZY_MAX_EDIT_DISTANCE:=2}"
-: "${MIOS_MIOS_FIND_RANKER_FUZZY_MAX_EDIT_RATIO:=0.34}"
-: "${MIOS_MIOS_FIND_RANKER_FUZZY_MIN_TOKEN_LEN:=4}"
-: "${MIOS_MIOS_FIND_RANKER_TIERS:=name_exact,name_prefix,name_word,name_substr,desc_word,desc_substr,fuzzy}"
-: "${MIOS_MIOS_NAME:=MiOS AI}"
-[ -n "${MIOS_MIOS_ROLE+x}" ] || MIOS_MIOS_ROLE='the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)'
-: "${MIOS_MODEL:=granite4.1:8b}"
-: "${MIOS_MODEL_MODALITIES_EMBEDDINGS:=embed,bert,text-embedding,bge}"
-: "${MIOS_MODEL_MODALITIES_IMAGE:=diffuse,flux,dall,midjourney,sd}"
-: "${MIOS_MODEL_ROUTER_PORT:=8750}"
+[ -n "${MIOS_MODEL+x}" ] || MIOS_MODEL="${MIOS_AI_MODEL:-}"
+_mios_input MIOS_ROUTING_MODEL_MODALITIES_EMBEDDINGS MIOS_MODEL_MODALITIES_EMBEDDINGS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_MODEL_MODALITIES_EMBEDDINGS:=embed,bert,text-embedding,bge}"
+[ -n "${MIOS_MODEL_MODALITIES_EMBEDDINGS+x}" ] || MIOS_MODEL_MODALITIES_EMBEDDINGS="${MIOS_ROUTING_MODEL_MODALITIES_EMBEDDINGS:-}"
+_mios_input MIOS_ROUTING_MODEL_MODALITIES_IMAGE MIOS_MODEL_MODALITIES_IMAGE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_MODEL_MODALITIES_IMAGE:=diffuse,flux,dall,midjourney,sd}"
+[ -n "${MIOS_MODEL_MODALITIES_IMAGE+x}" ] || MIOS_MODEL_MODALITIES_IMAGE="${MIOS_ROUTING_MODEL_MODALITIES_IMAGE:-}"
+_mios_input MIOS_PORTS_MODEL_ROUTER MIOS_PORT_MODEL_ROUTER MIOS_MODEL_ROUTER_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_MODEL_ROUTER:=8750}"
+[ -n "${MIOS_MODEL_ROUTER_PORT+x}" ] || MIOS_MODEL_ROUTER_PORT="${MIOS_PORTS_MODEL_ROUTER:-}"
 : "${MIOS_NAME:=MiOS AI}"
 : "${MIOS_NETWORKS_MIOS_INSTALL_WANTEDBY:=multi-user.target default.target}"
-[ -n "${MIOS_NETWORKS_MIOS_NETWORK_GATEWAY+x}" ] || MIOS_NETWORKS_MIOS_NETWORK_GATEWAY='${MIOS_CORE_NET_GATEWAY:-10.89.0.1}'
+[ -n "${MIOS_NETWORKS_MIOS_NETWORK_GATEWAY+x}" ] || MIOS_NETWORKS_MIOS_NETWORK_GATEWAY='${MIOS_NETWORK_QUADLET_CORE_GATEWAY:-10.89.0.1}'
 : "${MIOS_NETWORKS_MIOS_NETWORK_LABEL:=io.mios.network=core}"
-[ -n "${MIOS_NETWORKS_MIOS_NETWORK_SUBNET+x}" ] || MIOS_NETWORKS_MIOS_NETWORK_SUBNET='${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}'
+[ -n "${MIOS_NETWORKS_MIOS_NETWORK_SUBNET+x}" ] || MIOS_NETWORKS_MIOS_NETWORK_SUBNET='${MIOS_NETWORK_QUADLET_CORE_SUBNET:-10.89.0.0/24}'
 : "${MIOS_NETWORKS_MIOS_UNIT_DESCRIPTION:=MiOS Core Network}"
 : "${MIOS_NETWORK_ALLOW_COCKPIT:=true}"
 : "${MIOS_NETWORK_ALLOW_LIBVIRT_BRIDGE:=true}"
 : "${MIOS_NETWORK_ALLOW_SSH:=true}"
-: "${MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE:=drop}"
 : "${MIOS_NETWORK_FIREWALL_CONTAINER_MATRIX_DEFAULT_POLICY:=drop}"
 [ -n "${MIOS_NETWORK_FIREWALL_CONTAINER_MATRIX_RULES+x}" ] || MIOS_NETWORK_FIREWALL_CONTAINER_MATRIX_RULES='{ destination = "agent_pipe", port = 8700, protocol = "tcp", source = "open_webui" },{ destination = "hermes", port = 8720, protocol = "tcp", source = "agent_pipe" },{ destination = "pgvector", port = 5432, protocol = "tcp", source = "agent_pipe" },{ destination = "llm_light", port = 8500, protocol = "tcp", source = "agent_pipe" },{ destination = "searxng", port = 8800, protocol = "tcp", source = "hermes" },{ destination = "pgvector", port = 5432, protocol = "tcp", source = "hermes" },{ destination = "forge", port = 8400, protocol = "tcp", source = "forge_runner" }'
 : "${MIOS_NETWORK_NTP_SERVERS:=0.pool.ntp.org,1.pool.ntp.org,2.pool.ntp.org,3.pool.ntp.org}"
-: "${MIOS_NETWORK_QUADLET_CORE_GATEWAY:=10.89.0.1}"
-: "${MIOS_NETWORK_QUADLET_CORE_SUBNET:=10.89.0.0/24}"
+_mios_input MIOS_NETWORK_QUADLET_NETWORK MIOS_QUADLET_NETWORK || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_NETWORK_QUADLET_NETWORK:=mios.network}"
+_mios_input MIOS_NETWORK_QUADLET_SUBNET MIOS_QUADLET_SUBNET || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_NETWORK_QUADLET_SUBNET:=10.89.0.0/24}"
 : "${MIOS_NETWORK_RETRY_DELAYS_SECONDS:=0,5,15,30}"
 : "${MIOS_NETWORK_RETRY_HTTP_STATUS_RETRY:=502,503,504}"
 : "${MIOS_NETWORK_RETRY_TOTAL_TIMEOUT_SEC:=120}"
 : "${MIOS_NODES_LOCAL_CPU_API:=llamacpp}"
-: "${MIOS_PORT_CPU_NODE:=8510}"
-[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_CPU_NODE:-}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORTS_CPU_NODE:-}"'/v1'
 : "${MIOS_NODES_LOCAL_CPU_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_CPU_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_CPU_MODEL:=mios-agent-cpu}"
 : "${MIOS_NODES_LOCAL_IGPU_API:=llamacpp}"
-: "${MIOS_PORT_LLM_IGPU:=8540}"
-[ -n "${MIOS_NODES_LOCAL_IGPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_IGPU_ENDPOINT='http://127.0.0.1:'"${MIOS_PORT_LLM_IGPU:-}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_IGPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_IGPU_ENDPOINT='http://127.0.0.1:'"${MIOS_PORTS_LLM_IGPU:-}"'/v1'
 : "${MIOS_NODES_LOCAL_IGPU_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_IGPU_LANE:=igpu}"
 : "${MIOS_NODES_LOCAL_IGPU_MODEL:=mios-igpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_API:=llamacpp}"
-[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"'/v1'
 : "${MIOS_NODES_LOCAL_LLAMASWAP_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_MODEL:=mios-agent-cpu}"
 : "${MIOS_NODES_LOCAL_SGLANG_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
 : "${MIOS_NODES_LOCAL_SGLANG_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_SGLANG_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_SGLANG_MODEL:=mios-heavy}"
 : "${MIOS_NODES_LOCAL_VLLM_API:=openai}"
-: "${MIOS_PORT_VLLM:=8520}"
-[ -n "${MIOS_NODES_LOCAL_VLLM_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_VLLM_ENDPOINT='http://localhost:'"${MIOS_PORT_VLLM:-}"'/v1'
+_mios_input MIOS_PORTS_VLLM MIOS_PORT_VLLM MIOS_VLLM_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_VLLM:=8520}"
+[ -n "${MIOS_NODES_LOCAL_VLLM_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_VLLM_ENDPOINT='http://localhost:'"${MIOS_PORTS_VLLM:-}"'/v1'
 : "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
-: "${MIOS_NODE_PORT:=8650}"
+[ -n "${MIOS_NODE_PORT+x}" ] || MIOS_NODE_PORT="${MIOS_PORTS_NODE:-}"
 : "${MIOS_OBSERVABILITY_CHANNELS_CONTENT:=content}"
 : "${MIOS_OBSERVABILITY_CHANNELS_PLAN:=reasoning}"
 : "${MIOS_OBSERVABILITY_CHANNELS_SOURCE:=source}"
@@ -1848,8 +2154,9 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OBSERVABILITY_CHANNELS_TOOL_RESULT:=reasoning}"
 : "${MIOS_OBSERVABILITY_DEBUG:=true}"
 : "${MIOS_OBSERVABILITY_OTEL_ENABLE:=false}"
-: "${MIOS_PORT_OTELCOL_OTLP:=8575}"
-[ -n "${MIOS_OBSERVABILITY_OTEL_ENDPOINT+x}" ] || MIOS_OBSERVABILITY_OTEL_ENDPOINT='http://localhost:'"${MIOS_PORT_OTELCOL_OTLP:-}"
+_mios_input MIOS_PORTS_OTELCOL_OTLP MIOS_PORT_OTELCOL_OTLP MIOS_OTELCOL_OTLP_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_OTELCOL_OTLP:=8575}"
+[ -n "${MIOS_OBSERVABILITY_OTEL_ENDPOINT+x}" ] || MIOS_OBSERVABILITY_OTEL_ENDPOINT='http://localhost:'"${MIOS_PORTS_OTELCOL_OTLP:-}"
 : "${MIOS_OBSERVABILITY_RECORD_MODE:=false}"
 : "${MIOS_OBSERVABILITY_REPLAY_MODE:=false}"
 : "${MIOS_OBSERVABILITY_SURFACE_DEFAULT:=clean}"
@@ -1858,24 +2165,34 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OFFLINE_RPM_MIRROR_DIR:=/usr/share/mios/vendored/rpm-mirror}"
 : "${MIOS_OPENCODE_BIN:=/usr/lib/mios/agents/opencode/bin/opencode}"
 : "${MIOS_OPENCODE_CONFIG:=/etc/mios/opencode/opencode.json}"
-: "${MIOS_OPENCODE_GATEWAY_PORT:=8780}"
+[ -n "${MIOS_OPENCODE_GATEWAY_PORT+x}" ] || MIOS_OPENCODE_GATEWAY_PORT="${MIOS_PORTS_OPENCODE_GATEWAY:-}"
 : "${MIOS_OPENCODE_INSTALL_URL:=https://opencode.ai/install}"
 : "${MIOS_OPENCODE_MODEL:=mios-opencode:latest}"
 : "${MIOS_OPENCODE_PROVIDER:=local}"
 : "${MIOS_OPENCODE_TIMEOUT_S:=90}"
 : "${MIOS_OPENCODE_VERSION:=latest}"
 : "${MIOS_OPENCODE_WORKDIR:=/var/lib/mios/opencode-gateway/work}"
-: "${MIOS_OPEN_WEBUI_GID:=817}"
+_mios_input MIOS_SERVICES_OPEN_WEBUI_GID MIOS_OPEN_WEBUI_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_OPEN_WEBUI_GID:=817}"
+[ -n "${MIOS_OPEN_WEBUI_GID+x}" ] || MIOS_OPEN_WEBUI_GID="${MIOS_SERVICES_OPEN_WEBUI_GID:-}"
 : "${MIOS_OPEN_WEBUI_IMAGE:=ghcr.io/open-webui/open-webui:main}"
-: "${MIOS_OPEN_WEBUI_PORT:=8200}"
-: "${MIOS_OPEN_WEBUI_UID:=817}"
-[ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"'/'
-: "${MIOS_OPEN_WEBUI_USER:=mios-open-webui}"
+[ -n "${MIOS_OPEN_WEBUI_PORT+x}" ] || MIOS_OPEN_WEBUI_PORT="${MIOS_PORTS_OPEN_WEBUI:-}"
+_mios_input MIOS_SERVICES_OPEN_WEBUI_UID MIOS_OPEN_WEBUI_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_OPEN_WEBUI_UID:=817}"
+[ -n "${MIOS_OPEN_WEBUI_UID+x}" ] || MIOS_OPEN_WEBUI_UID="${MIOS_SERVICES_OPEN_WEBUI_UID:-}"
+_mios_input MIOS_URLS_OPEN_WEBUI MIOS_OPEN_WEBUI_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORTS_OPEN_WEBUI:-}"'/'
+[ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL="${MIOS_URLS_OPEN_WEBUI:-}"
+_mios_input MIOS_SERVICES_OPEN_WEBUI_USER MIOS_OPEN_WEBUI_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_OPEN_WEBUI_USER:=mios-open-webui}"
+[ -n "${MIOS_OPEN_WEBUI_USER+x}" ] || MIOS_OPEN_WEBUI_USER="${MIOS_SERVICES_OPEN_WEBUI_USER:-}"
 : "${MIOS_OPEN_WEBUI_VERSION:=main}"
 : "${MIOS_ORCHESTRATION_CONDUCTOR_ALLOWED_EXEC_COMMANDS:=/usr/bin/printf}"
 : "${MIOS_ORCHESTRATION_CONDUCTOR_ENABLE:=false}"
 : "${MIOS_ORCHESTRATION_CONDUCTOR_STEP_TIMEOUT:=300}"
-: "${MIOS_OSCONTROL_PORT:=8950}"
+_mios_input MIOS_PORTS_OSCONTROL MIOS_PORT_OSCONTROL MIOS_OSCONTROL_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_OSCONTROL:=8950}"
+[ -n "${MIOS_OSCONTROL_PORT+x}" ] || MIOS_OSCONTROL_PORT="${MIOS_PORTS_OSCONTROL:-}"
 : "${MIOS_OS_CONTROL_DEFAULT_MONITOR:=0}"
 : "${MIOS_OS_CONTROL_DEFAULT_POSITION:=center}"
 : "${MIOS_OS_CONTROL_EDGE_MARGIN_PX:=0}"
@@ -1886,10 +2203,13 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OS_CONTROL_RESTORE_IF_RUNNING:=true}"
 : "${MIOS_OS_CONTROL_TILE_GAP_PX:=8}"
 : "${MIOS_OTELCOL_IMAGE:=docker.io/jaegertracing/all-in-one:latest}"
-: "${MIOS_OTELCOL_OTLP_PORT:=8575}"
-: "${MIOS_OTELCOL_UI_PORT:=8580}"
-: "${MIOS_PORT_OTELCOL_UI:=8580}"
-[ -n "${MIOS_OTELCOL_UI_URL+x}" ] || MIOS_OTELCOL_UI_URL='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
+[ -n "${MIOS_OTELCOL_OTLP_PORT+x}" ] || MIOS_OTELCOL_OTLP_PORT="${MIOS_PORTS_OTELCOL_OTLP:-}"
+_mios_input MIOS_PORTS_OTELCOL_UI MIOS_PORT_OTELCOL_UI MIOS_OTELCOL_UI_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_OTELCOL_UI:=8580}"
+[ -n "${MIOS_OTELCOL_UI_PORT+x}" ] || MIOS_OTELCOL_UI_PORT="${MIOS_PORTS_OTELCOL_UI:-}"
+_mios_input MIOS_URLS_OTELCOL_UI MIOS_OTELCOL_UI_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORTS_OTELCOL_UI:-}"'/'
+[ -n "${MIOS_OTELCOL_UI_URL+x}" ] || MIOS_OTELCOL_UI_URL="${MIOS_URLS_OTELCOL_UI:-}"
 : "${MIOS_OTELCOL_VERSION:=latest}"
 [ -n "${MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE+x}" ] || MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE='# MiOS AI
 Front door of MiOS, a local-first agentic OS. You refine intent, plan,
@@ -1941,119 +2261,150 @@ to" / "let me know".
 : "${MIOS_PASSPORT_KEY_DIR:=/var/lib/mios/agent-passports}"
 : "${MIOS_PASSPORT_ROTATE_DAYS:=365}"
 : "${MIOS_PASSPORT_VERIFY_ON_READ:=false}"
-: "${MIOS_PASSWORD_POLICY:=plain}"
-: "${MIOS_PATHS_AI_DIR:=/usr/share/mios/ai}"
-: "${MIOS_PATHS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
-: "${MIOS_PATHS_AI_MCP_DIR:=/srv/ai/mcp}"
-: "${MIOS_PATHS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
-: "${MIOS_PATHS_AI_MODELS_DIR:=/srv/ai/models}"
-: "${MIOS_PATHS_AI_SCRATCH_DIR:=/var/lib/mios/ai/scratch}"
-[ -n "${MIOS_PATHS_AI_SYSTEM_PROMPT+x}" ] || MIOS_PATHS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR:-}"'/system.md'
-: "${MIOS_PATHS_BLADE_ENV:=/run/mios/blade.env}"
-: "${MIOS_PATHS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
-: "${MIOS_PATHS_CODEMODE_WORKSPACE_ROOT:=/var/lib/mios/codemode}"
-: "${MIOS_PATHS_CODERUN_SNAPSHOTS_ROOT:=/var/home/mios/.coderun-snapshots}"
-: "${MIOS_PATHS_CODERUN_WORKSPACE_ROOT:=/var/home/mios/coderuns}"
-[ -n "${MIOS_PATHS_ETC_AI_DIR+x}" ] || MIOS_PATHS_ETC_AI_DIR="${MIOS_ETC_DIR:-}"'/ai'
-: "${MIOS_PATHS_ETC_DIR:=/etc/mios}"
-[ -n "${MIOS_PATHS_ETC_ENVD_DIR+x}" ] || MIOS_PATHS_ETC_ENVD_DIR="${MIOS_ETC_DIR:-}"'/env.d'
-[ -n "${MIOS_PATHS_ETC_FORGE_DIR+x}" ] || MIOS_PATHS_ETC_FORGE_DIR="${MIOS_ETC_DIR:-}"'/forge'
-: "${MIOS_PATHS_EVERYTHING_CLI:=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe}"
-: "${MIOS_PATHS_EVERYTHING_CLI_VERSION:=1.1.0.37}"
-[ -n "${MIOS_PATHS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_PATHS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR:-}"'/.wsl-firstboot-done'
-: "${MIOS_PATHS_INSTALL_ENV:=/etc/mios/install.env}"
-: "${MIOS_PATHS_LAUNCHER_SOCKET:=/run/mios-launcher/launcher.sock}"
-: "${MIOS_PATHS_LIBEXEC_DIR:=/usr/libexec/mios}"
+[ -n "${MIOS_PASSWORD_POLICY+x}" ] || MIOS_PASSWORD_POLICY="${MIOS_AUTH_PASSWORD_POLICY:-}"
 [ -n "${MIOS_PATHS_MCP_REGISTRY+x}" ] || MIOS_PATHS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR:-}"'/v1/mcp.json'
+_mios_input MIOS_PATHS_MIOS_TOML MIOS_TOML || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_MIOS_TOML:=/usr/share/mios/mios.toml}"
+_mios_input MIOS_PATHS_POWERSHELL_EXE MIOS_POWERSHELL_EXE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_POWERSHELL_EXE:=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+_mios_input MIOS_PATHS_PROFILE_TOML_HOST MIOS_PROFILE_TOML_HOST || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_PROFILE_TOML_HOST:=/etc/mios/profile.toml}"
+_mios_input MIOS_PATHS_PROFILE_TOML_VENDOR MIOS_PROFILE_TOML_VENDOR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_PROFILE_TOML_VENDOR:=/usr/share/mios/profile.toml}"
-[ -n "${MIOS_PATHS_SHARE_AI_DIR+x}" ] || MIOS_PATHS_SHARE_AI_DIR="${MIOS_SHARE_DIR:-}"'/ai'
+_mios_input MIOS_PATHS_SHARE_BRANDING_DIR MIOS_SHARE_BRANDING_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_BRANDING_DIR+x}" ] || MIOS_PATHS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR:-}"'/branding'
+_mios_input MIOS_PATHS_SHARE_CONFIGURATOR_DIR MIOS_SHARE_CONFIGURATOR_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_PATHS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR:-}"'/configurator'
-: "${MIOS_PATHS_SHARE_DIR:=/usr/share/mios}"
+_mios_input MIOS_PATHS_SHARE_DISTROBOX_DIR MIOS_SHARE_DISTROBOX_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_PATHS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR:-}"'/distrobox'
+_mios_input MIOS_PATHS_SHARE_FASTFETCH_DIR MIOS_SHARE_FASTFETCH_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_PATHS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR:-}"'/fastfetch'
+_mios_input MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR MIOS_SHARE_K3S_MANIFESTS_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR:-}"'/k3s-manifests'
+_mios_input MIOS_PATHS_SHARE_KB_DIR MIOS_SHARE_KB_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SHARE_KB_DIR+x}" ] || MIOS_PATHS_SHARE_KB_DIR="${MIOS_SHARE_DIR:-}"'/kb'
-: "${MIOS_SRV_AI_DIR:=/srv/ai}"
-[ -n "${MIOS_PATHS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_PATHS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR:-}"'/collections'
+_mios_input MIOS_PATHS_SRV_AI_DIR MIOS_SRV_AI_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_SRV_AI_DIR:=/srv/ai}"
+[ -n "${MIOS_SRV_AI_DIR+x}" ] || MIOS_SRV_AI_DIR="${MIOS_PATHS_SRV_AI_DIR:-}"
+_mios_input MIOS_PATHS_SRV_AI_COLLECTIONS_DIR MIOS_SRV_AI_COLLECTIONS_DIR || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_PATHS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_PATHS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR:-}"'/collections'
+_mios_input MIOS_PATHS_SRV_AI_MCP_DIR MIOS_SRV_AI_MCP_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SRV_AI_MCP_DIR+x}" ] || MIOS_PATHS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR:-}"'/mcp'
+_mios_input MIOS_PATHS_SRV_AI_MODELS_DIR MIOS_SRV_AI_MODELS_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SRV_AI_MODELS_DIR+x}" ] || MIOS_PATHS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR:-}"'/models'
+_mios_input MIOS_PATHS_SRV_AI_OUTPUTS_DIR MIOS_SRV_AI_OUTPUTS_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_PATHS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR:-}"'/outputs'
+_mios_input MIOS_PATHS_TOML_HOST MIOS_TOML_HOST || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_TOML_HOST+x}" ] || MIOS_PATHS_TOML_HOST="${MIOS_ETC_DIR:-}"'/mios.toml'
+_mios_input MIOS_PATHS_TOML_VENDOR MIOS_TOML_VENDOR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_TOML_VENDOR+x}" ] || MIOS_PATHS_TOML_VENDOR="${MIOS_SHARE_DIR:-}"'/mios.toml'
+_mios_input MIOS_PATHS_USR_DIR MIOS_USR_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_USR_DIR:=/usr/lib/mios}"
+_mios_input MIOS_PATHS_VAR_AI_DIR MIOS_VAR_AI_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_VAR_AI_DIR+x}" ] || MIOS_PATHS_VAR_AI_DIR="${MIOS_VAR_DIR:-}"'/ai'
+_mios_input MIOS_PATHS_VAR_BACKUPS_DIR MIOS_VAR_BACKUPS_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_VAR_BACKUPS_DIR+x}" ] || MIOS_PATHS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR:-}"'/backups'
+_mios_input MIOS_PATHS_VAR_CACHE_DIR MIOS_VAR_CACHE_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_VAR_CACHE_DIR+x}" ] || MIOS_PATHS_VAR_CACHE_DIR="${MIOS_VAR_DIR:-}"'/cache'
-: "${MIOS_PATHS_VAR_DIR:=/var/lib/mios}"
+_mios_input MIOS_PATHS_VAR_MCP_DIR MIOS_VAR_MCP_DIR || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_PATHS_VAR_MCP_DIR+x}" ] || MIOS_PATHS_VAR_MCP_DIR="${MIOS_VAR_DIR:-}"'/mcp'
+_mios_input MIOS_PATHS_WSL_FIRSTBOOT_DONE MIOS_WSLBOOT_DONE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_WSL_FIRSTBOOT_DONE:=/var/lib/mios/.wsl-firstboot-done}"
+_mios_input MIOS_PGVECTOR_BACKFILL_BATCH MIOS_PG_BACKFILL_BATCH || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_BACKFILL_BATCH:=50}"
+_mios_input MIOS_PGVECTOR_BACKUP_DIR MIOS_PG_BACKUP_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_BACKUP_DIR:=/var/lib/mios/backups}"
+_mios_input MIOS_PGVECTOR_BACKUP_ENABLE MIOS_PG_BACKUP_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_BACKUP_ENABLE:=true}"
+_mios_input MIOS_PGVECTOR_BACKUP_KEEP MIOS_PG_BACKUP_KEEP || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_BACKUP_KEEP:=7}"
+_mios_input MIOS_PGVECTOR_DATA_DIR MIOS_PG_DATA_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_DATA_DIR:=/var/lib/mios/pgvector}"
+_mios_input MIOS_PGVECTOR_DB MIOS_PG_DB || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_DB:=mios}"
-: "${MIOS_PGVECTOR_DB_BACKEND:=postgres}"
+_mios_input MIOS_PGVECTOR_EMBED_MODEL MIOS_PG_EMBED_MODEL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_EMBED_MODEL:=nomic-embed-text}"
+_mios_input MIOS_PGVECTOR_EMB_MODEL MIOS_PG_EMB_MODEL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_EMB_MODEL:=nomic-embed-text}"
+_mios_input MIOS_PGVECTOR_EMB_VERSION MIOS_PG_EMB_VERSION || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_EMB_VERSION:=nomic-768-v1}"
+_mios_input MIOS_PGVECTOR_ENABLE MIOS_PG_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_ENABLE:=true}"
-: "${MIOS_PGVECTOR_GID:=826}"
+_mios_input MIOS_SERVICES_PGVECTOR_GID MIOS_PGVECTOR_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PGVECTOR_GID:=826}"
+[ -n "${MIOS_PGVECTOR_GID+x}" ] || MIOS_PGVECTOR_GID="${MIOS_SERVICES_PGVECTOR_GID:-}"
+_mios_input MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN MIOS_PG_HNSW_ITERATIVE_SCAN || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN:=strict_order}"
+_mios_input MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES MIOS_PG_HNSW_MAX_SCAN_TUPLES || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES:=20000}"
+_mios_input MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER:=1}"
+_mios_input MIOS_PGVECTOR_HOST MIOS_PG_HOST || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_HOST:=127.0.0.1}"
 : "${MIOS_PGVECTOR_IMAGE:=docker.io/pgvector/pgvector:latest}"
-: "${MIOS_PGVECTOR_INTERNAL_PORT:=5432}"
+_mios_input MIOS_PORTS_PGVECTOR_INTERNAL MIOS_PORT_PGVECTOR_INTERNAL MIOS_PGVECTOR_INTERNAL_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_PGVECTOR_INTERNAL:=5432}"
+[ -n "${MIOS_PGVECTOR_INTERNAL_PORT+x}" ] || MIOS_PGVECTOR_INTERNAL_PORT="${MIOS_PORTS_PGVECTOR_INTERNAL:-}"
+_mios_input MIOS_PGVECTOR_LISTEN_LOOPBACK MIOS_PG_LISTEN_LOOPBACK || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_LISTEN_LOOPBACK:=true}"
+_mios_input MIOS_PGVECTOR_MEMGUARD_JUDGE_MODE MIOS_PG_MEMGUARD_JUDGE_MODE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_MEMGUARD_JUDGE_MODE:=model}"
+_mios_input MIOS_PGVECTOR_MEMORY_GUARD_MODE MIOS_PG_MEMORY_GUARD_MODE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_MEMORY_GUARD_MODE:=log}"
+_mios_input MIOS_PGVECTOR_MEMORY_PROVIDER MIOS_PG_MEMORY_PROVIDER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_MEMORY_PROVIDER:=pgvector}"
+_mios_input MIOS_PGVECTOR_PASS MIOS_PG_PASS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_PASS:=mios}"
+_mios_input MIOS_PGVECTOR_POOL_ENABLE MIOS_PG_POOL_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_POOL_ENABLE:=false}"
+_mios_input MIOS_PGVECTOR_POOL_MAX MIOS_PG_POOL_MAX || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_POOL_MAX:=8}"
+_mios_input MIOS_PGVECTOR_POOL_MIN MIOS_PG_POOL_MIN || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_POOL_MIN:=0}"
-: "${MIOS_PGVECTOR_PORT:=8600}"
+_mios_input MIOS_PORTS_PGVECTOR MIOS_PORT_PGVECTOR MIOS_PGVECTOR_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_PGVECTOR:=8600}"
+[ -n "${MIOS_PGVECTOR_PORT+x}" ] || MIOS_PGVECTOR_PORT="${MIOS_PORTS_PGVECTOR:-}"
+_mios_input MIOS_PGVECTOR_RESTORE_SQL MIOS_PG_RESTORE_SQL || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_RESTORE_SQL:=/var/lib/mios/pgvector-restore.sql}"
-: "${MIOS_PGVECTOR_RLS_ENABLE:=false}"
+_mios_input MIOS_PGVECTOR_RLS_MODE MIOS_PG_RLS_MODE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_RLS_MODE:=off}"
+_mios_input MIOS_PGVECTOR_SCHEMA_INIT MIOS_PG_SCHEMA_INIT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_SCHEMA_INIT:=/usr/share/mios/postgres/schema-init.sql}"
+_mios_input MIOS_PGVECTOR_SCRATCH_PERSIST MIOS_PG_SCRATCH_PERSIST || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_SCRATCH_PERSIST:=true}"
-: "${MIOS_PGVECTOR_UID:=826}"
-: "${MIOS_PGVECTOR_USER:=mios-pgvector}"
+_mios_input MIOS_SERVICES_PGVECTOR_UID MIOS_PGVECTOR_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PGVECTOR_UID:=826}"
+[ -n "${MIOS_PGVECTOR_UID+x}" ] || MIOS_PGVECTOR_UID="${MIOS_SERVICES_PGVECTOR_UID:-}"
+_mios_input MIOS_PGVECTOR_USER MIOS_PG_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PGVECTOR_USER:=mios}"
 : "${MIOS_PGVECTOR_VERSION:=latest}"
-: "${MIOS_PG_BACKFILL_BATCH:=50}"
-: "${MIOS_PG_BACKUP_DIR:=/var/lib/mios/backups}"
-: "${MIOS_PG_BACKUP_ENABLE:=true}"
-: "${MIOS_PG_BACKUP_KEEP:=7}"
-: "${MIOS_PG_DATA_DIR:=/var/lib/mios/pgvector}"
-: "${MIOS_PG_DB:=mios}"
-: "${MIOS_PG_EMBED_MODEL:=nomic-embed-text}"
-: "${MIOS_PG_EMB_MODEL:=nomic-embed-text}"
-: "${MIOS_PG_EMB_VERSION:=nomic-768-v1}"
-: "${MIOS_PG_ENABLE:=true}"
-: "${MIOS_PG_HNSW_ITERATIVE_SCAN:=strict_order}"
-: "${MIOS_PG_HNSW_MAX_SCAN_TUPLES:=20000}"
-: "${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:=1}"
-: "${MIOS_PG_HOST:=127.0.0.1}"
-: "${MIOS_PG_LISTEN_LOOPBACK:=true}"
-: "${MIOS_PG_MEMGUARD_JUDGE_MODE:=model}"
-: "${MIOS_PG_MEMORY_GUARD_MODE:=log}"
-: "${MIOS_PG_MEMORY_PROVIDER:=pgvector}"
-: "${MIOS_PG_PASS:=mios}"
-: "${MIOS_PG_POOL_ENABLE:=false}"
-: "${MIOS_PG_POOL_MAX:=8}"
-: "${MIOS_PG_POOL_MIN:=0}"
-: "${MIOS_PG_RESTORE_SQL:=/var/lib/mios/pgvector-restore.sql}"
-: "${MIOS_PG_RLS_MODE:=off}"
-: "${MIOS_PG_SCHEMA_INIT:=/usr/share/mios/postgres/schema-init.sql}"
-: "${MIOS_PG_SCRATCH_PERSIST:=true}"
-: "${MIOS_PG_USER:=mios}"
+[ -n "${MIOS_PG_BACKFILL_BATCH+x}" ] || MIOS_PG_BACKFILL_BATCH="${MIOS_PGVECTOR_BACKFILL_BATCH:-}"
+[ -n "${MIOS_PG_BACKUP_DIR+x}" ] || MIOS_PG_BACKUP_DIR="${MIOS_PGVECTOR_BACKUP_DIR:-}"
+[ -n "${MIOS_PG_BACKUP_ENABLE+x}" ] || MIOS_PG_BACKUP_ENABLE="${MIOS_PGVECTOR_BACKUP_ENABLE:-}"
+[ -n "${MIOS_PG_BACKUP_KEEP+x}" ] || MIOS_PG_BACKUP_KEEP="${MIOS_PGVECTOR_BACKUP_KEEP:-}"
+[ -n "${MIOS_PG_DATA_DIR+x}" ] || MIOS_PG_DATA_DIR="${MIOS_PGVECTOR_DATA_DIR:-}"
+[ -n "${MIOS_PG_DB+x}" ] || MIOS_PG_DB="${MIOS_PGVECTOR_DB:-}"
+[ -n "${MIOS_PG_EMBED_MODEL+x}" ] || MIOS_PG_EMBED_MODEL="${MIOS_PGVECTOR_EMBED_MODEL:-}"
+[ -n "${MIOS_PG_EMB_MODEL+x}" ] || MIOS_PG_EMB_MODEL="${MIOS_PGVECTOR_EMB_MODEL:-}"
+[ -n "${MIOS_PG_EMB_VERSION+x}" ] || MIOS_PG_EMB_VERSION="${MIOS_PGVECTOR_EMB_VERSION:-}"
+[ -n "${MIOS_PG_ENABLE+x}" ] || MIOS_PG_ENABLE="${MIOS_PGVECTOR_ENABLE:-}"
+[ -n "${MIOS_PG_HNSW_ITERATIVE_SCAN+x}" ] || MIOS_PG_HNSW_ITERATIVE_SCAN="${MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN:-}"
+[ -n "${MIOS_PG_HNSW_MAX_SCAN_TUPLES+x}" ] || MIOS_PG_HNSW_MAX_SCAN_TUPLES="${MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES:-}"
+[ -n "${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER+x}" ] || MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER="${MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER:-}"
+[ -n "${MIOS_PG_HOST+x}" ] || MIOS_PG_HOST="${MIOS_PGVECTOR_HOST:-}"
+[ -n "${MIOS_PG_LISTEN_LOOPBACK+x}" ] || MIOS_PG_LISTEN_LOOPBACK="${MIOS_PGVECTOR_LISTEN_LOOPBACK:-}"
+[ -n "${MIOS_PG_MEMGUARD_JUDGE_MODE+x}" ] || MIOS_PG_MEMGUARD_JUDGE_MODE="${MIOS_PGVECTOR_MEMGUARD_JUDGE_MODE:-}"
+[ -n "${MIOS_PG_MEMORY_GUARD_MODE+x}" ] || MIOS_PG_MEMORY_GUARD_MODE="${MIOS_PGVECTOR_MEMORY_GUARD_MODE:-}"
+[ -n "${MIOS_PG_MEMORY_PROVIDER+x}" ] || MIOS_PG_MEMORY_PROVIDER="${MIOS_PGVECTOR_MEMORY_PROVIDER:-}"
+[ -n "${MIOS_PG_PASS+x}" ] || MIOS_PG_PASS="${MIOS_PGVECTOR_PASS:-}"
+[ -n "${MIOS_PG_POOL_ENABLE+x}" ] || MIOS_PG_POOL_ENABLE="${MIOS_PGVECTOR_POOL_ENABLE:-}"
+[ -n "${MIOS_PG_POOL_MAX+x}" ] || MIOS_PG_POOL_MAX="${MIOS_PGVECTOR_POOL_MAX:-}"
+[ -n "${MIOS_PG_POOL_MIN+x}" ] || MIOS_PG_POOL_MIN="${MIOS_PGVECTOR_POOL_MIN:-}"
+[ -n "${MIOS_PG_RESTORE_SQL+x}" ] || MIOS_PG_RESTORE_SQL="${MIOS_PGVECTOR_RESTORE_SQL:-}"
+[ -n "${MIOS_PG_RLS_MODE+x}" ] || MIOS_PG_RLS_MODE="${MIOS_PGVECTOR_RLS_MODE:-}"
+[ -n "${MIOS_PG_SCHEMA_INIT+x}" ] || MIOS_PG_SCHEMA_INIT="${MIOS_PGVECTOR_SCHEMA_INIT:-}"
+[ -n "${MIOS_PG_SCRATCH_PERSIST+x}" ] || MIOS_PG_SCRATCH_PERSIST="${MIOS_PGVECTOR_SCRATCH_PERSIST:-}"
+[ -n "${MIOS_PG_USER+x}" ] || MIOS_PG_USER="${MIOS_PGVECTOR_USER:-}"
 [ -n "${MIOS_PIPELINE_BANDS+x}" ] || MIOS_PIPELINE_BANDS='{ purpose = "git-overlay", range = [1, 1] },{ purpose = "build-context", range = [2, 2] },{ purpose = "repos/kernel", range = [5, 7] },{ purpose = "accounts", range = [10, 15] },{ purpose = "hardware-universal", range = [20, 27] },{ purpose = "services", range = [33, 54] },{ purpose = "themes", range = [56, 62] },{ purpose = "ai/desktop/boot/distribution", range = [65, 80] },{ purpose = "finalize/validators", range = [85, 99] }'
 : "${MIOS_PIPELINE_CHECK_INDEX:=usr/share/mios/reference/drift-gate-index.tsv}"
 : "${MIOS_PIPELINE_CHECK_STAGE:=98}"
@@ -2077,13 +2428,27 @@ to" / "let me know".
 : "${MIOS_PIPELINE_REPORTER:=usr/lib/mios/log.sh}"
 : "${MIOS_PIPELINE_SPACE_MAX:=99}"
 : "${MIOS_PIPELINE_SPACE_MIN:=0}"
-: "${MIOS_PIPER_BASE:=localhost/mios-base:latest}"
-: "${MIOS_PIPER_GID:=831}"
-: "${MIOS_PIPER_PORT:=8179}"
-: "${MIOS_PIPER_UID:=831}"
-: "${MIOS_PIPER_USER:=mios-piper}"
-: "${MIOS_PIPER_VERSION:=1.8.0}"
-: "${MIOS_PIPER_VOICE:=en_US-lessac-medium}"
+_mios_input MIOS_SERVICES_PIPER_BASE MIOS_PIPER_BASE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_BASE:=localhost/mios-base:latest}"
+[ -n "${MIOS_PIPER_BASE+x}" ] || MIOS_PIPER_BASE="${MIOS_SERVICES_PIPER_BASE:-}"
+_mios_input MIOS_SERVICES_PIPER_GID MIOS_PIPER_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_GID:=831}"
+[ -n "${MIOS_PIPER_GID+x}" ] || MIOS_PIPER_GID="${MIOS_SERVICES_PIPER_GID:-}"
+_mios_input MIOS_PORTS_PIPER MIOS_PORT_PIPER MIOS_PIPER_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_PIPER:=8179}"
+[ -n "${MIOS_PIPER_PORT+x}" ] || MIOS_PIPER_PORT="${MIOS_PORTS_PIPER:-}"
+_mios_input MIOS_SERVICES_PIPER_UID MIOS_PIPER_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_UID:=831}"
+[ -n "${MIOS_PIPER_UID+x}" ] || MIOS_PIPER_UID="${MIOS_SERVICES_PIPER_UID:-}"
+_mios_input MIOS_SERVICES_PIPER_USER MIOS_PIPER_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_USER:=mios-piper}"
+[ -n "${MIOS_PIPER_USER+x}" ] || MIOS_PIPER_USER="${MIOS_SERVICES_PIPER_USER:-}"
+_mios_input MIOS_SERVICES_PIPER_VERSION MIOS_PIPER_VERSION || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_VERSION:=1.8.0}"
+[ -n "${MIOS_PIPER_VERSION+x}" ] || MIOS_PIPER_VERSION="${MIOS_SERVICES_PIPER_VERSION:-}"
+_mios_input MIOS_SERVICES_PIPER_VOICE MIOS_PIPER_VOICE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_PIPER_VOICE:=en_US-lessac-medium}"
+[ -n "${MIOS_PIPER_VOICE+x}" ] || MIOS_PIPER_VOICE="${MIOS_SERVICES_PIPER_VOICE:-}"
 : "${MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP:=200}"
 : "${MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS:=3}"
 : "${MIOS_PLANNER_SHORT_PROMPT_CHARS:=60}"
@@ -2110,19 +2475,15 @@ to" / "let me know".
 : "${MIOS_PODS_MIOS_WEBTOOLS_WANTED_BY:=multi-user.target,default.target}"
 : "${MIOS_PODS_MIOS_WEBTOOLS_WANTS:=network-online.target,mios-hermes-browser.service,mios-webtools-firstboot.service}"
 : "${MIOS_POLISH_ENABLE:=true}"
-[ -n "${MIOS_POLISH_ENDPOINT+x}" ] || MIOS_POLISH_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
+[ -n "${MIOS_POLISH_ENDPOINT+x}" ] || MIOS_POLISH_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"
 : "${MIOS_POLISH_MAX_TOKENS:=800}"
 : "${MIOS_POLISH_MODEL:=mios-agent}"
-: "${MIOS_POLISH_TIMEOUT_S:=45}"
+_mios_input MIOS_POLISH_TIMEOUT_SECONDS MIOS_POLISH_TIMEOUT_S || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_POLISH_TIMEOUT_SECONDS:=45}"
+[ -n "${MIOS_POLISH_TIMEOUT_S+x}" ] || MIOS_POLISH_TIMEOUT_S="${MIOS_POLISH_TIMEOUT_SECONDS:-}"
 : "${MIOS_PORTAL_CONFIG_MAX_BODY_BYTES:=2097152}"
 : "${MIOS_PORTAL_REQUIRE_LOGIN:=true}"
 : "${MIOS_PORTAL_SESSION_TTL:=604800}"
-: "${MIOS_PORTS_ADGUARD_DNS:=53}"
-: "${MIOS_PORTS_ADGUARD_UI:=8050}"
-: "${MIOS_PORTS_AGENT_PIPE:=8700}"
-: "${MIOS_PORTS_AI_LEGACY:=8640}"
-: "${MIOS_PORTS_ARBITER:=8760}"
 : "${MIOS_PORTS_CATEGORIES_ADMIN_BASE:=8100}"
 : "${MIOS_PORTS_CATEGORIES_ADMIN_DOC:=Host administration surfaces (operator SSH, Cockpit console + discovery shim).}"
 : "${MIOS_PORTS_CATEGORIES_ADMIN_MEMBERS:=ssh,cockpit,cockpit_link}"
@@ -2175,7 +2536,7 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_NODE_MEMBERS:=ai_legacy,field_live_chat,,,,node}"
 : "${MIOS_PORTS_CATEGORIES_NODE_STRIDE:=2}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_BASE:=8560}"
-: "${MIOS_PORTS_CATEGORIES_SIDECAR_DOC:=Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Containers bind the SSOT port (published host-side), while upstream defaults are kept in-container only when published behind host-side SSOT mapping; all Quadlet :-N fallbacks are strictly reconciled against SSOT and enforced by TestQuadletPortFallbacks. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORT_FORGE_SSH.}"
+: "${MIOS_PORTS_CATEGORIES_SIDECAR_DOC:=Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Containers bind the SSOT port (published host-side), while upstream defaults are kept in-container only when published behind host-side SSOT mapping; all Quadlet :-N fallbacks are strictly reconciled against SSOT and enforced by TestQuadletPortFallbacks. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORTS_FORGE_SSH.}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_MEMBERS:=guacd,redis,,otelcol_otlp,otelcol_ui,pxe_hub_api,}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP:=9222}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP_WORKER:=9223}"
@@ -2189,94 +2550,96 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_WEBUI_DOC:=Browser-facing application UIs a human opens directly.}"
 : "${MIOS_PORTS_CATEGORIES_WEBUI_MEMBERS:=open_webui,hermes_dashboard,guacamole_web}"
 : "${MIOS_PORTS_CATEGORIES_WEBUI_STRIDE:=10}"
-: "${MIOS_PORTS_CEPH_DASHBOARD:=8460}"
-: "${MIOS_PORTS_CHROME_CDP:=9222}"
-: "${MIOS_PORTS_CHROME_CDP_WORKER:=9223}"
-: "${MIOS_PORTS_COCKPIT:=8110}"
-: "${MIOS_PORTS_COCKPIT_LINK:=8120}"
-: "${MIOS_PORTS_CODE_SERVER:=8900}"
-: "${MIOS_PORTS_CPU_NODE:=8510}"
-: "${MIOS_PORTS_CRAWL4AI:=8810}"
-: "${MIOS_PORTS_DAEMON_AGENT:=8740}"
+_mios_input MIOS_PORTS_FIELD_LIVE_CHAT MIOS_PORT_FIELD_LIVE_CHAT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_FIELD_LIVE_CHAT:=8642}"
-: "${MIOS_PORTS_FIRECRAWL:=8820}"
-: "${MIOS_PORTS_FORGE_HTTP:=8400}"
-: "${MIOS_PORTS_FORGE_SSH:=8410}"
+_mios_input MIOS_PORTS_GUACAMOLE_WEB MIOS_PORT_GUACAMOLE MIOS_GUACAMOLE_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_GUACAMOLE_WEB:=8220}"
-: "${MIOS_PORTS_GUACD:=8560}"
+_mios_input MIOS_PORTS_HEADSCALE MIOS_PORT_HEADSCALE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_HEADSCALE:=8085}"
-: "${MIOS_PORTS_HERMES:=8720}"
-: "${MIOS_PORTS_HERMES_DASHBOARD:=8210}"
-: "${MIOS_PORTS_K3S_API:=8450}"
-: "${MIOS_PORTS_LLM_IGPU:=8540}"
-: "${MIOS_PORTS_LLM_LIGHT:=8500}"
-: "${MIOS_PORTS_MCP:=8770}"
-: "${MIOS_PORTS_MODEL_ROUTER:=8750}"
-: "${MIOS_PORTS_NODE:=8650}"
-: "${MIOS_PORTS_OPENCODE_GATEWAY:=8780}"
-: "${MIOS_PORTS_OPEN_WEBUI:=8200}"
-: "${MIOS_PORTS_OSCONTROL:=8950}"
-: "${MIOS_PORTS_OTELCOL_OTLP:=8575}"
-: "${MIOS_PORTS_OTELCOL_UI:=8580}"
-: "${MIOS_PORTS_PGVECTOR:=8600}"
-: "${MIOS_PORTS_PGVECTOR_INTERNAL:=5432}"
-: "${MIOS_PORTS_PIPER:=8179}"
+_mios_input MIOS_PORTS_PREFILTER MIOS_PORT_PREFILTER MIOS_PREFILTER_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_PREFILTER:=8710}"
+_mios_input MIOS_PORTS_PXE_HUB_API MIOS_PORT_PXE_HUB_API MIOS_PXE_HUB_API_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_PXE_HUB_API:=8585}"
+_mios_input MIOS_PORTS_RADOSGW MIOS_PORT_RADOSGW MIOS_RADOSGW_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_RADOSGW:=8470}"
+_mios_input MIOS_PORTS_RDP MIOS_PORT_RDP MIOS_RDP_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_RDP:=8300}"
+_mios_input MIOS_PORTS_REDIS MIOS_PORT_REDIS MIOS_REDIS_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_REDIS:=8565}"
+_mios_input MIOS_PORTS_RPC_IGPU MIOS_PORT_RPC_IGPU MIOS_RPC_IGPU_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_RPC_IGPU:=8550}"
+_mios_input MIOS_PORTS_SEARXNG MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_SEARXNG:=8800}"
+_mios_input MIOS_PORTS_SEARXNG_INTERNAL MIOS_PORT_SEARXNG_INTERNAL MIOS_SEARXNG_INTERNAL_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_SEARXNG_INTERNAL:=8080}"
-: "${MIOS_PORTS_SGLANG:=8530}"
+_mios_input MIOS_PORTS_SSH MIOS_PORT_SSH || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_SSH:=8100}"
+_mios_input MIOS_PORTS_STACK_ID MIOS_PORT_STACK_ID MIOS_STACK_ID_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_STACK_ID:=0}"
+_mios_input MIOS_PORTS_TTYD_BASH MIOS_PORT_TTYD_BASH MIOS_TTYD_BASH_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_TTYD_BASH:=8310}"
+_mios_input MIOS_PORTS_TTYD_POWERSHELL MIOS_PORT_TTYD_POWERSHELL MIOS_TTYD_POWERSHELL_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_TTYD_POWERSHELL:=8320}"
+_mios_input MIOS_PORTS_UNBOUND MIOS_PORT_UNBOUND MIOS_UNBOUND_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_UNBOUND:=chrome_cdp_worker,ai_legacy,field_live_chat}"
-: "${MIOS_PORTS_VLLM:=8520}"
+_mios_input MIOS_PORTS_WHISPER MIOS_PORT_WHISPER MIOS_WHISPER_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_WHISPER:=8178}"
-: "${MIOS_PORT_ADGUARD_DNS:=53}"
-: "${MIOS_PORT_ADGUARD_UI:=8050}"
-: "${MIOS_PORT_AI_LEGACY:=8640}"
-: "${MIOS_PORT_ARBITER:=8760}"
-: "${MIOS_PORT_CEPH_DASHBOARD:=8460}"
-: "${MIOS_PORT_CHROME_CDP_WORKER:=9223}"
-: "${MIOS_PORT_COCKPIT_LINK:=8120}"
-: "${MIOS_PORT_CRAWL4AI:=8810}"
-: "${MIOS_PORT_DAEMON_AGENT:=8740}"
-: "${MIOS_PORT_FIELD_LIVE_CHAT:=8642}"
-: "${MIOS_PORT_FIRECRAWL:=8820}"
-: "${MIOS_PORT_FORGE_SSH:=8410}"
-: "${MIOS_PORT_GUACD:=8560}"
-: "${MIOS_PORT_HEADSCALE:=8085}"
-: "${MIOS_PORT_HERMES_DASHBOARD:=8210}"
-: "${MIOS_PORT_K3S_API:=8450}"
-: "${MIOS_PORT_MCP:=8770}"
-: "${MIOS_PORT_MODEL_ROUTER:=8750}"
-: "${MIOS_PORT_OSCONTROL:=8950}"
-: "${MIOS_PORT_PGVECTOR:=8600}"
-: "${MIOS_PORT_PGVECTOR_INTERNAL:=5432}"
-: "${MIOS_PORT_PIPER:=8179}"
-: "${MIOS_PORT_PREFILTER:=8710}"
-: "${MIOS_PORT_PXE_HUB_API:=8585}"
-: "${MIOS_PORT_RADOSGW:=8470}"
-: "${MIOS_PORT_RDP:=8300}"
-: "${MIOS_PORT_REDIS:=8565}"
-: "${MIOS_PORT_RPC_IGPU:=8550}"
-: "${MIOS_PORT_SEARXNG:=8800}"
-: "${MIOS_PORT_SEARXNG_INTERNAL:=8080}"
-: "${MIOS_PORT_SSH:=8100}"
-: "${MIOS_PORT_STACK_ID:=0}"
-: "${MIOS_PORT_TTYD_BASH:=8310}"
-: "${MIOS_PORT_TTYD_POWERSHELL:=8320}"
-: "${MIOS_PORT_UNBOUND:=chrome_cdp_worker,ai_legacy,field_live_chat}"
-: "${MIOS_PORT_WHISPER:=8178}"
+[ -n "${MIOS_PORT_ADGUARD_DNS+x}" ] || MIOS_PORT_ADGUARD_DNS="${MIOS_PORTS_ADGUARD_DNS:-}"
+[ -n "${MIOS_PORT_ADGUARD_UI+x}" ] || MIOS_PORT_ADGUARD_UI="${MIOS_PORTS_ADGUARD_UI:-}"
+[ -n "${MIOS_PORT_AGENT_PIPE+x}" ] || MIOS_PORT_AGENT_PIPE="${MIOS_PORTS_AGENT_PIPE:-}"
+[ -n "${MIOS_PORT_AI_LEGACY+x}" ] || MIOS_PORT_AI_LEGACY="${MIOS_PORTS_AI_LEGACY:-}"
+[ -n "${MIOS_PORT_ARBITER+x}" ] || MIOS_PORT_ARBITER="${MIOS_PORTS_ARBITER:-}"
+[ -n "${MIOS_PORT_CEPH_DASHBOARD+x}" ] || MIOS_PORT_CEPH_DASHBOARD="${MIOS_PORTS_CEPH_DASHBOARD:-}"
+[ -n "${MIOS_PORT_CHROME_CDP+x}" ] || MIOS_PORT_CHROME_CDP="${MIOS_PORTS_CHROME_CDP:-}"
+[ -n "${MIOS_PORT_CHROME_CDP_WORKER+x}" ] || MIOS_PORT_CHROME_CDP_WORKER="${MIOS_PORTS_CHROME_CDP_WORKER:-}"
+[ -n "${MIOS_PORT_COCKPIT+x}" ] || MIOS_PORT_COCKPIT="${MIOS_PORTS_COCKPIT:-}"
+[ -n "${MIOS_PORT_COCKPIT_LINK+x}" ] || MIOS_PORT_COCKPIT_LINK="${MIOS_PORTS_COCKPIT_LINK:-}"
+[ -n "${MIOS_PORT_CODE_SERVER+x}" ] || MIOS_PORT_CODE_SERVER="${MIOS_PORTS_CODE_SERVER:-}"
+[ -n "${MIOS_PORT_CPU_NODE+x}" ] || MIOS_PORT_CPU_NODE="${MIOS_PORTS_CPU_NODE:-}"
+[ -n "${MIOS_PORT_CRAWL4AI+x}" ] || MIOS_PORT_CRAWL4AI="${MIOS_PORTS_CRAWL4AI:-}"
+[ -n "${MIOS_PORT_DAEMON_AGENT+x}" ] || MIOS_PORT_DAEMON_AGENT="${MIOS_PORTS_DAEMON_AGENT:-}"
+[ -n "${MIOS_PORT_FIELD_LIVE_CHAT+x}" ] || MIOS_PORT_FIELD_LIVE_CHAT="${MIOS_PORTS_FIELD_LIVE_CHAT:-}"
+[ -n "${MIOS_PORT_FIRECRAWL+x}" ] || MIOS_PORT_FIRECRAWL="${MIOS_PORTS_FIRECRAWL:-}"
+[ -n "${MIOS_PORT_FORGE_HTTP+x}" ] || MIOS_PORT_FORGE_HTTP="${MIOS_PORTS_FORGE_HTTP:-}"
+[ -n "${MIOS_PORT_FORGE_SSH+x}" ] || MIOS_PORT_FORGE_SSH="${MIOS_PORTS_FORGE_SSH:-}"
+[ -n "${MIOS_PORT_GUACD+x}" ] || MIOS_PORT_GUACD="${MIOS_PORTS_GUACD:-}"
+[ -n "${MIOS_PORT_HEADSCALE+x}" ] || MIOS_PORT_HEADSCALE="${MIOS_PORTS_HEADSCALE:-}"
+[ -n "${MIOS_PORT_HERMES+x}" ] || MIOS_PORT_HERMES="${MIOS_PORTS_HERMES:-}"
+[ -n "${MIOS_PORT_HERMES_DASHBOARD+x}" ] || MIOS_PORT_HERMES_DASHBOARD="${MIOS_PORTS_HERMES_DASHBOARD:-}"
+[ -n "${MIOS_PORT_K3S_API+x}" ] || MIOS_PORT_K3S_API="${MIOS_PORTS_K3S_API:-}"
+[ -n "${MIOS_PORT_LLM_IGPU+x}" ] || MIOS_PORT_LLM_IGPU="${MIOS_PORTS_LLM_IGPU:-}"
+[ -n "${MIOS_PORT_LLM_LIGHT+x}" ] || MIOS_PORT_LLM_LIGHT="${MIOS_PORTS_LLM_LIGHT:-}"
+[ -n "${MIOS_PORT_MCP+x}" ] || MIOS_PORT_MCP="${MIOS_PORTS_MCP:-}"
+[ -n "${MIOS_PORT_MODEL_ROUTER+x}" ] || MIOS_PORT_MODEL_ROUTER="${MIOS_PORTS_MODEL_ROUTER:-}"
+[ -n "${MIOS_PORT_NODE+x}" ] || MIOS_PORT_NODE="${MIOS_PORTS_NODE:-}"
+[ -n "${MIOS_PORT_OPENCODE_GATEWAY+x}" ] || MIOS_PORT_OPENCODE_GATEWAY="${MIOS_PORTS_OPENCODE_GATEWAY:-}"
+[ -n "${MIOS_PORT_OPEN_WEBUI+x}" ] || MIOS_PORT_OPEN_WEBUI="${MIOS_PORTS_OPEN_WEBUI:-}"
+[ -n "${MIOS_PORT_OSCONTROL+x}" ] || MIOS_PORT_OSCONTROL="${MIOS_PORTS_OSCONTROL:-}"
+[ -n "${MIOS_PORT_OTELCOL_OTLP+x}" ] || MIOS_PORT_OTELCOL_OTLP="${MIOS_PORTS_OTELCOL_OTLP:-}"
+[ -n "${MIOS_PORT_OTELCOL_UI+x}" ] || MIOS_PORT_OTELCOL_UI="${MIOS_PORTS_OTELCOL_UI:-}"
+[ -n "${MIOS_PORT_PGVECTOR+x}" ] || MIOS_PORT_PGVECTOR="${MIOS_PORTS_PGVECTOR:-}"
+[ -n "${MIOS_PORT_PGVECTOR_INTERNAL+x}" ] || MIOS_PORT_PGVECTOR_INTERNAL="${MIOS_PORTS_PGVECTOR_INTERNAL:-}"
+[ -n "${MIOS_PORT_PIPER+x}" ] || MIOS_PORT_PIPER="${MIOS_PORTS_PIPER:-}"
+[ -n "${MIOS_PORT_PREFILTER+x}" ] || MIOS_PORT_PREFILTER="${MIOS_PORTS_PREFILTER:-}"
+[ -n "${MIOS_PORT_PXE_HUB_API+x}" ] || MIOS_PORT_PXE_HUB_API="${MIOS_PORTS_PXE_HUB_API:-}"
+[ -n "${MIOS_PORT_RADOSGW+x}" ] || MIOS_PORT_RADOSGW="${MIOS_PORTS_RADOSGW:-}"
+[ -n "${MIOS_PORT_RDP+x}" ] || MIOS_PORT_RDP="${MIOS_PORTS_RDP:-}"
+[ -n "${MIOS_PORT_REDIS+x}" ] || MIOS_PORT_REDIS="${MIOS_PORTS_REDIS:-}"
+[ -n "${MIOS_PORT_RPC_IGPU+x}" ] || MIOS_PORT_RPC_IGPU="${MIOS_PORTS_RPC_IGPU:-}"
+[ -n "${MIOS_PORT_SEARXNG+x}" ] || MIOS_PORT_SEARXNG="${MIOS_PORTS_SEARXNG:-}"
+[ -n "${MIOS_PORT_SEARXNG_INTERNAL+x}" ] || MIOS_PORT_SEARXNG_INTERNAL="${MIOS_PORTS_SEARXNG_INTERNAL:-}"
+[ -n "${MIOS_PORT_SGLANG+x}" ] || MIOS_PORT_SGLANG="${MIOS_PORTS_SGLANG:-}"
+[ -n "${MIOS_PORT_SSH+x}" ] || MIOS_PORT_SSH="${MIOS_PORTS_SSH:-}"
+[ -n "${MIOS_PORT_STACK_ID+x}" ] || MIOS_PORT_STACK_ID="${MIOS_PORTS_STACK_ID:-}"
+[ -n "${MIOS_PORT_TTYD_BASH+x}" ] || MIOS_PORT_TTYD_BASH="${MIOS_PORTS_TTYD_BASH:-}"
+[ -n "${MIOS_PORT_TTYD_POWERSHELL+x}" ] || MIOS_PORT_TTYD_POWERSHELL="${MIOS_PORTS_TTYD_POWERSHELL:-}"
+[ -n "${MIOS_PORT_UNBOUND+x}" ] || MIOS_PORT_UNBOUND="${MIOS_PORTS_UNBOUND:-}"
+[ -n "${MIOS_PORT_VLLM+x}" ] || MIOS_PORT_VLLM="${MIOS_PORTS_VLLM:-}"
+[ -n "${MIOS_PORT_WHISPER+x}" ] || MIOS_PORT_WHISPER="${MIOS_PORTS_WHISPER:-}"
 : "${MIOS_POSTGRES_IMAGE:=docker.io/library/postgres:latest}"
 : "${MIOS_POSTGRES_VERSION:=latest}"
 : "${MIOS_POWERSHELL_ENUMERATION_LIMIT:=16}"
-: "${MIOS_POWERSHELL_EXE:=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+[ -n "${MIOS_POWERSHELL_EXE+x}" ] || MIOS_POWERSHELL_EXE="${MIOS_PATHS_POWERSHELL_EXE:-}"
 : "${MIOS_POWERSHELL_FLATTEN:=true}"
 : "${MIOS_POWERSHELL_FLATTEN_WIDTH:=200}"
 : "${MIOS_POWERSHELL_MAX_OUTPUT_BYTES:=262144}"
@@ -2287,9 +2650,13 @@ to" / "let me know".
 : "${MIOS_POWER_UPS_DESC:=MiOS Uninterruptible Power Supply}"
 : "${MIOS_POWER_UPS_DRIVER:=usbhid-ups}"
 : "${MIOS_POWER_UPS_PORT:=auto}"
-: "${MIOS_PREFILTER_CLASSIFY_TIMEOUT_S:=6}"
-: "${MIOS_PREFILTER_CONVERSATIONAL_BYPASS_MODE:=model}"
-: "${MIOS_PREFILTER_PORT:=8710}"
+_mios_input MIOS_ROUTING_PREFILTER_CLASSIFY_TIMEOUT_S MIOS_PREFILTER_CLASSIFY_TIMEOUT_S || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_PREFILTER_CLASSIFY_TIMEOUT_S:=6}"
+[ -n "${MIOS_PREFILTER_CLASSIFY_TIMEOUT_S+x}" ] || MIOS_PREFILTER_CLASSIFY_TIMEOUT_S="${MIOS_ROUTING_PREFILTER_CLASSIFY_TIMEOUT_S:-}"
+_mios_input MIOS_ROUTING_PREFILTER_CONVERSATIONAL_BYPASS_MODE MIOS_PREFILTER_CONVERSATIONAL_BYPASS_MODE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_ROUTING_PREFILTER_CONVERSATIONAL_BYPASS_MODE:=model}"
+[ -n "${MIOS_PREFILTER_CONVERSATIONAL_BYPASS_MODE+x}" ] || MIOS_PREFILTER_CONVERSATIONAL_BYPASS_MODE="${MIOS_ROUTING_PREFILTER_CONVERSATIONAL_BYPASS_MODE:-}"
+[ -n "${MIOS_PREFILTER_PORT+x}" ] || MIOS_PREFILTER_PORT="${MIOS_PORTS_PREFILTER:-}"
 : "${MIOS_PREFLIGHT_BUILD_MIN_DISK_FREE_GB:=20}"
 : "${MIOS_PREFLIGHT_BUILD_REQUIRED_FILES:=Containerfile}"
 : "${MIOS_PREFLIGHT_BUILD_REQUIRED_TOOLS:=podman,git,just}"
@@ -2310,15 +2677,15 @@ to" / "let me know".
 : "${MIOS_PROFILES_FULL_ALL:=true}"
 : "${MIOS_PROFILES_FULL_SUMMARY:=every enabled section and every registered phase}"
 : "${MIOS_PROFILES_FULL_TARGETS:=oci,wsl2}"
-: "${MIOS_PROFILE_TOML_HOST:=/etc/mios/profile.toml}"
-: "${MIOS_PROFILE_TOML_VENDOR:=/usr/share/mios/profile.toml}"
+[ -n "${MIOS_PROFILE_TOML_HOST+x}" ] || MIOS_PROFILE_TOML_HOST="${MIOS_PATHS_PROFILE_TOML_HOST:-}"
+[ -n "${MIOS_PROFILE_TOML_VENDOR+x}" ] || MIOS_PROFILE_TOML_VENDOR="${MIOS_PATHS_PROFILE_TOML_VENDOR:-}"
 : "${MIOS_PSI_CLEAR_MARGIN_PCT:=10.0}"
 : "${MIOS_PSI_CRITICAL_THRESHOLD:=70.0}"
 : "${MIOS_PSI_ENABLE:=true}"
 : "${MIOS_PSI_SAMPLE_INTERVAL_MS:=2000}"
 : "${MIOS_PSI_THROTTLE_STATUS:=429}"
 : "${MIOS_PSI_WARNING_THRESHOLD:=40.0}"
-: "${MIOS_PXE_HUB_API_PORT:=8585}"
+[ -n "${MIOS_PXE_HUB_API_PORT+x}" ] || MIOS_PXE_HUB_API_PORT="${MIOS_PORTS_PXE_HUB_API:-}"
 : "${MIOS_PXE_HUB_IMAGE:=quay.io/poseidon/matchbox:latest}"
 : "${MIOS_PXE_HUB_VERSION:=latest}"
 : "${MIOS_QUADLETS_ENABLE_MIOS_ADGUARD:=true}"
@@ -2332,13 +2699,15 @@ to" / "let me know".
 : "${MIOS_QUADLETS_ENABLE_MIOS_PXE_HUB:=true}"
 : "${MIOS_QUADLETS_ENABLE_MIOS_RADOSGW:=true}"
 : "${MIOS_QUADLETS_SCOPE_USER:=mios-sunshine}"
-: "${MIOS_QUADLET_DEV_NETWORK_MODE:=host}"
-: "${MIOS_QUADLET_NETWORK:=mios.network}"
-: "${MIOS_QUADLET_SUBNET:=10.89.0.0/24}"
-: "${MIOS_RADOSGW_PORT:=8470}"
-: "${MIOS_RDP_PORT:=8300}"
-: "${MIOS_RECHUNK_MAX_LAYERS:=67}"
-: "${MIOS_REDIS_PORT:=8565}"
+_mios_input MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE MIOS_QUADLET_DEV_NETWORK_MODE || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE:=host}"
+[ -n "${MIOS_QUADLET_DEV_NETWORK_MODE+x}" ] || MIOS_QUADLET_DEV_NETWORK_MODE="${MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE:-}"
+[ -n "${MIOS_QUADLET_NETWORK+x}" ] || MIOS_QUADLET_NETWORK="${MIOS_NETWORK_QUADLET_NETWORK:-}"
+[ -n "${MIOS_QUADLET_SUBNET+x}" ] || MIOS_QUADLET_SUBNET="${MIOS_NETWORK_QUADLET_SUBNET:-}"
+[ -n "${MIOS_RADOSGW_PORT+x}" ] || MIOS_RADOSGW_PORT="${MIOS_PORTS_RADOSGW:-}"
+[ -n "${MIOS_RDP_PORT+x}" ] || MIOS_RDP_PORT="${MIOS_PORTS_RDP:-}"
+[ -n "${MIOS_RECHUNK_MAX_LAYERS+x}" ] || MIOS_RECHUNK_MAX_LAYERS="${MIOS_BUILD_RECHUNK_MAX_LAYERS:-}"
+[ -n "${MIOS_REDIS_PORT+x}" ] || MIOS_REDIS_PORT="${MIOS_PORTS_REDIS:-}"
 : "${MIOS_REFACTOR_MAX_LINES:=800}"
 [ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{ lines = 1375, path = "mios_pipe/federation/a2a.py" },{ lines = 688, path = "mios_pipe/federation/http_caps.py" },{ lines = 871, path = "mios_pipe/memory/knowledge.py" },{ lines = 1093, path = "mios_pipe/routing/agent_call.py" },{ lines = 1668, path = "mios_pipe/routing/chat.py" },{ lines = 1127, path = "mios_pipe/routing/dag_exec.py" },{ lines = 1143, path = "mios_pipe/routing/native_loop.py" },{ lines = 1560, path = "mios_pipe/routing/portal.py" },{ lines = 1071, path = "mios_pipe/routing/refine.py" },{ lines = 992, path = "mios_pipe/routing/swarm.py" },{ lines = 909, path = "mios_pipe/routing/web_research.py" },{ lines = 971, path = "mios_audio_tts.py" },{ lines = 800, path = "mios_dispatch.py" },{ lines = 891, path = "mios_mesh_distributor.py" },{ lines = 899, path = "mios_ocr_mask.py" },{ lines = 1202, path = "mios_vision_redact.py" },{ lines = 4736, path = "server.py" }'
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
@@ -2346,17 +2715,24 @@ to" / "let me know".
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
 : "${MIOS_REFINE_DISPATCH_CHARS:=60}"
 : "${MIOS_REFINE_ENABLE:=true}"
-[ -n "${MIOS_REFINE_ENDPOINT+x}" ] || MIOS_REFINE_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
+[ -n "${MIOS_REFINE_ENDPOINT+x}" ] || MIOS_REFINE_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_LIGHT:-}"
 : "${MIOS_REFINE_MAX_TOKENS:=1200}"
 : "${MIOS_REFINE_MODEL:=mios-agent}"
 : "${MIOS_REFINE_PROMOTE_CHARS:=100}"
-: "${MIOS_REFINE_TIMEOUT_S:=45}"
+_mios_input MIOS_REFINE_TIMEOUT_SECONDS MIOS_REFINE_TIMEOUT_S || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_REFINE_TIMEOUT_SECONDS:=45}"
+[ -n "${MIOS_REFINE_TIMEOUT_S+x}" ] || MIOS_REFINE_TIMEOUT_S="${MIOS_REFINE_TIMEOUT_SECONDS:-}"
 [ -n "${MIOS_REFLECT_JUDGE_EXAMPLES+x}" ] || MIOS_REFLECT_JUDGE_EXAMPLES='a punt, refusal, '"'"'I cannot'"'"', or '"'"'where to look'"'"''
 : "${MIOS_RELIABILITY_GATE_ENABLED:=false}"
 : "${MIOS_RELIABILITY_PASS_AND_K_COUNT:=3}"
 : "${MIOS_RELIABILITY_PASS_AND_K_DGM_COUNT:=5}"
-[ -n "${MIOS_REMEMBER_TRIGGER_PHRASES+x}" ] || MIOS_REMEMBER_TRIGGER_PHRASES='remember,note,save,keep in mind,don'"'"'t forget,make a note'
+_mios_input MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES MIOS_REMEMBER_TRIGGER_PHRASES || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES+x}" ] || MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES='remember,note,save,keep in mind,don'"'"'t forget,make a note'
+[ -n "${MIOS_REMEMBER_TRIGGER_PHRASES+x}" ] || MIOS_REMEMBER_TRIGGER_PHRASES="${MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES:-}"
+[ -n "${MIOS_REPOS_EXTERNAL_HYPRLAND_BASEURL+x}" ] || MIOS_REPOS_EXTERNAL_HYPRLAND_BASEURL='https://download.copr.fedorainfracloud.org/results/nett00n/hyprland/fedora-$releasever-$basearch/'
+: "${MIOS_REPOS_EXTERNAL_HYPRLAND_ENABLED:=true}"
+: "${MIOS_REPOS_EXTERNAL_HYPRLAND_GPGKEY:=https://download.copr.fedorainfracloud.org/results/nett00n/hyprland/pubkey.gpg}"
+: "${MIOS_REPOS_EXTERNAL_HYPRLAND_NAME:=MiOS Hyprland and Quickshell dependencies (nett00n COPR)}"
 : "${MIOS_REPOS_FEDORA_ENABLED:=true}"
 : "${MIOS_REPOS_FEDORA_GPGCHECK:=true}"
 [ -n "${MIOS_REPOS_FEDORA_GPGKEY+x}" ] || MIOS_REPOS_FEDORA_GPGKEY='file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{ver}-x86_64'
@@ -2387,28 +2763,14 @@ to" / "let me know".
 : "${MIOS_RESOLVER_MAX_KEY_DIVERGENCE:=983}"
 : "${MIOS_RESOLVER_MAX_VALUE_DIVERGENCE:=0}"
 [ -n "${MIOS_ROLE+x}" ] || MIOS_ROLE='the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)'
-: "${MIOS_ROUTER_ENABLE:=true}"
-: "${MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS:=enable,force,success,active,dryrun}"
-: "${MIOS_ROUTING_BROWSER_ACTION_VERBS:=quote,read,tell,summarise,summarize,what is,what does,what say,what says,first sentence,the content,browse,extract,scrape,headline,article,say}"
-: "${MIOS_ROUTING_COMPOUND_ACTIONS:=type,write,enter,input,paste,put}"
-: "${MIOS_ROUTING_COMPOUND_CONJUNCTIONS:=and,then}"
-: "${MIOS_ROUTING_COMPOUND_CONNECTIVES:=in,and,then,with,on,to}"
-: "${MIOS_ROUTING_INTEGER_PARAM_KEYWORDS:=limit,count,timeout,port,every,concurrency,maxsize}"
-: "${MIOS_ROUTING_LAUNCH_FILLER_PHRASES:=for me please,on my desktop,on the desktop,right now,real quick,thank you,for me,please,thanks,now}"
-[ -n "${MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES+x}" ] || MIOS_ROUTING_LAUNCH_FOLLOWUP_PHRASES='didn'"'"'t launch,did not launch,didn'"'"'t open,did not open,didn'"'"'t start,did not start,didn'"'"'t come up,did not come up,didn'"'"'t work,did not work,wouldn'"'"'t open,would not open,no window,nothing happened,nothing opened,never opened,never launched,not opening,not launching,isn'"'"'t open,is not open,isn'"'"'t running,is not running,won'"'"'t open,won'"'"'t launch,doesn'"'"'t open,does not open,failed to open,failed to launch'
-: "${MIOS_ROUTING_LAUNCH_RETRY_PHRASES:=attempt to launch and verify,launch and verify,launch it and verify,try to launch and verify,open and verify,open it and verify,try launching it again,try launching again,try opening it again,try opening again,launch it again,open it again,start it again,run it again,try again,attempt again,retry,relaunch,re-launch,reopen,re-open,try once more,one more time,attempt to launch,attempt the launch,verify the launch,launch and confirm,open and confirm}"
-: "${MIOS_ROUTING_LAUNCH_TARGET_LEAD_PHRASES:=the,a,an,my}"
-: "${MIOS_ROUTING_LAUNCH_TARGET_TRAIL_PHRASES:=application,program,app,window}"
-: "${MIOS_ROUTING_LOCATION_SENSITIVE_PHRASES:=weather,forecast,near me,nearby,near here,around here,local news,local,my area,things to do,restaurants,closest,directions to}"
-: "${MIOS_ROUTING_MODEL_MODALITIES_EMBEDDINGS:=embed,bert,text-embedding,bge}"
-: "${MIOS_ROUTING_MODEL_MODALITIES_IMAGE:=diffuse,flux,dall,midjourney,sd}"
-: "${MIOS_ROUTING_PREFILTER_CLASSIFY_TIMEOUT_S:=6}"
-: "${MIOS_ROUTING_PREFILTER_CONVERSATIONAL_BYPASS_MODE:=model}"
-[ -n "${MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES+x}" ] || MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES='remember,note,save,keep in mind,don'"'"'t forget,make a note'
+_mios_input MIOS_ROUTING_ROUTER_ENABLE MIOS_ROUTER_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_ROUTING_ROUTER_ENABLE:=true}"
+[ -n "${MIOS_ROUTER_ENABLE+x}" ] || MIOS_ROUTER_ENABLE="${MIOS_ROUTING_ROUTER_ENABLE:-}"
+_mios_input MIOS_ROUTING_WEB_SEARCH_TRIGGER_CONTEXTS MIOS_WEB_SEARCH_TRIGGER_CONTEXTS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_ROUTING_WEB_SEARCH_TRIGGER_CONTEXTS:=web,internet,online}"
+_mios_input MIOS_ROUTING_WEB_SEARCH_TRIGGER_PHRASES MIOS_WEB_SEARCH_TRIGGER_PHRASES || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_ROUTING_WEB_SEARCH_TRIGGER_PHRASES:=search,look up,google,find,search the web,search online}"
-: "${MIOS_RPC_IGPU_PORT:=8550}"
+[ -n "${MIOS_RPC_IGPU_PORT+x}" ] || MIOS_RPC_IGPU_PORT="${MIOS_PORTS_RPC_IGPU:-}"
 : "${MIOS_RUN_TEMPLATE_ENABLE:=true}"
 : "${MIOS_RUN_TEMPLATE_REPLAY_CANDIDATES:=50}"
 : "${MIOS_RUN_TEMPLATE_REPLAY_ENABLE:=false}"
@@ -2537,14 +2899,22 @@ to" / "let me know".
 [ -n "${MIOS_SCHEMA_UNCONSUMED+x}" ] || MIOS_SCHEMA_UNCONSUMED='{ reason = "T-151 WS-SEC: declared ahead of the FIDO2 enrolment path", table = "mios_security.fido2_keys" },{ reason = "T-151 WS-SEC: declared ahead of the USBGuard rule sync", table = "mios_security.usb_rules" },{ reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync", table = "mios_security.headscale_users" },{ reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync", table = "mios_security.headscale_preauth_keys" },{ reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync", table = "mios_security.headscale_acl_rules" },{ reason = "T-151 WS-SEC: declared ahead of the vault integration", table = "mios_security.keepass_vaults" },{ reason = "T-246: duplicate of the live account_preference; RESOLVE, do not extend", table = "mios_identity.account_preferences" },{ reason = "person graph: declared ahead of any device-enrolment writer", table = "person_device" },{ reason = "person graph: declared ahead of any app-inventory writer", table = "person_app_install" }'
 : "${MIOS_SEARCH_ANCHOR_STOPWORDS:=the,a,an,of,to,from,and,or,for,in,on,at,by,with,as,is,are,was,were,be,this,that,these,those,it,its,me,my,we,our,you,your,they,them,what,which,who,when,where,why,how,do,does,did,can,could,will,would,should,may,might,near,into,about,than,then,there,here,out,not,no,all,any,some,more,most,find,get,make,show,give,tell,list,need,want,like,use,using,best,cheap,cheapest}"
 : "${MIOS_SEARCH_ENABLE:=true}"
-[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORT_SEARXNG:-}"'/'
-: "${MIOS_SEARXNG_GID:=818}"
+[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORTS_SEARXNG:-}"'/'
+_mios_input MIOS_SERVICES_SEARXNG_GID MIOS_SEARXNG_GID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_SEARXNG_GID:=818}"
+[ -n "${MIOS_SEARXNG_GID+x}" ] || MIOS_SEARXNG_GID="${MIOS_SERVICES_SEARXNG_GID:-}"
 : "${MIOS_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
-: "${MIOS_SEARXNG_INTERNAL_PORT:=8080}"
-: "${MIOS_SEARXNG_PORT:=8800}"
-: "${MIOS_SEARXNG_UID:=818}"
-[ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL='http://localhost:'"${MIOS_PORT_SEARXNG:-}"
-: "${MIOS_SEARXNG_USER:=mios-searxng}"
+[ -n "${MIOS_SEARXNG_INTERNAL_PORT+x}" ] || MIOS_SEARXNG_INTERNAL_PORT="${MIOS_PORTS_SEARXNG_INTERNAL:-}"
+[ -n "${MIOS_SEARXNG_PORT+x}" ] || MIOS_SEARXNG_PORT="${MIOS_PORTS_SEARXNG:-}"
+_mios_input MIOS_SERVICES_SEARXNG_UID MIOS_SEARXNG_UID || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_SEARXNG_UID:=818}"
+[ -n "${MIOS_SEARXNG_UID+x}" ] || MIOS_SEARXNG_UID="${MIOS_SERVICES_SEARXNG_UID:-}"
+_mios_input MIOS_URLS_SEARXNG MIOS_SEARXNG_URL || { return 1 2>/dev/null || exit 1; }
+[ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORTS_SEARXNG:-}"
+[ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL="${MIOS_URLS_SEARXNG:-}"
+_mios_input MIOS_SERVICES_SEARXNG_USER MIOS_SEARXNG_USER || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_SERVICES_SEARXNG_USER:=mios-searxng}"
+[ -n "${MIOS_SEARXNG_USER+x}" ] || MIOS_SEARXNG_USER="${MIOS_SERVICES_SEARXNG_USER:-}"
 : "${MIOS_SEARXNG_VERSION:=latest}"
 : "${MIOS_SECURITY_ALLOWLIST_HOSTS:=localhost,127.0.0.1,::1,host.containers.internal,mios-llm-light,mios-open-webui,mios-hermes,mios-pgvector,mios-forge,mios-searxng,mios-crawl4ai,mios-code-server}"
 : "${MIOS_SECURITY_PROBE_VERIFY_TLS:=true}"
@@ -2564,54 +2934,21 @@ to" / "let me know".
 : "${MIOS_SELFIMPROVE_SOLVER_GAP_MIN:=0.2}"
 : "${MIOS_SELFIMPROVE_STRONG_SOLVER:=heavy}"
 : "${MIOS_SELFIMPROVE_WEAK_SOLVER:=light}"
-: "${MIOS_SENTENCE_ABBREVIATIONS:=approx.,Approx.,e.g.,i.e.,vs.,etc.,U.S.,U.K.,a.m.,p.m.,No.,Inc.,Co.,Ltd.,St.,Mt.}"
-: "${MIOS_SERVICES_ADGUARD_GID:=825}"
-: "${MIOS_SERVICES_ADGUARD_UID:=825}"
-: "${MIOS_SERVICES_ADGUARD_USER:=mios-adguard}"
-: "${MIOS_SERVICES_AGENT_PIPE_GID:=822}"
-: "${MIOS_SERVICES_AGENT_PIPE_UID:=822}"
-: "${MIOS_SERVICES_AGENT_PIPE_USER:=mios-agent-pipe}"
-: "${MIOS_SERVICES_CEPH_GID:=819}"
-: "${MIOS_SERVICES_CEPH_UID:=819}"
-: "${MIOS_SERVICES_CEPH_USER:=mios-ceph}"
-: "${MIOS_SERVICES_FORGE_GID:=816}"
-: "${MIOS_SERVICES_FORGE_UID:=816}"
-: "${MIOS_SERVICES_FORGE_USER:=mios-forge}"
-: "${MIOS_SERVICES_HEADSCALE_GID:=833}"
-: "${MIOS_SERVICES_HEADSCALE_UID:=833}"
-: "${MIOS_SERVICES_HEADSCALE_USER:=mios-headscale}"
-: "${MIOS_SERVICES_HERMES_GID:=820}"
-: "${MIOS_SERVICES_HERMES_UID:=820}"
-: "${MIOS_SERVICES_HERMES_USER:=mios-hermes}"
-: "${MIOS_SERVICES_LLAMACPP_GID:=827}"
-: "${MIOS_SERVICES_LLAMACPP_UID:=827}"
-: "${MIOS_SERVICES_LLAMACPP_USER:=mios-llamacpp}"
-: "${MIOS_SERVICES_OPEN_WEBUI_GID:=817}"
-: "${MIOS_SERVICES_OPEN_WEBUI_UID:=817}"
-: "${MIOS_SERVICES_OPEN_WEBUI_USER:=mios-open-webui}"
-: "${MIOS_SERVICES_PGVECTOR_GID:=826}"
-: "${MIOS_SERVICES_PGVECTOR_UID:=826}"
+_mios_input MIOS_VERITY_SENTENCE_ABBREVIATIONS MIOS_SENTENCE_ABBREVIATIONS || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_VERITY_SENTENCE_ABBREVIATIONS:=approx.,Approx.,e.g.,i.e.,vs.,etc.,U.S.,U.K.,a.m.,p.m.,No.,Inc.,Co.,Ltd.,St.,Mt.}"
+[ -n "${MIOS_SENTENCE_ABBREVIATIONS+x}" ] || MIOS_SENTENCE_ABBREVIATIONS="${MIOS_VERITY_SENTENCE_ABBREVIATIONS:-}"
 : "${MIOS_SERVICES_PGVECTOR_USER:=mios-pgvector}"
-: "${MIOS_SERVICES_PIPER_BASE:=localhost/mios-base:latest}"
-: "${MIOS_SERVICES_PIPER_GID:=831}"
-: "${MIOS_SERVICES_PIPER_UID:=831}"
-: "${MIOS_SERVICES_PIPER_USER:=mios-piper}"
-: "${MIOS_SERVICES_PIPER_VERSION:=1.8.0}"
-: "${MIOS_SERVICES_PIPER_VOICE:=en_US-lessac-medium}"
-: "${MIOS_SERVICES_SEARXNG_GID:=818}"
-: "${MIOS_SERVICES_SEARXNG_UID:=818}"
-: "${MIOS_SERVICES_SEARXNG_USER:=mios-searxng}"
-: "${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:=true}"
-[ -n "${MIOS_SERVICES_WEBTOOLS_CDP_URL+x}" ] || MIOS_SERVICES_WEBTOOLS_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP:-}"
-: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:=mios}"
-: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:=INFO}"
-: "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:=2}"
+_mios_input MIOS_SERVICES_WEBTOOLS_GID MIOS_WEBTOOLS_GID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WEBTOOLS_GID:=824}"
-: "${MIOS_SERVICES_WEBTOOLS_MIN_CHARS:=200}"
+_mios_input MIOS_SERVICES_WEBTOOLS_UID MIOS_WEBTOOLS_UID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WEBTOOLS_UID:=824}"
+_mios_input MIOS_SERVICES_WEBTOOLS_USER MIOS_WEBTOOLS_USER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WEBTOOLS_USER:=mios-crawl4ai}"
+_mios_input MIOS_SERVICES_WHISPER_GID MIOS_WHISPER_GID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WHISPER_GID:=832}"
+_mios_input MIOS_SERVICES_WHISPER_UID MIOS_WHISPER_UID || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WHISPER_UID:=832}"
+_mios_input MIOS_SERVICES_WHISPER_USER MIOS_WHISPER_USER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_WHISPER_USER:=mios-whisper}"
 : "${MIOS_SGLANG_BAKE_MODEL:=stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ}"
 : "${MIOS_SGLANG_ENABLE:=false}"
@@ -2620,16 +2957,16 @@ to" / "let me know".
 : "${MIOS_SGLANG_IMAGE:=docker.io/lmsysorg/sglang:latest}"
 : "${MIOS_SGLANG_KV_CACHE_DTYPE:=fp8_e5m2}"
 : "${MIOS_SGLANG_MEM_FRACTION:=0.85}"
-: "${MIOS_SGLANG_PORT:=8530}"
+[ -n "${MIOS_SGLANG_PORT+x}" ] || MIOS_SGLANG_PORT="${MIOS_PORTS_SGLANG:-}"
 : "${MIOS_SGLANG_SERVED_NAME:=mios-heavy}"
 : "${MIOS_SGLANG_TOOL_PARSER:=qwen25}"
 : "${MIOS_SGLANG_VERSION:=latest}"
-[ -n "${MIOS_SHARE_BRANDING_DIR+x}" ] || MIOS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR:-}"'/branding'
-[ -n "${MIOS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR:-}"'/configurator'
-[ -n "${MIOS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR:-}"'/distrobox'
-[ -n "${MIOS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR:-}"'/fastfetch'
-[ -n "${MIOS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR:-}"'/k3s-manifests'
-[ -n "${MIOS_SHARE_KB_DIR+x}" ] || MIOS_SHARE_KB_DIR="${MIOS_SHARE_DIR:-}"'/kb'
+[ -n "${MIOS_SHARE_BRANDING_DIR+x}" ] || MIOS_SHARE_BRANDING_DIR="${MIOS_PATHS_SHARE_BRANDING_DIR:-}"
+[ -n "${MIOS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_SHARE_CONFIGURATOR_DIR="${MIOS_PATHS_SHARE_CONFIGURATOR_DIR:-}"
+[ -n "${MIOS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_SHARE_DISTROBOX_DIR="${MIOS_PATHS_SHARE_DISTROBOX_DIR:-}"
+[ -n "${MIOS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_SHARE_FASTFETCH_DIR="${MIOS_PATHS_SHARE_FASTFETCH_DIR:-}"
+[ -n "${MIOS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_SHARE_K3S_MANIFESTS_DIR="${MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR:-}"
+[ -n "${MIOS_SHARE_KB_DIR+x}" ] || MIOS_SHARE_KB_DIR="${MIOS_PATHS_SHARE_KB_DIR:-}"
 : "${MIOS_SHELL_ALIAS_GP:=git push}"
 : "${MIOS_SHELL_ALIAS_GS:=git status}"
 : "${MIOS_SHELL_ALIAS_LL:=ls -la}"
@@ -2658,13 +2995,13 @@ to" / "let me know".
 : "${MIOS_SLO_DEFAULT_PRIORITY:=7.0}"
 : "${MIOS_SLO_INTERACTIVE_BUDGET_S:=8.0}"
 : "${MIOS_SLO_INTERACTIVE_PRIORITY:=7.0}"
-[ -n "${MIOS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR:-}"'/collections'
-[ -n "${MIOS_SRV_AI_MCP_DIR+x}" ] || MIOS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR:-}"'/mcp'
-[ -n "${MIOS_SRV_AI_MODELS_DIR+x}" ] || MIOS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR:-}"'/models'
-[ -n "${MIOS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR:-}"'/outputs'
+[ -n "${MIOS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_SRV_AI_COLLECTIONS_DIR="${MIOS_PATHS_SRV_AI_COLLECTIONS_DIR:-}"
+[ -n "${MIOS_SRV_AI_MCP_DIR+x}" ] || MIOS_SRV_AI_MCP_DIR="${MIOS_PATHS_SRV_AI_MCP_DIR:-}"
+[ -n "${MIOS_SRV_AI_MODELS_DIR+x}" ] || MIOS_SRV_AI_MODELS_DIR="${MIOS_PATHS_SRV_AI_MODELS_DIR:-}"
+[ -n "${MIOS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_SRV_AI_OUTPUTS_DIR="${MIOS_PATHS_SRV_AI_OUTPUTS_DIR:-}"
 : "${MIOS_SSH_HOST:=mios-*}"
 : "${MIOS_SSH_IDENTITY_FILE:=~/.ssh/agent_ssh_key}"
-: "${MIOS_SSH_KEY_ACTION:=generate}"
+[ -n "${MIOS_SSH_KEY_ACTION+x}" ] || MIOS_SSH_KEY_ACTION="${MIOS_AUTH_SSH_KEY_ACTION:-}"
 : "${MIOS_SSH_PORT:=2222}"
 : "${MIOS_SSH_USER:=agent}"
 [ -n "${MIOS_SSOT_CONSUMERS_DOC+x}" ] || MIOS_SSOT_CONSUMERS_DOC='Shipped Python reads config as _toml_section("<table>").get("<key>"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way (and one of the nine entries, the memory guard, was itself such a control) under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys.'
@@ -2673,7 +3010,7 @@ to" / "let me know".
 [ -n "${MIOS_SSOT_TABLES_DOC+x}" ] || MIOS_SSOT_TABLES_DOC='A top-level table nothing reads is dead SSOT: it looks operator-tunable and is not, and every edit to it is silently ignored. The gate demands ACCESS-SHAPED evidence of consumption -- a direct index of the parsed SSOT, a toml-get lookup, a quoted dotted path naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* variable derived from the table'"'"'s own keys appearing in a hand-written consumer -- because name-appearance was measured and rejected: any doc sentence or word collision kept a dead table alive (T-996, and the T-997 measurement that closed the text-search direction). Projection surfaces are NOT consumption: the generated globals twins render every table and seed-db-config mirrors nearly every table into config_kv wholesale, so crediting either would make the gate vacuous again. Each entry here is a table whose consumption is currently broken, accepted deliberately while its wiring lands: browser (family/flags reach no browser launcher; MIOS_BROWSER_AI_* belongs to [browser_ai]), hwcaps (ld_so_hwcaps_autoselect and native_rebuild reach no consumer; the rebuild script they describe is absent), preflight (the Windows preflight reads none of its thresholds), repos (its repo definitions feed no dnf/bootc surface). Draining an entry: wire a real consumer or delete the table, then lower max_unconsumed. Gate: check_no_inert_ssot_tables.'
 : "${MIOS_SSOT_TABLES_MAX_UNCONSUMED:=1}"
 : "${MIOS_SSOT_TABLES_UNCONSUMED:=hwcaps}"
-: "${MIOS_STACK_ID_PORT:=0}"
+[ -n "${MIOS_STACK_ID_PORT+x}" ] || MIOS_STACK_ID_PORT="${MIOS_PORTS_STACK_ID:-}"
 : "${MIOS_STACK_MODEL:=granite4.1:8b}"
 : "${MIOS_STORAGE_BACKUP_CHUNK_SIZE_BYTES:=4194304}"
 : "${MIOS_STORAGE_BACKUP_COMPRESSION:=zstd}"
@@ -2684,25 +3021,7 @@ to" / "let me know".
 : "${MIOS_STORAGE_BENCH_ENABLE:=true}"
 : "${MIOS_STORAGE_BENCH_SCRATCH_DIR:=/var/tmp/mios-bench}"
 : "${MIOS_STORAGE_BENCH_TEST_DURATION_S:=5}"
-: "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE:=true}"
-: "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S:=600}"
-: "${MIOS_STORAGE_CEPHFS_CLIENT_CACHE_SIZE:=16384}"
-: "${MIOS_STORAGE_CEPHFS_CLIENT_READAHEAD_MAX_BYTES:=33554432}"
-: "${MIOS_STORAGE_CEPHFS_CLIENT_RECONNECT_STALE_INTERVAL:=30}"
-: "${MIOS_STORAGE_CEPHFS_CLUSTER_NAME:=ceph}"
-: "${MIOS_STORAGE_CEPHFS_DATA_POOL_BULK:=cephfs_data_bulk}"
-: "${MIOS_STORAGE_CEPHFS_DATA_POOL_HOT:=cephfs_data_hot}"
-: "${MIOS_STORAGE_CEPHFS_ENABLE:=false}"
-: "${MIOS_STORAGE_CEPHFS_FS_NAME:=cephfs}"
-: "${MIOS_STORAGE_CEPHFS_KEYRING_DIR:=/etc/ceph/keyring.d}"
-: "${MIOS_STORAGE_CEPHFS_MDS_CACHE_MEMORY_LIMIT_GIB:=4}"
-: "${MIOS_STORAGE_CEPHFS_MDS_SESSION_CAP_MAX:=1024}"
-: "${MIOS_STORAGE_CEPHFS_METADATA_POOL:=cephfs_metadata}"
-: "${MIOS_STORAGE_CEPHFS_MONITORS:=127.0.0.1:6789}"
-: "${MIOS_STORAGE_CEPHFS_MOUNT_OPTIONS:=noatime,fsc,_netdev}"
-: "${MIOS_STORAGE_CEPHFS_PROVISION_SCRIPT:=/usr/libexec/mios/mios-cephfs-provision}"
-: "${MIOS_STORAGE_CEPHFS_SUBVOLUME_MODE:=0700}"
-: "${MIOS_STORAGE_CEPHFS_TENANT_ID:=mios}"
+_mios_input MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE MIOS_XDG_CACHE_LOCAL_PATH || { return 1 2>/dev/null || exit 1; }
 [ -n "${MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE+x}" ] || MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE='/run/user/{uid}/.cache'
 : "${MIOS_STORAGE_LEDGER_ENABLE:=true}"
 : "${MIOS_STORAGE_LEDGER_HASH_ALGO:=sha256}"
@@ -3009,12 +3328,23 @@ to" / "let me know".
 : "${MIOS_TERMINAL_MONITOR_SPLIT_LANDSCAPE_MONITOR:=62}"
 : "${MIOS_TERMINAL_MONITOR_SPLIT_PORTRAIT_HEAD:=38}"
 : "${MIOS_TERMINAL_MONITOR_SPLIT_PORTRAIT_MONITOR:=62}"
+: "${MIOS_TERMINAL_MONITOR_TITLE:=MiOS Build Monitor}"
+: "${MIOS_TERMINAL_MONITOR_WINDOWS_BACKEND:=windows-terminal}"
+: "${MIOS_TERMINAL_MONITOR_WINDOW_NAME:=MiOS-Monitor}"
+: "${MIOS_TERMINAL_MONITOR_WORKER_SPLIT_PERCENT:=50}"
 : "${MIOS_TERMINAL_READING_COLS:=100}"
 : "${MIOS_TERMINAL_READING_ROWS:=50}"
 : "${MIOS_TERMINAL_RIGHT_MARGIN:=0}"
 : "${MIOS_TERMINAL_ROWS:=20}"
 : "${MIOS_TERMINAL_SCROLLBACK_ROWS:=9000}"
+: "${MIOS_TERMINAL_SOCKET_ROOT:=/tmp}"
 : "${MIOS_TERMINAL_START_DIRECTORY:=/}"
+: "${MIOS_TERMINAL_WINDOWS_BACKEND:=native-tmux}"
+: "${MIOS_TERMINAL_WINDOWS_EXECUTABLE:=tmux.exe}"
+: "${MIOS_TERMINAL_WINDOWS_SESSION_NAME:=MiOS-WIN}"
+: "${MIOS_TERMINAL_WINDOWS_SHELL:=cmd.exe}"
+: "${MIOS_TERMINAL_WINDOWS_SOCKET_NAME:=mios-windows}"
+: "${MIOS_TERMINAL_WINDOWS_TMUX_BACKEND:=wsl}"
 : "${MIOS_TESTING_MIN_SMOKE_COMPONENTS:=24}"
 : "${MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT:=check_ps_signatures,check_static_linkage,check_native_lint,check_resolver_ps_equivalence,check_resolver_shell_equivalence,check_template_self_conformance,check_agent_schema,check_ai_manifest,check_bib_rootfs_label_policy,check_blade_dropins,check_canonical_bools,check_capability_manifest,check_cephfs_ssot,check_cli_sql_safety,check_container_ports,check_converge_ssot,check_coordination_hygiene,check_dag_integrity,check_dotfiles_projection,check_drift_build_catalog,check_drift_projection,check_egress_firewall,check_etc_duplicates,check_fluff_tokens,check_gate_index,check_globals_image_parity,check_globals_ports,check_greenboot,check_greenboot_enablement,check_hint_coverage,check_hummingbird,check_kargs_projection,check_module_boundary,check_negative_test_coverage,check_no_bare_port_literals,check_no_hardcode,check_pod_quadlets,check_python_lint,check_raw_toml_readers,check_rbac_tiers,check_resolver_twin_parity,check_retired_models,check_structured,check_surface_parity,check_template_conformance,check_unwired_modules,check_userenv_parity,check_unit_security,check_var_closure,check_vendor_urls,check_verb_backends,check_static_linkage,check_comment_lex_equivalence}"
 : "${MIOS_TESTING_SMOKE_COMPONENTS_COMMANDS:=podman,bootc,rpm-ostree}"
@@ -3025,14 +3355,14 @@ to" / "let me know".
 : "${MIOS_TESTING_SMOKE_COMPONENTS_SECTIONS_DEVCONTAINER_COMMANDS:=just,git,gh}"
 : "${MIOS_TESTING_SMOKE_COMPONENTS_SHIMS:=usr/libexec/mios/flatpak-launch,usr/libexec/mios/mios-pc-control,usr/libexec/mios/mios-launcher-daemon,usr/libexec/mios/mios-flatpak-icon-sanitize,usr/bin/mios,usr/bin/mios-build,usr/bin/mios-update,usr/bin/mios-pull,usr/bin/mios-deploy,usr/libexec/mios/mios-doctor,usr/libexec/mios/mios-manual,usr/libexec/mios/mios-theme-render}"
 : "${MIOS_TESTING_SMOKE_COMPONENTS_UNITS:=usr/lib/systemd/system/mios-wsl-interop-priority.service,usr/lib/systemd/system/mios-agent-pipe.service,usr/lib/systemd/system/mios-hermes-browser.service,usr/lib/systemd/system/mios-hermes-firstboot.service,usr/lib/systemd/system/mios-dashboard-issue.service,usr/lib/systemd/system/mios-firstboot.target}"
-: "${MIOS_TIMEZONE:=UTC}"
+[ -n "${MIOS_TIMEZONE+x}" ] || MIOS_TIMEZONE="${MIOS_LOCALE_TIMEZONE:-}"
 : "${MIOS_TOKENIZER_BACKEND:=tiktoken}"
 : "${MIOS_TOKENIZER_CACHE_DIR:=/usr/share/mios/tiktoken}"
 : "${MIOS_TOKENIZER_ENCODING:=cl100k_base}"
-: "${MIOS_TOML:=/usr/share/mios/mios.toml}"
-[ -n "${MIOS_TOML_HOST+x}" ] || MIOS_TOML_HOST="${MIOS_ETC_DIR:-}"'/mios.toml'
-[ -n "${MIOS_TOML_VENDOR+x}" ] || MIOS_TOML_VENDOR="${MIOS_SHARE_DIR:-}"'/mios.toml'
-: "${MIOS_TTYD_BASH_PORT:=8310}"
+[ -n "${MIOS_TOML+x}" ] || MIOS_TOML="${MIOS_PATHS_MIOS_TOML:-}"
+[ -n "${MIOS_TOML_HOST+x}" ] || MIOS_TOML_HOST="${MIOS_PATHS_TOML_HOST:-}"
+[ -n "${MIOS_TOML_VENDOR+x}" ] || MIOS_TOML_VENDOR="${MIOS_PATHS_TOML_VENDOR:-}"
+[ -n "${MIOS_TTYD_BASH_PORT+x}" ] || MIOS_TTYD_BASH_PORT="${MIOS_PORTS_TTYD_BASH:-}"
 : "${MIOS_TTYD_BIND:=127.0.0.1}"
 : "${MIOS_TTYD_ENABLE:=true}"
 : "${MIOS_TTYD_FONT_SIZE:=14}"
@@ -3040,33 +3370,26 @@ to" / "let me know".
 : "${MIOS_TTYD_PAGE_PATH:=/usr/share/mios/ttyd/index.html}"
 : "${MIOS_TTYD_PAGE_SHA256:=6f3716ebd951e101df883bb14922f067c023f11561aa088ef487814183727cf3}"
 [ -n "${MIOS_TTYD_PAGE_SOURCE+x}" ] || MIOS_TTYD_PAGE_SOURCE='https://raw.githubusercontent.com/tsl0922/ttyd/{version}/src/html.h'
-: "${MIOS_TTYD_POWERSHELL_PORT:=8320}"
+[ -n "${MIOS_TTYD_POWERSHELL_PORT+x}" ] || MIOS_TTYD_POWERSHELL_PORT="${MIOS_PORTS_TTYD_POWERSHELL:-}"
 : "${MIOS_TTYD_REQUIRE_AUTH:=true}"
 : "${MIOS_TTYD_TAILNET_EXPOSE:=false}"
 : "${MIOS_TTYD_VERSION:=1.7.7}"
 : "${MIOS_TTYD_WRITABLE:=true}"
-: "${MIOS_UKI_VERITY_BUILD:=false}"
+_mios_input MIOS_UKI_VERITY_UKI_BUILD MIOS_UKI_VERITY_BUILD || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_UKI_VERITY_UKI_BUILD:=false}"
-: "${MIOS_UNBOUND_PORT:=chrome_cdp_worker,ai_legacy,field_live_chat}"
+[ -n "${MIOS_UKI_VERITY_BUILD+x}" ] || MIOS_UKI_VERITY_BUILD="${MIOS_UKI_VERITY_UKI_BUILD:-}"
+[ -n "${MIOS_UNBOUND_PORT+x}" ] || MIOS_UNBOUND_PORT="${MIOS_PORTS_UNBOUND:-}"
 [ -n "${MIOS_UNIT_PROJECTION_DOC+x}" ] || MIOS_UNIT_PROJECTION_DOC='[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree'"'"'s 120 units are in that state, which is the larger debt behind T-317.'
 : "${MIOS_UNIT_PROJECTION_DRIFT:=hermes-worker-firstboot.service,hermes-worker.path,hermes-worker.service,mios-account-sync.service,mios-additionalimagestores-perms.path,mios-adguard-firstboot.service,mios-agent-pipe.service,mios-agents.service,mios-ai-firstboot.service,mios-ai-firstboot.timer,mios-aios-refresh.timer,mios-bound-images-firstboot.service,mios-ceph-bootstrap.service,mios-daemon.service,mios-dashboard-issue.timer,mios-desktop.target,mios-embed-backfill.service,mios-embed-backfill.timer,mios-finetune-serve.service,mios-firewall-ports.service,mios-firstboot.target,mios-forge-firstboot.service,mios-forgejo-runner-firstboot.service,mios-gpu-amd.service,mios-gpu-detect.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-nvidia.service.d/10-cycle-fix.conf,mios-gpu-pv-detect.service,mios-gpu-status.service,mios-ha-node.target,mios-headless.target,mios-hermes-browser-worker.service,mios-hermes-browser.service,mios-hermes-firstboot.service,mios-hybrid.target,mios-k3s-master.target,mios-k3s-worker.target,mios-libexec-perms.path,mios-mcp.service,mios-models-firstboot.service,mios-opencode-gateway.service,mios-pgvector-backup.service,mios-pgvector-backup.timer,mios-podman-gc.service,mios-policy-arbiter.service,mios-shell-session-gc.service,mios-skills-miner.timer,mios-suggestion-refresh.timer,mios-swarm-pack-firstboot.service,mios-sys-env-refresh.timer,mios-userdb-render.service,mios-webtools-firstboot.service,mios-wsl-firstboot.service,mios-wsl-flatpak-export-sync.path}"
 : "${MIOS_UNIT_PROJECTION_MAX_DRIFT:=55}"
 : "${MIOS_URLS_BOOTSTRAP_REPO:=https://github.com/mios-dev/mios-bootstrap.git}"
-[ -n "${MIOS_URLS_CHROME_CDP+x}" ] || MIOS_URLS_CHROME_CDP='http://localhost:'"${MIOS_PORT_CHROME_CDP:-}"'/'
-[ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORT_COCKPIT:-}"
-[ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER:-}"'/'
-[ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"
-[ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"'/mios/mios.git'
 : "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,pgvector_internal,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,piper,prefilter,pxe_hub_api,radosgw,rdp,redis,searxng_internal,sglang,ssh,ttyd_bash,ttyd_powershell,vllm,whisper}"
-[ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"'/'
-[ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
-[ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORT_SEARXNG:-}"
-: "${MIOS_USER:=user}"
+[ -n "${MIOS_USER+x}" ] || MIOS_USER="${MIOS_IDENTITY_USERNAME:-}"
 : "${MIOS_USER_FULLNAME:=MiOS Operator}"
-: "${MIOS_USER_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
-: "${MIOS_USER_SHELL:=/bin/bash}"
-: "${MIOS_USR_DIR:=/usr/lib/mios}"
+[ -n "${MIOS_USER_GROUPS+x}" ] || MIOS_USER_GROUPS="${MIOS_IDENTITY_GROUPS:-}"
+[ -n "${MIOS_USER_SHELL+x}" ] || MIOS_USER_SHELL="${MIOS_IDENTITY_SHELL:-}"
+[ -n "${MIOS_USR_DIR+x}" ] || MIOS_USR_DIR="${MIOS_PATHS_USR_DIR:-}"
 : "${MIOS_VALKEY_IMAGE:=docker.io/valkey/valkey:latest}"
 : "${MIOS_VALKEY_VERSION:=latest}"
 : "${MIOS_VARIANTS_ENTRIES_MIOS_ARCHETYPE:=hybrid}"
@@ -3128,20 +3451,17 @@ to" / "let me know".
 : "${MIOS_VARIANTS_NAMING_SEPARATOR:=-}"
 : "${MIOS_VARIANTS_NAMING_SUFFIX_RULE:=name the job, not the size}"
 : "${MIOS_VARIANTS_NAMING_TITLE_PATTERN:=MiOS-<Suffix>}"
-[ -n "${MIOS_VAR_AI_DIR+x}" ] || MIOS_VAR_AI_DIR="${MIOS_VAR_DIR:-}"'/ai'
-[ -n "${MIOS_VAR_BACKUPS_DIR+x}" ] || MIOS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR:-}"'/backups'
-[ -n "${MIOS_VAR_CACHE_DIR+x}" ] || MIOS_VAR_CACHE_DIR="${MIOS_VAR_DIR:-}"'/cache'
-[ -n "${MIOS_VAR_MCP_DIR+x}" ] || MIOS_VAR_MCP_DIR="${MIOS_VAR_DIR:-}"'/mcp'
-: "${MIOS_VERB_EMBED_MODEL:=nomic-embed-text}"
-: "${MIOS_VERITY_ANTIFAB_ENABLE:=true}"
-: "${MIOS_VERITY_ANTIFAB_GROUND_MIN:=0.34}"
-: "${MIOS_VERITY_ANTIFAB_MIN_ENTITIES:=3}"
-: "${MIOS_VERITY_SENTENCE_ABBREVIATIONS:=approx.,Approx.,e.g.,i.e.,vs.,etc.,U.S.,U.K.,a.m.,p.m.,No.,Inc.,Co.,Ltd.,St.,Mt.}"
-: "${MIOS_VERSIONS_CEPH:=latest}"
+[ -n "${MIOS_VAR_AI_DIR+x}" ] || MIOS_VAR_AI_DIR="${MIOS_PATHS_VAR_AI_DIR:-}"
+[ -n "${MIOS_VAR_BACKUPS_DIR+x}" ] || MIOS_VAR_BACKUPS_DIR="${MIOS_PATHS_VAR_BACKUPS_DIR:-}"
+[ -n "${MIOS_VAR_CACHE_DIR+x}" ] || MIOS_VAR_CACHE_DIR="${MIOS_PATHS_VAR_CACHE_DIR:-}"
+[ -n "${MIOS_VAR_MCP_DIR+x}" ] || MIOS_VAR_MCP_DIR="${MIOS_PATHS_VAR_MCP_DIR:-}"
+[ -n "${MIOS_VERB_EMBED_MODEL+x}" ] || MIOS_VERB_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-}"
+_mios_input MIOS_VERSIONS_FEDORA MIOS_VERSION_FEDORA || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_VERSIONS_FEDORA:=44}"
-: "${MIOS_VERSIONS_FORGEJO:=latest}"
-: "${MIOS_VERSIONS_K3S:=latest}"
-: "${MIOS_VERSION_FEDORA:=44}"
+[ -n "${MIOS_VERSION_CEPH+x}" ] || MIOS_VERSION_CEPH="${MIOS_VERSIONS_CEPH:-}"
+[ -n "${MIOS_VERSION_FEDORA+x}" ] || MIOS_VERSION_FEDORA="${MIOS_VERSIONS_FEDORA:-}"
+[ -n "${MIOS_VERSION_FORGEJO+x}" ] || MIOS_VERSION_FORGEJO="${MIOS_VERSIONS_FORGEJO:-}"
+[ -n "${MIOS_VERSION_K3S+x}" ] || MIOS_VERSION_K3S="${MIOS_VERSIONS_K3S:-}"
 : "${MIOS_VIRT_V2V_DEFAULT_INPUT:=disk}"
 : "${MIOS_VIRT_V2V_ENABLED:=false}"
 : "${MIOS_VIRT_V2V_OUTPUT_FORMAT:=qcow2}"
@@ -3152,7 +3472,7 @@ to" / "let me know".
 : "${MIOS_VLLM_IMAGE:=docker.io/vllm/vllm-openai:latest}"
 : "${MIOS_VLLM_KV_CACHE_DTYPE:=fp8}"
 : "${MIOS_VLLM_MAX_MODEL_LEN:=262144}"
-: "${MIOS_VLLM_PORT:=8520}"
+[ -n "${MIOS_VLLM_PORT+x}" ] || MIOS_VLLM_PORT="${MIOS_PORTS_VLLM:-}"
 : "${MIOS_VLLM_PREFIX_CACHING:=true}"
 : "${MIOS_VLLM_SERVED_NAME:=mios-heavy}"
 : "${MIOS_VLLM_TOOL_CALL_PARSER:=hermes}"
@@ -3161,9 +3481,9 @@ to" / "let me know".
 : "${MIOS_VM_WIN11_MEMORY_KIB:=25165824}"
 : "${MIOS_VM_WIN11_NAME:=win11-guest}"
 : "${MIOS_VM_WIN11_VCPUS:=12}"
-: "${MIOS_WEBTOOLS_GID:=824}"
-: "${MIOS_WEBTOOLS_UID:=824}"
-: "${MIOS_WEBTOOLS_USER:=mios-crawl4ai}"
+[ -n "${MIOS_WEBTOOLS_GID+x}" ] || MIOS_WEBTOOLS_GID="${MIOS_SERVICES_WEBTOOLS_GID:-}"
+[ -n "${MIOS_WEBTOOLS_UID+x}" ] || MIOS_WEBTOOLS_UID="${MIOS_SERVICES_WEBTOOLS_UID:-}"
+[ -n "${MIOS_WEBTOOLS_USER+x}" ] || MIOS_WEBTOOLS_USER="${MIOS_SERVICES_WEBTOOLS_USER:-}"
 : "${MIOS_WEB_RESEARCH_ANCHOR_MIN_LEN:=25}"
 : "${MIOS_WEB_RESEARCH_ANCHOR_WEIGHT:=2}"
 : "${MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S:=18}"
@@ -3176,12 +3496,12 @@ to" / "let me know".
 : "${MIOS_WEB_RESEARCH_SLUG_MIN_LEN:=12}"
 : "${MIOS_WEB_RESEARCH_SLUG_WEIGHT:=2}"
 : "${MIOS_WEB_RESEARCH_TOP_N:=6}"
-: "${MIOS_WEB_SEARCH_TRIGGER_CONTEXTS:=web,internet,online}"
-: "${MIOS_WEB_SEARCH_TRIGGER_PHRASES:=search,look up,google,find,search the web,search online}"
-: "${MIOS_WHISPER_GID:=832}"
-: "${MIOS_WHISPER_PORT:=8178}"
-: "${MIOS_WHISPER_UID:=832}"
-: "${MIOS_WHISPER_USER:=mios-whisper}"
+[ -n "${MIOS_WEB_SEARCH_TRIGGER_CONTEXTS+x}" ] || MIOS_WEB_SEARCH_TRIGGER_CONTEXTS="${MIOS_ROUTING_WEB_SEARCH_TRIGGER_CONTEXTS:-}"
+[ -n "${MIOS_WEB_SEARCH_TRIGGER_PHRASES+x}" ] || MIOS_WEB_SEARCH_TRIGGER_PHRASES="${MIOS_ROUTING_WEB_SEARCH_TRIGGER_PHRASES:-}"
+[ -n "${MIOS_WHISPER_GID+x}" ] || MIOS_WHISPER_GID="${MIOS_SERVICES_WHISPER_GID:-}"
+[ -n "${MIOS_WHISPER_PORT+x}" ] || MIOS_WHISPER_PORT="${MIOS_PORTS_WHISPER:-}"
+[ -n "${MIOS_WHISPER_UID+x}" ] || MIOS_WHISPER_UID="${MIOS_SERVICES_WHISPER_UID:-}"
+[ -n "${MIOS_WHISPER_USER+x}" ] || MIOS_WHISPER_USER="${MIOS_SERVICES_WHISPER_USER:-}"
 : "${MIOS_WINDOWS_OWNED_ARTIFACTS_FIREWALL_RULES:=MiOS - igpu-llm,MiOS - ai-node,MiOS}"
 : "${MIOS_WINDOWS_OWNED_ARTIFACTS_PROCESS_NAMES:=MiOS-Wallpaper,MiOS-Wallpaper-Service,MiOS-Launcher,MiOS-iGPU-Server}"
 [ -n "${MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS+x}" ] || MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS='HKLM:\SOFTWARE\MiOS,HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MiOS,HKCU:\Control Panel\Cursors\Schemes'
@@ -3197,18 +3517,21 @@ to" / "let me know".
 [ -n "${MIOS_WORKSPACE_REPOS+x}" ] || MIOS_WORKSPACE_REPOS='{ label = "MiOS (system root)", name = "MiOS", url = "https://github.com/mios-dev/MiOS.git" },{ label = "mios-bootstrap (installer and user overlay)", name = "mios-bootstrap", url = "https://github.com/mios-dev/mios-bootstrap.git" },{ label = "-dev-loop (engineering loop)", name = "-dev-loop", url = "https://github.com/mios-dev/-dev-loop.git" },{ label = "mios-micro", name = "mios-micro", url = "https://github.com/mios-dev/mios-micro.git" }'
 : "${MIOS_WORKSPACE_ROOT:=/workspaces}"
 : "${MIOS_WSL2_AUTO_PROXY:=true}"
+_mios_input MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND MIOS_WSLG_GDK_BACKEND || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND:=x11}"
+_mios_input MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND MIOS_WSLG_MOZ_WAYLAND || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND:=0}"
+_mios_input MIOS_WSL2_DESKTOP_COMPAT_QT_PLATFORM MIOS_WSLG_QT_PLATFORM || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_WSL2_DESKTOP_COMPAT_QT_PLATFORM:=xcb}"
-: "${MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE:=host}"
 : "${MIOS_WSL2_DNS_TUNNELING:=true}"
 : "${MIOS_WSL2_FIREWALL:=false}"
 : "${MIOS_WSL2_GUI_APPLICATIONS:=true}"
 : "${MIOS_WSL2_LOCALHOST_FORWARDING:=true}"
 : "${MIOS_WSL2_NETWORKING_MODE:=NAT}"
-: "${MIOS_WSLBOOT_DONE:=/var/lib/mios/.wsl-firstboot-done}"
-: "${MIOS_WSLG_GDK_BACKEND:=x11}"
-: "${MIOS_WSLG_MOZ_WAYLAND:=0}"
-: "${MIOS_WSLG_QT_PLATFORM:=xcb}"
+[ -n "${MIOS_WSLBOOT_DONE+x}" ] || MIOS_WSLBOOT_DONE="${MIOS_PATHS_WSL_FIRSTBOOT_DONE:-}"
+[ -n "${MIOS_WSLG_GDK_BACKEND+x}" ] || MIOS_WSLG_GDK_BACKEND="${MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND:-}"
+[ -n "${MIOS_WSLG_MOZ_WAYLAND+x}" ] || MIOS_WSLG_MOZ_WAYLAND="${MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND:-}"
+[ -n "${MIOS_WSLG_QT_PLATFORM+x}" ] || MIOS_WSLG_QT_PLATFORM="${MIOS_WSL2_DESKTOP_COMPAT_QT_PLATFORM:-}"
 : "${MIOS_WSL_DISTRO:=MiOS}"
-[ -n "${MIOS_XDG_CACHE_LOCAL_PATH+x}" ] || MIOS_XDG_CACHE_LOCAL_PATH='/run/user/{uid}/.cache'
+[ -n "${MIOS_XDG_CACHE_LOCAL_PATH+x}" ] || MIOS_XDG_CACHE_LOCAL_PATH="${MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE:-}"
+unset -f _mios_input

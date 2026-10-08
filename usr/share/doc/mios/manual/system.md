@@ -118,7 +118,7 @@ token. The agent-pipe fronts Hermes, so sharing its key group is intended.
 
 SSOT chain: every operator-tunable knob sources from mios.toml via
 /etc/profile.d/mios-env.sh, which exports MIOS_* into the service
-environment. The service code reads MIOS_PORT_AGENT_PIPE +
+environment. The service code reads MIOS_PORTS_AGENT_PIPE +
 MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
 
 <!-- mios-src:900e3d0db002 from usr/lib/systemd/system/mios-agent-pipe.service:39-42 -->
@@ -582,9 +582,9 @@ pick_key() resolves. No key baked -> unit is a clean no-op.
 
 <!-- mios-src:0d0304c7f565 from usr/lib/systemd/system/mios-mok-enroll.service:9-12 -->
 
-### Makes [agents.opencode] endpoint :${MIOS_PORT_OPENCODE_GATEWAY}/v1 a REAL OpenAI...
+### Makes [agents.opencode] endpoint :${MIOS_PORTS_OPENCODE_GATEWAY}/v1 a REAL OpenAI...
 
-Makes [agents.opencode] endpoint :${MIOS_PORT_OPENCODE_GATEWAY}/v1 a REAL OpenAI endpoint so
+Makes [agents.opencode] endpoint :${MIOS_PORTS_OPENCODE_GATEWAY}/v1 a REAL OpenAI endpoint so
 agent-pipe's multi-agent fan-out (opencode secondary) + the primary path
 (refine target_agent=opencode) can reach it. opencode has no native /v1
 (its `serve` is opencode's own OpenAPI on :4096); this shim wraps
@@ -640,7 +640,7 @@ mios-ai so still reads; non-AI sysusers no longer get world-read.
 
 ### SSOT env
 
-SSOT env: MIOS_PG_USER / MIOS_PG_DB / MIOS_PORT_PGVECTOR / MIOS_PG_BACKUP_*
+SSOT env: MIOS_PGVECTOR_USER / MIOS_PGVECTOR_DB / MIOS_PORTS_PGVECTOR / MIOS_PG_BACKUP_*
 all flow from mios.toml [pgvector] -> userenv.sh. '-' = tolerate absence
 (degrade-open to the inline defaults below).
 
@@ -707,8 +707,8 @@ store/update a mios-sys-env database".
 systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
 LITERAL, unexpanded ${VAR:-default} string, which mios-pg-query then int()s ->
 ValueError -> "pgvector upsert failed" on every run. Source install.env instead
-so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
-(its own fallback is MIOS_PG_PORT or MIOS_PORT_PGVECTOR or 5432).
+so MIOS_PORTS_PGVECTOR holds the real port; mios-pg-query reads it directly
+(its own fallback is MIOS_PG_PORT or MIOS_PORTS_PGVECTOR or 5432).
 
 <!-- mios-src:b83a92415520 from usr/lib/systemd/system/mios-sys-env-refresh.service:19-29 -->
 
@@ -716,7 +716,7 @@ so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
 
 R6: real readiness gate -- block ExecStart until pgvector actually answers so a
 cold DB no longer produces a permanent 'failed' unit. NO `|| true`: this must
-FAIL (and drive the bounded Restart below) until PG is up. ${MIOS_PORT_PGVECTOR}
+FAIL (and drive the bounded Restart below) until PG is up. ${MIOS_PORTS_PGVECTOR}
 expands from the EnvironmentFile above; /usr/bin/pg_isready ships with the
 postgresql client (absolute path -- PATH is not guaranteed in the unit context).
 

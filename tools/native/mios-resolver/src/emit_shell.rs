@@ -82,7 +82,7 @@ mod tests {
 
     /// shlex_quote single-quotes any value containing `$`, and bash does not
     /// expand inside single quotes. userenv.sh evals this output in its primary
-    /// tier, so a value that still carried `${MIOS_PORT_AGENT_PIPE}` here was
+    /// tier, so a value that still carried `${MIOS_PORTS_AGENT_PIPE}` here was
     /// exported to consumers verbatim, as that literal text.
     #[test]
     fn test_cross_reference_is_resolved_not_quoted_literal() {
@@ -92,7 +92,7 @@ mod tests {
 agent_pipe = 8700
 
 [ai]
-endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
 "#,
         )
         .unwrap();
@@ -103,7 +103,7 @@ endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
             .expect("MIOS_AI_ENDPOINT is emitted");
         assert_eq!(line, "export MIOS_AI_ENDPOINT=http://localhost:8700/v1");
         assert!(
-            !out.contains("${MIOS_PORT_AGENT_PIPE}"),
+            !out.contains("${MIOS_PORTS_AGENT_PIPE}"),
             "a single-quoted ${{...}} is exported as literal text, not expanded"
         );
     }

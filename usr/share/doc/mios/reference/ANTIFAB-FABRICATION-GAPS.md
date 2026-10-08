@@ -241,7 +241,7 @@ style at `:962-964`). Degrade-open everywhere.
 
 The native-loop guard is currently hard-coded "always-on" (`:923` comment) and
 does **not** read the SSOT flag, unlike the chat sibling. Wire it to the same
-gate: `_ANTIFAB_ENABLE`, sourced from `MIOS_ANTIFAB_ENABLE` (bridged from
+gate: `_ANTIFAB_ENABLE`, sourced from `MIOS_VERITY_ANTIFAB_ENABLE` (bridged from
 `[verity].antifab_enable`, `mios.toml:2459`; env plumbing
 `system-sync-env.sh:166-170`). Inject `_ANTIFAB_ENABLE` into `native_loop` via
 `configure()` (add to `_INJECTED`, `:145-167`) or read the env at module load
@@ -367,7 +367,7 @@ Reuse the offline-stub recipe from `test_mios_antifab.py` (no network/DB/image).
    answer degrades-open (untouched); empty `_fetched_corpus` degrades-open.
 
 3. Extend `test_mios_antifab.py` to assert the native-loop guard honors
-   `MIOS_ANTIFAB_ENABLE=false` (passthrough).
+   `MIOS_VERITY_ANTIFAB_ENABLE=false` (passthrough).
 
 ---
 

@@ -85,7 +85,7 @@ The Whisper inference service runs as an isolated systemd Quadlet container:
 - **Unit Path**: `/usr/share/containers/systemd/mios-whisper.container`
 - **Pod Association**: Joins `Pod=mios-ai.pod` sharing host networking with `mios-llm-light` and `mios-open-webui`.
 - **Image**: `ghcr.io/ggml-org/whisper.cpp:main` (upstream moved from `ggerganov`; that path stopped updating in 2025-04)
-- **Port**: `8178` (configurable via `MIOS_PORT_WHISPER`).
+- **Port**: `8178` (configurable via `MIOS_PORTS_WHISPER`).
 - **Models**: `ggml-base.en.bin` ships inside the bound `whisper.cpp` image at `/app/models/`, so the unit needs no host model bind and the model is lifecycled with the image (`bootc upgrade`/`rollback`). Piper does the same: its voice is baked into `localhost/mios-piper`.
 
 #### Streaming HTTP API

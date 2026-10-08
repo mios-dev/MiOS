@@ -319,7 +319,7 @@ pub fn sweep_files(root: &Path) -> Vec<PathBuf> {
 }
 
 pub fn sync_fallbacks(root: &Path, derived: &BTreeMap<String, i64>, apply: bool) -> Vec<String> {
-    let fallback_re = match Regex::new(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}") {
+    let fallback_re = match Regex::new(r"\$\{(MIOS_PORTS?_([A-Z0-9_]+)):-(\d+)\}") {
         Ok(r) => r,
         Err(_) => return Vec::new(),
     };
@@ -335,15 +335,16 @@ pub fn sync_fallbacks(root: &Path, derived: &BTreeMap<String, i64>, apply: bool)
             Ok(t) => t,
             Err(_) => continue,
         };
-        if !text.contains("MIOS_PORT_") {
+        if !text.contains("MIOS_PORT_") && !text.contains("MIOS_PORTS_") {
             continue;
         }
 
         let mut changed: Vec<(String, String, i64)> = Vec::new();
         let new_text = fallback_re
             .replace_all(&text, |caps: &regex::Captures| {
-                let key = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                let lit = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+                let variable = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let key = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+                let lit = caps.get(3).map(|m| m.as_str()).unwrap_or("");
                 let name = if key == "GUACAMOLE" {
                     "GUACAMOLE_WEB"
                 } else {
@@ -351,8 +352,8 @@ pub fn sync_fallbacks(root: &Path, derived: &BTreeMap<String, i64>, apply: bool)
                 };
                 if let Some(&want) = upper.get(name) {
                     if want.to_string() != lit {
-                        changed.push((key.to_string(), lit.to_string(), want));
-                        return format!("${{MIOS_PORT_{key}:-{want}}}");
+                        changed.push((variable.to_string(), lit.to_string(), want));
+                        return format!("${{{variable}:-{want}}}");
                     }
                 }
                 caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string()
@@ -366,9 +367,7 @@ pub fn sync_fallbacks(root: &Path, derived: &BTreeMap<String, i64>, apply: bool)
                 .to_string_lossy()
                 .replace('\\', "/");
             for (key, lit, want) in &changed {
-                problems.push(format!(
-                    "{rel}: MIOS_PORT_{key} fallback :-{lit} != SSOT {want}"
-                ));
+                problems.push(format!("{rel}: {key} fallback :-{lit} != SSOT {want}"));
             }
             if apply {
                 let _ = fs::write(&path, new_text);
@@ -487,4 +486,27 @@ pub fn run_render_ports(
     ));
 
     Ok((out_msg, 0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_and_legacy_fallback_drift_is_detected_and_repaired() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("automation")).unwrap();
+        let path = root.path().join("automation/fixture.sh");
+        let canonical = "MIOS_PORTS_AGENT_PIPE";
+        let legacy = "MIOS_PORT_AGENT_PIPE";
+        let previous =
+            format!("a=${{{canonical}:-1}}\nb=${{{legacy}:-2}}\nc=${{MIOS_PORTS_UNKNOWN:-3}}\n");
+        fs::write(&path, &previous).unwrap();
+        let ports = BTreeMap::from([("agent_pipe".into(), 8700)]);
+        assert_eq!(sync_fallbacks(root.path(), &ports, false).len(), 2);
+        assert_eq!(fs::read_to_string(&path).unwrap(), previous);
+        assert_eq!(sync_fallbacks(root.path(), &ports, true).len(), 2);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a=${MIOS_PORTS_AGENT_PIPE:-8700}\nb=${MIOS_PORT_AGENT_PIPE:-8700}\nc=${MIOS_PORTS_UNKNOWN:-3}\n");
+        assert!(sync_fallbacks(root.path(), &ports, false).is_empty());
+    }
 }

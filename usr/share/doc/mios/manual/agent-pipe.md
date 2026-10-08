@@ -1535,7 +1535,7 @@ swarms, allowing >1,500 concurrent background workers within a 16GB RAM limit.
 ### Law 5/7
 
 Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
-[observability].otel_endpoint ships a ${MIOS_PORT_OTELCOL_OTLP} placeholder and
+[observability].otel_endpoint ships a ${MIOS_PORTS_OTELCOL_OTLP} placeholder and
 os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
 value is not an endpoint -- drop it and rebuild from the resolved port.
 

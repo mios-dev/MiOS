@@ -236,7 +236,7 @@ if ! python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
 import os, sys, json, subprocess, socket, time
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 
-PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "8600")
+PORT = int(os.environ.get("MIOS_PORTS_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "8600")
 db_ready = False
 retries = int(os.environ.get("MIOS_PG_WAIT_RETRIES", "45"))
 for _ in range(retries):

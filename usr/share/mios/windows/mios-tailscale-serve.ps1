@@ -65,19 +65,19 @@ function Get-PortFromSsot([string]$envVar, [string]$key, [int]$default) {
 
 # Last-resort defaults MUST equal mios.toml [ports]; check_ps_port_fallback_ssot
 # in 98-drift-checks.sh fails the gate if any literal here drifts from the SSOT.
-$openWebuiPort = Get-PortFromSsot 'MIOS_PORT_OPEN_WEBUI' 'open_webui' 8200
-$hermesPort    = Get-PortFromSsot 'MIOS_PORT_HERMES' 'hermes' 8720
-$agentPipePort = Get-PortFromSsot 'MIOS_PORT_AGENT_PIPE' 'agent_pipe' 8700
-$hermesDashPort= Get-PortFromSsot 'MIOS_PORT_HERMES_DASHBOARD' 'hermes_dashboard' 8210
-$forgePort     = Get-PortFromSsot 'MIOS_PORT_FORGE_HTTP' 'forge_http' 8400
-$cockpitPort   = Get-PortFromSsot 'MIOS_PORT_COCKPIT' 'cockpit' 8110
-$adguardPort   = Get-PortFromSsot 'MIOS_PORT_ADGUARD_UI' 'adguard_ui' 8050
+$openWebuiPort = Get-PortFromSsot 'MIOS_PORTS_OPEN_WEBUI' 'open_webui' 8200
+$hermesPort    = Get-PortFromSsot 'MIOS_PORTS_HERMES' 'hermes' 8720
+$agentPipePort = Get-PortFromSsot 'MIOS_PORTS_AGENT_PIPE' 'agent_pipe' 8700
+$hermesDashPort= Get-PortFromSsot 'MIOS_PORTS_HERMES_DASHBOARD' 'hermes_dashboard' 8210
+$forgePort     = Get-PortFromSsot 'MIOS_PORTS_FORGE_HTTP' 'forge_http' 8400
+$cockpitPort   = Get-PortFromSsot 'MIOS_PORTS_COCKPIT' 'cockpit' 8110
+$adguardPort   = Get-PortFromSsot 'MIOS_PORTS_ADGUARD_UI' 'adguard_ui' 8050
 $guacPort      = Get-PortFromSsot 'MIOS_PORT_GUACAMOLE_WEB' 'guacamole_web' 8220
-$searxngPort   = Get-PortFromSsot 'MIOS_PORT_SEARXNG' 'searxng' 8800
-$codePort      = Get-PortFromSsot 'MIOS_PORT_CODE_SERVER' 'code_server' 8900
-$ttydBashPort  = Get-PortFromSsot 'MIOS_PORT_TTYD_BASH' 'ttyd_bash' 8310
-$ttydPwshPort  = Get-PortFromSsot 'MIOS_PORT_TTYD_POWERSHELL' 'ttyd_powershell' 8320
-$cephPort      = Get-PortFromSsot 'MIOS_PORT_CEPH_DASHBOARD' 'ceph_dashboard' 8460
+$searxngPort   = Get-PortFromSsot 'MIOS_PORTS_SEARXNG' 'searxng' 8800
+$codePort      = Get-PortFromSsot 'MIOS_PORTS_CODE_SERVER' 'code_server' 8900
+$ttydBashPort  = Get-PortFromSsot 'MIOS_PORTS_TTYD_BASH' 'ttyd_bash' 8310
+$ttydPwshPort  = Get-PortFromSsot 'MIOS_PORTS_TTYD_POWERSHELL' 'ttyd_powershell' 8320
+$cephPort      = Get-PortFromSsot 'MIOS_PORTS_CEPH_DASHBOARD' 'ceph_dashboard' 8460
 
 $SERVICES = @(
     @{ port=$openWebuiPort;  name='open-webui';  label='Open WebUI' }

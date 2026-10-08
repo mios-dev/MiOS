@@ -371,10 +371,18 @@ def golden_gate(tag, root, renders, write=False):
             drift = 1
     return drift
 
+def canonical_name(dotted_path: str) -> str:
+    """Lexical peer of mios_resolver.names.canonical_name."""
+    body = re.sub(r"[^A-Z0-9_]", "_", dotted_path.upper())
+    return body if body.startswith("MIOS_") else "MIOS_" + body
+
+
 def get_aliases(dotted_path):
     aliases = []
 
-    if dotted_path.startswith("ai.vllm."):
+    if dotted_path.startswith("converge."):
+        aliases.append("MIOS_CONV_" + dotted_path[len("converge."):].upper().replace(".", "_").replace("-", "_"))
+    elif dotted_path.startswith("ai.vllm."):
         suffix = dotted_path[len("ai.vllm."):].upper().replace(".", "_").replace("-", "_")
         if suffix == "V1_ENGINE":
             aliases.append("MIOS_VLLM_USE_V1")
@@ -824,7 +832,7 @@ def _toml_inline(v):
 # The CI suite registry is read from the TOML directly by its own reader.
 # Projecting it produced two dozen shell constants no consumer reads,
 # including whole comma-joined suite lists, in both generated resolvers.
-EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages", "ci", "tests", "units"}
+EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages", "ci", "tests", "units", "generation"}
 WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
 WALK_EMIT_KEEP = {
     "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
@@ -849,6 +857,7 @@ def emit_exports(data=None) -> dict[str, str]:
         stack_offset = 0
 
     exports: dict[str, str] = {}
+    legacy: dict[str, str] = {}
     for dotted, val in walk(data):
         sec_name = dotted.split(".")[0]
         if sec_name in EXCLUDED_SECTIONS:
@@ -856,12 +865,7 @@ def emit_exports(data=None) -> dict[str, str]:
         processed = process_val(dotted, val, stack_offset)
         if processed == "":
             continue
-        if dotted.startswith("converge."):
-            _cbody = "CONV_" + dotted[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
-        else:
-            _cbody = dotted.upper().replace(".", "_").replace("-", "_").replace("/", "_")
-        canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
-        canonical = _re_unsafe.sub("_", canonical)
+        canonical = canonical_name(dotted)
         if not (sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP):
             exports[canonical] = str(processed)
         for alias in get_aliases(dotted):
@@ -877,9 +881,12 @@ def emit_exports(data=None) -> dict[str, str]:
             # _VERSION alias in both twins, not to change how it is rendered.
             # That removes 23 keys and needs its own change.
             if alias.endswith("_VERSION") and dotted.startswith("image.sidecars."):
-                exports[_re_unsafe.sub("_", alias)] = str(processed).rsplit(":", 1)[1] if ":" in str(processed) else "latest"
+                legacy[_re_unsafe.sub("_", alias)] = str(processed).rsplit(":", 1)[1] if ":" in str(processed) else "latest"
             else:
-                exports[_re_unsafe.sub("_", alias)] = str(processed)
+                legacy[_re_unsafe.sub("_", alias)] = str(processed)
+
+    for name, value in legacy.items():
+        exports.setdefault(name, value)
 
     for name, value in (colors(data) or {}).items():
         k = name.upper() if name.upper().startswith("MIOS_COLOR_") else "MIOS_COLOR_" + name.upper()
@@ -894,6 +901,53 @@ def emit_exports(data=None) -> dict[str, str]:
 
     resolve_cross_references(exports)
     return exports
+
+
+def input_aliases(data: dict) -> dict[str, list[str]]:
+    """Metadata-only compatibility boundary, matching native names::registry."""
+    owners: dict[str, set[str]] = {}
+    entries = []
+    canonical_owners = {}
+    exports = emit_exports(data)
+    for key, _ in walk(data):
+        canonical = canonical_name(key)
+        if canonical in canonical_owners:
+            raise ValueError(f"canonical variable collision {canonical}: {canonical_owners[canonical]} and {key}")
+        canonical_owners[canonical] = key
+        owners.setdefault(canonical, set()).add(key)
+        aliases = [alias for alias in get_aliases(key) if alias != canonical]
+        for alias in aliases:
+            owners.setdefault(alias, set()).add(key)
+        entries.append((key, canonical, aliases))
+    return {
+        canonical: [alias for alias in aliases if len(owners[alias]) == 1
+                    and not (key.startswith("image.sidecars.") and alias.endswith("_VERSION"))]
+        for key, canonical, aliases in entries if canonical in exports
+    }
+
+
+def overlay_inputs(data: dict, environment=os.environ.get) -> None:
+    """Normalize process inputs without persisting values or revealing conflicts."""
+    overrides = {}
+    for canonical, aliases in input_aliases(data).items():
+        value = environment(canonical)
+        if not value:
+            chosen = None
+            for alias in aliases:
+                candidate = environment(alias)
+                if not candidate:
+                    continue
+                if chosen is not None and value != candidate:
+                    raise ValueError(f"conflicting legacy inputs {chosen} and {alias}; set {canonical}")
+                value, chosen = candidate, alias
+        if value:
+            overrides[canonical] = value
+            overrides.update((alias, value) for alias in aliases)
+    if overrides:
+        env = data.setdefault("env", {})
+        if not isinstance(env, dict):
+            raise ValueError("SSOT env must be a table")
+        env.update(overrides)
 
 
 def resolve_cross_references(exports: dict[str, str]) -> None:
@@ -996,7 +1050,13 @@ if __name__ == "__main__":
     import sys
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    exports = emit_exports()
+    data = load_merged()
+    try:
+        overlay_inputs(data)
+    except ValueError as error:
+        print(f"[mios-resolver] {error}", file=sys.stderr)
+        raise SystemExit(1)
+    exports = emit_exports(data)
     fmt = "shell"
     for arg in sys.argv[1:]:
         if arg.startswith("--emit="):
@@ -1007,4 +1067,3 @@ if __name__ == "__main__":
     else:
         for k, v in sorted(exports.items()):
             print(f"export {k}={shlex.quote(str(v))}")
-

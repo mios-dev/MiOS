@@ -63,7 +63,7 @@ A var is "wired in userenv" if it appears, on a NON-comment line, either as
 a typed slot target  ("section.field", "MIOS_X")  -> the quoted token
 "MIOS_X"  -- or as an explicit  export MIOS_X=  /  MIOS_X=  assignment, or
 named in a legacy for-loop. We strip full-line comments first so a var that
-is only *mentioned* in prose (e.g. MIOS_CRAWL_CDP_URL in a doc paragraph)
+is only *mentioned* in prose (e.g. MIOS_SERVICES_WEBTOOLS_CDP_URL in a doc paragraph)
 does NOT count as wired.
 
 <!-- mios-src:bd0d334822c4 from automation/97-ssot-lint.sh:103-109 -->
@@ -153,7 +153,7 @@ AI-related: mios-custom, mios-home, mios-wheel, mios-nfs
 
 !/bin/bash
 MIOS_APPLY_CLASS=universal
-AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable mios-XXXXX identifier is generated during the first boot.
+AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_IDENTITY_HOSTNAME build-arg to ensure a unique, stable mios-XXXXX identifier is generated during the first boot.
 AI-related: mios-XXXXX, mios-init, mios-a3f9c, mios-ws-83427
 
 <!-- mios-src:8a64ccc13d61 from automation/12-hostname.sh:1-4 -->
@@ -407,7 +407,7 @@ AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/lib/mios/userenv.sh., /usr
 
 !/bin/bash
 MIOS_APPLY_CLASS=universal
-AI-hint: Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to be consumed by the mios-flatpak-install tool during boot-time setup.
+AI-hint: Captures the MIOS_DESKTOP_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to be consumed by the mios-flatpak-install tool during boot-time setup.
 AI-related: /usr/lib/mios/env.d, mios-flatpak-install
 
 <!-- mios-src:c18f7d4f3d5f from automation/60-flatpak-env.sh:1-4 -->
@@ -575,7 +575,7 @@ time it silently collapses to its inline `:-default`, so editing mios.toml
 does nothing and the value is un-tunable. This lint walks every Quadlet
 Exec=/Environment= line, pulls each referenced ${MIOS_*}, and asserts the
 two-sided wiring. It retroactively catches the known dead keys
-(MIOS_SGLANG_TOOL_PARSER, MIOS_PORT_CPU_NODE, MIOS_CPU_NODE_THREADS, ...).
+(MIOS_SGLANG_TOOL_PARSER, MIOS_PORTS_CPU_NODE, MIOS_LLAMACPP_CPU_NODE_THREADS, ...).
 
 Default behaviour: emit a per-key error for every orphan and exit 1 if any
 orphan is found (so it can fail a CI/build step). It NEVER mutates anything
@@ -793,7 +793,7 @@ mios-resolver, miosd, then the Python fallback -- and under `env -i` with
 no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
 legs and they went on agreeing. Proven by mutation: disabling
 resolve_cross_references in mios_toml.py left the bash leg emitting
-${MIOS_PORT_AGENT_PIPE} verbatim, and the check still passed (T-1062).
+${MIOS_PORTS_AGENT_PIPE} verbatim, and the check still passed (T-1062).
 
 Locate the native resolver and put it on the fixture's PATH so tier 1
 fires. Absent, the comparison is vacuous: fail where the environment

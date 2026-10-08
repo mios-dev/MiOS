@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3799,
-  "total_metadata_entries": 3091,
-  "total_hints": 3081,
+  "total_files_scanned": 3813,
+  "total_metadata_entries": 3105,
+  "total_hints": 3095,
   "total_functions_indexed": 1462,
-  "total_related_links": 5125,
+  "total_related_links": 5144,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -791,7 +791,7 @@
     },
     {
       "path": "automation/12-hostname.sh",
-      "hint": "Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable...",
+      "hint": "Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_IDENTITY_HOSTNAME build-arg to ensure a unique, stable...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
@@ -1202,7 +1202,7 @@
     },
     {
       "path": "automation/60-flatpak-env.sh",
-      "hint": "Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to...",
+      "hint": "Captures the MIOS_DESKTOP_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
@@ -1617,7 +1617,7 @@
     },
     {
       "path": "automation/firstboot/mios-conv-inference-setup.sh",
-      "hint": "Compile/render mios-llm-light.yaml into /etc/mios/llamacpp/mios-llm-light.yaml overlay based on MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS.",
+      "hint": "Compile/render mios-llm-light.yaml into /etc/mios/llamacpp/mios-llm-light.yaml overlay based on MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -1774,7 +1774,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.sh",
-        "tools/render-globals.py"
+        "tools/native/mios-gen/src/render_globals.rs"
       ],
       "functions": [
         "Resolve-MiosVersion"
@@ -1789,7 +1789,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.ps1",
-        "tools/render-globals.py"
+        "tools/native/mios-gen/src/render_globals.rs"
       ],
       "functions": [
         "_mios_resolve_version"
@@ -5586,6 +5586,18 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/miosd/src/native_generator.rs",
+      "hint": "Shared native generator dispatch for build verbs and read-only drift checks.",
+      "related": [
+        "tools/native/mios-gen",
+        "automation/33-generate-quadlets.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/miosd/src/secret.rs",
       "hint": "Native Linux secret management, desktop prompts, Keyrings interface, and automated pipeline safety scanning for miosd.",
       "related": [
@@ -5608,6 +5620,18 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/miosd/src/terminal_runtime.rs",
+      "hint": "Validate and repair the SSOT-selected tmux namespace using live peer credentials and inode descriptors; preserve running sessions.",
+      "related": [
+        "usr/libexec/mios/mios-terminal",
+        "usr/share/mios/windows/mios-native-client-setup.ps1"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/root.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -9623,7 +9647,7 @@
     },
     {
       "path": "tools/native/generate-names-registry/src/main.rs",
-      "hint": "Rust SSOT names registry generator (check 30 generator).",
+      "hint": "Installed compatibility command; the names projection belongs to mios-gen.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -9947,6 +9971,15 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/lib.rs",
+      "hint": "Shared generator implementations used by unified verbs and installed compatibility commands.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/main.rs",
       "hint": "Main entrypoint for mios-gen -- the unified SSOT projector and code generator binary (ADR-0021 gen category).",
       "related": [
@@ -9968,6 +10001,15 @@
         "usr/share/mios/mios.toml",
         "tools/generate-metal-vs-hosted.py"
       ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/src/names_registry.rs",
+      "hint": "Rust SSOT names registry generator (check 30 generator).",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10026,7 +10068,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.ps1",
-        "tools/render-globals.py"
+        "tools/native/mios-gen/src/render_globals.rs"
       ],
       "functions": [
         "_mios_resolve_version"
@@ -10090,6 +10132,18 @@
         "standardize_content",
         "run_standardize_docs"
       ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/src/sync.rs",
+      "hint": "One native, SSOT-declared generation pipeline for build, install and development.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tools/sync-generated.sh"
+      ],
+      "functions": [],
       "doc": null,
       "comment_style": "slash",
       "has_shebang": false
@@ -10380,6 +10434,18 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/tests/sync.rs",
+      "hint": "Execute native sync against independent Git fixtures; prerequisite failures must preserve files and index.",
+      "related": [
+        "tools/native/mios-gen/src/sync.rs",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/tests/sync_wiki.rs",
       "hint": "Two-sided integration test suite for mios-gen sync-wiki (ADR-0021, Law 14).",
       "related": [
@@ -10534,6 +10600,15 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-launch/src/monitor.rs",
+      "hint": "Monitor policy now lives in mios-service-core::launcher for both platform consumers.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-render-quadlets/Cargo.toml",
       "hint": "Cargo manifest for mios-render-quadlets -- the SSOT-driven replacement for stage 34's envsubst renderer.",
       "related": [
@@ -10572,18 +10647,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-resolver/src/aliases.rs",
-      "hint": "Legacy MIOS_* alias map -- ordered dotted-path to alias table mirroring get_aliases(), including the [ports] dual-alias forms.",
-      "related": [
-        "usr/lib/mios/mios_toml.py",
-        "usr/share/mios/referenced_names.txt"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-resolver/src/db_overlay.rs",
       "hint": "DB-authoritative overlay hook -- inert by default unless MIOS_ACCOUNTS_DB_BACKED is enabled or --db-overlay is set.",
       "related": [
@@ -10601,6 +10664,18 @@
       "related": [
         "tools/native/mios-ssot-walk",
         "usr/lib/mios/mios_toml.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-resolver/src/emit_build.rs",
+      "hint": "Validated native SSOT inputs for shared service-image builds on both platforms.",
+      "related": [
+        "usr/libexec/mios/57-mios-sys-build.sh",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -10635,6 +10710,18 @@
       "hint": "PowerShell binding -- renders the export map and palette as a dot-sourceable module of $script:MIOS_* assignments.",
       "related": [
         "automation/lib/globals.ps1"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-resolver/src/emit_repos.rs",
+      "hint": "Native projection of required dependency repositories from layered SSOT.",
+      "related": [
+        "automation/06-enable-external-repos.sh",
+        "usr/share/mios/mios.toml [repos.external]"
       ],
       "functions": [],
       "doc": null,
@@ -10735,6 +10822,18 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-resolver/src/names.rs",
+      "hint": "One canonical variable-name convention and compatibility inventory for every SSOT consumer.",
+      "related": [
+        "usr/lib/mios/mios_toml.py",
+        "usr/share/mios/referenced_names.txt"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-resolver/src/palette.rs",
       "hint": "Palette resolution -- layers mios.toml [colors] over the semantic and ansi defaults to produce the MIOS_COLOR_* map.",
       "related": [
@@ -10816,6 +10915,18 @@
       "functions": [],
       "doc": null,
       "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-service-core/src/launcher.rs",
+      "hint": "Shared native terminal policy and monitor layouts for Windows and Linux consumers.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "tools/native/mios-resolver/src/emit_json.rs"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
       "has_shebang": false
     },
     {
@@ -11491,7 +11602,7 @@
     },
     {
       "path": "tools/sync-generated.sh",
-      "hint": "bash One entry point that regenerates EVERY SSOT projection in dependency order (ports -> globals -> quadlets -> names -> env-baseline -> AI manifests), ...",
+      "hint": "Compatibility entry point; the complete ordered pipeline belongs to native mios-gen sync.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -11574,6 +11685,17 @@
       "has_shebang": true
     },
     {
+      "path": "tools/test_configurator_security.py",
+      "hint": "Execute the configurator's real JavaScript serializers and path banner against hostile strings; validate emitted TOML with the standard parser.",
+      "related": [
+        "usr/share/mios/configurator/mios.html"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tools/test_conformance_golden.py",
       "hint": "Golden CLI fixture test runner for check-template-conformance CLI output and behavior.",
       "related": [
@@ -11638,11 +11760,44 @@
       "has_shebang": true
     },
     {
+      "path": "tools/test_monitor_runtime.py",
+      "hint": "Verify actual monitor lifecycle restores caller signal handlers before launching another terminal client, including real Linux Textual stale-handler failure.",
+      "related": [
+        "usr/libexec/mios/mios-mon.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tools/test_native_generator_dispatch.py",
+      "hint": "Exercise real native management/generator dispatch without retired Python scripts.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/test_read-ssot-key.py",
       "hint": "Sibling test for tools/read-ssot-key.py; proves an absent key exits non-zero instead of printing a default.",
       "related": [
         "tools/read-ssot-key.py",
         "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tools/test_routing_security.py",
+      "hint": "Execute actual relay handler bodies with faulting clients to prove exception details remain server-side while success responses remain intact.",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py",
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py",
+        "usr/libexec/mios/mios-model-router"
       ],
       "functions": [],
       "doc": null,
@@ -18783,7 +18938,7 @@
     },
     {
       "path": "usr/lib/systemd/system/mios-pgvector-backup.service",
-      "hint": "Unprivileged daily oneshot that pg_dumps the unified agent-plane Postgres+pgvector database to /var/lib/mios/backups over loopback-trust and prunes to the newest MIOS_PG_BACKUP_KEEP snapshots; degrade-open so a backup failure...",
+      "hint": "Unprivileged daily oneshot that pg_dumps the unified agent-plane Postgres+pgvector database to /var/lib/mios/backups over loopback-trust and prunes to the newest MIOS_PGVECTOR_BACKUP_KEEP snapshots; degrade-open so a backup failure...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/system.md",
@@ -30004,7 +30159,7 @@
     },
     {
       "path": "usr/share/doc/mios/guides/edge-node-join.md",
-      "hint": "Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe, port key `agent_pipe`, MIOS_PORT_AGENT_PIPE), using the three-layer mios.toml overlay and the [agents.<name>] remote-http template. Covers the optional federated pgvector path ([pgvector].listen_loopback=false) and the least-privilege posture for untrusted edge peers. Fulfils roadmap T-070 (WS-D2); depends on the D1 remote/edge agent template ([agents._defaults]).",
+      "hint": "Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe, port key `agent_pipe`, MIOS_PORTS_AGENT_PIPE), using the three-layer mios.toml overlay and the [agents.<name>] remote-http template. Covers the optional federated pgvector path ([pgvector].listen_loopback=false) and the least-privilege posture for untrusted edge peers. Fulfils roadmap T-070 (WS-D2); depends on the D1 remote/edge agent template ([agents._defaults]).",
       "related": [
         "../../mios/mios.toml ([agents]",
         "[pgvector]",

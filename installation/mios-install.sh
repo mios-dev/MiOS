@@ -459,8 +459,8 @@ load_profile_defaults() {
         log_info "Sourcing legacy ${legacy_env} (deprecated; migrate to profile.toml)"
         # shellcheck source=/dev/null
         set +u; source "$legacy_env"; set -u
-        [[ -n "${MIOS_DEFAULT_USER:-}" ]] && DEFAULT_USER="${MIOS_DEFAULT_USER}"
-        [[ -n "${MIOS_DEFAULT_HOST:-}" ]] && DEFAULT_HOST="${MIOS_DEFAULT_HOST}"
+        [[ -n "${MIOS_IDENTITY_USERNAME:-}" ]] && DEFAULT_USER="${MIOS_IDENTITY_USERNAME}"
+        [[ -n "${MIOS_IDENTITY_HOSTNAME:-}" ]] && DEFAULT_HOST="${MIOS_IDENTITY_HOSTNAME}"
         [[ -n "${MIOS_IMAGE_NAME:-}" && -n "${MIOS_IMAGE_TAG:-}" ]] && \
             DEFAULT_IMAGE="${MIOS_IMAGE_NAME}:${MIOS_IMAGE_TAG}"
     fi
@@ -963,9 +963,9 @@ apply_user_profile() {
 # 'MiOS' install profile -- written by mios-bootstrap install.sh
 # Non-secret installation metadata. Passwords/tokens are NOT stored here.
 MIOS_LINUX_USER="${LINUX_USER}"
-MIOS_HOSTNAME="${HOSTNAME_VAL}"
+MIOS_IDENTITY_HOSTNAME="${HOSTNAME_VAL}"
 MIOS_USER_FULLNAME="${USER_FULLNAME}"
-MIOS_USER_GROUPS="${DEFAULT_USER_GROUPS}"
+MIOS_IDENTITY_GROUPS="${DEFAULT_USER_GROUPS}"
 MIOS_INSTALL_MODE="${INSTALL_MODE}"
 MIOS_IMAGE_TAG="${IMAGE_TAG}"
 MIOS_INSTALLED_AT="$(date -u --iso-8601=seconds)"

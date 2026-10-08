@@ -142,6 +142,39 @@ fn corpus(root: &Path) -> Option<Vec<String>> {
     )
 }
 
+/// Exact generated assignments for upstream version pins. Their values belong
+/// to the named SSOT key, rather than the MiOS release identity. Only these two
+/// generated files may use the assignments; changed values and authored glue
+/// continue through the ordinary literal check.
+fn upstream_projection_lines(root: &Path) -> Result<HashSet<String>, String> {
+    let merged = mios_resolver::resolve_projection(root).map_err(|e| e.to_string())?;
+    let names = mios_resolver::names::registry(&merged)?;
+    let version = Regex::new(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
+        .map_err(|e| e.to_string())?;
+    let mut lines = HashSet::new();
+    for entry in names.entries {
+        if !entry.emitted || entry.key == "meta.mios_version" {
+            continue;
+        }
+        let value = entry
+            .key
+            .split('.')
+            .try_fold(&merged, |value, key| value.get(key));
+        let Some(value) = value
+            .and_then(toml::Value::as_str)
+            .filter(|v| version.is_match(v))
+        else {
+            continue;
+        };
+        let name = entry.canonical;
+        lines.insert(format!(": \"${{{name}:={value}}}\""));
+        lines.insert(format!(
+            "$script:{name} = if ($env:{name}) {{ $env:{name} }} else {{ '{value}' }}"
+        ));
+    }
+    Ok(lines)
+}
+
 pub fn check(root: &Path) -> Report {
     // Not a checkout of this repository at all: nothing to measure, and inventing
     // a verdict here is worse than declining one.
@@ -164,6 +197,14 @@ pub fn check(root: &Path) -> Report {
     if files.is_empty() {
         return cannot_run("the tracked corpus is empty, so this check proved nothing");
     }
+    let projected = match upstream_projection_lines(root) {
+        Ok(lines) => lines,
+        Err(error) => {
+            return cannot_run(&format!(
+                "cannot verify generated SSOT version pins: {error}"
+            ))
+        }
+    };
     let Ok(pat) = Regex::new(r"\bv?0\.[0-9]+\.[0-9]+\b") else {
         return cannot_run("the version-literal pattern did not compile");
     };
@@ -179,6 +220,13 @@ pub fn check(root: &Path) -> Report {
         let skip = cfg_test_lines(rel, &lines);
         scanned += 1;
         for (idx, line) in lines.iter().enumerate() {
+            if matches!(
+                rel.as_str(),
+                "automation/lib/globals.sh" | "automation/lib/globals.ps1"
+            ) && projected.contains(line.trim())
+            {
+                continue;
+            }
             if skip.contains(&(idx + 1)) {
                 continue;
             }
@@ -216,6 +264,53 @@ pub fn check(root: &Path) -> Report {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn upstream_projection_matches_only_the_exact_ssot_assignment() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("usr/share/mios")).unwrap();
+        std::fs::write(
+            tmp.path().join(SSOT),
+            "[meta]\nmios_version='0.3.0'\n[build.native.windows]\ndriver_version='0.23.1'\n",
+        )
+        .unwrap();
+        let globals = tmp.path().join("automation/lib/globals.sh");
+        std::fs::create_dir_all(globals.parent().unwrap()).unwrap();
+        let valid = ": \"${MIOS_BUILD_NATIVE_WINDOWS_DRIVER_VERSION:=0.23.1}\"\n";
+        std::fs::write(&globals, valid).unwrap();
+        for args in [vec!["init", "-q"], vec!["add", "."]] {
+            assert!(Command::new("git")
+                .arg("-C")
+                .arg(tmp.path())
+                .args(args)
+                .status()
+                .unwrap()
+                .success());
+        }
+        assert!(check(tmp.path()).ok);
+        std::fs::write(&globals, valid.replace("0.23.1", "0.23.2")).unwrap();
+        assert!(!check(tmp.path()).ok, "changed upstream pin must fail");
+        std::fs::write(&globals, valid).unwrap();
+        let authored = tmp.path().join("automation/authored.sh");
+        std::fs::write(&authored, valid).unwrap();
+        assert!(Command::new("git")
+            .arg("-C")
+            .arg(tmp.path())
+            .args(["add", "."])
+            .status()
+            .unwrap()
+            .success());
+        assert!(
+            !check(tmp.path()).ok,
+            "the value is not exempt outside generated globals"
+        );
+        std::fs::write(&authored, "echo runtime\n").unwrap();
+        std::fs::write(&globals, format!("{valid}echo 0.23.1\n")).unwrap();
+        assert!(
+            !check(tmp.path()).ok,
+            "extra authored literals on the projection remain checked"
+        );
+    }
 
     #[test]
     fn a_cfg_test_module_is_excluded_and_its_boundary_is_exact() {

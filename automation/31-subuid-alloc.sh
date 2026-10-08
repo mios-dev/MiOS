@@ -16,7 +16,7 @@ if [[ -x "${_alloc_bin}" ]]; then
     mios_ok "Deterministic subuid/subgid generated via mios-subuid-alloc"
 else
     # Fallback shell calculation: base = 100000 + (UID - 1000) * 65536
-    C_USER="${MIOS_USER:-mios}"
+    C_USER="${MIOS_IDENTITY_USERNAME:-mios}"
     UID_BASE=100000
     BLOCK=65536
     for subf in /etc/subuid /etc/subgid; do

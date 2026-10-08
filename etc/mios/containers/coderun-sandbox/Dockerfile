@@ -27,7 +27,7 @@ RUN chmod 0755 /usr/local/bin/exec-init
 
 RUN mkdir -p /work /work-upper && chmod 0755 /work /work-upper
 
-ENV MIOS_CODEMODE_SOCKET=/run/coderun.sock
+ENV MIOS_CODE_MODE_SOCKET=/run/coderun.sock
 ENV PYTHONPATH=/usr/local/lib/mios
 COPY mios_tools.py /usr/local/lib/mios/mios_tools.py
 

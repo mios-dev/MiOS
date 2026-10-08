@@ -169,7 +169,7 @@ def check_ai_firstboot(script: str, scratch: str) -> list[str]:
     """pgvector down -> DEGRADED, exit 0 (degrade open), and NO sentinel."""
     errors = []
     sentinel = os.path.join(scratch, ".ai-firstboot-done")
-    env = _clean_env(MIOS_PORT_PGVECTOR=str(_closed_port()), MIOS_PG_WAIT_RETRIES="1",
+    env = _clean_env(MIOS_PORTS_PGVECTOR=str(_closed_port()), MIOS_PG_WAIT_RETRIES="1",
                      PYTHONPATH=_no_psycopg(scratch))
 
     # Fixture sanity: with the DB healthy the same decision block DOES write it.

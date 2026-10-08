@@ -30,11 +30,11 @@ if [[ -r "$ENV_FILE" ]]; then
     [ "$_mios_had_u" = 1 ] && set -u
 fi
 
-admin_user="${MIOS_FORGE_ADMIN_USER:-${MIOS_LINUX_USER:-${MIOS_USER:-mios}}}"
-admin_host="${MIOS_HOSTNAME:-mios}"
+admin_user="${MIOS_FORGE_ADMIN_USER:-${MIOS_LINUX_USER:-${MIOS_IDENTITY_USERNAME:-mios}}}"
+admin_host="${MIOS_IDENTITY_HOSTNAME:-mios}"
 admin_email="${MIOS_FORGE_ADMIN_EMAIL:-${admin_user}@${admin_host}.local}"
 # MIOS_FORGE_ADMIN_PASSWORD=__random__ to force a generated value.
-admin_password="${MIOS_FORGE_ADMIN_PASSWORD:-${MIOS_DEFAULT_PASSWORD:-mios}}"
+admin_password="${MIOS_FORGE_ADMIN_PASSWORD:-${MIOS_IDENTITY_DEFAULT_PASSWORD:-mios}}"
 if [[ "$admin_password" == "__random__" ]]; then
     admin_password=""
 fi
@@ -46,7 +46,7 @@ _is_forge_up() {
     return 1
 }
 
-http_port="${MIOS_PORT_FORGE_HTTP:-${MIOS_FORGE_HTTP_PORT:-8300}}"
+http_port="${MIOS_PORTS_FORGE_HTTP:-${MIOS_PORT_FORGE_HTTP:-8400}}"
 deadline=$(( $(date +%s) + 300 ))
 ready_port=""
 

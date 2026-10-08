@@ -92,7 +92,7 @@ ps-gate:
 # compare a committed artefact against a fresh render, and the AI manifests
 # embed file CONTENT, so a stale one turns the gate red for the wrong reason.
 sync:
-    bash ./tools/sync-generated.sh
+    mios-gen sync --root .
 
 # Run the CI/CD pipeline automation suite (01-ingest, 02-distill, 03-build, 04-deploy, 05-run-agy-pipeline-agent).
 cicd:
@@ -180,9 +180,9 @@ drift-gate:
 build: preflight flight-status
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
-        --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
-        --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
-        --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
+        --build-arg MIOS_DESKTOP_FLATPAKS={{env_var_or_default("MIOS_DESKTOP_FLATPAKS", "")}} \
+        --build-arg MIOS_IDENTITY_USERNAME={{env_var_or_default("MIOS_IDENTITY_USERNAME", "")}} \
+        --build-arg MIOS_IDENTITY_HOSTNAME={{env_var_or_default("MIOS_IDENTITY_HOSTNAME", "")}} \
         -t {{LOCAL}} .
     @echo "[OK] Built: {{LOCAL}}"
 
@@ -195,9 +195,9 @@ build-logged: artifact
     @echo "" | tee -a "${LOG_FILE}"
     @set -o pipefail; podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
-        --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
-        --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
-        --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
+        --build-arg MIOS_DESKTOP_FLATPAKS={{env_var_or_default("MIOS_DESKTOP_FLATPAKS", "")}} \
+        --build-arg MIOS_IDENTITY_USERNAME={{env_var_or_default("MIOS_IDENTITY_USERNAME", "")}} \
+        --build-arg MIOS_IDENTITY_HOSTNAME={{env_var_or_default("MIOS_IDENTITY_HOSTNAME", "")}} \
         -t {{LOCAL}} . 2>&1 | tee -a "${LOG_FILE}"
     @echo "" | tee -a "${LOG_FILE}"
     @echo "[OK] CHECKPOINT: 'MiOS' build complete" | tee -a "${LOG_FILE}"
@@ -207,9 +207,9 @@ build-logged: artifact
 build-verbose: artifact
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE="${MIOS_BASE_IMAGE:-$(usr/libexec/mios/mios-toml-get image base)}" \
-        --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
-        --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "")}} \
-        --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "")}} \
+        --build-arg MIOS_DESKTOP_FLATPAKS={{env_var_or_default("MIOS_DESKTOP_FLATPAKS", "")}} \
+        --build-arg MIOS_IDENTITY_USERNAME={{env_var_or_default("MIOS_IDENTITY_USERNAME", "")}} \
+        --build-arg MIOS_IDENTITY_HOSTNAME={{env_var_or_default("MIOS_IDENTITY_HOSTNAME", "")}} \
         -t {{LOCAL}} .
 
 embed-log:
@@ -457,8 +457,8 @@ forge:
     else \
         echo "  First-boot:     pending"; \
     fi
-    @echo "  Web UI:         http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/"
-    @echo "  git+ssh:        ssh://git@localhost:${MIOS_FORGE_SSH_PORT:-2222}/<user>/<repo>.git"
+    @echo "  Web UI:         http://localhost:${MIOS_PORTS_FORGE_HTTP:-3000}/"
+    @echo "  git+ssh:        ssh://git@localhost:${MIOS_PORTS_FORGE_SSH:-2222}/<user>/<repo>.git"
     @echo "  Admin user:     $(grep -E '^MIOS_FORGE_ADMIN_USER=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
     @echo "  Admin email:    $(grep -E '^MIOS_FORGE_ADMIN_EMAIL=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
     @if [ -r /etc/mios/forge/admin-password ]; then \
@@ -466,7 +466,7 @@ forge:
     else \
         echo "  Initial pwd:"; \
     fi
-    @echo "  Local push:     git remote add origin http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/<user>/<repo>.git && git push origin main"
+    @echo "  Local push:     git remote add origin http://localhost:${MIOS_PORTS_FORGE_HTTP:-3000}/<user>/<repo>.git && git push origin main"
 
 rechunk-conv: build
     @bash automation/build/rechunk.sh

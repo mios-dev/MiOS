@@ -569,9 +569,9 @@ async def _evict_knowledge() -> dict:
         import json
         import mios_cold_evict
 
-        cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
-        cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
-        cold_zstd_level = int(os.environ.get("MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL", "3"))
+        cold_evict_enable = os.environ.get("MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+        cold_storage_dir = os.environ.get("MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
+        cold_zstd_level = int(os.environ.get("MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL", "3"))
 
         ttl_candidates = await _db_count(with_ttl=True)
         total = await _db_count(with_ttl=False)
@@ -680,10 +680,10 @@ async def _knowledge_evict_loop() -> None:
             await asyncio.sleep(max(60, KNOWLEDGE_EVICT_INTERVAL_S))
             await _evict_knowledge()
 
-            cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+            cold_evict_enable = os.environ.get("MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
             if cold_evict_enable:
-                cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
-                cold_retention_days = int(os.environ.get("MIOS_CONV_MEMORY_COLD_RETENTION_DAYS", "30"))
+                cold_storage_dir = os.environ.get("MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
+                cold_retention_days = int(os.environ.get("MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS", "30"))
                 await _cold_retention_sweep(cold_storage_dir, cold_retention_days)
 
         except asyncio.CancelledError:

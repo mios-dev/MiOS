@@ -52,23 +52,23 @@ if [ "${#_ssot_ports[@]}" -gt 0 ]; then
         firewall-offline-cmd --zone=public --add-port="${port}/tcp" || true
     done
 else
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8900}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_HTTP}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_SSH}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT_LINK}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-8050}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_SSH}/tcp
-    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_HERMES}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_OPEN_WEBUI}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_CODE_SERVER:-8900}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_GUACAMOLE_WEB}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_CEPH_DASHBOARD}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_K3S_API}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_RDP}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_FORGE_HTTP}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_FORGE_SSH}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_COCKPIT_LINK}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_ADGUARD_UI:-8050}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_SSH}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_COCKPIT}/tcp
 fi
 
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/udp
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_ADGUARD_DNS:-53}/tcp
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORTS_ADGUARD_DNS:-53}/udp
 firewall-offline-cmd --zone=public --add-service=ssh
 firewall-offline-cmd --zone=public --add-service=mios-pxe
 

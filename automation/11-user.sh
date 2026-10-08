@@ -15,7 +15,7 @@ if command -v authselect &>/dev/null; then
     authselect apply-changes --force 2>/dev/null || authselect opt-out 2>/dev/null || true
 fi
 
-C_USER="${MIOS_USER:-mios}"
+C_USER="${MIOS_IDENTITY_USERNAME:-mios}"
 
 mios_log "Creating user ${C_USER} via sysusers"
 if [[ "${C_USER}" != "mios" ]]; then

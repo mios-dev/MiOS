@@ -22,11 +22,11 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("config", &["/usr/libexec/mios/mios-configurator-launch"]),
     (
         "code",
-        &["xdg-open", "http://localhost:${MIOS_PORT_CODE_SERVER}/"],
+        &["xdg-open", "http://localhost:${MIOS_PORTS_CODE_SERVER}/"],
     ),
     (
         "ai",
-        &["xdg-open", "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"],
+        &["xdg-open", "http://localhost:${MIOS_PORTS_OPEN_WEBUI}/"],
     ),
     ("xbox", &["/usr/libexec/mios/xbox-repair.sh"]),
     ("virt", &["/usr/libexec/mios/virt-apply.sh"]),

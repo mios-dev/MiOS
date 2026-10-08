@@ -1200,7 +1200,7 @@ the importable surface stays byte-identical.
 
 Minimum candidate entities a section must carry before its grounding is
     judged; below this the signal is too thin to trust -> degrade-open. SSOT:
-    [verity].antifab_min_entities -> MIOS_ANTIFAB_MIN_ENTITIES (live).
+    [verity].antifab_min_entities -> MIOS_VERITY_ANTIFAB_MIN_ENTITIES (live).
 
 <!-- mios-src:8b66b16d3086 from usr/lib/mios/agent-pipe/mios_pipe/routing/native_loop.py:70-72 -->
 
@@ -2168,7 +2168,7 @@ Best-effort read of the war-room activity sink (F-011): a JSONL sibling of
     transitions when `[frontier].stream_to_reasoning` is on. Returns event dicts
     newer than seen_ts (may be empty). Degrade-open: when the flag is off the file
     is never created, so this returns [] and `_tail_latest_status` is byte-
-    identical to before. Path from MIOS_A2O_STREAM_PATH (SSOT), else derived as a
+    identical to before. Path from MIOS_FRONTIER_STREAM_PATH (SSOT), else derived as a
     sibling of the hermes-tail path so no transport constant is restated.
 
 <!-- mios-src:2ce205584700 from usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py:279-285 -->

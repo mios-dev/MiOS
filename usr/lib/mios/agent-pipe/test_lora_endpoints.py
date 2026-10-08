@@ -101,13 +101,13 @@ class MockHttpxResponse:
         return self.json_data
 
 async def test_lora_list_dual_mode():
-    os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "dual"
+    os.environ["MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE"] = "dual"
     res = await server.lora_list()
     check("lora_list (dual): empty adapters returned", res.get("adapters") == [])
     check("lora_list (dual): disabled is False", res.get("enabled") is False)
 
 async def test_lora_list_single_mode():
-    os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
+    os.environ["MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
 
     mock_models = {
         "data": [
@@ -128,14 +128,14 @@ async def test_lora_list_single_mode():
         check("lora_list (single): coding adapter present", any(a["id"] == "adapter-coding" for a in adapters))
 
 async def test_lora_load_dual_mode():
-    os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "dual"
+    os.environ["MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE"] = "dual"
     req = MockRequest({"lora_name": "coding", "lora_path": "/path"})
     res = await server.lora_load(req)
     check("lora_load (dual): status code is 400", res.status_code == 400)
     check("lora_load (dual): returns error message", "only supported" in res.content.get("error"))
 
 async def test_lora_load_single_mode():
-    os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
+    os.environ["MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
     req = MockRequest({"lora_name": "coding", "lora_path": "/path"})
 
     mock_client = mock.AsyncMock()

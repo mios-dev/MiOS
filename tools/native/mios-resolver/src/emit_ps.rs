@@ -53,7 +53,7 @@ mod tests {
 agent_pipe = 8700
 
 [ai]
-endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
 "#,
         )
         .unwrap();
@@ -62,7 +62,7 @@ endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
             out.contains("else { 'http://localhost:8700/v1' }"),
             "expected the resolved literal, got:\n{out}"
         );
-        assert!(!out.contains("${MIOS_PORT_AGENT_PIPE}"));
+        assert!(!out.contains("${MIOS_PORTS_AGENT_PIPE}"));
     }
 
     #[test]
@@ -75,6 +75,6 @@ vllm = 8000
         )
         .unwrap();
         let ps = emit_powershell(&val, 0);
-        assert!(ps.contains("$script:MIOS_PORT_VLLM = if ($env:MIOS_PORT_VLLM) { $env:MIOS_PORT_VLLM } else { '8000' }"));
+        assert!(ps.contains("$script:MIOS_PORTS_VLLM = if ($env:MIOS_PORTS_VLLM) { $env:MIOS_PORTS_VLLM } else { '8000' }"));
     }
 }

@@ -123,7 +123,7 @@ jobs:
 
       - name: Generated artifacts match the SSOT
         run: |
-          bash ./tools/sync-generated.sh
+          mios-gen sync --root .
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "ERROR: generated artifacts differ from what the SSOT renders:" >&2
             git status --porcelain >&2
@@ -232,8 +232,8 @@ jobs:
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env
-              [[ -n "${MIOS_LINUX_USER:-}"     ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
-              [[ -n "${MIOS_HOSTNAME:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+              [[ -n "${MIOS_LINUX_USER:-}"     ]] && BUILD_ARGS+=(--build-arg "MIOS_IDENTITY_USERNAME=${MIOS_LINUX_USER}")
+              [[ -n "${MIOS_IDENTITY_HOSTNAME:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_IDENTITY_HOSTNAME=${MIOS_IDENTITY_HOSTNAME}")
               [[ -n "${MIOS_AI_MODEL:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
               [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
           fi
@@ -269,7 +269,7 @@ jobs:
         run: |
           set -uo pipefail
           IMAGE_TAG="localhost/mios:${{ steps.tag.outputs.image_tag }}"
-          MAX_LAYERS="${MIOS_RECHUNK_MAX_LAYERS:-67}"
+          MAX_LAYERS="${MIOS_BUILD_RECHUNK_MAX_LAYERS:-67}"
           _RECHUNKED=""
           if sudo podman run --rm --privileged \
               -v /mnt/containers-storage:/var/lib/containers/storage \

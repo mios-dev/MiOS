@@ -288,7 +288,7 @@ default is the light lane:
 
 ```
 mios-web-search:85
-_EXPAND_PORT = _ssot_val("MIOS_PORT_LLM_LIGHT", "ports", "llm_light", "8450")
+_EXPAND_PORT = _ssot_val("MIOS_PORTS_LLM_LIGHT", "ports", "llm_light", "8450")
 ```
 
 (matches the operator log's `@ http://localhost:8450`). The non-Ollama branch

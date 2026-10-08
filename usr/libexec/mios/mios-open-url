@@ -249,7 +249,7 @@ while IFS= read -r TARGET; do
     fi
 
     if [ "$_already_running" = "1" ] && { echo "$TARGET" | grep -qiE 'chrome|chromium'; }; then
-        _cdp_port="${CDP_PORT:-${MIOS_PORT_CHROME_CDP:-9222}}"
+        _cdp_port="${CDP_PORT:-${MIOS_PORTS_CHROME_CDP:-9222}}"
         if curl -fsS -m 2 "http://127.0.0.1:${_cdp_port}/json/version" >/dev/null 2>&1; then
             echo "[mios-open-url] browser $TARGET is already running with CDP -> opening tab via CDP" >&2
             if /usr/lib/mios/agents/.venv/bin/python3 - "$_cdp_port" "$URL" <<'PYEOF' 2>/dev/null; then

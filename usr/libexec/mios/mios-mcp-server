@@ -2042,8 +2042,8 @@ def main() -> int:
     if ("--http" in sys.argv[1:]
             or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
             in {"1", "true", "yes"}):
-        port = int(os.environ.get("MIOS_PORT_MCP")
-                   or os.environ.get("MIOS_MCP_PORT")
+        port = int(os.environ.get("MIOS_PORTS_MCP")
+                   or os.environ.get("MIOS_PORTS_MCP")
                    or os.environ.get("MIOS_PORTS_MCP")
                    or (mios_toml.load_merged().get("ports") or {}).get("mcp"))
         _serve_http(server, port)

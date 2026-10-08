@@ -43,11 +43,11 @@ pub fn emit_build_shell(merged: &Value, stack_offset: i64) -> Result<String, Str
         crate::emit_shell::shlex_quote(reference)
     );
     for key in [
-        "MIOS_PIPER_BASE",
-        "MIOS_PIPER_VERSION",
-        "MIOS_PIPER_VOICE",
-        "MIOS_PIPER_UID",
-        "MIOS_PIPER_GID",
+        "MIOS_SERVICES_PIPER_BASE",
+        "MIOS_SERVICES_PIPER_VERSION",
+        "MIOS_SERVICES_PIPER_VOICE",
+        "MIOS_SERVICES_PIPER_UID",
+        "MIOS_SERVICES_PIPER_GID",
     ] {
         let value = exports
             .get(key)
@@ -65,7 +65,7 @@ pub fn emit_build_shell(merged: &Value, stack_offset: i64) -> Result<String, Str
 mod tests {
     use super::*;
     fn fixture() -> Value {
-        "[packages.mcp]\npkgs=['python3','git']\n[packages.agent_cli]\npkgs=['git','tmux']\n[build.bake_refs]\nsearxng='custom'\n[env]\nMIOS_PIPER_BASE='base'\nMIOS_PIPER_VERSION='v1'\nMIOS_PIPER_VOICE='voice'\nMIOS_PIPER_UID='1000'\nMIOS_PIPER_GID='1000'".parse().unwrap()
+        "[packages.mcp]\npkgs=['python3','git']\n[packages.agent_cli]\npkgs=['git','tmux']\n[build.bake_refs]\nsearxng='custom'\n[env]\nMIOS_SERVICES_PIPER_BASE='base'\nMIOS_SERVICES_PIPER_VERSION='v1'\nMIOS_SERVICES_PIPER_VOICE='voice'\nMIOS_SERVICES_PIPER_UID='1000'\nMIOS_SERVICES_PIPER_GID='1000'".parse().unwrap()
     }
     #[test]
     fn selections_are_deduplicated_and_shell_quoted() {
@@ -81,7 +81,7 @@ mod tests {
         data["packages"]["mcp"]["pkgs"] = Value::Array(vec![Value::String("two packages".into())]);
         assert!(emit_build_shell(&data, 0).is_err());
         let mut data = fixture();
-        data["env"]["MIOS_PIPER_VOICE"] = Value::String(String::new());
+        data["env"]["MIOS_SERVICES_PIPER_VOICE"] = Value::String(String::new());
         assert!(emit_build_shell(&data, 0).is_err());
     }
 }

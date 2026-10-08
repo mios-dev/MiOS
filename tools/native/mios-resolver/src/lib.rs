@@ -1,13 +1,15 @@
 // AI-hint: Crate root for mios-resolver -- the native layered mios.toml resolver that subsumes mios_toml.py / userenv.sh / globals.ps1.
 // AI-related: usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, tools/native/mios-ssot-walk
-pub mod aliases;
+pub mod names;
+// Public compatibility path; all name definitions live in the same module.
+pub use names as aliases;
 pub mod db_overlay;
 pub mod emit;
 pub mod emit_build;
-pub mod emit_repos;
 pub mod emit_install_env;
 pub mod emit_json;
 pub mod emit_ps;
+pub mod emit_repos;
 pub mod emit_shell;
 pub mod error;
 pub mod expand;
@@ -71,6 +73,42 @@ pub fn resolve_below_user(root_dir: Option<&Path>) -> Result<Value, ResolverErro
     Ok(merged)
 }
 
+/// Deterministic source projections use only the selected root's vendor and
+/// host layers. Process loader pointers and the developer's home cannot alter them.
+pub fn resolve_projection(root: &Path) -> Result<Value, ResolverError> {
+    let mut fig = figment::Figment::new();
+    for (file, directory) in [
+        ("usr/share/mios/mios.toml", "usr/lib/mios/mios.d"),
+        ("etc/mios/mios.toml", "etc/mios/mios.d"),
+    ] {
+        let path = root.join(file);
+        if path.is_file() {
+            fig = fig.merge(<figment::providers::Toml as figment::providers::Format>::file(path));
+        }
+        let directory = root.join(directory);
+        if directory.exists() {
+            let mut paths = std::fs::read_dir(&directory)
+                .map_err(|e| ResolverError::TypeShape {
+                    msg: format!("{}: {e}", directory.display()),
+                })?
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| ResolverError::TypeShape { msg: e.to_string() })?;
+            paths.retain(|path| path.is_file() && path.extension().is_some_and(|e| e == "toml"));
+            paths.sort();
+            for path in paths {
+                fig =
+                    fig.merge(<figment::providers::Toml as figment::providers::Format>::file(path));
+            }
+        }
+    }
+    let mut merged = fig
+        .extract::<Value>()
+        .map_err(|e| ResolverError::TypeShape { msg: e.to_string() })?;
+    ports::derive_ports(&mut merged);
+    Ok(merged)
+}
+
 /// The user tier file (MIOS_USER_TOML, else $XDG_CONFIG_HOME or
 /// $HOME/.config + /mios/mios.toml) -- where operator saves land.
 pub fn user_toml_path(root_dir: Option<&Path>) -> std::path::PathBuf {
@@ -96,7 +134,7 @@ pub mod runtime {
     use std::collections::BTreeMap;
     use std::sync::OnceLock;
 
-    static RESOLVED: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+    static RESOLVED: OnceLock<Result<BTreeMap<String, String>, String>> = OnceLock::new();
 
     /// `name` from `env`, else from `resolved`; empty strings count as unset.
     pub fn lookup_in(
@@ -109,12 +147,29 @@ pub mod runtime {
             .or_else(|| resolved.get(name).filter(|v| !v.is_empty()).cloned())
     }
 
-    fn resolved() -> &'static BTreeMap<String, String> {
-        RESOLVED.get_or_init(|| crate::resolve_env(None).unwrap_or_default())
+    fn resolved() -> &'static Result<BTreeMap<String, String>, String> {
+        RESOLVED.get_or_init(|| {
+            let result = (|| {
+                let mut merged = crate::resolve_merged(None, false)?;
+                crate::names::overlay_inputs(&mut merged, |key| std::env::var(key).ok())
+                    .map_err(|msg| ResolverError::TypeShape { msg })?;
+                let mut exports =
+                    crate::emit::build_exports_map(&merged, crate::stack_offset_of(&merged));
+                crate::emit::resolve_cross_references(&mut exports);
+                Ok::<_, ResolverError>(exports)
+            })();
+            result.map_err(|error| error.to_string())
+        })
     }
 
     pub fn get(name: &str) -> Option<String> {
-        lookup_in(name, |n| std::env::var(n).ok(), resolved())
+        if let Ok(value) = std::env::var(name) {
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+        let resolved = resolved().as_ref().ok()?;
+        lookup_in(name, |n| std::env::var(n).ok(), resolved)
     }
 
     fn missing(name: &str) -> ResolverError {
@@ -124,6 +179,14 @@ pub mod runtime {
     }
 
     pub fn require(name: &str) -> Result<String, ResolverError> {
+        if let Ok(value) = std::env::var(name) {
+            if !value.is_empty() {
+                return Ok(value);
+            }
+        }
+        if let Err(msg) = resolved() {
+            return Err(ResolverError::TypeShape { msg: msg.clone() });
+        }
         get(name).ok_or_else(|| missing(name))
     }
 
@@ -168,14 +231,14 @@ pub mod runtime {
         use super::*;
 
         fn ssot() -> BTreeMap<String, String> {
-            BTreeMap::from([("MIOS_PORT_NODE".to_string(), "8650".to_string())])
+            BTreeMap::from([("MIOS_PORTS_NODE".to_string(), "8650".to_string())])
         }
 
         #[test]
         fn environment_wins_over_the_resolved_ssot() {
             let env = |_: &str| Some("9100".to_string());
             assert_eq!(
-                lookup_in("MIOS_PORT_NODE", env, &ssot()).as_deref(),
+                lookup_in("MIOS_PORTS_NODE", env, &ssot()).as_deref(),
                 Some("9100")
             );
         }
@@ -184,7 +247,7 @@ pub mod runtime {
         fn empty_environment_falls_back_to_the_ssot() {
             let env = |_: &str| Some(String::new());
             assert_eq!(
-                lookup_in("MIOS_PORT_NODE", env, &ssot()).as_deref(),
+                lookup_in("MIOS_PORTS_NODE", env, &ssot()).as_deref(),
                 Some("8650")
             );
         }

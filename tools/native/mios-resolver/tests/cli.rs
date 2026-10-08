@@ -54,5 +54,5 @@ fn test_characterization_fixtures() {
     let val: toml::Value = toml::from_str(vendor_only_content).unwrap();
     let shell_out = emit_shell(&val, 0, None);
     assert!(shell_out.contains("export MIOS_IDENTITY_ROLE=mini"));
-    assert!(shell_out.contains("export MIOS_PORT_HERMES=8080"));
+    assert!(shell_out.contains("export MIOS_PORTS_HERMES=8080"));
 }

@@ -33,8 +33,8 @@ def _check(name: str, ok: bool, detail: str = "") -> None:
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 def t_config_dsn() -> None:
-    env = {"MIOS_PG_HOST": "h", "MIOS_PORT_PGVECTOR": "5544",
-           "MIOS_PG_USER": "u", "MIOS_PG_PASS": "p", "MIOS_PG_DB": "d"}
+    env = {"MIOS_PGVECTOR_HOST": "h", "MIOS_PORTS_PGVECTOR": "5544",
+           "MIOS_PGVECTOR_USER": "u", "MIOS_PGVECTOR_PASS": "p", "MIOS_PGVECTOR_DB": "d"}
     c = P.pg_config(env)
     _check("config: parsed", c == {"host": "h", "port": 5544, "user": "u",
                                    "password": "p", "dbname": "d"}, str(c))
@@ -141,23 +141,23 @@ def t_rls_owner_scope() -> None:
 
     _check("rls: disabled by default (no env)", P.rls_enabled({}) is False)
     _check("rls: enabled on truthy",
-           P.rls_enabled({"MIOS_DB_RLS_ENABLE": "true"}) is True
-           and P.rls_enabled({"MIOS_DB_RLS_ENABLE": "1"}) is True
-           and P.rls_enabled({"MIOS_DB_RLS_ENABLE": "ON"}) is True)
+           P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": "true"}) is True
+           and P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": "1"}) is True
+           and P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": "ON"}) is True)
     _check("rls: disabled on falsy",
-           P.rls_enabled({"MIOS_DB_RLS_ENABLE": "0"}) is False
-           and P.rls_enabled({"MIOS_DB_RLS_ENABLE": "false"}) is False
-           and P.rls_enabled({"MIOS_DB_RLS_ENABLE": ""}) is False)
+           P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": "0"}) is False
+           and P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": "false"}) is False
+           and P.rls_enabled({"MIOS_PGVECTOR_RLS_ENABLE": ""}) is False)
 
     _prior_bm = os.environ.get("MIOS_PRINCIPAL_BIND_MODE")
     try:
         os.environ["MIOS_PRINCIPAL_BIND_MODE"] = "enforce"
         _check("rls: scope None when rls_enable=false (byte-identical no-op, even w/ enforce)",
                P._owner_scope("alice", {}) is None
-               and P._owner_scope("alice", {"MIOS_DB_RLS_ENABLE": "0"}) is None)
+               and P._owner_scope("alice", {"MIOS_PGVECTOR_RLS_ENABLE": "0"}) is None)
 
         P._RLS_UNVERIFIED_WARNED = False
-        sc = P._owner_scope("alice", {"MIOS_DB_RLS_ENABLE": "1"})
+        sc = P._owner_scope("alice", {"MIOS_PGVECTOR_RLS_ENABLE": "1"})
         _check("rls: scope emitted when enabled+enforce+owner",
                sc is not None and "set_config" in sc[0]
                and sc[1] == {"guc": "mios.owner_user", "owner": "alice"}, str(sc))
@@ -167,7 +167,7 @@ def t_rls_owner_scope() -> None:
         for _mode in ("off", "verify"):
             os.environ["MIOS_PRINCIPAL_BIND_MODE"] = _mode
             P._RLS_UNVERIFIED_WARNED = False
-            sc_unv = P._owner_scope("victim", {"MIOS_DB_RLS_ENABLE": "1"})
+            sc_unv = P._owner_scope("victim", {"MIOS_PGVECTOR_RLS_ENABLE": "1"})
             _check(f"rls: NO scope when enabled but bind-mode={_mode} (no false isolation)",
                    sc_unv is None, str(sc_unv))
             _check(f"rls: one-time WARN fired (bind-mode={_mode})",
@@ -176,9 +176,9 @@ def t_rls_owner_scope() -> None:
         os.environ["MIOS_PRINCIPAL_BIND_MODE"] = "enforce"
         P._RLS_UNVERIFIED_WARNED = False
         _check("rls: scope None when enabled+no-owner (degrade-open, no lockout)",
-               P._owner_scope(None, {"MIOS_DB_RLS_ENABLE": "1"}) is None
-               and P._owner_scope("", {"MIOS_DB_RLS_ENABLE": "1"}) is None
-               and P._owner_scope("   ", {"MIOS_DB_RLS_ENABLE": "1"}) is None)
+               P._owner_scope(None, {"MIOS_PGVECTOR_RLS_ENABLE": "1"}) is None
+               and P._owner_scope("", {"MIOS_PGVECTOR_RLS_ENABLE": "1"}) is None
+               and P._owner_scope("   ", {"MIOS_PGVECTOR_RLS_ENABLE": "1"}) is None)
         _check("rls: no warn on the owner-less (intentional) path",
                P._RLS_UNVERIFIED_WARNED is False)
     finally:
@@ -268,7 +268,7 @@ def _set_env(**kw):
 
 def t_pool_default_off_per_call_connect() -> None:
     _install_fake_psycopg()
-    restore = _set_env(MIOS_PG_POOL_ENABLE=None)
+    restore = _set_env(MIOS_PGVECTOR_POOL_ENABLE=None)
     P._POOL = None
     P._pg_down_until = 0.0
     try:
@@ -285,7 +285,7 @@ def t_pool_default_off_per_call_connect() -> None:
 
 def t_pool_on_reuses_connection() -> None:
     _install_fake_psycopg()
-    restore = _set_env(MIOS_PG_POOL_ENABLE="1")
+    restore = _set_env(MIOS_PGVECTOR_POOL_ENABLE="1")
     P._POOL = None
     P._pg_down_until = 0.0
     try:
@@ -311,7 +311,7 @@ class _PoisonPool:
 
 def t_pool_degrade_open_poisoned() -> None:
     _install_fake_psycopg()
-    restore = _set_env(MIOS_PG_POOL_ENABLE="1")
+    restore = _set_env(MIOS_PGVECTOR_POOL_ENABLE="1")
     P._POOL = _PoisonPool()   # enabled + non-None -> _get_pool hands back this broken pool
     P._pg_down_until = 0.0
     try:
@@ -330,7 +330,7 @@ def t_pool_degrade_open_poisoned() -> None:
 
 def t_pool_no_owner_guc_leak() -> None:
     _install_fake_psycopg()
-    restore = _set_env(MIOS_PG_POOL_ENABLE="1", MIOS_DB_RLS_ENABLE="1",
+    restore = _set_env(MIOS_PGVECTOR_POOL_ENABLE="1", MIOS_PGVECTOR_RLS_ENABLE="1",
                        MIOS_PRINCIPAL_BIND_MODE="enforce")
     P._POOL = None
     P._pg_down_until = 0.0
@@ -467,7 +467,7 @@ import mios_db_config
 def setUpModule():
     if psycopg is None:
         raise unittest.SkipTest("no live pgvector -- integration test")
-    port = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+    port = os.environ.get("MIOS_PORTS_PGVECTOR", "8600")
     conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
     try:
         with psycopg.connect(conn_str, connect_timeout=1) as conn:
@@ -498,13 +498,13 @@ class TestMiosDbConfig(unittest.TestCase):
         mios_db_config.clear_cache()
 
     def test_toml_fail_open(self):
-        os.environ["MIOS_PORT_PGVECTOR"] = "9999"
+        os.environ["MIOS_PORTS_PGVECTOR"] = "9999"
         try:
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             val = mios_db_config.get("ai", "kernel_dispatch")
             self.assertTrue(val)
         finally:
-            del os.environ["MIOS_PORT_PGVECTOR"]
+            del os.environ["MIOS_PORTS_PGVECTOR"]
             if "MIOS_DB_AUTHORITATIVE" in os.environ:
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
 

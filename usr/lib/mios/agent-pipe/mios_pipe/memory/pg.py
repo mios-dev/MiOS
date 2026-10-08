@@ -65,11 +65,11 @@ def pg_config(env: Optional[dict] = None) -> dict:
     mios.toml by userenv.sh). Local-only defaults match the quadlet."""
     e = env if env is not None else os.environ
     return {
-        "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600),
-        "user": e.get("MIOS_PG_USER", "mios"),
-        "password": e.get("MIOS_PG_PASS", "mios"),
-        "dbname": e.get("MIOS_PG_DB", "mios"),
+        "host": e.get("MIOS_PGVECTOR_HOST", "localhost"),
+        "port": int(e.get("MIOS_PORTS_PGVECTOR", "8600") or 8600),
+        "user": e.get("MIOS_PGVECTOR_USER", "mios"),
+        "password": e.get("MIOS_PGVECTOR_PASS", "mios"),
+        "dbname": e.get("MIOS_PGVECTOR_DB", "mios"),
     }
 
 def dsn(cfg: Optional[dict] = None) -> str:
@@ -174,7 +174,7 @@ async def rerank_candidates(query: str, candidates: list, table: str) -> list:
             return r.get("fact") or r.get("answer") or ""
 
     docs = [get_candidate_text(r) for r in candidates]
-    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500"
+    light_port = os.environ.get("MIOS_PORTS_LLM_LIGHT") or "8500"
     url = os.environ.get("MIOS_RERANK_URL") or f"http://localhost:{light_port}/v1/rerank"
     model = os.environ.get("MIOS_RERANK_MODEL") or "bge-reranker-v2-m3"
 
@@ -219,12 +219,12 @@ _RLS_OWNER_GUC = "mios.owner_user"
 
 def rls_enabled(env: "Optional[dict]" = None) -> bool:
     """DB-side Row-Level-Security ENFORCEMENT toggle (SSOT [pgvector].rls_enable ->
-    MIOS_DB_RLS_ENABLE, bridged by userenv.sh). DEFAULT FALSE: no SET LOCAL is
+    MIOS_PGVECTOR_RLS_ENABLE, bridged by userenv.sh). DEFAULT FALSE: no SET LOCAL is
     emitted, the schema policies stay permissive, and every executed statement is
     byte-identical to the pre-RLS path. Reads the env per call (like pg_config) so a
     live mios.toml edit + mios-sync-env takes effect without a code change."""
     e = env if env is not None else os.environ
-    return str(e.get("MIOS_DB_RLS_ENABLE", "") or "").strip().lower() in {
+    return str(e.get("MIOS_PGVECTOR_RLS_ENABLE", "") or "").strip().lower() in {
         "1", "true", "yes", "on"}
 
 def build_set_owner(owner: str) -> "tuple[str, dict]":
@@ -270,14 +270,14 @@ def pool_config(env: "Optional[dict]" = None) -> dict:
     via userenv.sh). Read per call (like rls_enabled) so a live mios.toml edit +
     mios-sync-env takes effect. enable default FALSE -> the per-call connect path."""
     e = env if env is not None else os.environ
-    enable = str(e.get("MIOS_PG_POOL_ENABLE", "") or "").strip().lower() in {
+    enable = str(e.get("MIOS_PGVECTOR_POOL_ENABLE", "") or "").strip().lower() in {
         "1", "true", "yes", "on"}
     try:
-        pmin = max(0, int(e.get("MIOS_PG_POOL_MIN", "0") or 0))
+        pmin = max(0, int(e.get("MIOS_PGVECTOR_POOL_MIN", "0") or 0))
     except (TypeError, ValueError):
         pmin = 0
     try:
-        pmax = max(1, int(e.get("MIOS_PG_POOL_MAX", "8") or 8))
+        pmax = max(1, int(e.get("MIOS_PGVECTOR_POOL_MAX", "8") or 8))
     except (TypeError, ValueError):
         pmax = 8
     return {"enable": enable, "min": min(pmin, pmax), "max": pmax}

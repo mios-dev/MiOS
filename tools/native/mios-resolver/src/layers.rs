@@ -10,7 +10,14 @@ pub fn normalize_path_str(p: &str) -> String {
     if p.is_empty() {
         return String::new();
     }
-    let mut normalized = p.replace('\\', "/");
+    // std::fs::canonicalize uses verbatim Windows prefixes. Normalize them
+    // before slash conversion so native child generators can read the same root.
+    let plain = if let Some(unc) = p.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else {
+        p.strip_prefix(r"\\?\").unwrap_or(p).to_string()
+    };
+    let mut normalized = plain.replace('\\', "/");
     if normalized.starts_with('/') && normalized.len() > 2 {
         let bytes = normalized.as_bytes();
         if bytes[1].is_ascii_alphabetic() && bytes[2] == b'/' {
@@ -181,6 +188,16 @@ mod tests {
     use super::*;
     use std::fs::{self, File};
     use tempfile::tempdir;
+
+    #[test]
+    fn canonical_windows_roots_keep_native_drive_and_unc_identity() {
+        assert_eq!(normalize_path_str(r"\\?\M:\MiOS\source"), "M:/MiOS/source");
+        assert_eq!(
+            normalize_path_str(r"\\?\UNC\server\share\MiOS"),
+            "//server/share/MiOS"
+        );
+        assert_eq!(normalize_path_str("/mnt/m/MiOS"), "/mnt/m/MiOS");
+    }
 
     #[test]
     fn test_unrooted_defaults_are_fhs_tiers() {

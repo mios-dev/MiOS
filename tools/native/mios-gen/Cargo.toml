@@ -15,8 +15,6 @@ serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }
 toml = { workspace = true }
 walkdir = { workspace = true }
+tempfile = { workspace = true }
 mios-resolver = { path = "../mios-resolver" }
 mios-service-core = { path = "../mios-service-core" }
-
-[dev-dependencies]
-tempfile = { workspace = true }

@@ -102,13 +102,19 @@ pub fn load_ssot_table() -> Result<toml::Table, ConfigError> {
 
 /// Resolves a typed port (1..=65535) dynamically from environment or `[ports]` SSOT table.
 pub fn require_port(key: &str) -> Result<u16, ConfigError> {
-    // 1. Environment variable override (e.g. MIOS_PORT_NODE or MIOS_PORT_HEADSCALE)
-    let env_var_name = if key.starts_with("MIOS_PORT_") {
-        key.to_string()
-    } else {
-        format!("MIOS_PORT_{}", key.to_uppercase().replace(['.', '-'], "_"))
-    };
-    if let Ok(val) = std::env::var(&env_var_name) {
+    // 1. Environment variable override (e.g. MIOS_PORTS_NODE or MIOS_PORTS_HEADSCALE)
+    let lookup_key = key
+        .strip_prefix("MIOS_PORTS_")
+        .or_else(|| key.strip_prefix("MIOS_PORT_"))
+        .unwrap_or(key)
+        .trim_start_matches("ports.")
+        .replace(['.', '-'], "_");
+    let suffix = lookup_key.to_uppercase();
+    let input = std::env::var(format!("MIOS_PORTS_{suffix}"))
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .or_else(|| std::env::var(format!("MIOS_PORT_{suffix}")).ok());
+    if let Some(val) = input {
         if !val.trim().is_empty() {
             let parsed: i64 = val.trim().parse().map_err(|_| ConfigError::InvalidPort {
                 key: key.to_string(),
@@ -132,11 +138,7 @@ pub fn require_port(key: &str) -> Result<u16, ConfigError> {
         .and_then(|v| v.as_table())
         .ok_or_else(|| ConfigError::MissingKey("ports".into()))?;
 
-    let lookup_key = key
-        .trim_start_matches("MIOS_PORT_")
-        .trim_start_matches("ports.")
-        .to_lowercase()
-        .replace('-', "_");
+    let lookup_key = lookup_key.to_lowercase();
 
     let val = ports.get(&lookup_key).or_else(|| ports.get(key));
 

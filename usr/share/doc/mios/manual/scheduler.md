@@ -100,7 +100,7 @@ never wedge on a missing blade.
 
 Resolve THIS machine's blade name from SSOT, NOT a baked literal.
 
-    Precedence: env ``MIOS_HOSTNAME`` (the install.env bridge derived from
+    Precedence: env ``MIOS_IDENTITY_HOSTNAME`` (the install.env bridge derived from
     [identity].hostname) -> [identity].hostname -> the OS hostname
     (``socket.gethostname()``) as the degrade-open fallback. Always returns a
     non-empty name when the OS can report one; only a total failure yields ''.

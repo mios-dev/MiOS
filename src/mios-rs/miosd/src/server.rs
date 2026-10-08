@@ -30,7 +30,7 @@ impl ConfigServerConfig {
             None => {
                 let port = match port {
                     Some(p) => p,
-                    None => mios_resolver::runtime::require_port("MIOS_PORT_AGENT_PIPE")
+                    None => mios_resolver::runtime::require_port("MIOS_PORTS_AGENT_PIPE")
                         .map_err(|e| e.to_string())?,
                 };
                 format!("127.0.0.1:{port}")

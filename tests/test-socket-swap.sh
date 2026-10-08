@@ -67,7 +67,7 @@ missing = sorted(set(re.findall(r"\$\{(MIOS_[A-Z0-9_]+)\}", text)) - set(exports
 if missing:
     sys.exit("unrendered placeholder(s): " + ", ".join(missing))
 open(sys.argv[2], "w", encoding="utf-8").write(re.sub(r"\$\{(MIOS_[A-Z0-9_]+)\}", lambda m: exports[m.group(1)], text))
-print(exports["MIOS_PORT_AGENT_PIPE"])
+print(exports["MIOS_PORTS_AGENT_PIPE"])
 PY
 )"
 grep -qx "ListenStream=${AGENT_PIPE_PORT}" "${RENDERED_SOCKET}" || { echo "ERROR: socket unit does not listen on SSOT [ports].agent_pipe (${AGENT_PIPE_PORT})"; exit 1; }

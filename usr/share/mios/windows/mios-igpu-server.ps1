@@ -87,8 +87,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not $PSBoundParameters.ContainsKey('Port') -and $env:MIOS_PORT_LLM_IGPU) {
-    $Port = [int]$env:MIOS_PORT_LLM_IGPU
+if (-not $PSBoundParameters.ContainsKey('Port') -and $env:MIOS_PORTS_LLM_IGPU) {
+    $Port = [int]$env:MIOS_PORTS_LLM_IGPU
 }
 
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12

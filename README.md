@@ -32,6 +32,21 @@ GTK defaults are projected into the image's `/etc/skel/.config` at build time. N
 
 The root [`.mios` guide](.mios/README.md) explains workflow dotfolders. They stage sources and generated work; they are not alternate runtime FHS locations.
 
+Native configuration consumers use the shared `mios-resolver` naming registry:
+`section.key` projects to `MIOS_SECTION_KEY`. Bash and PowerShell globals are
+generated from that same registry. Existing public aliases remain compatibility
+inputs; a nonempty canonical input takes precedence, and conflicting legacy
+inputs fail with names-only diagnostics. Semantically different settings remain
+distinct even when an old alias is ambiguous.
+
+Run `mios-gen names --root .` to inspect naming metadata without configuration
+values. Run `mios-gen sync --root . --plan` to validate and inspect the complete
+generation pipeline, then `mios-gen sync --root .` to execute it. The ordered
+stages live in `[generation.sync]` in the SSOT. The old `tools/sync-generated.sh`
+entry point delegates to this native command. Some declared stages still invoke
+Python or Bash adapters; completing those Rust ports and verifying installed
+Windows and Linux pipelines remain required work.
+
 ## Local AI contract
 
 Every OpenAI-compatible client resolves through `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, and `MIOS_AI_KEY`. The supported public shapes include `/v1/chat/completions`, `/v1/responses`, `/v1/embeddings`, and `/v1/models`, with function calls and MCP tools. The [agent contract](usr/share/mios/ai/INDEX.md) and [API reference](usr/share/doc/mios/reference/api.md) describe the local interface.

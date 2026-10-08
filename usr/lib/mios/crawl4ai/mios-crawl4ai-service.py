@@ -34,11 +34,11 @@ Honest-fail: if BOTH engines fail, the response says so. NEVER fabricate
 page content.
 
 SSOT (env rendered from mios.toml [crawl] block via globals/userenv):
-  MIOS_CRAWL_CDP_URL    ws://127.0.0.1:9222   Chrome DevTools endpoint to attach
-  MIOS_CRAWL_CAMOUFOX   true                   enable the camoufox fail-retry
+  MIOS_SERVICES_WEBTOOLS_CDP_URL    ws://127.0.0.1:9222   Chrome DevTools endpoint to attach
+  MIOS_SERVICES_WEBTOOLS_CAMOUFOX   true                   enable the camoufox fail-retry
   MIOS_CRAWL_BIND       127.0.0.1              loopback bind (never LAN)
-  MIOS_PORT_CRAWL4AI    11235                  loopback service port
-  MIOS_CRAWL_MIN_CHARS  200                    markdown shorter than this from
+  MIOS_PORTS_CRAWL4AI    11235                  loopback service port
+  MIOS_SERVICES_WEBTOOLS_MIN_CHARS  200                    markdown shorter than this from
                                                CDP triggers the camoufox retry
 """
 from __future__ import annotations
@@ -52,13 +52,13 @@ from pydantic import BaseModel
 
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
-CDP_URL = (os.environ.get("MIOS_CRAWL_CDP_URL")
-           or "http://127.0.0.1:%s" % os.environ.get("MIOS_PORT_CHROME_CDP", "9222")).strip()
-CAMOUFOX_ON = os.environ.get("MIOS_CRAWL_CAMOUFOX", "true").strip().lower() in (
+CDP_URL = (os.environ.get("MIOS_SERVICES_WEBTOOLS_CDP_URL")
+           or "http://127.0.0.1:%s" % os.environ.get("MIOS_PORTS_CHROME_CDP", "9222")).strip()
+CAMOUFOX_ON = os.environ.get("MIOS_SERVICES_WEBTOOLS_CAMOUFOX", "true").strip().lower() in (
     "1", "true", "yes", "on")
-MIN_CHARS = int(os.environ.get("MIOS_CRAWL_MIN_CHARS", "200"))
+MIN_CHARS = int(os.environ.get("MIOS_SERVICES_WEBTOOLS_MIN_CHARS", "200"))
 BIND = os.environ.get("MIOS_CRAWL_BIND", "127.0.0.1").strip()
-PORT = int(os.environ.get("MIOS_PORT_CRAWL4AI", "8810"))
+PORT = int(os.environ.get("MIOS_PORTS_CRAWL4AI", "8810"))
 
 _BROWSER_CFG = BrowserConfig(
     browser_mode="custom",   # explicit CDP attach (NOT "dedicated" launch)
@@ -215,7 +215,7 @@ async def crawl(req: CrawlReq) -> dict:
         except Exception as e:
             cam_err = f"camoufox error: {e}"
     else:
-        cam_err = "camoufox disabled (MIOS_CRAWL_CAMOUFOX=false)"
+        cam_err = "camoufox disabled (MIOS_SERVICES_WEBTOOLS_CAMOUFOX=false)"
 
     return {"success": False, "engine": "none", "url": url, "title": "",
             "markdown": "", "links": 0,

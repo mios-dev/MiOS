@@ -68,7 +68,7 @@ else
     mios_skip "Terra repo already present"
 fi
 
-# MIOS_FLATPAKS / the Flatpak install path, never from an RPM repo. The
+# MIOS_DESKTOP_FLATPAKS / the Flatpak install path, never from an RPM repo. The
 
 if [[ ! -f "${REPO_DIR}/kubernetes.repo" ]]; then
     # Kubernetes repo minor FLOATS from the k3s image-tag SSOT ([image.sidecars].k3s ->

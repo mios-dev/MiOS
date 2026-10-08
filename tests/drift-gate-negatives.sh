@@ -2590,7 +2590,7 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
     python3 -c 'import io,re,sys
 p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-m=re.search(r"^endpoint    = \"http://localhost:\$\{MIOS_PORT_VLLM\}/v1\"$", s, re.M)
+m=re.search(r"^endpoint    = \"http://localhost:\$\{MIOS_PORTS_VLLM\}/v1\"$", s, re.M)
 assert m, "endpoint anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.start()] + "endpoint    = \"http://localhost:8520/v1\"" + s[m.end():])' "$toml"
@@ -2613,14 +2613,14 @@ test_port_fallbacks() {
 
     # (1) A stale literal beside a MIOS_PORT_* name must FAIL. Four shipped
     # units pinned exactly this shape, three of them retired ports.
-    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")\n' > "$probe"
+    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_PORTS_AGENT_PIPE", "8640")\n' > "$probe"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
         _pf_cleanup; rm -f "$tbak"
-        die "check_port_fallbacks passed with a stale literal beside MIOS_PORT_AGENT_PIPE"
+        die "check_port_fallbacks passed with a stale literal beside MIOS_PORTS_AGENT_PIPE"
     fi
 
     # (2) The DOUBLE fallback -- the second literal is the one that runs.
-    printf '#!/usr/bin/env python3\nimport os\nP = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700") or 8640)\n' > "$probe"
+    printf '#!/usr/bin/env python3\nimport os\nP = int(os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700") or 8640)\n' > "$probe"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
         _pf_cleanup; rm -f "$tbak"
         die "check_port_fallbacks passed with a stale SECOND literal in a double fallback"
@@ -2628,7 +2628,7 @@ test_port_fallbacks() {
 
     # (3) The MIOS_<KEY>_PORT alias spelling, in a file that never says
     # MIOS_PORT_ at all -- the early-out that used to skip it.
-    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_ARBITER_PORT", "8650")\n' > "$probe"
+    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_PORTS_ARBITER", "8650")\n' > "$probe"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
         _pf_cleanup; rm -f "$tbak"
         die "check_port_fallbacks passed with a stale literal beside the alias spelling"
@@ -4405,18 +4405,18 @@ test_protected_refs() {
     cp "$unit" "$backup"
 
     # Remove the SUPPLY, not the reference. ExecStart still carries the bare
-    # ${MIOS_A2O_LANE_B_MODEL} and the unit still declares [Service] env, so the
+    # ${MIOS_FRONTIER_LANE_B_MODEL} and the unit still declares [Service] env, so the
     # renderer still protects it -- and now nothing on the host provides it.
     # That is the shipped state T-1064 found: systemd expands the absent name to
     # "" and Lane B runs with --model ''.
-    sed -i '/MIOS_A2O_LANE_B_MODEL=\${MIOS_A2O_LANE_B_MODEL:-}/d' "$unit"
-    if ! grep -q 'MIOS_A2O_LANE_B_MODEL}' "$unit"; then
+    sed -i '/MIOS_FRONTIER_LANE_B_MODEL=\${MIOS_FRONTIER_LANE_B_MODEL:-}/d' "$unit"
+    if ! grep -q 'MIOS_FRONTIER_LANE_B_MODEL}' "$unit"; then
         cp "$backup" "$unit"; rm -f "$backup"
         die "check_protected_refs negative test planted nothing -- the ExecStart reference is gone, so the control proves nothing"
     fi
     _neg_gate check_protected_refs && { cp "$backup" "$unit"; rm -f "$backup"; die "check_protected_refs passed with a protected ref that nothing supplies"; }
     case "$_NEG_GATE_OUT" in
-        *MIOS_A2O_LANE_B_MODEL*) ;;
+        *MIOS_FRONTIER_LANE_B_MODEL*) ;;
         *) cp "$backup" "$unit"; rm -f "$backup"
            die "check_protected_refs failed, but not for the planted name -- it reported: $_NEG_GATE_OUT" ;;
     esac

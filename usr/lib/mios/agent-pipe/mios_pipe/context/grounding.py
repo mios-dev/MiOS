@@ -322,10 +322,10 @@ def _arch_grounding() -> str:
     Folds the key system.md facts in (system.md is not otherwise injected at
     runtime). Kept short to bound per-turn token cost."""
     import os as _os
-    _p_pipe    = _os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
-    _p_light   = _os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
+    _p_pipe    = _os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700")
+    _p_light   = _os.environ.get("MIOS_PORTS_LLM_LIGHT", "8500")
     _p_heavy   = _os.environ.get("MIOS_PORT_LLM_HEAVY", "8530")
-    _p_hermes  = _os.environ.get("MIOS_PORT_HERMES", "8720")
+    _p_hermes  = _os.environ.get("MIOS_PORTS_HERMES", "8720")
     return (
         "What MiOS IS (ground any 'what is MiOS / MiOS?' answer on THIS host and its "
         "on-disk docs, NEVER from a training prior): MiOS is THIS system -- an "

@@ -137,7 +137,7 @@ progress.** `[frontier].stream_to_reasoning` (default off, degrade-open) +
 start/finish transitions to; `sse.py`'s `_frontier_stream_events()` folds those
 into the same `mios_status` reasoning-channel emission OWUI/CLI/Discord already
 read. *Status: code path shipped; the container write-permission activation seam
-(confirming the mount can write `MIOS_A2O_STREAM_PATH` once flipped on) is being
+(confirming the mount can write `MIOS_FRONTIER_STREAM_PATH` once flipped on) is being
 finished by the code lane before the flag defaults to on.*
 
 **Phase 6 — Identity, security, hardening (F-007, F-009, F-012). Built.**

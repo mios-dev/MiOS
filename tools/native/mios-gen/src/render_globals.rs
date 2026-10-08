@@ -6,52 +6,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
 
-const EXCLUDED_SECTIONS: &[&str] = &[
-    "containers",
-    "verbs",
-    "recipes",
-    "packages",
-    "dotfiles",
-    "btop",
-    "theme",
-    "install_phases",
-    "messages",
-    "ci",
-    "tests",
-    "units",
-];
-
-const WALK_MOSTLY_DEAD: &[&str] = &["ai", "image", "bootstrap", "profile", "sandbox", "security"];
-
-const WALK_EMIT_KEEP: &[&str] = &[
-    "MIOS_AI_BAKE_MODELS",
-    "MIOS_AI_DIR",
-    "MIOS_AI_EMBED_MODEL",
-    "MIOS_AI_ENDPOINT",
-    "MIOS_AI_JOURNAL",
-    "MIOS_AI_MCP_DIR",
-    "MIOS_AI_MEMORY_DIR",
-    "MIOS_AI_MODEL",
-    "MIOS_AI_MODELS_DIR",
-    "MIOS_AI_RAM_FLOOR_GB",
-    "MIOS_AI_SCRATCH_DIR",
-    "MIOS_IMAGE_NAME",
-    "MIOS_IMAGE_REF",
-    "MIOS_IMAGE_TAG",
-    "MIOS_BOOTSTRAP_MODE",
-    "MIOS_SANDBOX_ENABLE",
-    "MIOS_SECURITY_ALLOWLIST_HOSTS",
-    "MIOS_SECURITY_PROBE_VERIFY_TLS",
-    "MIOS_SECURITY_PROVENANCE_TAINT",
-    "MIOS_HEADLESS",
-    "MIOS_MONITOR_RUNNING",
-    "MIOS_NO_COLOR",
-    "MIOS_NO_MONITOR",
-];
-
 const HEADER_SH: &str = r#"#!/usr/bin/env bash
-# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
+# GENERATED IN FULL from usr/share/mios/mios.toml by mios-gen render-globals. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/native/mios-gen/src/render_globals.rs
 # AI-functions: _mios_resolve_version
 #
 # Shell sibling of automation/lib/globals.ps1 -- both are rendered from the same
@@ -77,8 +34,8 @@ _mios_resolve_version() {
 export MIOS_VERSION
 "#;
 
-const HEADER_PS: &str = r#"# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
+const HEADER_PS: &str = r#"# GENERATED IN FULL from usr/share/mios/mios.toml by mios-gen render-globals. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/native/mios-gen/src/render_globals.rs
 # AI-functions: Resolve-MiosVersion
 #
 # PowerShell sibling of automation/lib/globals.sh -- both are rendered from the
@@ -135,6 +92,45 @@ const PS_HOST_PATHS: &str = r#"
 $defaultImageName = 'IMAGE_NAME_LITERAL'
 "#;
 
+const INPUT_SH: &str = r#"
+# Legacy environment inputs are accepted only when they have one SSOT owner.
+_mios_input() {
+    local canonical="$1" name value selected='' chosen=''
+    shift
+    [[ -n "${!canonical:-}" ]] && return 0
+    for name do
+        value="${!name:-}"
+        [[ -n "$value" ]] || continue
+        if [[ -n "$chosen" && "$selected" != "$value" ]]; then
+            printf 'conflicting legacy inputs %s and %s; set %s\n' "$chosen" "$name" "$canonical" >&2
+            return 1
+        fi
+        selected="$value"; chosen="$name"
+    done
+    if [[ -n "$chosen" ]]; then printf -v "$canonical" '%s' "$selected"; fi
+    return 0
+}
+"#;
+
+const INPUT_PS: &str = r#"
+function Resolve-MiosInput {
+    param([string]$Canonical, [string[]]$Aliases, [object]$Default)
+    $selected = $null
+    $chosen = $null
+    foreach ($name in $Aliases) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ([string]::IsNullOrEmpty($value)) { continue }
+        if ($null -ne $chosen -and $selected -cne $value) {
+            throw "conflicting legacy inputs $chosen and $name; set $Canonical"
+        }
+        $selected = $value
+        $chosen = $name
+    }
+    if ($null -ne $chosen) { return $selected }
+    return $Default
+}
+"#;
+
 const PS_HOST_PATHS_TAIL: &str = r#"# ── WINDOWS HOST PATHS (resolved from the live environment) ──────────
 $script:MIOS_WIN_APPDATA_DIR = if ($env:APPDATA)     { $env:APPDATA }     else { "$HOME/AppData/Roaming" }
 $script:MIOS_WIN_DOCS_DIR    = if ($env:USERPROFILE) { "$env:USERPROFILE/Documents" } else { "$HOME/Documents" }
@@ -151,91 +147,13 @@ fn sh_unsafe_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r#"['"`$\\{}\r\n]"#).unwrap())
 }
 
-pub fn sanitize(name: &str) -> String {
-    name.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
-pub fn walk_toml(val: &toml::Value, prefix: &str, results: &mut Vec<(String, toml::Value)>) {
-    if let toml::Value::Table(table) = val {
-        for (k, v) in table {
-            let path = if prefix.is_empty() {
-                k.clone()
-            } else {
-                format!("{prefix}.{k}")
-            };
-            if path == "routing.domains" {
-                continue;
-            }
-            if let toml::Value::Table(_) = v {
-                walk_toml(v, &path, results);
-            } else {
-                results.push((path, v.clone()));
-            }
-        }
-    }
-}
-
 pub fn build_exports(root: &Path) -> Result<BTreeMap<String, String>, String> {
     let merged = mios_resolver::resolve_merged(Some(root), false)
         .map_err(|e| format!("failed to resolve merged mios.toml: {e}"))?;
-
-    let stack_offset = mios_resolver::stack_offset_of(&merged);
-
-    let mut exports: BTreeMap<String, String> = BTreeMap::new();
-    let mut pairs = Vec::new();
-    walk_toml(&merged, "", &mut pairs);
-
-    for (dotted, val) in pairs {
-        let section = dotted.split('.').next().unwrap_or(&dotted);
-        if EXCLUDED_SECTIONS.contains(&section) {
-            continue;
-        }
-        if dotted.ends_with(".comment") || dotted.rsplit('.').next() == Some("comment") {
-            continue;
-        }
-        let processed = mios_resolver::walk::process_val(&dotted, &val, stack_offset);
-        if processed.is_empty() {
-            continue;
-        }
-        let canonical = sanitize(&format!("MIOS_{}", dotted.to_uppercase().replace('.', "_")));
-        if !(WALK_MOSTLY_DEAD.contains(&section) && !WALK_EMIT_KEEP.contains(&canonical.as_str())) {
-            exports.insert(canonical, processed.clone());
-        }
-        for alias in mios_resolver::aliases::get_aliases(&dotted) {
-            if alias.ends_with("_VERSION") && dotted.starts_with("image.sidecars.") {
-                let tag = match processed.rsplit_once(':') {
-                    Some((_, t)) => t,
-                    None => "latest",
-                };
-                exports.insert(sanitize(&alias), tag.to_string());
-            } else {
-                exports.insert(sanitize(&alias), processed.clone());
-            }
-        }
-    }
-
-    for (name, value) in mios_resolver::palette::resolve(&merged) {
-        let upper = name.to_uppercase();
-        let key = if upper.starts_with("MIOS_COLOR_") {
-            upper
-        } else {
-            format!("MIOS_COLOR_{upper}")
-        };
-        exports.entry(sanitize(&key)).or_insert(value);
-    }
-
-    exports.remove("MIOS_PORT_GUACAMOLE");
-    exports.remove("MIOS_GUACAMOLE_PORT");
-
-    Ok(exports)
+    Ok(mios_resolver::emit::build_globals_map(
+        &merged,
+        mios_resolver::stack_offset_of(&merged),
+    ))
 }
 
 pub fn ordered_names(exports: &BTreeMap<String, String>) -> Vec<String> {
@@ -355,6 +273,15 @@ pub fn sh_assign(name: &str, value: &str) -> String {
 }
 
 pub fn ps_assign(name: &str, value: &str, exports: Option<&BTreeMap<String, String>>) -> String {
+    ps_assign_with_inputs(name, value, exports, &[])
+}
+
+fn ps_assign_with_inputs(
+    name: &str,
+    value: &str,
+    exports: Option<&BTreeMap<String, String>>,
+    aliases: &[String],
+) -> String {
     let re = template_re();
     let parts = split_template(re, value);
     let has_placeholders = parts.iter().any(|p| matches!(p, Part::Placeholder(_)));
@@ -398,25 +325,43 @@ pub fn ps_assign(name: &str, value: &str, exports: Option<&BTreeMap<String, Stri
         }
     };
 
-    format!("$script:{name} = if ($env:{name}) {{ $env:{name} }} else {{ {rendered} }}")
+    let fallback = if aliases.is_empty() {
+        rendered
+    } else {
+        let aliases = aliases
+            .iter()
+            .map(|alias| format!("'{alias}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("Resolve-MiosInput -Canonical '{name}' -Aliases @({aliases}) -Default ({rendered})")
+    };
+    format!("$script:{name} = if ($env:{name}) {{ $env:{name} }} else {{ {fallback} }}")
 }
 
 pub fn render_sh(
     exports: &BTreeMap<String, String>,
     names: &[String],
     version_fallback: &str,
+    inputs: &BTreeMap<String, Vec<String>>,
 ) -> String {
     let mut lines = Vec::new();
     lines.push(HEADER_SH.replace("VERSION_FALLBACK", version_fallback));
+    lines.push(INPUT_SH.to_string());
     for name in names {
         if name == "MIOS_VERSION" {
             continue;
         }
         if let Some(val) = exports.get(name) {
+            if let Some(aliases) = inputs.get(name).filter(|aliases| !aliases.is_empty()) {
+                lines.push(format!(
+                    "_mios_input {name} {} || {{ return 1 2>/dev/null || exit 1; }}",
+                    aliases.join(" ")
+                ));
+            }
             lines.push(sh_assign(name, val));
         }
     }
-    lines.push(String::new());
+    lines.push("unset -f _mios_input\n".to_string());
     lines.join("\n")
 }
 
@@ -424,15 +369,22 @@ pub fn render_ps1(
     exports: &BTreeMap<String, String>,
     names: &[String],
     version_fallback: &str,
+    inputs: &BTreeMap<String, Vec<String>>,
 ) -> String {
     let mut lines = Vec::new();
     lines.push(HEADER_PS.replace("VERSION_FALLBACK", version_fallback));
+    lines.push(INPUT_PS.to_string());
     for name in names {
         if name == "MIOS_VERSION" {
             continue;
         }
         if let Some(val) = exports.get(name) {
-            lines.push(ps_assign(name, val, Some(exports)));
+            let aliases = inputs.get(name).map(Vec::as_slice).unwrap_or(&[]);
+            lines.push(if aliases.is_empty() {
+                ps_assign(name, val, Some(exports))
+            } else {
+                ps_assign_with_inputs(name, val, Some(exports), aliases)
+            });
         }
     }
     let image_name = exports
@@ -506,7 +458,22 @@ pub fn run_render_globals(root: &Path, check: bool) -> Result<(String, usize), (
         ));
     }
 
-    let exports = build_exports(root).map_err(|e| (e, 1))?;
+    let mut exports = build_exports(root).map_err(|e| (e, 1))?;
+    let merged =
+        mios_resolver::resolve_merged(Some(root), false).map_err(|e| (e.to_string(), 1))?;
+    let inputs = mios_resolver::names::registry(&merged)
+        .map_err(|e| (e, 1))?
+        .input_aliases();
+    for (canonical, aliases) in &inputs {
+        if !exports.contains_key(canonical) {
+            continue;
+        }
+        for alias in aliases {
+            if exports.contains_key(alias) {
+                exports.insert(alias.clone(), format!("${{{canonical}}}"));
+            }
+        }
+    }
     let version_fallback = exports
         .get("MIOS_META_VERSION")
         .or_else(|| exports.get("MIOS_VERSION"))
@@ -514,8 +481,8 @@ pub fn run_render_globals(root: &Path, check: bool) -> Result<(String, usize), (
         .unwrap_or("0.3.0");
 
     let names = ordered_names(&exports);
-    let sh_body = render_sh(&exports, &names, version_fallback);
-    let ps_body = render_ps1(&exports, &names, version_fallback);
+    let sh_body = render_sh(&exports, &names, version_fallback, &inputs);
+    let ps_body = render_ps1(&exports, &names, version_fallback, &inputs);
 
     let parity_problems = check_globals_parity(&sh_body, &ps_body);
     if !parity_problems.is_empty() {
@@ -620,8 +587,8 @@ mod tests {
     #[test]
     fn test_sh_assign_simple_value() {
         assert_eq!(
-            sh_assign("MIOS_PORT_SSH", "8100"),
-            ": \"${MIOS_PORT_SSH:=8100}\""
+            sh_assign("MIOS_PORTS_SSH", "8100"),
+            ": \"${MIOS_PORTS_SSH:=8100}\""
         );
     }
 
@@ -641,8 +608,11 @@ mod tests {
 
     #[test]
     fn test_sh_assign_template_stays_live() {
-        let out = sh_assign("MIOS_FORGE_URL", "http://localhost:${MIOS_PORT_FORGE_HTTP}");
-        assert!(out.contains("\"${MIOS_PORT_FORGE_HTTP:-}\""));
+        let out = sh_assign(
+            "MIOS_URLS_FORGE",
+            "http://localhost:${MIOS_PORTS_FORGE_HTTP}",
+        );
+        assert!(out.contains("\"${MIOS_PORTS_FORGE_HTTP:-}\""));
     }
 
     #[test]
@@ -655,13 +625,13 @@ mod tests {
 
     #[test]
     fn test_ps_assign_numeric_is_bare() {
-        let out = ps_assign("MIOS_PORT_SSH", "8100", None);
+        let out = ps_assign("MIOS_PORTS_SSH", "8100", None);
         assert!(out.contains("else { 8100 }"));
     }
 
     #[test]
     fn test_ps_assign_string_is_single_quoted() {
-        let out = ps_assign("MIOS_USER", "mios", None);
+        let out = ps_assign("MIOS_IDENTITY_USERNAME", "mios", None);
         assert!(out.contains("else { 'mios' }"));
     }
 
@@ -674,33 +644,27 @@ mod tests {
     #[test]
     fn test_ps_assign_template_becomes_subexpression() {
         let mut exports = BTreeMap::new();
-        exports.insert("MIOS_PORT_FORGE_HTTP".to_string(), "8400".to_string());
+        exports.insert("MIOS_PORTS_FORGE_HTTP".to_string(), "8400".to_string());
         let out = ps_assign(
-            "MIOS_FORGE_URL",
-            "http://localhost:${MIOS_PORT_FORGE_HTTP}",
+            "MIOS_URLS_FORGE",
+            "http://localhost:${MIOS_PORTS_FORGE_HTTP}",
             Some(&exports),
         );
-        assert!(out.contains("$($script:MIOS_PORT_FORGE_HTTP)"));
+        assert!(out.contains("$($script:MIOS_PORTS_FORGE_HTTP)"));
     }
 
     #[test]
     fn test_ps_assign_dollar_in_template_is_escaped() {
         let mut exports = BTreeMap::new();
-        exports.insert("MIOS_PORT_SSH".to_string(), "8100".to_string());
-        let out = ps_assign("MIOS_X", "a $literal and ${MIOS_PORT_SSH}", Some(&exports));
+        exports.insert("MIOS_PORTS_SSH".to_string(), "8100".to_string());
+        let out = ps_assign("MIOS_X", "a $literal and ${MIOS_PORTS_SSH}", Some(&exports));
         assert!(out.contains("`$literal"));
     }
 
     #[test]
     fn test_ps_assign_env_override_wins() {
-        let out = ps_assign("MIOS_PORT_SSH", "8100", None);
-        assert!(out.contains("if ($env:MIOS_PORT_SSH)"));
-    }
-
-    #[test]
-    fn test_sanitize() {
-        assert_eq!(sanitize("MIOS_A@B-C.D"), "MIOS_A_B_C_D");
-        assert_eq!(sanitize("MIOS_PORT_SSH"), "MIOS_PORT_SSH");
+        let out = ps_assign("MIOS_PORTS_SSH", "8100", None);
+        assert!(out.contains("if ($env:MIOS_PORTS_SSH)"));
     }
 
     #[test]
@@ -708,14 +672,14 @@ mod tests {
         let mut exports = BTreeMap::new();
         exports.insert(
             "MIOS_URLS_FORGE".to_string(),
-            "http://localhost:${MIOS_PORT_FORGE_HTTP}".to_string(),
+            "http://localhost:${MIOS_PORTS_FORGE_HTTP}".to_string(),
         );
-        exports.insert("MIOS_PORT_FORGE_HTTP".to_string(), "8400".to_string());
+        exports.insert("MIOS_PORTS_FORGE_HTTP".to_string(), "8400".to_string());
 
         let names = ordered_names(&exports);
         let idx_dep = names
             .iter()
-            .position(|n| n == "MIOS_PORT_FORGE_HTTP")
+            .position(|n| n == "MIOS_PORTS_FORGE_HTTP")
             .unwrap();
         let idx_ref = names.iter().position(|n| n == "MIOS_URLS_FORGE").unwrap();
         assert!(idx_dep < idx_ref);

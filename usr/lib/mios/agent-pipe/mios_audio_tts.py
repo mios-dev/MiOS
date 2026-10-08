@@ -45,7 +45,7 @@ BYTES_PER_SAMPLE = 2  # 16-bit signed PCM (s16le)
 DEFAULT_BUFFER_SECONDS = 5.0
 LATENCY_SLA_TARGET_MS = 300.0
 
-DEFAULT_PIPER_URL = f"http://localhost:{os.environ.get('MIOS_PORT_PIPER', '8179')}"
+DEFAULT_PIPER_URL = f"http://localhost:{os.environ.get('MIOS_PORTS_PIPER', '8179')}"
 # piper1-gpl's http_server (localhost/mios-piper on [ports].piper) answers POST
 # only on /synthesize (and /download); its index route is GET-only, so a POST to
 # "/" is a 405. Nothing on the box serves an OpenAI /v1/audio/speech TTS route,

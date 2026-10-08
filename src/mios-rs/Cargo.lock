@@ -871,6 +871,7 @@ version = "0.3.0"
 dependencies = [
  "flate2",
  "mios-build",
+ "mios-resolver",
  "regex",
  "ruzstd",
  "serde_json",

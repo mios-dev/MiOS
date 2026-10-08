@@ -298,7 +298,7 @@ check_dead_lane() {
     done
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane (mios-llm-light on \${MIOS_PORT_LLM_LIGHT})"
+        _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane (mios-llm-light on \${MIOS_PORTS_LLM_LIGHT})"
     else
         echo "[98-drift-checks]   no retired :11434 lane in active config"
     fi
@@ -737,7 +737,7 @@ emit("SSOT_SQLITE_VEC", str(mem.get("sqlite_vec_enable", False)).lower())
     local SSOT_RETIRE_ALT SSOT_COLD_DIR SSOT_COLD_DAYS SSOT_COLD_ZSTD SSOT_SQLITE_VEC
     eval "$ssot"
 
-    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-$SSOT_RETIRE_ALT}"
+    local retire_alt="${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:-$SSOT_RETIRE_ALT}"
     if [[ "$retire_alt" == "true" ]]; then
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
@@ -747,25 +747,25 @@ emit("SSOT_SQLITE_VEC", str(mem.get("sqlite_vec_enable", False)).lower())
         fi
     fi
 
-    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-$SSOT_COLD_DIR}"
+    local cold_storage_dir="${MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR:-$SSOT_COLD_DIR}"
     if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
         _violation "[converge.memory].cold_storage_dir cannot sit inside a CephFS tenants mount: ${cold_storage_dir}"
         return
     fi
 
-    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-$SSOT_COLD_DAYS}"
+    local cold_retention_days="${MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS:-$SSOT_COLD_DAYS}"
     if ! [[ "$cold_retention_days" =~ ^[0-9]+$ ]] || (( cold_retention_days < 1 )); then
         _violation "[converge.memory].cold_retention_days must be an integer >= 1, got: ${cold_retention_days}"
         return
     fi
 
-    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-$SSOT_COLD_ZSTD}"
+    local cold_zstd_level="${MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL:-$SSOT_COLD_ZSTD}"
     if ! [[ "$cold_zstd_level" =~ ^[0-9]+$ ]] || (( cold_zstd_level < 1 || cold_zstd_level > 19 )); then
         _violation "[converge.memory].cold_zstd_level must be an integer 1..19, got: ${cold_zstd_level}"
         return
     fi
 
-    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-$SSOT_SQLITE_VEC}"
+    local sqlite_vec_enable="${MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE:-$SSOT_SQLITE_VEC}"
     if [[ "$sqlite_vec_enable" == "true" ]]; then
         local py_bin="/usr/lib/mios/agents/.venv/bin/python3"
         [[ -x "$py_bin" ]] || py_bin="python3"
@@ -780,8 +780,8 @@ emit("SSOT_SQLITE_VEC", str(mem.get("sqlite_vec_enable", False)).lower())
 
 # --- Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled ---
 check_hummingbird() {
-    local distroless_enable="${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-false}"
-    local rechunk_enable="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
+    local distroless_enable="${MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE:-false}"
+    local rechunk_enable="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-false}"
     local containerfile="Containerfile.hummingbird"
     local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
 
@@ -1377,7 +1377,7 @@ check_resolver_twin_parity() {
     # no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
     # legs and they went on agreeing. Proven by mutation: disabling
     # resolve_cross_references in mios_toml.py left the bash leg emitting
-    # ${MIOS_PORT_AGENT_PIPE} verbatim, and the check still passed (T-1062).
+    # ${MIOS_PORTS_AGENT_PIPE} verbatim, and the check still passed (T-1062).
     #
     # Locate the native resolver and put it on the fixture's PATH so tier 1
     # fires. Absent, the comparison is vacuous: fail where the environment
@@ -1419,7 +1419,7 @@ check_resolver_twin_parity() {
     # The cross-reference goes in the WINNING layer. Put on vendor it was
     # overridden by host and never reached the resolved value, so the fixture
     # still could not fail -- a repaired check that is still vacuous.
-    printf '[ai]\nendpoint = "http://host:${MIOS_PORT_AGENT_PIPE}"\nmodel = "host-model"\n'                 > "$fix/host.toml"
+    printf '[ai]\nendpoint = "http://host:${MIOS_PORTS_AGENT_PIPE}"\nmodel = "host-model"\n'                 > "$fix/host.toml"
     printf '[ai]\nmodel = "user-model"\n'                                                                 > "$fix/.config/mios/mios.toml"
     local sel='^MIOS_AI_(ENDPOINT|MODEL|EMBED_MODEL)=' bash_out py_out
     mkdir -p "$fix/bin" && ln -sf "$_nat" "$fix/bin/mios-resolver"
@@ -2041,7 +2041,7 @@ check_toml_projection() {
 check_render_extension_coverage() {
     # A placeholder in a file type 34-render-quadlets.sh does not substitute
     # ships verbatim. mios-cockpit-link.socket carried
-    # ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK} because `.socket` was
+    # ListenStream=0.0.0.0:${MIOS_PORTS_COCKPIT_LINK} because `.socket` was
     # missing from the renderer's find filter (T-1040).
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then

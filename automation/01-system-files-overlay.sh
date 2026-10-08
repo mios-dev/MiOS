@@ -108,7 +108,7 @@ do
     find "$d" -type d -exec chmod 0755 {} + 2>/dev/null || true
 done
 
-_dev_net_mode="${MIOS_QUADLET_DEV_NETWORK_MODE:-host}"
+_dev_net_mode="${MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE:-host}"
 if [[ "${_dev_net_mode}" == "bridge" ]]; then
     mios_log "[wsl2.dev_vm].quadlet_network_mode=bridge"
     shopt -s nullglob

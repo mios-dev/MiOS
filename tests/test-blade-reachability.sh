@@ -90,8 +90,8 @@ run_status() {
     MIOS_HOST_TOML="${FIXTURE}/mios.toml" \
     MIOS_USER_TOML=/dev/null \
     MIOS_BLADE_PROBE_TIMEOUT=2 \
-    MIOS_PORT_CPU_NODE=8510 MIOS_PORT_LLM_LIGHT=8500 \
-    MIOS_PORT_SGLANG=8530 MIOS_PORT_VLLM=8520 \
+    MIOS_PORTS_CPU_NODE=8510 MIOS_PORTS_LLM_LIGHT=8500 \
+    MIOS_PORTS_SGLANG=8530 MIOS_PORTS_VLLM=8520 \
         bash "${ROOT}/usr/libexec/mios/mios-blade" status 2>&1
 }
 
@@ -123,8 +123,8 @@ ok "targets the overlay does not name stay local"
 # The seat/blade tell: with NO overlay every target is local.
 OUT_LOCAL="$(MIOS_USR_DIR="${ROOT}/usr/lib/mios" MIOS_ETC_DIR="$FIXTURE" \
     MIOS_HOST_TOML=/dev/null MIOS_USER_TOML=/dev/null MIOS_BLADE_PROBE_TIMEOUT=1 \
-    MIOS_PORT_AGENT_PIPE=8700 MIOS_PORT_SEARXNG=8800 MIOS_PORT_CPU_NODE=8510 \
-    MIOS_PORT_LLM_LIGHT=8500 MIOS_PORT_SGLANG=8530 MIOS_PORT_VLLM=8520 \
+    MIOS_PORTS_AGENT_PIPE=8700 MIOS_PORTS_SEARXNG=8800 MIOS_PORTS_CPU_NODE=8510 \
+    MIOS_PORTS_LLM_LIGHT=8500 MIOS_PORTS_SGLANG=8530 MIOS_PORTS_VLLM=8520 \
     bash "${ROOT}/usr/libexec/mios/mios-blade" status 2>&1)"
 grep -q 'REMOTE' <<<"$OUT_LOCAL" \
     && die "with no overlay nothing should be REMOTE:

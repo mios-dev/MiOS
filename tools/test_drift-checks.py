@@ -611,7 +611,7 @@ class TestValueAliasRegistry(unittest.TestCase):
         r = self._gate_over(stranded)
         self.assertEqual(1, r.returncode, r.stderr)
         # The names the pgvector Quadlet, agent-pipe pg.py and mios-pg-query read.
-        for name in ("MIOS_PG_HNSW_ITERATIVE_SCAN", "MIOS_PG_POOL_ENABLE", "MIOS_DB_RLS_ENABLE"):
+        for name in ("MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN", "MIOS_PGVECTOR_POOL_ENABLE", "MIOS_PGVECTOR_RLS_ENABLE"):
             self.assertIn(name + " is registered", r.stderr)
 
 

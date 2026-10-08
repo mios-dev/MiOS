@@ -842,7 +842,7 @@ _wait_for_owui() {
     local port=8033
     if [[ -f /etc/mios/install.env ]]; then
         local env_port
-        env_port="$(grep '^MIOS_PORT_OPEN_WEBUI=' /etc/mios/install.env | cut -d= -f2 | tr -d '\r\n ')"
+        env_port="$(grep '^MIOS_PORTS_OPEN_WEBUI=' /etc/mios/install.env | cut -d= -f2 | tr -d '\r\n ')"
         if [[ -n "$env_port" ]]; then
             port="$env_port"
         fi
@@ -886,7 +886,7 @@ fi
 
 if command -v curl >/dev/null 2>&1; then
     _log "pre-warming model weights (load-only, NO prompts)..."
-    _LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8500}"
+    _LLM_LIGHT_PORT="${MIOS_PORTS_LLM_LIGHT:-8500}"
     (curl -sf --max-time 2 \
         "http://localhost:${_LLM_LIGHT_PORT}/v1/models" >/dev/null 2>&1 &) || true
     _log "  pre-warm dispatched: mios-llm-light (:8500)"

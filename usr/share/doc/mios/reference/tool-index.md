@@ -328,12 +328,16 @@ is generated, its generator is here.
 | `tools/test_check-tasks.py` | Sibling unit tests for tools/check-tasks.py -- one suite per subcommand (status-parity, schema, agy), each with its own failure counter. |
 | `tools/test_check-testhygiene.py` | Sibling unit tests for tools/check-testhygiene.py -- one suite per subcommand; the unittest suites run under one discovery pass, the two script-style suites return their own verdict. |
 | `tools/test_ci-suites.py` | Sibling test for tools/ci-suites.py; proves the registry reader fails on the shapes it exists to catch. |
+| `tools/test_configurator_security.py` | Execute the configurator's real JavaScript serializers and path banner against hostile strings; validate emitted TOML with the standard parser. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_drift-checks.py` | Sibling test for tools/drift-checks.py; asserts each extracted check is importable, dispatchable and agrees with the shell gate. |
 | `tools/test_generate-gate-index.py` | Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check. |
 | `tools/test_generator_check_agrees_with_write.py` | Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here. |
 | `tools/test_mios_tracked.py` | Fixtures for mios_tracked.py -- proves a dead git and an empty listing both raise instead of reading as a clean, empty tree. |
+| `tools/test_monitor_runtime.py` | Verify actual monitor lifecycle restores caller signal handlers before launching another terminal client, including real Linux Textual stale-handler failure. |
+| `tools/test_native_generator_dispatch.py` | Exercise real native management/generator dispatch without retired Python scripts. |
 | `tools/test_read-ssot-key.py` | Sibling test for tools/read-ssot-key.py; proves an absent key exits non-zero instead of printing a default. |
+| `tools/test_routing_security.py` | Execute actual relay handler bodies with faulting clients to prove exception details remain server-side while success responses remain intact. |
 | `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
 | `tools/test_sync-dotfiles.py` | Hermetic fixtures for sync-dotfiles.py: ADR-0024 prune and --check both ways, surface mode kept, empty partition fails loud, forwardPorts/containerEnv projected from [ports] keys and resolved MIOS_*... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
@@ -341,7 +345,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 42 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 46 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

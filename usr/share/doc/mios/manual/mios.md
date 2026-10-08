@@ -5,10 +5,10 @@
 ### Examples for other local OpenAI-API-compatible runtimes...
 
 Examples for other local OpenAI-API-compatible runtimes:
-  LLM-Light:          base_url = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
+  LLM-Light:          base_url = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"
   vLLM:               base_url = "http://localhost:8000/v1"
   LM Studio:          base_url = "http://localhost:1234/v1"
-  mios-gateway-agent: base_url = "http://localhost:${MIOS_PORT_HERMES}/v1"
+  mios-gateway-agent: base_url = "http://localhost:${MIOS_PORTS_HERMES}/v1"
   LiteLLM proxy:      base_url = "http://localhost:4000/v1"
 
 <!-- mios-src:7036a2325287 from etc/mios/kb.conf.toml:11-16 -->
@@ -540,14 +540,14 @@ Resolve ${MIOS_*} that one emitted value makes to another.
 
     Apply it where the consumer CANNOT expand: systemd EnvironmentFile= and
     podman --env-file read a value literally, so an emitted
-    MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1 means one thing
+    MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1 means one thing
     to bash and another to them. It is also why system-sync-env.sh DROPPED that
     variable rather than emitting it: its filter rejects any value containing
     `$` (T-1060).
 
     Do NOT apply it to the export map that renders automation/lib/globals.{sh,ps1}.
     Those are sourced by bash and PowerShell, which expand at load time, and the
-    live reference is the feature: exporting MIOS_PORT_AGENT_PIPE before sourcing
+    live reference is the feature: exporting MIOS_PORTS_AGENT_PIPE before sourcing
     propagates into MIOS_AI_ENDPOINT. render-globals.build_exports() therefore
     returns the unexpanded map.
 
@@ -621,7 +621,7 @@ Every MiOS node ships the A2A server, so a live card == a delegable peer.
 
 ### Agent-pipe port from SSOT (env MIOS_A2A_PORT /...
 
-Agent-pipe port from SSOT (env MIOS_A2A_PORT / MIOS_PORT_AGENT_PIPE override,
+Agent-pipe port from SSOT (env MIOS_A2A_PORT / MIOS_PORTS_AGENT_PIPE override,
     else [ports].agent_pipe). No literal default -- empty means we cannot honestly
     build the loopback self-URL, so the self-peer is simply skipped (degrade-open).
 
@@ -995,7 +995,7 @@ Exit codes:  0 = chain intact (or empty)   1 = tamper detected (first_broken_seq
 
 Env:  MIOS_PG_QUERY        (default /usr/libexec/mios/mios-pg-query)
       MIOS_AGENT_PIPE_DIR  (default: resolved relative to this CLI)
-      plus mios-pg-query's own MIOS_PG_HOST / MIOS_PG_PORT / MIOS_PG_USER / MIOS_PG_DB
+      plus mios-pg-query's own MIOS_PGVECTOR_HOST / MIOS_PG_PORT / MIOS_PGVECTOR_USER / MIOS_PGVECTOR_DB
 
 <!-- mios-src:a198b84a4b58 from usr/libexec/mios/mios-chain-verify:5-26 -->
 
@@ -1295,7 +1295,7 @@ answer from the fetched markdown.
 
 SSOT (env rendered from mios.toml [crawl] via globals/userenv):
   MIOS_CRAWL_SERVICE_URL  base URL of the local crawl service
-                          (default http://127.0.0.1:${MIOS_PORT_CRAWL4AI:-8810})
+                          (default http://127.0.0.1:${MIOS_PORTS_CRAWL4AI:-8810})
 
 Usage:
   mios-crawl <http(s)-url> [--max-chars N] [--camoufox] [--timeout S] [--json]
@@ -2538,7 +2538,7 @@ hardcoded English aliases in this codebase. (The legacy BSL 1.1 store is retired
 
 Subcommands:
   bootstrap                Create the person row (from $USER /
-                           $MIOS_USER) + ingest mios-apps inventory
+                           $MIOS_IDENTITY_USERNAME) + ingest mios-apps inventory
                            into app_install rows. Idempotent.
   alias add <phrase> <target>
                            Add an alias. <target> can be:
@@ -3389,7 +3389,7 @@ lock the operator out of Open WebUI.
 Resolves identity from layered mios.toml ([identity].username,
 [identity].email) and the password from the MiOS password SSOT (see
 _read_password): MIOS_OPERATOR_PASSWORD / MIOS_OWUI_ADMIN_PASSWORD ->
-mios.toml [identity].default_password -> MIOS_DEFAULT_PASSWORD -> "mios"
+mios.toml [identity].default_password -> MIOS_IDENTITY_DEFAULT_PASSWORD -> "mios"
 -- the SAME source Forge / Portal / Cockpit / RDP use, so one operator
 password works everywhere. A "__random__" override generates + writes a
 24-char password to /etc/mios/owui-admin-password (mode 0600 root-only).
@@ -3427,7 +3427,7 @@ Return (password, source) resolved from the MiOS password SSOT.
       2. MIOS_OWUI_ADMIN_PASSWORD   -- per-service override (parallels
                                        MIOS_FORGE_ADMIN_PASSWORD)
       3. mios.toml [identity].default_password  -- the canonical SSOT field
-      4. MIOS_DEFAULT_PASSWORD (install.env)    -- shell/systemd bridge of #3
+      4. MIOS_IDENTITY_DEFAULT_PASSWORD (install.env)    -- shell/systemd bridge of #3
       5. literal "mios"             -- vendor default; the same final fallback
                                        as usr/libexec/mios/forge-firstboot.sh
 
@@ -3675,9 +3675,9 @@ Two modes:
      NULL is JSON null; keep integers (e.g. LIMIT) inline in the SQL string
      (int-coerced by the caller) to avoid text->int inference edge cases.
 
-Env:    MIOS_PG_HOST (127.0.0.1) MIOS_PG_PORT (5432)
-        MIOS_PG_USER (mios)      MIOS_PG_DB (mios)
-        T-068 RLS: MIOS_DB_RLS_ENABLE (off) gates a per-connection owner scope;
+Env:    MIOS_PGVECTOR_HOST (127.0.0.1) MIOS_PG_PORT (5432)
+        MIOS_PGVECTOR_USER (mios)      MIOS_PGVECTOR_DB (mios)
+        T-068 RLS: MIOS_PGVECTOR_RLS_ENABLE (off) gates a per-connection owner scope;
         the owner comes from `--owner <v>` (or `--owner=<v>`) else MIOS_PG_RLS_OWNER.
         When enabled+owner, an owner-bound `set_config('mios.owner_user', ...)` is
         SET first so the schema RLS policies scope rows to that owner. Default-off /
@@ -3691,7 +3691,7 @@ Output: tab-separated columns, one row per line (psql -At shape) for BOTH modes.
 ### The owner to scope THIS invocation's rows to, or None to...
 
 The owner to scope THIS invocation's rows to, or None to emit NO scope.
-    Gated by MIOS_DB_RLS_ENABLE (SSOT [pgvector].rls_enable, bridged by userenv.sh),
+    Gated by MIOS_PGVECTOR_RLS_ENABLE (SSOT [pgvector].rls_enable, bridged by userenv.sh),
     the SAME flag the agent-pipe pg path reads -- default-off => None => no change.
     The owner comes from `--owner <v>` (or `--owner=<v>`) else MIOS_PG_RLS_OWNER, so
     the confined consumers (mios-ai / daemon / skills / kg) can scope their reads.
@@ -4410,7 +4410,7 @@ reached through the broker like any other verb. Offline-first: if the daemon is
 down it returns success=false with an honest error -- it NEVER fabricates a
 launched=true.
 
-SSOT: MIOS_DAEMON_AGENT_URL (else built from MIOS_DAEMON_AGENT_PORT, default
+SSOT: MIOS_DAEMON_AGENT_URL (else built from MIOS_PORTS_DAEMON_AGENT, default
 8644 -- matches the daemon's AGENT_PORT / mios.toml [agents.mios-daemon-agent]).
 
 Output JSON: {success, app, launched, verdict, recent_failures, checked_by}.
@@ -4502,7 +4502,7 @@ parallel ~= 300-500ms vs ~200ms single) and surface evidence one phrasing
 misses. SearXNG's own limiter is off + granian workers are bumped so the
 local instance absorbs the burst; agent-pipe bounds CROSS-agent concurrency.
 
-SSOT: SearXNG endpoint = $MIOS_SEARXNG_URL; micro-LLM = $MIOS_MICRO_MODEL /
+SSOT: SearXNG endpoint = $MIOS_URLS_SEARXNG; micro-LLM = $MIOS_MICRO_MODEL /
 $MIOS_MICRO_ENDPOINT (same as agent-pipe); fan-out knobs = $MIOS_WEB_FANOUT /
 $MIOS_WEB_FANOUT_WORKERS / $MIOS_WEB_RRF_K; the anchor stopword screen =
 mios.toml [search].anchor_stopwords ($MIOS_WEB_ANCHOR_STOPWORDS CSV) -- all
@@ -4575,7 +4575,7 @@ Without a supply here systemd expanded all four to the empty string
 
 T-1035. Each entry pins path:KEY=VALUE, not just path:KEY. A key-only register
 cannot tell the shipped placeholder from an operator's real password: setting
-MIOS_PG_PASS in the build environment bakes that value into a 0644 file under
+MIOS_PGVECTOR_PASS in the build environment bakes that value into a 0644 file under
 /usr and the key-only gate stayed green. Every value below is a placeholder
 and none is a secret; changing any of them is a NEW finding by design.
 

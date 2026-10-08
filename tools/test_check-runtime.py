@@ -215,7 +215,7 @@ class tsu_TestPortKeys(unittest.TestCase):
 
 class tsu_TestCovered(unittest.TestCase):
     def test_templated_port_is_covered(self):
-        d = tsu_data({"forge_http": 8400}, {"forge": "http://x:${MIOS_PORT_FORGE_HTTP}"})
+        d = tsu_data({"forge_http": 8400}, {"forge": "http://x:${MIOS_PORTS_FORGE_HTTP}"})
         self.assertEqual(tsu_mod.su_covered_ports(d), {"forge_http"})
 
     def test_one_url_may_cover_several_ports(self):
@@ -283,11 +283,11 @@ class tsu_TestBrowserOpenable(unittest.TestCase):
 
     def test_an_http_entry_is_clean(self):
         self.assertEqual(tsu_mod.su_browser_openable(
-            {"urls": {"forge": "http://localhost:${MIOS_PORT_FORGE_HTTP}"}}), [])
+            {"urls": {"forge": "http://localhost:${MIOS_PORTS_FORGE_HTTP}"}}), [])
 
     def test_an_https_entry_is_clean(self):
         self.assertEqual(tsu_mod.su_browser_openable(
-            {"urls": {"cockpit": "https://localhost:${MIOS_PORT_COCKPIT}"}}), [])
+            {"urls": {"cockpit": "https://localhost:${MIOS_PORTS_COCKPIT}"}}), [])
 
     def test_a_dsn_fails(self):
         # [urls].pgvector shipped as a postgresql:// DSN, which made the table
@@ -318,7 +318,7 @@ class tsu_TestBarePortAddresses(unittest.TestCase):
             {"ports": {"llm_light": 8500},
              "ai": {"endpoint": "http://localhost:8500/v1"}})
         self.assertTrue(out)
-        self.assertIn("MIOS_PORT_LLM_LIGHT", out[0])
+        self.assertIn("MIOS_PORTS_LLM_LIGHT", out[0])
 
     def test_the_loopback_spelling_is_caught_too(self):
         self.assertTrue(tsu_mod.su_bare_port_addresses(
@@ -328,7 +328,7 @@ class tsu_TestBarePortAddresses(unittest.TestCase):
     def test_a_templated_url_is_clean(self):
         self.assertEqual(tsu_mod.su_bare_port_addresses(
             {"ports": {"llm_light": 8500},
-             "ai": {"endpoint": "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"}}), [])
+             "ai": {"endpoint": "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"}}), [])
 
     def test_a_port_that_is_not_ours_is_ignored(self):
         self.assertEqual(tsu_mod.su_bare_port_addresses(

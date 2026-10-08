@@ -49,7 +49,7 @@ class QuadletSecretsHardener:
         """Non-destructively initializes secrets.env ensuring existing credentials are preserved."""
         default_keys = [
             "POSTGRES_PASSWORD",
-            "MIOS_DEFAULT_PASSWORD",
+            "MIOS_IDENTITY_DEFAULT_PASSWORD",
             "HA_PASSWORD",
             "POSTGRESQL_PASSWORD",
             "K3S_TOKEN",

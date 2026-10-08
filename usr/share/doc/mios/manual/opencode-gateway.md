@@ -18,7 +18,7 @@ Endpoints:
                                (or an SSE delta stream when stream=true)
 
 Config (all via env, SSOT-rendered by the unit / userenv.sh):
-  MIOS_PORT_OPENCODE_GATEWAY   listen port (SSOT key [ports].opencode_gateway)
+  MIOS_PORTS_OPENCODE_GATEWAY   listen port (SSOT key [ports].opencode_gateway)
   MIOS_OPENCODE_BIN            path to the opencode binary
   MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
                                must match [agents.opencode].model + the key in
@@ -94,7 +94,7 @@ Endpoints:
                                (or an SSE delta stream when stream=true)
 
 Config (all via env, SSOT-rendered by the unit / userenv.sh):
-  MIOS_PORT_OPENCODE_GATEWAY   listen port (default 8780)
+  MIOS_PORTS_OPENCODE_GATEWAY   listen port (default 8780)
   MIOS_OPENCODE_BIN            path to the opencode binary
   MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
                                must match [agents.opencode].model + the key in

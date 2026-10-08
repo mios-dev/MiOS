@@ -391,7 +391,7 @@ Description = "'MiOS' Cockpit Link Proxy Socket"
 ConditionVirtualization = "!container"
 
 [units."mios-cockpit-link.socket".Socket]
-ListenStream = "0.0.0.0:${MIOS_PORT_COCKPIT_LINK}"
+ListenStream = "0.0.0.0:${MIOS_PORTS_COCKPIT_LINK}"
 BindIPv6Only = "both"
 
 [units."mios-cockpit-link.socket".Install]
@@ -411,22 +411,22 @@ ExecStart = '''/bin/bash -c '\
     set +e; \
     if [ -f /etc/mios/install.env ]; then source /etc/mios/install.env; fi; \
     ports=(\
-        "${MIOS_PORT_FORGE_HTTP:-8400}" \
-        "${MIOS_PORT_OPEN_WEBUI:-8200}" \
-        "${MIOS_PORT_CODE_SERVER:-8900}" \
-        "${MIOS_PORT_HERMES:-8720}" \
-        "${MIOS_PORT_SEARXNG:-8800}" \
-        "${MIOS_PORT_COCKPIT:-8110}" \
-        "${MIOS_PORT_HERMES_DASHBOARD:-8210}" \
-        "${MIOS_PORT_LLM_LIGHT:-8500}" \
-        "${MIOS_PORT_PGVECTOR:-8600}" \
-        "${MIOS_PORT_COCKPIT_LINK:-8120}" \
-        "${MIOS_PORT_ADGUARD_UI:-8050}" \
-        "${MIOS_PORT_SSH:-8100}" \
-        "${MIOS_PORT_FORGE_SSH:-8410}" \
-        "${MIOS_PORT_VLLM:-8520}" \
-        "${MIOS_PORT_SGLANG:-8530}" \
-        "${MIOS_PORT_CPU_NODE:-8510}" \
+        "${MIOS_PORTS_FORGE_HTTP:-8400}" \
+        "${MIOS_PORTS_OPEN_WEBUI:-8200}" \
+        "${MIOS_PORTS_CODE_SERVER:-8900}" \
+        "${MIOS_PORTS_HERMES:-8720}" \
+        "${MIOS_PORTS_SEARXNG:-8800}" \
+        "${MIOS_PORTS_COCKPIT:-8110}" \
+        "${MIOS_PORTS_HERMES_DASHBOARD:-8210}" \
+        "${MIOS_PORTS_LLM_LIGHT:-8500}" \
+        "${MIOS_PORTS_PGVECTOR:-8600}" \
+        "${MIOS_PORTS_COCKPIT_LINK:-8120}" \
+        "${MIOS_PORTS_ADGUARD_UI:-8050}" \
+        "${MIOS_PORTS_SSH:-8100}" \
+        "${MIOS_PORTS_FORGE_SSH:-8410}" \
+        "${MIOS_PORTS_VLLM:-8520}" \
+        "${MIOS_PORTS_SGLANG:-8530}" \
+        "${MIOS_PORTS_CPU_NODE:-8510}" \
         53 \
     ); \
     for p in "${ports[@]}"; do \
@@ -1016,14 +1016,14 @@ comment = "# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/co
 Environment = [
   "HOME=/var/lib/mios/hermes-worker",
   "HERMES_HOME=/var/lib/mios/hermes-worker",
-  "SEARXNG_URL=http://localhost:${MIOS_PORT_SEARXNG}",
-  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:${MIOS_PORT_CRAWL4AI}",
-  "FIRECRAWL_API_URL=http://127.0.0.1:${MIOS_PORT_FIRECRAWL}",
-  "PORT=${MIOS_PORT_HERMES}",
-  "API_SERVER_PORT=${MIOS_PORT_HERMES}",
-  "HERMES_BACKEND_BASE_URL=http://localhost:${MIOS_PORT_VLLM}",
+  "SEARXNG_URL=http://localhost:${MIOS_PORTS_SEARXNG}",
+  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:${MIOS_PORTS_CRAWL4AI}",
+  "FIRECRAWL_API_URL=http://127.0.0.1:${MIOS_PORTS_FIRECRAWL}",
+  "PORT=${MIOS_PORTS_HERMES}",
+  "API_SERVER_PORT=${MIOS_PORTS_HERMES}",
+  "HERMES_BACKEND_BASE_URL=http://localhost:${MIOS_PORTS_VLLM}",
   "HERMES_MAX_TOKENS=8192",
-  "BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}",
+  "BROWSER_CDP_URL=http://localhost:${MIOS_PORTS_CHROME_CDP_WORKER:-9223}",
 ]
 EnvironmentFile = ["-/etc/mios/install.env", "-/etc/mios/hermes/api.env"]
 ExecStartPre = [
@@ -1048,7 +1048,7 @@ WantedBy = "multi-user.target"
 
 
 [units."mios-agent-pipe.service".Unit]
-comment = "# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORT_LLM_LIGHT), composed in server.py via _LIGHT_BASE.\n# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes"
+comment = "# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORTS_LLM_LIGHT), composed in server.py via _LIGHT_BASE.\n# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes"
 Description = "'MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)"
 Documentation = "file:///usr/lib/mios/agent-pipe/server.py"
 comment2 = "# R8: NOT ordered After=mios-ai-firstboot.service. The plane needs the VENV (baked\n# into the image) + pgvector, NOT the boot-time model fetch; ordering behind\n# firstboot's multi-GB download blocked the router for the whole download. firstboot\n# `systemctl restart --no-block`s this unit once models land, so the edge is redundant."
@@ -1070,14 +1070,14 @@ SupplementaryGroups = "mios-hermes"
 WorkingDirectory = "/var/lib/mios/agent-pipe"
 EnvironmentFile = ["-/etc/mios/agent-pipe.env", "-/etc/mios/install.env"]
 Environment = [
-  "MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE}",
+  "MIOS_PORTS_AGENT_PIPE=${MIOS_PORTS_AGENT_PIPE}",
   "MIOS_AGENT_PIPE_BACKEND_LIGHT=1",
   "MIOS_AI_MODEL=granite4.1:8b",
   "MIOS_NO_TOOL_CHOICE_HINTS=11436",
   "MIOS_KV_PAGING_HINTS=11436,11450",
   "MIOS_LLM_API_HINTS=",
-  "MIOS_REFINE_TIMEOUT_S=45",
-  "MIOS_POLISH_TIMEOUT_S=45",
+  "MIOS_REFINE_TIMEOUT_SECONDS=45",
+  "MIOS_POLISH_TIMEOUT_SECONDS=45",
   "MIOS_REFINE_MAX_TOKENS=1200",
   "MIOS_AGENT_MEMORY_RECALL=1",
   "MIOS_PASSPORT_AGENT_NAME=agent-pipe",
@@ -1098,7 +1098,7 @@ WantedBy = "multi-user.target"
 
 
 [units."mios-agents.service".Unit]
-comment = "# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. ExecStartPre builds the local image if absent; ExecStart runs it every boot on the code-server port MIOS_PORT_CODE_SERVER (mios-agents REPLACES the retired mios-code-server -- one IDE, no duplicate service).\n# AI-related: /usr/share/mios/agents/Containerfile, /usr/share/mios/agents/mios-a2o, /usr/libexec/mios/mios-agents-firstboot.sh, /etc/mios/install.env, /var/lib/mios/agents\n# /usr/lib/systemd/system/mios-agents.service"
+comment = "# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. ExecStartPre builds the local image if absent; ExecStart runs it every boot on the code-server port MIOS_PORTS_CODE_SERVER (mios-agents REPLACES the retired mios-code-server -- one IDE, no duplicate service).\n# AI-related: /usr/share/mios/agents/Containerfile, /usr/share/mios/agents/mios-a2o, /usr/libexec/mios/mios-agents-firstboot.sh, /etc/mios/install.env, /var/lib/mios/agents\n# /usr/lib/systemd/system/mios-agents.service"
 Description = "'MiOS' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server)"
 Documentation = "https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/agents/ACTIVATION.md"
 After = "network-online.target podman.socket"
@@ -1109,15 +1109,15 @@ ConditionPathExists = "/usr/share/mios/agents/Containerfile"
 Type = "simple"
 comment = "# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to\n# empty (code-server then dies \"Invalid URL\"). Set the defaults here; install.env\n# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses\n# plain ${VAR}."
 Environment = [
-  "MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900}",
-  "MIOS_DEFAULT_PASSWORD=mios",
+  "MIOS_PORTS_CODE_SERVER=${MIOS_PORTS_CODE_SERVER:-8900}",
+  "MIOS_IDENTITY_DEFAULT_PASSWORD=mios",
   # Law 10 keeps these four out of install.env -- a space, parentheses or a
   # {} placeholder, or an empty value the resolver drops -- while ExecStart
   # references each BARE, which the renderer leaves for systemd to expand.
   # Without a supply here systemd expanded all four to the empty string
   # (T-1064). `mios-gate protected-refs` fails the build on the general case.
-  "\"MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL:-}\"",
-  "\"MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}\"",
+  "\"MIOS_FRONTIER_LANE_B_MODEL=${MIOS_FRONTIER_LANE_B_MODEL:-}\"",
+  "\"MIOS_FRONTIER_CLAUDE_EFFORT_FLAG=${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG:-}\"",
   "\"MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG:-}\"",
   "\"MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG:-}\"",
 ]
@@ -1127,19 +1127,19 @@ comment2 = "# Build the local super-container image on first deploy (idempotent 
 ExecStartPre = "/usr/libexec/mios/mios-agents-firstboot.sh"
 ExecStart = """/usr/sbin/podman run --replace --name mios-agents \
   --network=host \
-  --env PASSWORD=${MIOS_DEFAULT_PASSWORD} \
+  --env PASSWORD=${MIOS_IDENTITY_DEFAULT_PASSWORD} \
   --env MIOS_A2O_ENGINE=agy \
   --env MIOS_A2O_WORK=/mnt/mios-root \
-  --env MIOS_A2O_ORCH_ENGINE=${MIOS_A2O_ORCH_ENGINE} \
-  --env MIOS_A2O_ORCH_MODEL=${MIOS_A2O_ORCH_MODEL} \
-  --env MIOS_A2O_ORCH_EFFORT=${MIOS_A2O_ORCH_EFFORT} \
-  --env MIOS_A2O_LANE_A_ENGINE=${MIOS_A2O_LANE_A_ENGINE} \
-  --env MIOS_A2O_LANE_A_MODEL=${MIOS_A2O_LANE_A_MODEL} \
-  --env MIOS_A2O_LANE_A_EFFORT=${MIOS_A2O_LANE_A_EFFORT} \
-  --env MIOS_A2O_LANE_B_ENGINE=${MIOS_A2O_LANE_B_ENGINE} \
-  --env MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL} \
-  --env MIOS_A2O_LANE_B_EFFORT=${MIOS_A2O_LANE_B_EFFORT} \
-  --env MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG} \
+  --env MIOS_FRONTIER_ORCH_ENGINE=${MIOS_FRONTIER_ORCH_ENGINE} \
+  --env MIOS_FRONTIER_ORCH_MODEL=${MIOS_FRONTIER_ORCH_MODEL} \
+  --env MIOS_FRONTIER_ORCH_EFFORT=${MIOS_FRONTIER_ORCH_EFFORT} \
+  --env MIOS_FRONTIER_LANE_A_ENGINE=${MIOS_FRONTIER_LANE_A_ENGINE} \
+  --env MIOS_FRONTIER_LANE_A_MODEL=${MIOS_FRONTIER_LANE_A_MODEL} \
+  --env MIOS_FRONTIER_LANE_A_EFFORT=${MIOS_FRONTIER_LANE_A_EFFORT} \
+  --env MIOS_FRONTIER_LANE_B_ENGINE=${MIOS_FRONTIER_LANE_B_ENGINE} \
+  --env MIOS_FRONTIER_LANE_B_MODEL=${MIOS_FRONTIER_LANE_B_MODEL} \
+  --env MIOS_FRONTIER_LANE_B_EFFORT=${MIOS_FRONTIER_LANE_B_EFFORT} \
+  --env MIOS_FRONTIER_CLAUDE_EFFORT_FLAG=${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG} \
   --env MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG} \
   --env MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG} \
   --volume /:/mnt/mios-root:rw,rslave \
@@ -1200,7 +1200,7 @@ Wants = "redis.service"
 Type = "simple"
 User = "mios-ai"
 Group = "mios-ai"
-comment5 = "# The runner reads MIOS_PORT_MCP and MIOS_AI_ENDPOINT under set -u; the\n# resolver-rendered install.env is where they come from."
+comment5 = "# The runner reads MIOS_PORTS_MCP and MIOS_AI_ENDPOINT under set -u; the\n# resolver-rendered install.env is where they come from."
 EnvironmentFile = "-/etc/mios/install.env"
 comment = "# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener"
 ExecStartPre = "/usr/libexec/mios/mcp-init.sh"
@@ -1241,7 +1241,7 @@ Group = "mios-ai"
 WorkingDirectory = "/var/lib/mios/opencode-gateway/work"
 Environment = [
   "HOME=/var/lib/mios/opencode-gateway/work",
-  "MIOS_PORT_OPENCODE_GATEWAY=${MIOS_PORT_OPENCODE_GATEWAY:-8780}",
+  "MIOS_PORTS_OPENCODE_GATEWAY=${MIOS_PORTS_OPENCODE_GATEWAY:-8780}",
   "MIOS_OPENCODE_HOST=127.0.0.1",
   "MIOS_OPENCODE_BIN=/usr/lib/mios/agents/opencode/bin/opencode",
   "MIOS_OPENCODE_MODEL=mios-opencode:latest",
@@ -1318,7 +1318,7 @@ Environment = [
   "HOME=/var/lib/mios/hermes-worker",
   "XDG_RUNTIME_DIR=/run/mios-hermes-browser-worker",
   "HERMES_BROWSER_HEADLESS=1",
-  "HERMES_BROWSER_CDP_PORT=${MIOS_PORT_CHROME_CDP_WORKER:-9223}",
+  "HERMES_BROWSER_CDP_PORT=${MIOS_PORTS_CHROME_CDP_WORKER:-9223}",
   "HERMES_BROWSER_PROFILE_DIR=/var/lib/mios/hermes-browser/profile-w2",
   "HERMES_BROWSER_LOG=/var/lib/mios/hermes-browser/launch-w2.log",
   "NO_AT_BRIDGE=1",
@@ -1394,31 +1394,31 @@ ConditionVirtualization = ["|!container", "|wsl"]
 
 [units."mios-pgvector-backup.service".Service]
 Type = "oneshot"
-comment = "# SSOT env: MIOS_PG_USER / MIOS_PG_DB / MIOS_PORT_PGVECTOR / MIOS_PG_BACKUP_*\n# all flow from mios.toml [pgvector] -> userenv.sh. '-' = tolerate absence\n# (degrade-open to the inline defaults below)."
+comment = "# SSOT env: MIOS_PGVECTOR_USER / MIOS_PGVECTOR_DB / MIOS_PORTS_PGVECTOR / MIOS_PG_BACKUP_*\n# all flow from mios.toml [pgvector] -> userenv.sh. '-' = tolerate absence\n# (degrade-open to the inline defaults below)."
 EnvironmentFile = "-/etc/mios/userenv.sh"
 comment2 = "# Inline-default the knobs so the unit is correct even with no env file present."
 Environment = [
-  "MIOS_PG_BACKUP_ENABLE=true",
-  "MIOS_PG_BACKUP_DIR=/var/lib/mios/backups",
-  "MIOS_PG_BACKUP_KEEP=7",
-  "MIOS_PG_USER=mios",
-  "MIOS_PG_DB=mios",
-  "MIOS_PORT_PGVECTOR=${MIOS_PORT_PGVECTOR:-8600}",
+  "MIOS_PGVECTOR_BACKUP_ENABLE=true",
+  "MIOS_PGVECTOR_BACKUP_DIR=/var/lib/mios/backups",
+  "MIOS_PGVECTOR_BACKUP_KEEP=7",
+  "MIOS_PGVECTOR_USER=mios",
+  "MIOS_PGVECTOR_DB=mios",
+  "MIOS_PORTS_PGVECTOR=${MIOS_PORTS_PGVECTOR:-8600}",
 ]
 comment3 = "# Runs as root to `podman exec` into the mios-ai.pod pgvector container.\n# ProtectSystem=strict / ReadWritePaths dropped so podman can reach its runtime."
 ProtectHome = "true"
 PrivateTmp = "true"
 ExecStart = """/bin/sh -c '\
-  case "$$MIOS_PG_BACKUP_ENABLE" in \
-    0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PG_BACKUP_ENABLE=$$MIOS_PG_BACKUP_ENABLE)"; exit 0 ;; \
+  case "$$MIOS_PGVECTOR_BACKUP_ENABLE" in \
+    0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PGVECTOR_BACKUP_ENABLE=$$MIOS_PGVECTOR_BACKUP_ENABLE)"; exit 0 ;; \
   esac; \
-  DIR="$$MIOS_PG_BACKUP_DIR"; [ -z "$$DIR" ] && DIR="/var/lib/mios/backups"; \
-  KEEP="$$MIOS_PG_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; \
+  DIR="$$MIOS_PGVECTOR_BACKUP_DIR"; [ -z "$$DIR" ] && DIR="/var/lib/mios/backups"; \
+  KEEP="$$MIOS_PGVECTOR_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; \
   case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; \
   [ "$$KEEP" -lt 1 ] && KEEP=1; \
-  PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; \
-  USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; \
-  DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; \
+  PORT="$$MIOS_PORTS_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; \
+  USR="$$MIOS_PGVECTOR_USER"; [ -z "$$USR" ] && USR="mios"; \
+  DB="$$MIOS_PGVECTOR_DB"; [ -z "$$DB" ] && DB="mios"; \
   if ! command -v podman >/dev/null 2>&1; then \
     echo "mios-pgvector-backup: podman not found on PATH -- skipping (need podman to exec pg_dump inside the pod)"; \
     exit 0; \
@@ -1490,7 +1490,7 @@ StartLimitBurst = "5"
 Type = "simple"
 EnvironmentFile = "-/etc/mios/install.env"
 comment = "# Ensure postgres container is ready before launching the daemon"
-ExecStartPre = "/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios"
+ExecStartPre = "/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORTS_PGVECTOR:-8600} -U mios -d mios"
 ExecStart = "/usr/libexec/mios/mios-account-sync --daemon"
 Restart = "always"
 RestartSec = "10s"
@@ -1509,7 +1509,7 @@ Requires = "mios-pgvector.service"
 [units."mios-userdb-render.service".Service]
 Type = "oneshot"
 EnvironmentFile = "-/etc/mios/install.env"
-ExecStartPre = "-/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios"
+ExecStartPre = "-/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORTS_PGVECTOR:-8600} -U mios -d mios"
 ExecStart = "/usr/libexec/mios/mios-userdb-render"
 RemainAfterExit = "yes"
 
@@ -1551,10 +1551,10 @@ Wants = "network-online.target"
 
 [units."mios-node.service".Service]
 Type = "simple"
-ExecStart = "/usr/bin/mios-node run --node-id 101 --port ${MIOS_PORT_NODE}"
+ExecStart = "/usr/bin/mios-node run --node-id 101 --port ${MIOS_PORTS_NODE}"
 Restart = "always"
 RestartSec = "5s"
-Environment = ["MIOS_PORT_NODE=${MIOS_PORT_NODE}", "MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}/v1", "MIOS_LOG_LEVEL=info"]
+Environment = ["MIOS_PORTS_NODE=${MIOS_PORTS_NODE}", "MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORTS_AGENT_PIPE}/v1", "MIOS_LOG_LEVEL=info"]
 LimitNOFILE = "65536"
 NoNewPrivileges = "true"
 ProtectSystem = "strict"
@@ -1580,8 +1580,8 @@ WantedBy = "default.target"
 
 # ----------------------------------------------------------------------------
 # [identity] -- Linux account, hostname, GECOS, login shell, group membership.
-# Maps to MIOS_USER, MIOS_HOSTNAME, MIOS_USER_FULLNAME, MIOS_USER_SHELL,
-# MIOS_USER_GROUPS.
+# Maps to MIOS_IDENTITY_USERNAME, MIOS_IDENTITY_HOSTNAME, MIOS_USER_FULLNAME, MIOS_IDENTITY_SHELL,
+# MIOS_IDENTITY_GROUPS.
 # ----------------------------------------------------------------------------
 [identity]
 username  = "user"
@@ -1720,12 +1720,12 @@ provenance_taint = false
 [security.credential_literals]
 # T-1035. Each entry pins path:KEY=VALUE, not just path:KEY. A key-only register
 # cannot tell the shipped placeholder from an operator's real password: setting
-# MIOS_PG_PASS in the build environment bakes that value into a 0644 file under
+# MIOS_PGVECTOR_PASS in the build environment bakes that value into a 0644 file under
 # /usr and the key-only gate stayed green. Every value below is a placeholder
 # and none is a secret; changing any of them is a NEW finding by design.
 max_literals = 6
 grandfathered = [
-  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD=mios",
+  "usr/lib/systemd/system/mios-agents.service:MIOS_IDENTITY_DEFAULT_PASSWORD=mios",
   "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD=mios",
   "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD=mios",
   "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY=sk-noop",
@@ -1844,7 +1844,7 @@ ip_resolve = 4
 # File extensions automation/34-render-quadlets.sh substitutes ${MIOS_*} in.
 # SSOT because the renderer and check_render_extension_coverage must agree:
 # `.socket` was absent, so usr/lib/systemd/system/mios-cockpit-link.socket
-# shipped `ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}` (T-1040).
+# shipped `ListenStream=0.0.0.0:${MIOS_PORTS_COCKPIT_LINK}` (T-1040).
 extensions = [
   "container", "network", "volume", "pod", "image", "build",
   "toml", "json", "conf", "service", "socket",
@@ -2081,7 +2081,7 @@ config_max_body_bytes   = 2097152
 
 # ----------------------------------------------------------------------------
 # [locale] -- system-wide defaults applied via systemd-localed at first boot.
-# Maps to MIOS_TIMEZONE, MIOS_KEYBOARD, MIOS_LOCALE.
+# Maps to MIOS_LOCALE_TIMEZONE, MIOS_LOCALE_KEYBOARD_LAYOUT, MIOS_LOCALE_LANGUAGE.
 # ----------------------------------------------------------------------------
 [locale]
 timezone        = "UTC"
@@ -2306,7 +2306,7 @@ bullets = [
 ]
 
 [search]
-endpoint = "http://localhost:${MIOS_PORT_SEARXNG}/"
+endpoint = "http://localhost:${MIOS_PORTS_SEARXNG}/"
 enable   = true
 anchor_stopwords = [
     "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on", "at",
@@ -2321,11 +2321,11 @@ anchor_stopwords = [
 
 [hermes]
 # Hermes-Agent: OpenAI-compatible gateway and the live MiOS agent at /.
-# Fronts mios-llm-light (${MIOS_PORT_LLM_LIGHT}). API key generated at first boot
+# Fronts mios-llm-light (${MIOS_PORTS_LLM_LIGHT}). API key generated at first boot
 # into /etc/mios/hermes/api.env. Mirrors [ai].model -- this key is
 # kept for back-compat with older callers; the SSOT default is [ai].model.
-endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
-backend  = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
+endpoint = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
+backend  = "http://localhost:${MIOS_PORTS_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 model    = "granite4.1:8b"
 enable   = true
 
@@ -2492,10 +2492,10 @@ no_group_delegate = [
 max_declared = 5
 keys = [
   "MIOS_USER_FULLNAME",           # a person's display name -- the space IS the content
-  "MIOS_A2O_LANE_A_ROLE",         # prose describing a lane's share of the work
-  "MIOS_A2O_LANE_B_ROLE",         # same, and parenthesised
-  "MIOS_A2O_LANE_B_MODEL",        # an external lane's display model name -- spaces + parentheses
-  "MIOS_A2O_CLAUDE_EFFORT_FLAG",  # a CLI flag template: a space and a {} placeholder
+  "MIOS_FRONTIER_LANE_A_ROLE",         # prose describing a lane's share of the work
+  "MIOS_FRONTIER_LANE_B_ROLE",         # same, and parenthesised
+  "MIOS_FRONTIER_LANE_B_MODEL",        # an external lane's display model name -- spaces + parentheses
+  "MIOS_FRONTIER_CLAUDE_EFFORT_FLAG",  # a CLI flag template: a space and a {} placeholder
 ]
 
 # Law 11 SECRETS-NEVER-IN-ENV: secret-bearing environment variable names
@@ -2692,7 +2692,7 @@ mtls                     = false # require mTLS for this peer
 
 [agents.hermes]
 privilege_group = "privileged"
-endpoint = "http://localhost:${MIOS_PORT_HERMES}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_HERMES}/v1"
 # model removed
 role     = "general"
 health_gate = true
@@ -2700,12 +2700,12 @@ job      = "General orchestration of multi-step, tool-driven tasks -- decide loc
 fanout   = false
 default  = false
 # Inference lane ("self-delegate to CPU concurrently
-# to pending/future GPU operations"). gpu = the heavy dGPU lane (${MIOS_PORT_SGLANG});
+# to pending/future GPU operations"). gpu = the heavy dGPU lane (${MIOS_PORTS_SGLANG});
 # cpu = the light iGPU/CPU lane. The fan-out pairs a GPU primary with a
 # CPU secondary so both lanes work in parallel -- and so Hermes is never
 # the ONLY dispatched agent.
 lane     = "gpu"
-cpu_endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
+cpu_endpoint = "http://localhost:${MIOS_PORTS_SGLANG}/v1"
 cpu_model    = "mios-heavy"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
@@ -2714,7 +2714,7 @@ strengths = ["kanban", "web_search", "skill_invocation",
 
 [agents.opencode]
 privilege_group = "routine"
-endpoint = "http://localhost:${MIOS_PORT_OPENCODE_GATEWAY}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_OPENCODE_GATEWAY}/v1"
 # ONE canonical model id (must match [ai].opencode_model + opencode.json + the
 # mios-opencode build name:tag). Was "opencode"; unified to the real tag the
 # gateway advertises and mios-llm-light serves.
@@ -2738,7 +2738,7 @@ strengths = ["file_edit", "code_review", "git", "test_running",
 failover_agents = ["hermes"]
 
 [agents.mios-daemon-agent]
-endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_SGLANG}/v1"
 model    = "mios-heavy"
 # REASONING now (was "telemetry"): a real CPU second opinion, grounded in --
 # not limited to -- system telemetry.
@@ -2781,7 +2781,7 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
 [agents.mios-node]
 kind            = "node"
-endpoint        = "http://localhost:${MIOS_PORT_NODE}/v1"
+endpoint        = "http://localhost:${MIOS_PORTS_NODE}/v1"
 model           = "mios-node:latest"
 role            = "edge_execution"
 job             = "Distributed edge micro-node task execution, Wasm sandboxing, Ed25519 signature checks, and CRDT lock-free state synchronization."
@@ -2827,7 +2827,7 @@ accepted = [
 
 
 [nodes.local-cpu]
-endpoint = "http://localhost:${MIOS_PORT_CPU_NODE}/v1"
+endpoint = "http://localhost:${MIOS_PORTS_CPU_NODE}/v1"
 model    = "mios-agent-cpu"    # canonical CPU Modelfile tag, never a raw base
 lane     = "cpu"
 api      = "llamacpp"          # /slots KV-paging, no tool_choice=required
@@ -2835,13 +2835,13 @@ health_gate = true
 # Local iGPU lane -- served natively on the Windows host via llama.cpp+Vulkan
 # on localhost loopback per Architectural Law 5 (MIOS_AI_ENDPOINT).
 [nodes.local-igpu]
-endpoint    = "http://127.0.0.1:${MIOS_PORT_LLM_IGPU}/v1"
+endpoint    = "http://127.0.0.1:${MIOS_PORTS_LLM_IGPU}/v1"
 model       = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
 lane        = "igpu"
 api         = "llamacpp"
 health_gate = true
 [nodes.local-vllm]
-endpoint    = "http://localhost:${MIOS_PORT_VLLM}/v1"
+endpoint    = "http://localhost:${MIOS_PORTS_VLLM}/v1"
 model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLLM serves
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
@@ -2852,13 +2852,13 @@ health_gate = true             # inert until the gated mios-llm-heavy-alt.servic
 # model is baked + the service enabled. api=openai (SGLang speaks /v1 + honours
 # tool_choice=required). Mutually exclusive with local-vllm (both serve "mios-heavy").
 [nodes.local-sglang]
-endpoint    = "http://localhost:${MIOS_PORT_SGLANG}/v1"
+endpoint    = "http://localhost:${MIOS_PORTS_SGLANG}/v1"
 model       = "mios-heavy"     # = [ai.sglang].served_name; the heavy reasoner SGLang serves
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
 health_gate = true             # inert until the gated mios-llm-heavy.service is enabled + reachable
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
+endpoint    = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"
 model       = "mios-agent-cpu" # a resident alias of the light lane's model map
 lane        = "cpu"            # llama.cpp serving lane, not the dGPU semaphore
 api         = "llamacpp"       # /slots KV-paging, no tool_choice=required
@@ -3393,7 +3393,7 @@ gid              = 828
 [refine]
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
+endpoint         = "http://localhost:${MIOS_PORTS_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
 # CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
 # (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
@@ -3422,7 +3422,7 @@ short_prompt_words = 10   # ...AND at or below this whitespace-token count
 [polish]
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
+endpoint         = "http://localhost:${MIOS_PORTS_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
 timeout_seconds  = 45
 max_tokens       = 800
@@ -3552,7 +3552,7 @@ excludes = ["sessions", "vector_db", "models", "*.db", "*.db-*",
 
 [[daemon.index.roots]]
 label    = "operator-home"
-path     = "/var/home"     # walks /var/home/$MIOS_USER and below
+path     = "/var/home"     # walks /var/home/$MIOS_IDENTITY_USERNAME and below
 excludes = [".cache", ".local/share/Trash", "node_modules",
             ".git", "__pycache__"]
 
@@ -3619,7 +3619,7 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 # traces and spans are exported to the OTLP collector.
 [observability]
 otel_enable   = false
-otel_endpoint = "http://localhost:${MIOS_PORT_OTELCOL_OTLP}"
+otel_endpoint = "http://localhost:${MIOS_PORTS_OTELCOL_OTLP}"
 record_mode   = false
 replay_mode   = false
 debug         = true
@@ -5936,12 +5936,12 @@ no_progress_window = 2
 max_consecutive_failures = 3
 wall_clock_budget_s = 90
 reflexion_enable = true
-endpoint       = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
-backend        = "http://localhost:${MIOS_PORT_HERMES}/v1"   # hermes-agent OpenAI gateway
+endpoint       = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
+backend        = "http://localhost:${MIOS_PORTS_HERMES}/v1"   # hermes-agent OpenAI gateway
 backend_model  = "hermes-agent"               # the model id hermes-agent advertises
 enable         = true
 client_tools_passthrough = true
-tool_backend             = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
+tool_backend             = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"
 tool_backend_model       = "granite4.1:8b"
 ingress_key              = ""
 
@@ -5978,11 +5978,11 @@ hnsw_iterative_scan      = "strict_order"
 # Approximate upper bound on tuples visited during an iterative scan -- the cap
 # that stops a pathologically selective filter from walking the whole index.
 # pgvector default; raise for higher recall on very selective filters. Env:
-# MIOS_PG_HNSW_MAX_SCAN_TUPLES.
+# MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES.
 hnsw_max_scan_tuples     = 20000
 # Memory budget for the relaxed_order discarded-candidate heap, as a multiple of
 # work_mem (consulted only under relaxed_order; inert under strict_order).
-# pgvector default. Env: MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER.
+# pgvector default. Env: MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER.
 hnsw_scan_mem_multiplier = 1
 emb_model       = "nomic-embed-text"
 emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
@@ -5994,7 +5994,7 @@ backup_enable  = true
 # created at build time here.
 backup_dir     = "/var/lib/mios/backups"
 # How many timestamped dumps to retain before pruning oldest. 7 = a week of
-# daily snapshots. Read by shell/timer via MIOS_PG_BACKUP_KEEP (userenv slot +
+# daily snapshots. Read by shell/timer via MIOS_PGVECTOR_BACKUP_KEEP (userenv slot +
 # render allowlist below).
 backup_keep    = 7
 # Bind the Postgres listener to loopback only. true (default) = 127.0.0.1 (the
@@ -6022,7 +6022,7 @@ models_dir = "/usr/share/mios/llamacpp/models"
 config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
 # --threads for the mios-cpu-node CPU lane (rendered into its quadlet Exec). Sized
 # to leave headroom on the box; SSOT-wired alongside ports.cpu_node
-# (was a DEAD ${MIOS_CPU_NODE_THREADS} placeholder, never in the render allowlist).
+# (was a DEAD ${MIOS_LLAMACPP_CPU_NODE_THREADS} placeholder, never in the render allowlist).
 cpu_node_threads = 14
 bake_models = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
 
@@ -6060,12 +6060,12 @@ kernel_dispatch = true
 db_authoritative = false
 rag_hybrid = false
 rag_rerank = false
-endpoint            = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+endpoint            = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
 agent_model         = "MiOS AI"
 available_models    = ["granite4.1:3b", "granite4.1:30b", "gpt-oss:20b", "nomic-embed-text"]
 hitl_mode           = "block"   # WS-A14 (operator steer "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
 hitl_threshold      = "interactive"
-micro_endpoint           = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+micro_endpoint           = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
 # The risk lattice, safest first. A permission a verb names that is not
 # listed ranks ABOVE the top tier, so an unknown permission fails closed.
 # Read by access/policy.py and by check_rbac_tiers, which until now told
@@ -6150,8 +6150,8 @@ agent_venv          = "/usr/lib/mios/agents/.venv"
 agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. mios-llm-light's
 # OpenAI-compatible surface; swap to vllm / another llama.cpp lane by editing this.
-hermes_backend_url  = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
-model               = "granite4.1:8b"   # IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :${MIOS_PORT_LLM_LIGHT} (see mios-llm-light.yaml).
+hermes_backend_url  = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+model               = "granite4.1:8b"   # IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :${MIOS_PORTS_LLM_LIGHT} (see mios-llm-light.yaml).
 stack_model         = "granite4.1:8b"
 embed_model         = "nomic-embed-text"   # served NAME unchanged (768d); backing GGUF swapped to EmbeddingGemma-300m QAT in mios-llm-light.yaml (zero pgvector migration)
 api_key             = ""
@@ -6202,10 +6202,10 @@ mid_ram_model    = "granite4.1:8b"   # 8-16GB class. qwen3.5:9b retired (Qwen + 
 big_ram_model    = "mistral-magistral-small-2509"   # 16GB+ dGPU class. qwen3-coder:30b retired (Qwen). Mistral Magistral Small 2509 (dense 24B reasoning, AWQ-INT4 ~14GB) fits a 24GB 4090 via the heavy lane (SGLang/vLLM, --reasoning-parser mistral); family-diversity off Qwen. Serve on the heavy lane (see [ai.sglang]/[ai.vllm]); the light lane keeps Granite.
 
 vision_grounding_model    = ""
-vision_grounding_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (needs a vision GGUF in the map to activate)
+vision_grounding_endpoint = "http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1"   # mios-llm-light (needs a vision GGUF in the map to activate)
 chat_vision_model         = "qwen3-vl:4b"
 
-grounding_endpoint = "http://localhost:${MIOS_PORT_VLLM}/v1"
+grounding_endpoint = "http://localhost:${MIOS_PORTS_VLLM}/v1"
 grounding_model    = "mios-grounding"
 
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
@@ -6215,7 +6215,7 @@ micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.
-# desktop.flatpaks -> MIOS_FLATPAKS (comma-joined for the Containerfile arg).
+# desktop.flatpaks -> MIOS_DESKTOP_FLATPAKS (comma-joined for the Containerfile arg).
 # ----------------------------------------------------------------------------
 [desktop]
 session       = "gnome"
@@ -6490,7 +6490,7 @@ btop_config_dir = "M:\\MiOS\\btop"
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
-provider_url = "http://localhost:${MIOS_PORT_OPEN_WEBUI}"            # OWUI front door = the MiOS AI pipeline
+provider_url = "http://localhost:${MIOS_PORTS_OPEN_WEBUI}"            # OWUI front door = the MiOS AI pipeline
 # Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
@@ -7471,7 +7471,7 @@ members = ["guacd", "redis", "", "otelcol_otlp", "otelcol_ui", "pxe_hub_api", ""
 # CDP is an external contract, like DNS/53: DevTools clients and Playwright
 # assume 9222, and the primary binder is a static flatpak flags file.
 pinned  = { chrome_cdp = 9222, chrome_cdp_worker = 9223 }
-doc     = "Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Containers bind the SSOT port (published host-side), while upstream defaults are kept in-container only when published behind host-side SSOT mapping; all Quadlet :-N fallbacks are strictly reconciled against SSOT and enforced by TestQuadletPortFallbacks. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORT_FORGE_SSH."
+doc     = "Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Containers bind the SSOT port (published host-side), while upstream defaults are kept in-container only when published behind host-side SSOT mapping; all Quadlet :-N fallbacks are strictly reconciled against SSOT and enforced by TestQuadletPortFallbacks. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORTS_FORGE_SSH."
 
 [ports.categories.bridge]
 base    = 8950
@@ -7516,14 +7516,14 @@ user_session       = "user@${MIOS_UID}.service"
 # template a [ports] key. Gate: check_service_urls.
 # ----------------------------------------------------------------------------
 [urls]
-forge              = "http://localhost:${MIOS_PORT_FORGE_HTTP}"
-cockpit            = "https://localhost:${MIOS_PORT_COCKPIT}"
-searxng            = "http://localhost:${MIOS_PORT_SEARXNG}"
-open_webui         = "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"
-code_server        = "http://localhost:${MIOS_PORT_CODE_SERVER}/"
-otelcol_ui         = "http://localhost:${MIOS_PORT_OTELCOL_UI}/"
-chrome_cdp         = "http://localhost:${MIOS_PORT_CHROME_CDP}/"
-local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
+forge              = "http://localhost:${MIOS_PORTS_FORGE_HTTP}"
+cockpit            = "https://localhost:${MIOS_PORTS_COCKPIT}"
+searxng            = "http://localhost:${MIOS_PORTS_SEARXNG}"
+open_webui         = "http://localhost:${MIOS_PORTS_OPEN_WEBUI}/"
+code_server        = "http://localhost:${MIOS_PORTS_CODE_SERVER}/"
+otelcol_ui         = "http://localhost:${MIOS_PORTS_OTELCOL_UI}/"
+chrome_cdp         = "http://localhost:${MIOS_PORTS_CHROME_CDP}/"
+local_forge_repo   = "http://localhost:${MIOS_PORTS_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 
@@ -7547,7 +7547,7 @@ non_addressable = [
 # [generator] -- Quadlet & manifest generator configuration
 # ----------------------------------------------------------------------------
 [generator]
-placeholders             = ["FEDORA_VERSION", "MIOS_VERSION", "MIOS_VERSION_FEDORA"]
+placeholders             = ["FEDORA_VERSION", "MIOS_VERSION", "MIOS_VERSIONS_FEDORA"]
 
 [versions]
 fedora                   = "44"
@@ -7563,9 +7563,9 @@ ceph                     = "latest"
 [image.sidecars]
 sys                = "localhost/mios-sys:latest"
 cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
-k3s                = "docker.io/rancher/k3s:${MIOS_VERSION_K3S}"
-ceph               = "quay.io/ceph/ceph:${MIOS_VERSION_CEPH}"
-forge              = "codeberg.org/forgejo/forgejo:${MIOS_VERSION_FORGEJO}"
+k3s                = "docker.io/rancher/k3s:${MIOS_VERSIONS_K3S}"
+ceph               = "quay.io/ceph/ceph:${MIOS_VERSIONS_CEPH}"
+forge              = "codeberg.org/forgejo/forgejo:${MIOS_VERSIONS_FORGEJO}"
 searxng            = "docker.io/searxng/searxng:latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui         = "ghcr.io/open-webui/open-webui:main"
@@ -7670,7 +7670,7 @@ gid  = 824
 # SSOT for the ${MIOS_CRAWL_*}/${MIOS_FIRECRAWL_*} placeholders consumed by
 # mios-webtools-crawl4ai.container + mios-webtools-firecrawl-{api,worker}.container;
 # mapped to env in tools/lib/userenv.sh and rendered via automation/34-render-quadlets.sh.
-cdp_url            = "http://127.0.0.1:${MIOS_PORT_CHROME_CDP}"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
+cdp_url            = "http://127.0.0.1:${MIOS_PORTS_CHROME_CDP}"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
 camoufox           = true                     # enable the Camoufox stealth-Firefox fail-retry fallback
 min_chars          = 200                      # crawl4ai: minimum extracted chars before a page is considered non-empty
 firecrawl_workers  = 2                        # NUM_WORKERS_PER_QUEUE for firecrawl-api + firecrawl-worker
@@ -8838,8 +8838,8 @@ max_seq_len     = 2048
 warmup_ratio    = 0.03
 grad_checkpointing = true              # saves memory; set false if a custom-op base breaks in backward
 
-teacher_endpoint     = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
-pipe_url             = "http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}"
+teacher_endpoint     = "http://localhost:${MIOS_PORTS_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
+pipe_url             = "http://127.0.0.1:${MIOS_PORTS_AGENT_PIPE}"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb
 include_knowledge    = true            # also mine REAL operator queries from the knowledge table
 dataset_path         = "/var/lib/mios/finetune/refiner-sft.jsonl"
@@ -8876,7 +8876,7 @@ grad_accum       = 4
 max_seq_len      = 4096
 warmup_ratio     = 0.03
 grad_checkpointing = true
-teacher_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}"
+teacher_endpoint = "http://localhost:${MIOS_PORTS_LLM_LIGHT}"
 dataset_path     = "/var/lib/mios/finetune/mios-micro-sft.jsonl"
 min_examples     = 24
 gguf_convert     = true
@@ -9477,7 +9477,7 @@ embedding_dim                   = 768
 mode            = "http"          # "queue" = in-process; "http" = legacy :8720 (default)
 queue_maxsize   = 64              # max pending requests in the asyncio.Queue
 worker_concurrency = 4            # parallel GatewayWorker coroutines
-fallback_http   = "http://localhost:${MIOS_PORT_HERMES}/v1"   # used when mode="http" or worker fails
+fallback_http   = "http://localhost:${MIOS_PORTS_HERMES}/v1"   # used when mode="http" or worker fails
 
 [converge.inference]
 heavy_engine_mode = "single"        # "dual" = SGLang + vLLM; "single" = vLLM multi-LoRA
@@ -9509,9 +9509,9 @@ mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorke
 Description = "MiOS Core Network"
 
 [networks.mios.Network]
-Gateway = "${MIOS_CORE_NET_GATEWAY:-10.89.0.1}"
+Gateway = "${MIOS_NETWORK_QUADLET_CORE_GATEWAY:-10.89.0.1}"
 Label = "io.mios.network=core"
-Subnet = "${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}"
+Subnet = "${MIOS_NETWORK_QUADLET_CORE_SUBNET:-10.89.0.0/24}"
 
 [networks.mios.Install]
 WantedBy = "multi-user.target default.target"
@@ -9543,15 +9543,15 @@ TimeoutStartSec = 3600
 AddCapability = "CAP_NET_BIND_SERVICE"
 ContainerName = "mios-adguard"
 Exec = "--no-check-update --work-dir /opt/adguardhome/work --config /opt/adguardhome/conf/AdGuardHome.yaml"
-Group = "${MIOS_ADGUARD_GID:-825}"
+Group = "${MIOS_SERVICES_ADGUARD_GID:-825}"
 Image = "${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}"
 Label = [
   "org.opencontainers.image.title=mios-adguard",
   "org.opencontainers.image.url=https://github.com/AdguardTeam/AdGuardHome",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_ADGUARD_UI:-8050}/"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_ADGUARD_UI:-8050}/"
 ]
 Pod = "mios-system.pod"
-User = "${MIOS_ADGUARD_UID:-825}"
+User = "${MIOS_SERVICES_ADGUARD_UID:-825}"
 Volume = [
   "/etc/mios/adguard:/opt/adguardhome/conf:Z",
   "/var/lib/mios/adguard:/opt/adguardhome/work:Z"
@@ -9576,15 +9576,15 @@ Wants = "network-online.target"
 [containers.mios-headscale.Container]
 ContainerName = "mios-headscale"
 Exec = "headscale serve"
-Group = "${MIOS_HEADSCALE_GID:-833}"
+Group = "${MIOS_SERVICES_HEADSCALE_GID:-833}"
 Image = "${MIOS_HEADSCALE_IMAGE:-docker.io/headscale/headscale:latest}"
 Label = [
   "org.opencontainers.image.title=mios-headscale",
   "org.opencontainers.image.url=https://github.com/juanfont/headscale",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_HEADSCALE:-8085}/metrics"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_HEADSCALE:-8085}/metrics"
 ]
 Pod = "mios-system.pod"
-User = "${MIOS_HEADSCALE_UID:-833}"
+User = "${MIOS_SERVICES_HEADSCALE_UID:-833}"
 Volume = [
   "/etc/headscale:/etc/headscale:Z",
   "/var/lib/headscale:/var/lib/headscale:Z",
@@ -9634,20 +9634,20 @@ Wants = "network-online.target"
 
 [containers.mios-radosgw.Container]
 ContainerName = "mios-radosgw"
-Exec = 'radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}"'
+Exec = 'radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORTS_RADOSGW:-8470}"'
 Group = "root"
-HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/ || exit 1"
+HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:${MIOS_PORTS_RADOSGW:-8470}/ || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
 HealthTimeout = "5s"
 Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:latest}"
 Label = [
-  "io.podman_desktop.openInBrowser=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/",
+  "io.podman_desktop.openInBrowser=http://127.0.0.1:${MIOS_PORTS_RADOSGW:-8470}/",
   "org.opencontainers.image.title=mios-radosgw",
-  "org.opencontainers.image.url=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/"
+  "org.opencontainers.image.url=http://127.0.0.1:${MIOS_PORTS_RADOSGW:-8470}/"
 ]
 Pod = "mios-system.pod"
-PublishPort = "127.0.0.1:${MIOS_PORT_RADOSGW:-8470}:${MIOS_PORT_RADOSGW:-8470}"
+PublishPort = "127.0.0.1:${MIOS_PORTS_RADOSGW:-8470}:${MIOS_PORTS_RADOSGW:-8470}"
 User = "root"
 Volume = [
   "/etc/ceph:/etc/ceph:Z",
@@ -9683,7 +9683,7 @@ Wants = "network-online.target"
 [containers.mios-cockpit-link.Container]
 ContainerName = "mios-cockpit-link"
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "socat tcp-listen:${MIOS_PORT_COCKPIT_LINK},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
+Exec = "socat tcp-listen:${MIOS_PORTS_COCKPIT_LINK},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
 Group = "65534"
 Image = "localhost/mios-sys:latest"
 Label = [
@@ -9712,20 +9712,20 @@ Environment = [
   "PASSWORD=mios",
   "SUDO_PASSWORD=mios",
   "DEFAULT_WORKSPACE=/mnt/mios-root",
-  "BIND_ADDR=0.0.0.0:${MIOS_PORT_CODE_SERVER:-8900}",
+  "BIND_ADDR=0.0.0.0:${MIOS_PORTS_CODE_SERVER:-8900}",
   "GIT_CONFIG_COUNT=1",
   "GIT_CONFIG_KEY_0=safe.directory",
   "GIT_CONFIG_VALUE_0=/mnt/mios-root"
 ]
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "code-server --bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER:-8900}"
+Exec = "code-server --bind-addr 0.0.0.0:${MIOS_PORTS_CODE_SERVER:-8900}"
 Group = "0"
 Image = "${MIOS_CODE_SERVER_IMAGE:-ghcr.io/coder/code-server:latest}"
 Label = [
   "org.opencontainers.image.title=mios-code-server",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8900}/",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_CODE_SERVER:-8900}/",
   "org.opencontainers.image.documentation=https://github.com/coder/code-server",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_CODE_SERVER:-8900}/"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_CODE_SERVER:-8900}/"
 ]
 Pod = "mios-webtools.pod"
 SecurityLabelDisable = "true"
@@ -9756,10 +9756,10 @@ Entrypoint = "/app/llama-server"
 Environment = "HOME=/var/lib/mios/llamacpp"
 # Health gate: the upstream llama-swap:cuda image bakes `curl localhost:8220/` as its
 # HEALTHCHECK, which never matches our SSOT listen port -> the lane reports Unhealthy
-# forever even while it serves 200 on ${MIOS_PORT_CPU_NODE}. Override the baked check
+# forever even while it serves 200 on ${MIOS_PORTS_CPU_NODE}. Override the baked check
 # against the real runtime port's llama-server /health (200 ready / 503 loading).
-# NO-HARDCODE: same ${MIOS_PORT_CPU_NODE} runtime var the Exec resolves via systemd.
-HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_CPU_NODE}/health || exit 1"
+# NO-HARDCODE: same ${MIOS_PORTS_CPU_NODE} runtime var the Exec resolves via systemd.
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORTS_CPU_NODE}/health || exit 1"
 HealthInterval = "30s"
 HealthTimeout = "10s"
 HealthStartPeriod = "120s"
@@ -9767,12 +9767,12 @@ HealthRetries = "3"
 # ctx-size: 32768 (was 131072). CPU-only (n-gpu-layers 0) granite-8b with a 128k KV
 # ring is the Unhealthy-on-boot bloat (huge RAM KV even at q4_0); 32768 matches the
 # light lane + the VRAM/KV co-fit finding. Raise once CPU RAM headroom is proven.
-Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-8510} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
-Group = "${MIOS_LLAMACPP_GID:-827}"
+Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORTS_CPU_NODE:-8510} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_LLAMACPP_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
+Group = "${MIOS_SERVICES_LLAMACPP_GID:-827}"
 Image = "${MIOS_CUDA_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = "org.opencontainers.image.title=mios-cpu-node"
 Pod = "mios-ai.pod"
-User = "${MIOS_LLAMACPP_UID:-827}"
+User = "${MIOS_SERVICES_LLAMACPP_UID:-827}"
 Volume = [
   "/usr/share/mios/llamacpp/models:/models:ro,Z",
   "${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z"
@@ -9800,15 +9800,15 @@ AddCapability = "CAP_NET_BIND_SERVICE"
 ContainerName = "mios-forge"
 Environment = [
   "USER=git",
-  "FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP:-8400}/",
+  "FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORTS_FORGE_HTTP:-8400}/",
   "FORGEJO__server__HTTP_ADDR=0.0.0.0",
   "GITEA__server__HTTP_ADDR=0.0.0.0",
-  "FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
-  "GITEA__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
+  "FORGEJO__server__HTTP_PORT=${MIOS_PORTS_FORGE_HTTP:-8400}",
+  "GITEA__server__HTTP_PORT=${MIOS_PORTS_FORGE_HTTP:-8400}",
   "FORGEJO__server__START_SSH_SERVER=true",
-  "FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
+  "FORGEJO__server__SSH_PORT=${MIOS_PORTS_FORGE_SSH:-8410}",
   "FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0",
-  "FORGEJO__server__SSH_LISTEN_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
+  "FORGEJO__server__SSH_LISTEN_PORT=${MIOS_PORTS_FORGE_SSH:-8410}",
   "FORGEJO__database__DB_TYPE=sqlite3",
   "FORGEJO__database__PATH=/data/forgejo.db",
   "FORGEJO__service__DISABLE_REGISTRATION=true",
@@ -9824,9 +9824,9 @@ Group = "1000"
 Image = "${MIOS_FORGE_IMAGE:-codeberg.org/forgejo/forgejo:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forge",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP:-8400}/",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_FORGE_HTTP:-8400}/",
   "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8400}/"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_FORGE_HTTP:-8400}/"
 ]
 Pod = "mios-webtools.pod"
 User = "1000"
@@ -9859,7 +9859,7 @@ Wants = "network-online.target"
 ContainerName = "mios-forgejo-runner"
 Environment = [
   "FORGEJO_RUNNER_NAME=mios-self-hosted",
-  "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-${MIOS_VERSION_FEDORA}",
+  "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-${MIOS_VERSIONS_FEDORA}",
   "FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted"
 ]
 EnvironmentFile = "/etc/mios/forge/runner-token"
@@ -9869,7 +9869,7 @@ Image = "${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forgejo-runner",
   "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8400}/-/admin/actions/runners"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_FORGE_HTTP:-8400}/-/admin/actions/runners"
 ]
 Pod = "mios-webtools.pod"
 PodmanArgs = "--privileged"
@@ -9907,12 +9907,12 @@ AutoUpdate = "registry"
 ContainerName = "mios-guacamole"
 Environment = [
   "POSTGRESQL_HOSTNAME=localhost",
-  "POSTGRESQL_PORT=${MIOS_PORT_PGVECTOR:-8600}",
-  "POSTGRESQL_DATABASE=${MIOS_PG_DB:-mios}",
-  "POSTGRESQL_USERNAME=${MIOS_PG_USER:-mios}",
-  "POSTGRESQL_PASSWORD=${MIOS_PG_PASS:-mios}",
+  "POSTGRESQL_PORT=${MIOS_PORTS_PGVECTOR:-8600}",
+  "POSTGRESQL_DATABASE=${MIOS_PGVECTOR_DB:-mios}",
+  "POSTGRESQL_USERNAME=${MIOS_PGVECTOR_USER:-mios}",
+  "POSTGRESQL_PASSWORD=${MIOS_PGVECTOR_PASS:-mios}",
   "GUACD_HOSTNAME=localhost",
-  "GUACD_PORT=${MIOS_PORT_GUACD:-8560}"
+  "GUACD_PORT=${MIOS_PORTS_GUACD:-8560}"
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_GUACAMOLE_GID:-810}"
@@ -9941,7 +9941,7 @@ Wants = "network-online.target mios-pgvector.service"
 
 [containers.mios-guacd.Container]
 ContainerName = "mios-guacd"
-Exec = "guacd -b 0.0.0.0 -l ${MIOS_PORT_GUACD:-8560} -f"
+Exec = "guacd -b 0.0.0.0 -l ${MIOS_PORTS_GUACD:-8560} -f"
 Group = "${MIOS_GUACD_GID:-811}"
 Image = "${MIOS_GUACD_IMAGE:-docker.io/guacamole/guacd:latest}"
 Pod = "mios-system.pod"
@@ -10011,13 +10011,13 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-8520} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.80} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-8192} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --load-format ${MIOS_VLLM_LOAD_FORMAT:-dummy} --enable-prefix-caching --enforce-eager"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_VLLM:-8520} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.80} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-8192} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --load-format ${MIOS_VLLM_LOAD_FORMAT:-dummy} --enable-prefix-caching --enforce-eager"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_VLLM:-8520}/v1/models",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_VLLM:-8520}/v1/models"
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_VLLM:-8520}/v1/models",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_VLLM:-8520}/v1/models"
 ]
 Pod = "mios-ai.pod"
 User = "${MIOS_VLLM_UID:-0}"
@@ -10055,7 +10055,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-8530} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --load-format ${MIOS_SGLANG_LOAD_FORMAT:-dummy} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --trust-remote-code"
+Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_SGLANG:-8530} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --load-format ${MIOS_SGLANG_LOAD_FORMAT:-dummy} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --trust-remote-code"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}"
 Label = [
@@ -10092,13 +10092,13 @@ Environment = [
   "LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64"
 ]
 EnvironmentFile = "/etc/mios/install.env"
-HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/models || exit 1"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORTS_LLM_LIGHT}/v1/models || exit 1"
 HealthInterval = "30s"
 HealthTimeout = "10s"
 HealthStartPeriod = "60s"
 HealthRetries = "3"
-Exec = "--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLM_LIGHT}"
-Group = "${MIOS_LLAMACPP_GID:-827}"
+Exec = "--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORTS_LLM_LIGHT}"
+Group = "${MIOS_SERVICES_LLAMACPP_GID:-827}"
 Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = [
   "org.opencontainers.image.title=mios-llm-light",
@@ -10108,7 +10108,7 @@ Mount = [
   "type=image,source=mios-micro.image,destination=/models-micro"
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_LLAMACPP_UID:-827}"
+User = "${MIOS_SERVICES_LLAMACPP_UID:-827}"
 Volume = [
   "/usr/share/mios/llamacpp/models:/models:ro,Z",
   "/usr/share/mios/llamacpp/mios-llm-light.yaml:/app/config.yaml:ro,Z",
@@ -10141,11 +10141,11 @@ Environment = [
 ]
 EnvironmentFile = "-/run/mios/swarm/%i.env"
 Exec = "--model /models/${WORKER_MODEL} --host 0.0.0.0 --port ${WORKER_PORT} --n-gpu-layers ${WORKER_NGL:-99} --ctx-size ${WORKER_CTX:-8192} --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}"
-Group = "${MIOS_LLAMACPP_GID:-827}"
+Group = "${MIOS_SERVICES_LLAMACPP_GID:-827}"
 Image = "${MIOS_CUDA_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = "org.opencontainers.image.title=mios-llm-worker-%i"
 Pod = "mios-ai.pod"
-User = "${MIOS_LLAMACPP_UID:-827}"
+User = "${MIOS_SERVICES_LLAMACPP_UID:-827}"
 Volume = [
   "/usr/share/mios/llamacpp/models:/models:ro,Z",
   "${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:Z"
@@ -10173,14 +10173,14 @@ Wants = "network-online.target"
 ContainerName = "mios-node"
 Environment = [
   "MIOS_NODE_ID=101",
-  "MIOS_PORT=${MIOS_PORT_NODE:-8650}",
-  "MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORT_AGENT_PIPE:-8700}/v1"
+  "MIOS_PORT=${MIOS_PORTS_NODE:-8650}",
+  "MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORTS_AGENT_PIPE:-8700}/v1"
 ]
 Group = "${MIOS_NODE_GID:-830}"
 Image = "ghcr.io/mios-dev/mios-node:latest"
 Label = "org.opencontainers.image.title=mios-node"
 Pod = "mios-ai.pod"
-PublishPort = ["${MIOS_PORT_NODE:-8650}:${MIOS_PORT_NODE:-8650}/udp", "${MIOS_PORT_NODE:-8650}:${MIOS_PORT_NODE:-8650}/tcp"]
+PublishPort = ["${MIOS_PORTS_NODE:-8650}:${MIOS_PORTS_NODE:-8650}/udp", "${MIOS_PORTS_NODE:-8650}:${MIOS_PORTS_NODE:-8650}/tcp"]
 User = "${MIOS_NODE_UID:-830}"
 Volume = "/var/lib/mios:/var/lib/mios:Z"
 
@@ -10202,14 +10202,14 @@ Wants = "network-online.target"
 AutoUpdate = "registry"
 ContainerName = "mios-open-webui"
 Environment = [
-  "OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_AGENT_PIPE:-8700}/v1",
-  "OLLAMA_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT:-8500}",
+  "OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORTS_AGENT_PIPE:-8700}/v1",
+  "OLLAMA_BASE_URL=http://host.containers.internal:${MIOS_PORTS_LLM_LIGHT:-8500}",
   "WEBUI_NAME=\"MiOS AI\"",
   "WEBUI_SECRET_KEY=mios-stable-secret-change-me",
   "ENABLE_SIGNUP=False",
   "DEFAULT_USER_ROLE=admin",
   "DEFAULT_MODELS=MiOS AI",
-  "PORT=${MIOS_PORT_OPEN_WEBUI:-8200}",
+  "PORT=${MIOS_PORTS_OPEN_WEBUI:-8200}",
   "ENABLE_WEB_SEARCH=True",
   "ENABLE_IMAGE_GENERATION=True",
   "ENABLE_CODE_INTERPRETER=True",
@@ -10221,7 +10221,7 @@ Environment = [
   "ENABLE_RAG_HYBRID_SEARCH=True",
   "RAG_EMBEDDING_ENGINE=openai",
   "RAG_EMBEDDING_MODEL=nomic-embed-text",
-  "RAG_OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT:-8500}/v1",
+  "RAG_OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORTS_LLM_LIGHT:-8500}/v1",
   "RAG_OPENAI_API_KEY=sk-noop",
   "TASK_MODEL_EXTERNAL=hermes-agent",
   "ENABLE_TITLE_GENERATION=True",
@@ -10238,14 +10238,14 @@ EnvironmentFile = [
   "/etc/mios/install.env"
 ]
 Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}"
-Group = "${MIOS_OPEN_WEBUI_GID:-817}"
+Group = "${MIOS_SERVICES_OPEN_WEBUI_GID:-817}"
 Label = [
   "org.opencontainers.image.title=mios-open-webui",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8200}/",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8200}/"
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_OPEN_WEBUI:-8200}/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_OPEN_WEBUI:-8200}/"
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_OPEN_WEBUI_UID:-817}"
+User = "${MIOS_SERVICES_OPEN_WEBUI_UID:-817}"
 Volume = [
   "/var/lib/mios/open-webui:/app/backend/data:Z",
   "/usr/share/mios:/usr/share/mios:ro",
@@ -10290,24 +10290,24 @@ Wants = "network-online.target mios-agent-pipe.service mios-cdi-detect.service"
 [containers.mios-pgvector.Container]
 ContainerName = "mios-pgvector"
 Environment = [
-  "POSTGRES_USER=${MIOS_PG_USER:-mios}",
-  "POSTGRES_PASSWORD=${MIOS_PG_PASS:-mios}",
-  "POSTGRES_DB=${MIOS_PG_DB:-mios}",
+  "POSTGRES_USER=${MIOS_PGVECTOR_USER:-mios}",
+  "POSTGRES_PASSWORD=${MIOS_PGVECTOR_PASS:-mios}",
+  "POSTGRES_DB=${MIOS_PGVECTOR_DB:-mios}",
   "PGDATA=/var/lib/postgresql/data/pgdata"
 ]
-Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
-Group = "${MIOS_PGVECTOR_GID:-826}"
+Exec = "postgres -c port=${MIOS_PORTS_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER:-1}"
+Group = "${MIOS_SERVICES_PGVECTOR_GID:-826}"
 Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:latest}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_PGVECTOR_UID:-826}"
+User = "${MIOS_SERVICES_PGVECTOR_UID:-826}"
 Volume = [
-  "${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z",
+  "${MIOS_PGVECTOR_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z",
   "/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro",
-  "${MIOS_PG_RESTORE_SQL:-/var/lib/mios/pgvector-restore.sql}:/docker-entrypoint-initdb.d/20-mios-restore.sql:ro"
+  "${MIOS_PGVECTOR_RESTORE_SQL:-/var/lib/mios/pgvector-restore.sql}:/docker-entrypoint-initdb.d/20-mios-restore.sql:ro"
 ]
 EnvironmentFile = "/etc/mios/install.env"
 
@@ -10317,7 +10317,7 @@ WantedBy = "multi-user.target default.target"
 [containers.mios-pgvector.Service]
 Delegate = "yes"
 EnvironmentFile = "/etc/mios/install.env"
-ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -p ${MIOS_PORT_PGVECTOR:-8600} -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -p ${MIOS_PORT_PGVECTOR:-8600} -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
+ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -p ${MIOS_PORTS_PGVECTOR:-8600} -U ${MIOS_PGVECTOR_USER:-mios} -d ${MIOS_PGVECTOR_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -p ${MIOS_PORTS_PGVECTOR:-8600} -v ON_ERROR_STOP=0 -U ${MIOS_PGVECTOR_USER:-mios} -d ${MIOS_PGVECTOR_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"
@@ -10333,7 +10333,7 @@ Wants = "network-online.target"
 
 [containers.mios-pxe-hub.Container]
 ContainerName = "mios-pxe-hub"
-Exec = "/usr/bin/matchbox -address 0.0.0.0:${MIOS_PORT_PXE_HUB_API:-8585} -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
+Exec = "/usr/bin/matchbox -address 0.0.0.0:${MIOS_PORTS_PXE_HUB_API:-8585} -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
 Group = "0"
 Image = "${MIOS_PXE_HUB_IMAGE:-quay.io/poseidon/matchbox:latest}"
 Pod = "mios-system.pod"
@@ -10363,26 +10363,26 @@ Wants = "network-online.target"
 [containers.mios-searxng.Container]
 ContainerName = "mios-searxng"
 Environment = [
-  "SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8800}/",
-  "SEARXNG_BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8800}",
-  "BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8800}",
+  "SEARXNG_BASE_URL=http://localhost:${MIOS_PORTS_SEARXNG:-8800}/",
+  "SEARXNG_BIND_ADDRESS=127.0.0.1:${MIOS_PORTS_SEARXNG:-8800}",
+  "BIND_ADDRESS=127.0.0.1:${MIOS_PORTS_SEARXNG:-8800}",
   "GRANIAN_HOST=127.0.0.1",
-  "GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8800}",
+  "GRANIAN_PORT=${MIOS_PORTS_SEARXNG:-8800}",
   "GRANIAN_WORKERS=2",
   "GRANIAN_BLOCKING_THREADS=8",
   "SEARXNG_LOG_LEVEL=WARNING"
 ]
 EnvironmentFile = "/etc/mios/install.env"
-Group = "${MIOS_SEARXNG_GID:-818}"
+Group = "${MIOS_SERVICES_SEARXNG_GID:-818}"
 Image = "${MIOS_SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}"
 Label = [
   "org.opencontainers.image.title=mios-searxng",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG:-8800}/",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_SEARXNG:-8800}/",
   "org.opencontainers.image.documentation=https://docs.searxng.org/",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_SEARXNG:-8800}/"
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_SEARXNG:-8800}/"
 ]
 Pod = "mios-webtools.pod"
-User = "${MIOS_SEARXNG_UID:-818}"
+User = "${MIOS_SERVICES_SEARXNG_UID:-818}"
 Volume = [
   "/etc/mios/searxng:/etc/searxng:Z",
   "/var/cache/mios/searxng:/var/cache/searxng:Z"
@@ -10407,11 +10407,11 @@ Wants = "network-online.target"
 [containers.mios-webtools-crawl4ai.Container]
 ContainerName = "mios-webtools-crawl4ai"
 Environment = [
-  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}}",
-  "MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI:-8810}",
+  "MIOS_SERVICES_WEBTOOLS_CDP_URL=${MIOS_SERVICES_WEBTOOLS_CDP_URL:-http://127.0.0.1:${MIOS_PORTS_CHROME_CDP:-9222}}",
+  "MIOS_PORTS_CRAWL4AI=${MIOS_PORTS_CRAWL4AI:-8810}",
   "MIOS_CRAWL_BIND=127.0.0.1",
-  "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
-  "MIOS_CRAWL_MIN_CHARS=${MIOS_CRAWL_MIN_CHARS:-200}"
+  "MIOS_SERVICES_WEBTOOLS_CAMOUFOX=${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:-true}",
+  "MIOS_SERVICES_WEBTOOLS_MIN_CHARS=${MIOS_SERVICES_WEBTOOLS_MIN_CHARS:-200}"
 ]
 Exec = "python /app/mios-crawl4ai-service.py"
 Group = "0"
@@ -10441,16 +10441,16 @@ After = "mios-webtools-firstboot.service"
 [containers.mios-webtools-firecrawl-api.Container]
 ContainerName = "mios-webtools-firecrawl-api"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORTS_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORTS_REDIS:-8565}",
   "HOST=127.0.0.1",
-  "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
+  "PORT=${MIOS_PORTS_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
-  "NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}",
+  "NUM_WORKERS_PER_QUEUE=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:-2}",
   "PLAYWRIGHT_MICROSERVICE_URL=",
   "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
-  "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
-  "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
+  "BULL_AUTH_KEY=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:-mios}",
+  "LOGGING_LEVEL=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:-INFO}",
   "NODE_ENV=production",
   "ENV=local"
 ]
@@ -10483,16 +10483,16 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-firecrawl-worker.Container]
 ContainerName = "mios-webtools-firecrawl-worker"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORTS_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORTS_REDIS:-8565}",
   "HOST=127.0.0.1",
-  "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
+  "PORT=${MIOS_PORTS_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
-  "NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}",
+  "NUM_WORKERS_PER_QUEUE=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:-2}",
   "PLAYWRIGHT_MICROSERVICE_URL=",
   "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
-  "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
-  "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
+  "BULL_AUTH_KEY=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:-mios}",
+  "LOGGING_LEVEL=${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:-INFO}",
   "NODE_ENV=production",
   "ENV=local"
 ]
@@ -10522,7 +10522,7 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-redis.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-webtools-redis"
-Exec = "valkey-server --bind 127.0.0.1 --port ${MIOS_PORT_REDIS:-8565} --appendonly no"
+Exec = "valkey-server --bind 127.0.0.1 --port ${MIOS_PORTS_REDIS:-8565} --appendonly no"
 Group = "0"
 Image = "docker.io/valkey/valkey:latest"
 Label = "org.opencontainers.image.title=mios-webtools-redis"
@@ -10555,13 +10555,13 @@ Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:latest}"
 # two names below. Without them the SSOT keys named numbers nothing bound.
 Environment = [
   "COLLECTOR_OTLP_ENABLED=true",
-  "COLLECTOR_OTLP_GRPC_HOST_PORT=:${MIOS_PORT_OTELCOL_OTLP:-8575}",
-  "QUERY_HTTP_SERVER_HOST_PORT=:${MIOS_PORT_OTELCOL_UI:-8580}"
+  "COLLECTOR_OTLP_GRPC_HOST_PORT=:${MIOS_PORTS_OTELCOL_OTLP:-8575}",
+  "QUERY_HTTP_SERVER_HOST_PORT=:${MIOS_PORTS_OTELCOL_UI:-8580}"
 ]
 Label = [
   "org.opencontainers.image.title=mios-otelcol",
-  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/"
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORTS_OTELCOL_UI:-8580}/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORTS_OTELCOL_UI:-8580}/"
 ]
 Pod = "mios-webtools.pod"
 User = "${MIOS_OTELCOL_UID:-829}"
@@ -10593,9 +10593,9 @@ ContainerName = "mios-piper"
 EnvironmentFile = "/etc/mios/install.env"
 # The voice ships inside localhost/mios-piper (/usr/share/piper/voices), so no
 # host bind: a read-only vendor model is image content (Law 12), not /var state.
-Exec = "-m ${MIOS_PIPER_VOICE} --data-dir /usr/share/piper/voices --host 0.0.0.0 --port ${MIOS_PORT_PIPER}"
-Group = "${MIOS_PIPER_GID}"
-HealthCmd = "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${MIOS_PORT_PIPER}/info', timeout=5)\" || exit 1"
+Exec = "-m ${MIOS_SERVICES_PIPER_VOICE} --data-dir /usr/share/piper/voices --host 0.0.0.0 --port ${MIOS_PORTS_PIPER}"
+Group = "${MIOS_SERVICES_PIPER_GID}"
+HealthCmd = "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${MIOS_PORTS_PIPER}/info', timeout=5)\" || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
 HealthStartPeriod = "30s"
@@ -10608,7 +10608,7 @@ Label = [
   "org.opencontainers.image.licenses=GPL-3.0-or-later"
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_PIPER_UID}"
+User = "${MIOS_SERVICES_PIPER_UID}"
 Volume = "/run/mios:/run/mios:Z"
 
 [containers.mios-piper.Install]
@@ -10628,13 +10628,13 @@ Wants = "network-online.target"
 
 [containers.mios-whisper.Container]
 ContainerName = "mios-whisper"
-Environment = "PORT=${MIOS_PORT_WHISPER:-8178}"
+Environment = "PORT=${MIOS_PORTS_WHISPER:-8178}"
 EnvironmentFile = "/etc/mios/install.env"
 # The model ships inside the bound image (/app/models/ggml-base.en.bin), so no
 # host bind: a read-only vendor model is image content (Law 12), not /var state.
-Exec = "'whisper-server --model /app/models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert'"
-Group = "${MIOS_WHISPER_GID:-832}"
-HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1"
+Exec = "'whisper-server --model /app/models/ggml-base.en.bin --port ${MIOS_PORTS_WHISPER:-8178} --host 0.0.0.0 --convert'"
+Group = "${MIOS_SERVICES_WHISPER_GID:-832}"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORTS_WHISPER:-8178}/health || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
 HealthStartPeriod = "30s"
@@ -10645,7 +10645,7 @@ Label = [
   'org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"'
 ]
 Pod = "mios-ai.pod"
-User = "${MIOS_WHISPER_UID:-832}"
+User = "${MIOS_SERVICES_WHISPER_UID:-832}"
 Volume = "/run/mios:/run/mios:Z"
 
 [containers.mios-whisper.Install]
@@ -10778,6 +10778,7 @@ soft_ok = ["hermes-worker", "mios-hermes-browser", "mios-ai-firstboot"]
 # the WORK needs. See ADR-0016 D4.
 seat_side = [
   "mios-agent-pipe",            # the local front door; MIOS_AI_ENDPOINT points it at a blade
+  "mios-ai-legacy-forward",     # compatibility listener for the same local front door
   "hermes-dashboard",           # browser UI
   "mios-hermes-browser",        # CDP browser the agent tools drive
   "mios-hermes-tail",           # journal tail into the UI
@@ -10971,11 +10972,13 @@ mios-code-server               = ["service-plane"]
 mios-cpu-node                  = ["service-plane"]
 mios-forge                     = ["service-plane"]
 mios-forgejo-runner            = ["service-plane"]
+mios-headscale                = ["service-plane"]
 mios-guacamole                 = ["service-plane"]
 mios-guacd                     = ["service-plane"]
 mios-node                      = ["service-plane"]
 mios-k3s           = ["controller", "service-plane"]
 mios-llm-light                 = ["service-plane"]
+llama-rpc-server               = ["service-plane"]   # distributed compute worker
 mios-log-archiver              = ["service-plane"]
 mios-log-streamer              = ["service-plane"]
 mios-mdns-mesh                 = ["service-plane"]
@@ -13585,3 +13588,104 @@ description = "Test suites port only with the surface they guard; tools/test_*.p
 replaces = []
 crates = []
 scope = ["tests/**", "tools/test_*.py"]
+
+# One ordered projection plan for native mios-gen sync on Linux and Windows.
+# Remaining Python/Bash adapters stay declared until their native ports prove parity.
+[generation.sync]
+unit_projections = ["blade-dropins", "blade-karg", "uki-cmdline", "cockpit", "ipa-enroll", "bootc-install", "keybindings"]
+
+[[generation.sync.steps]]
+id = "index.untracked"
+register = true
+[[generation.sync.steps]]
+id = "ports.projection"
+calls = [{ tool = "mios-gen", args = ["render-ports", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "globals.projection"
+calls = [{ tool = "mios-gen", args = ["render-globals", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "desktop.projection"
+calls = [{ tool = "mios-gen", args = ["render-desktop", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "manpages.projection"
+calls = [{ tool = "mios-gen", args = ["render-manpages", "--root", "{root}", "--validate"] }]
+[[generation.sync.steps]]
+id = "dotfiles.projection"
+calls = [
+  { script = "tools/sync-dotfiles.py" },
+  { tool = "mios-gen", args = ["render-tmux-theme", "--write-fixture", "{root}"] },
+  { tool = "mios-gen", args = ["render-btop-theme", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["render-fastfetch", "--root", "{root}", "--mock", "--out", "{root}/tests/golden/fastfetch/mock.jsonc"] },
+]
+[[generation.sync.steps]]
+id = "wsl.reference"
+copy = ["etc/wsl.conf", "usr/lib/wsl.conf"]
+[[generation.sync.steps]]
+id = "quadlets.projection"
+calls = [{ tool = "mios-gen", args = ["pod-quadlets", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "names.registry"
+calls = [{ tool = "mios-gen", args = ["names-registry", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "topology.matrix"
+calls = [{ tool = "mios-gen", args = ["metal-vs-hosted", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "indexes.projection"
+calls = [
+  { tool = "mios-gen", args = ["gate-index", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["pipeline-index", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["adr-index", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["roadmap-index", "--root", "{root}"] },
+]
+[[generation.sync.steps]]
+id = "boundaries.manifest"
+calls = [{ tool = "mios-gen", args = ["pipe-boundaries", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "workspace.manifest"
+calls = [{ tool = "mios-gen", args = ["cargo-manifests", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "deployment.projection"
+calls = [
+  { tool = "mios-unit-gen", args = ["blade-dropins", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["blade-karg", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["uki-cmdline", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["cockpit", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["ipa-enroll", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["bootc-install", "--root", "{root}"] },
+  { tool = "mios-unit-gen", args = ["keybindings", "--root", "{root}"] },
+]
+[[generation.sync.steps]]
+id = "security.policy"
+calls = [
+  { tool = "mios-gen", args = ["cosign-policy", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["egress-firewall", "--root", "{root}"] },
+  { tool = "mios-gen", args = ["bib-configs", "--root", "{root}"] },
+]
+[[generation.sync.steps]]
+id = "artifacts.prompt"
+calls = [{ tool = "xtask", args = ["artifact-prompt", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "toolchain.pin"
+calls = [{ tool = "mios-toolchain-pin" }]
+[[generation.sync.steps]]
+id = "ai.config"
+calls = [{ tool = "mios-ai-config", args = ["--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "metrics.ceiling"
+calls = [{ tool = "mios-size-ceiling" }]
+[[generation.sync.steps]]
+id = "env.baseline"
+snapshot = ["usr/libexec/mios/mios-env-snapshot", "usr/share/mios/reference/env-baseline.txt"]
+[[generation.sync.steps]]
+id = "ai.manifests"
+calls = [{ tool = "mios-gen", args = ["ai-manifest", "--root", "{root}"] }]
+[[generation.sync.steps]]
+id = "ai.metadata"
+calls = [{ script = "usr/libexec/mios/mios-ai-metadata.py", args = ["--root", "{root}", "--export", "{root}/usr/share/mios/ai/v1/metadata.json"] }]
+[[generation.sync.steps]]
+id = "corpus.ledger"
+calls = [
+  { script = "usr/libexec/mios/mios-manual", args = ["--root", "{root}", "render"] },
+  { script = "usr/libexec/mios/mios-manual", args = ["--root", "{root}", "ledger", "--write"] },
+  { script = "usr/libexec/mios/mios-manual", args = ["--root", "{root}", "coverage", "--write-floor"] },
+]

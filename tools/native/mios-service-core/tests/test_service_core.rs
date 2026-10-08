@@ -171,7 +171,7 @@ fn test_require_port_ssot_reading() {
     assert_eq!(llm_port, 8500);
 
     // Read with MIOS_PORT_ prefix format
-    let llm_port_prefix = require_port("MIOS_PORT_LLM_LIGHT").unwrap();
+    let llm_port_prefix = require_port("MIOS_PORTS_LLM_LIGHT").unwrap();
     assert_eq!(llm_port_prefix, 8500);
 }
 
@@ -185,6 +185,22 @@ fn test_require_port_missing_key() {
 fn test_require_port_bounds_and_env_override() {
     std::env::set_var("MIOS_PORT_TEST_BOUNDS", "9999");
     assert_eq!(require_port("test_bounds").unwrap(), 9999);
+
+    std::env::set_var("MIOS_PORTS_TEST_BOUNDS", "10000");
+    for key in [
+        "test_bounds",
+        "ports.test_bounds",
+        "MIOS_PORT_TEST_BOUNDS",
+        "MIOS_PORTS_TEST_BOUNDS",
+    ] {
+        assert_eq!(require_port(key).unwrap(), 10000);
+    }
+    std::env::set_var("MIOS_PORTS_TEST_BOUNDS", "70000");
+    assert!(matches!(
+        require_port("test_bounds"),
+        Err(ConfigError::InvalidPort { .. })
+    ));
+    std::env::remove_var("MIOS_PORTS_TEST_BOUNDS");
 
     std::env::set_var("MIOS_PORT_TEST_BOUNDS", "0");
     assert!(matches!(
