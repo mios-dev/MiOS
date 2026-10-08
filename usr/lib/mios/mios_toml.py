@@ -179,15 +179,15 @@ def load_merged(layers=None):
     if layers is None and _LOAD_MERGED_CACHE is not None:
         return _LOAD_MERGED_CACHE
 
-    if layers is None:
-        nat = _native_resolver_json()
-        if nat and "merged" in nat:
-            _LOAD_MERGED_CACHE = derive_ports(nat["merged"])
-            return _LOAD_MERGED_CACHE
-
-    merged = {}
-    for p in (layers if layers is not None else layer_paths()):
-        deep_merge(merged, _load_one(p))
+    # Native resolution supplies the file-layer baseline; the DB overlay and
+    # derived ports still apply before caching, just as in the Python fallback.
+    nat = _native_resolver_json() if layers is None else None
+    if isinstance(nat, dict) and isinstance(nat.get("merged"), dict):
+        merged = nat["merged"]
+    else:
+        merged = {}
+        for p in (layers if layers is not None else layer_paths()):
+            deep_merge(merged, _load_one(p))
 
     if layers is None:
         try:
