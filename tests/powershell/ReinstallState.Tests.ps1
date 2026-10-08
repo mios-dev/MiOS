@@ -1,3 +1,4 @@
+# AI-hint: Pester tests: a failed reinstall preserves state without unregistering guests or deleting files.
 Describe 'MiOS reinstall state preservation' {
     It 'preserves a failed install without unregistering guests or deleting files' {
         $source=Join-Path $PSScriptRoot '..\..\Get-MiOS.ps1'

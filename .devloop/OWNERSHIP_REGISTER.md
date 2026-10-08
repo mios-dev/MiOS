@@ -1,3 +1,4 @@
+<!-- AI-hint: Exclusive ownership register and workflow boundaries for the agent lanes that develop MiOS core. -->
 # MiOS CORE Development — Exclusive Ownership Register & Workflow Boundaries
 
 *Updated: 2026-09-29 per operator correction: `cat` retired; `field` is canonical.*

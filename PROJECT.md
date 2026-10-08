@@ -1,3 +1,4 @@
+<!-- AI-hint: Project brief: gateway context budgeting, the Windows low-power iGPU desktop and static Rust consolidation across the Windows/WSL boundary. -->
 # Project: MiOS Gateway Context Budgeting, Windows Low-Power iGPU Desktop & Static Rust Consolidation
 
 ## Architecture

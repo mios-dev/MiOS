@@ -1,3 +1,4 @@
+<!-- AI-hint: Handoff for the peer-lane collaboration and audit probe: cadence, relay usage and evidence each probe reports. -->
 # MiOS peer collaboration and audit probe
 
 Status: ACTIVE. Desktop automation mios-peer-collaboration-and-audit-probe was created successfully on 2026-10-07 at the requested two-minute interval, attached to this chat. Its first scheduled execution remains unverified.

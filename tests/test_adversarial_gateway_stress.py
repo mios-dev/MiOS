@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Adversarial suite for agent-pipe gateway context budgeting and tool de-duplication under stress.
 """
 Adversarial Empirical Challenge Suite for MiOS Gateway Context Budgeting & Tool Deduplication.
 Empirically stress tests:

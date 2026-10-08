@@ -1,3 +1,4 @@
+# AI-hint: Pester tests: Get-MiOS.ps1 resolves the installation mode from the SSOT.
 Describe 'MiOS SSOT installation mode' {
     BeforeAll {
         $source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\..\Get-MiOS.ps1'))

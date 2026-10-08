@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Adversarial suite for M1 tmux workspace recovery: recreated, killed and empty-server sessions.
 """
 Adversarial empirical challenge suite for Milestone M1 (R1 Tmux Workspace Recovery).
 Tests session recreation on missing/killed sessions, empty tmux server recovery,

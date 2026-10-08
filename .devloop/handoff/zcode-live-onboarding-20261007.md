@@ -1,3 +1,4 @@
+<!-- AI-hint: Onboarding brief that brought the Z.AI/ZCode session into live MiOS development alongside the peer lane. -->
 You are joining live MiOS development alongside Codex (relay identity peer-lane).
 Your Z.AI/ZCode local session is sess_3711aee4-aa72-41d2-9925-f6ef1b2ef510.
 

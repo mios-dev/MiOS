@@ -1,3 +1,4 @@
+<!-- AI-hint: Peer-lane review of the 2026-10-07 editor configuration and btop theme work, with findings and the controls that closed them. -->
 # Lane 3 review and editor configuration pre-flight
 
 Reviewed on 2026-10-07 against base `0624ddc1` and the live Phase 3.20 draft in `/mnt/c/MiOS`. The implementation lane was still editing the shared checkout. This report is a review of that snapshot, not certification of a later commit.

@@ -1,3 +1,4 @@
+<!-- AI-hint: Research evaluation of upstream FOSS patterns for OCI-packaged AI artifacts and automated CI/CD pipelines. -->
 # Technology & Architecture Evaluation: Upstream FOSS Patterns for OCI/Container-Based AI Artifacts & Automated CI/CD Pipelines
 
 **Evaluation Topic:** Upstream FOSS Patterns for OCI/Container-Based AI Artifacts (ModelWeights, Datasets, Prompts, Adapters) and Automated CI/CD Packaging Pipelines  

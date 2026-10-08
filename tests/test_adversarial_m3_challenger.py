@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Adversarial suite for M3 agent-pipe gateway context budgeting and tool de-duplication.
 """
 Comprehensive Empirical Adversarial Challenge Suite for Milestone M3:
 R4 Agent-Pipe Gateway Context Budgeting & Tool De-duplication.
