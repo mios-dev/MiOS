@@ -21,11 +21,11 @@ Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
   MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
 pgvector:
-  MIOS_PG_HOST         — default localhost
-  MIOS_PORT_PGVECTOR   — default 5432
-  MIOS_PG_USER         — default mios
-  MIOS_PG_PASS         — default mios
-  MIOS_PG_DB           — default mios
+  MIOS_PGVECTOR_HOST         — default localhost
+  MIOS_PORTS_PGVECTOR   — default 5432
+  MIOS_PGVECTOR_USER         — default mios
+  MIOS_PGVECTOR_PASS         — default mios
+  MIOS_PGVECTOR_DB           — default mios
   MIOS_SYS_ENV_TABLE   — default mios_kb (collection name with hyphens -> underscores)
 
 Usage:

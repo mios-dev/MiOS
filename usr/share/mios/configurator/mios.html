@@ -41,30 +41,30 @@
      so the configurator UI re-skins itself the moment the operator picks
      a new palette -- WYSIWYG editing.
      Token map:
-       --bg      MIOS_COLOR_BG        deep indigo  (Hokusai sky)
-       --fg      MIOS_COLOR_FG        foam cream
-       --accent  MIOS_COLOR_ACCENT    operator blue
-       --text    MIOS_COLOR_FG        body text (alias of fg)
-       --muted   MIOS_COLOR_MUTED     warm grey
+       --bg      MIOS_COLORS_BG        deep indigo  (Hokusai sky)
+       --fg      MIOS_COLORS_FG        foam cream
+       --accent  MIOS_COLORS_ACCENT    operator blue
+       --text    MIOS_COLORS_FG        body text (alias of fg)
+       --muted   MIOS_COLORS_MUTED     warm grey
        --panel   derived from --bg    fieldset surfaces
-       --border  MIOS_COLOR_SUBTLE    pale blue-grey
-       --ok      MIOS_COLOR_SUCCESS   wave green
-       --warn    MIOS_COLOR_WARNING   sunset orange
-       --err     MIOS_COLOR_ERROR     coral red
+       --border  MIOS_COLORS_SUBTLE    pale blue-grey
+       --ok      MIOS_COLORS_SUCCESS   wave green
+       --warn    MIOS_COLORS_WARNING   sunset orange
+       --err     MIOS_COLORS_ERROR     coral red
    */
   :root {
-    --bg:     #282262;   /* MIOS_COLOR_BG     -- deep indigo */
-    --fg:     #E7DFD3;   /* MIOS_COLOR_FG     -- foam cream */
-    --panel:  #1A407F;   /* MIOS_COLOR_ACCENT -- operator blue (panels stand out from bg) */
-    --border: #B7C9D7;   /* MIOS_COLOR_SUBTLE -- pale blue-grey */
-    --accent: #F35C15;   /* MIOS_COLOR_CURSOR -- sunset orange (interactive accents) */
-    --text:   #E7DFD3;   /* MIOS_COLOR_FG     -- body text alias */
-    --muted:  #B7C9D7;   /* MIOS_COLOR_SUBTLE -- secondary text */
-    --ok:     #3E7765;   /* MIOS_COLOR_SUCCESS -- wave green */
-    --warn:   #F35C15;   /* MIOS_COLOR_WARNING -- sunset orange */
-    --err:    #DC271B;   /* MIOS_COLOR_ERROR  -- coral red */
-    --silver: #E0E0E0;   /* MIOS_COLOR_SILVER */
-    --earth:  #734F39;   /* MIOS_COLOR_EARTH */
+    --bg:     #282262;   /* MIOS_COLORS_BG     -- deep indigo */
+    --fg:     #E7DFD3;   /* MIOS_COLORS_FG     -- foam cream */
+    --panel:  #1A407F;   /* MIOS_COLORS_ACCENT -- operator blue (panels stand out from bg) */
+    --border: #B7C9D7;   /* MIOS_COLORS_SUBTLE -- pale blue-grey */
+    --accent: #F35C15;   /* MIOS_COLORS_CURSOR -- sunset orange (interactive accents) */
+    --text:   #E7DFD3;   /* MIOS_COLORS_FG     -- body text alias */
+    --muted:  #B7C9D7;   /* MIOS_COLORS_SUBTLE -- secondary text */
+    --ok:     #3E7765;   /* MIOS_COLORS_SUCCESS -- wave green */
+    --warn:   #F35C15;   /* MIOS_COLORS_WARNING -- sunset orange */
+    --err:    #DC271B;   /* MIOS_COLORS_ERROR  -- coral red */
+    --silver: #E0E0E0;   /* MIOS_COLORS_SILVER */
+    --earth:  #734F39;   /* MIOS_COLORS_EARTH */
     --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Consolas, monospace;
     --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
   }
@@ -1340,7 +1340,7 @@
           <fieldset>
             <legend>[nodes.local-dgpu] — discrete GPU node</legend>
             <label for="f-node-dgpu-endpoint">endpoint (where this node's engine serves /v1)</label>
-            <input type="text" id="f-node-dgpu-endpoint" data-key="nodes.local-dgpu.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <input type="text" id="f-node-dgpu-endpoint" data-key="nodes.local-dgpu.endpoint" placeholder="http://localhost:${MIOS_PORTS_SGLANG}/v1">
             <label for="f-node-dgpu-model">model (canonical MiOS model tag this node serves)</label>
             <input type="text" id="f-node-dgpu-model" data-key="nodes.local-dgpu.model" placeholder="mios-heavy">
             <label for="f-node-dgpu-lane">lane (compute bucket: gpu | cpu | igpu | npu | accelerator | mobile)</label>
@@ -1355,7 +1355,7 @@
           <fieldset>
             <legend>[nodes.local-cpu] — CPU node</legend>
             <label for="f-node-cpu-endpoint">endpoint</label>
-            <input type="text" id="f-node-cpu-endpoint" data-key="nodes.local-cpu.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <input type="text" id="f-node-cpu-endpoint" data-key="nodes.local-cpu.endpoint" placeholder="http://localhost:${MIOS_PORTS_SGLANG}/v1">
             <label for="f-node-cpu-model">model</label>
             <input type="text" id="f-node-cpu-model" data-key="nodes.local-cpu.model" placeholder="mios-heavy">
             <label for="f-node-cpu-lane">lane</label>
@@ -1388,7 +1388,7 @@
           <fieldset>
             <legend>[nodes.local-vllm] — heavy vLLM lane</legend>
             <label for="f-node-vllm-endpoint">endpoint</label>
-            <input type="text" id="f-node-vllm-endpoint" data-key="nodes.local-vllm.endpoint" placeholder="http://localhost:${MIOS_PORT_VLLM}/v1">
+            <input type="text" id="f-node-vllm-endpoint" data-key="nodes.local-vllm.endpoint" placeholder="http://localhost:${MIOS_PORTS_VLLM}/v1">
             <label for="f-node-vllm-model">model</label>
             <input type="text" id="f-node-vllm-model" data-key="nodes.local-vllm.model" placeholder="mios-heavy">
             <label for="f-node-vllm-lane">lane</label>
@@ -1403,7 +1403,7 @@
           <fieldset>
             <legend>[nodes.local-sglang] — heavy SGLang lane</legend>
             <label for="f-node-sglang-endpoint">endpoint</label>
-            <input type="text" id="f-node-sglang-endpoint" data-key="nodes.local-sglang.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <input type="text" id="f-node-sglang-endpoint" data-key="nodes.local-sglang.endpoint" placeholder="http://localhost:${MIOS_PORTS_SGLANG}/v1">
             <label for="f-node-sglang-model">model</label>
             <input type="text" id="f-node-sglang-model" data-key="nodes.local-sglang.model" placeholder="mios-heavy">
             <label for="f-node-sglang-lane">lane</label>
@@ -1418,7 +1418,7 @@
           <fieldset>
             <legend>[nodes.local-llamaswap] — llama.cpp multi-model lane</legend>
             <label for="f-node-ls-endpoint">endpoint</label>
-            <input type="text" id="f-node-ls-endpoint" data-key="nodes.local-llamaswap.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <input type="text" id="f-node-ls-endpoint" data-key="nodes.local-llamaswap.endpoint" placeholder="http://localhost:${MIOS_PORTS_SGLANG}/v1">
             <label for="f-node-ls-model">model</label>
             <input type="text" id="f-node-ls-model" data-key="nodes.local-llamaswap.model" placeholder="mios-heavy">
             <label for="f-node-ls-lane">lane</label>
@@ -1735,7 +1735,7 @@
           <fieldset>
             <legend>[agents.hermes] — agent gateway + tool loop</legend>
             <label for="f-agh-endpoint">endpoint</label>
-            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES}/v1">
+            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORTS_HERMES}/v1">
             <label for="f-agh-model">model</label>
             <input type="text" id="f-agh-model" data-key="agents.hermes.model" placeholder="mios-heavy">
             <label for="f-agh-role">role</label>
@@ -3322,9 +3322,9 @@
       <fieldset>
         <legend>[hermes] — gateway back-compat</legend>
         <label for="f-herm-endpoint">endpoint</label>
-        <input type="text" id="f-herm-endpoint" data-key="hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES}/v1">
+        <input type="text" id="f-herm-endpoint" data-key="hermes.endpoint" placeholder="http://localhost:${MIOS_PORTS_HERMES}/v1">
         <label for="f-herm-backend">backend (inference lane it fronts)</label>
-        <input type="text" id="f-herm-backend" data-key="hermes.backend" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <input type="text" id="f-herm-backend" data-key="hermes.backend" placeholder="http://localhost:${MIOS_PORTS_LLM_LIGHT}">
         <label for="f-herm-model">model (mirrors [ai].model; back-compat)</label>
         <input type="text" id="f-herm-model" data-key="hermes.model" placeholder="granite4.1:8b">
         <label for="f-herm-enable">enable</label>
@@ -3337,7 +3337,7 @@
         <label for="f-ref-model">model</label>
         <input type="text" id="f-ref-model" data-key="refine.model" placeholder="mios-agent">
         <label for="f-ref-endpoint">endpoint</label>
-        <input type="text" id="f-ref-endpoint" data-key="refine.endpoint" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <input type="text" id="f-ref-endpoint" data-key="refine.endpoint" placeholder="http://localhost:${MIOS_PORTS_LLM_LIGHT}">
         <label for="f-ref-timeout">timeout_seconds</label>
         <input type="text" id="f-ref-timeout" data-key="refine.timeout_seconds" data-type="int" placeholder="45">
         <label for="f-ref-maxtok">max_tokens</label>
@@ -3364,7 +3364,7 @@
         <label for="f-pol-model">polish.model</label>
         <input type="text" id="f-pol-model" data-key="polish.model" placeholder="mios-agent">
         <label for="f-pol-endpoint">polish.endpoint</label>
-        <input type="text" id="f-pol-endpoint" data-key="polish.endpoint" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <input type="text" id="f-pol-endpoint" data-key="polish.endpoint" placeholder="http://localhost:${MIOS_PORTS_LLM_LIGHT}">
         <label for="f-pol-timeout">polish.timeout_seconds</label>
         <input type="text" id="f-pol-timeout" data-key="polish.timeout_seconds" data-type="int" placeholder="45">
         <label for="f-pol-maxtok">polish.max_tokens</label>

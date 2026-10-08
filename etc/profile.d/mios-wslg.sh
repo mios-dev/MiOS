@@ -29,13 +29,13 @@ if [ -z "${WSL_INTEROP:-}" ]; then
 fi
 
 if [ -z "${GDK_BACKEND:-}" ]; then
-    export GDK_BACKEND="${MIOS_WSLG_GDK_BACKEND:-x11}"
+    export GDK_BACKEND="${MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND:-x11}"
 fi
 if [ -z "${MOZ_ENABLE_WAYLAND:-}" ]; then
-    export MOZ_ENABLE_WAYLAND="${MIOS_WSLG_MOZ_WAYLAND:-0}"
+    export MOZ_ENABLE_WAYLAND="${MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND:-0}"
 fi
 if [ -z "${QT_QPA_PLATFORM:-}" ]; then
-    export QT_QPA_PLATFORM="${MIOS_WSLG_QT_PLATFORM:-xcb}"
+    export QT_QPA_PLATFORM="${MIOS_WSL2_DESKTOP_COMPAT_QT_PLATFORM:-xcb}"
 fi
 
 if command -v mios-cursor-apply >/dev/null 2>&1; then

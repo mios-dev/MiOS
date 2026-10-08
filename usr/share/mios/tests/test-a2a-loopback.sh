@@ -5,8 +5,8 @@ set -euo pipefail
 
 if [[ -z "${MIOS_AGENT_PIPE_URL:-}" && -r /etc/mios/install.env ]]; then
     . /etc/mios/install.env || true
-    if [[ -n "${MIOS_PORT_AGENT_PIPE:-}" ]]; then
-        export MIOS_AGENT_PIPE_URL="http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}"
+    if [[ -n "${MIOS_PORTS_AGENT_PIPE:-}" ]]; then
+        export MIOS_AGENT_PIPE_URL="http://127.0.0.1:${MIOS_PORTS_AGENT_PIPE}"
     fi
 fi
 

@@ -18,7 +18,7 @@ import time
 from typing import List, Tuple
 
 # SSOT [ports].pgvector_internal: the in-container listener (host maps 8600->5432).
-DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORT_PGVECTOR_INTERNAL", "5432"))
+DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORTS_PGVECTOR_INTERNAL", "5432"))
 
 def generate_backup_filename(db_name: str = "mios") -> str:
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%SZ")

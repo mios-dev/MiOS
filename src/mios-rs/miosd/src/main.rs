@@ -338,7 +338,7 @@ enum Commands {
         /// Optional custom bind address (e.g. 127.0.0.1:8700)
         #[arg(long)]
         bind: Option<String>,
-        /// Optional custom port (default: 8700 or $MIOS_PORT_AGENT_PIPE)
+        /// Optional custom port (default: 8700 or $MIOS_PORTS_AGENT_PIPE)
         #[arg(long)]
         port: Option<u16>,
     },
@@ -892,6 +892,8 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
             continue;
         };
         let rendered = if value == 53 { value } else { value + offset };
+        entries.push(format!("MIOS_PORTS_{}={}", name.to_uppercase(), rendered));
+        // Installed older units still consume the previous input spelling.
         entries.push(format!("MIOS_PORT_{}={}", name.to_uppercase(), rendered));
     }
     if entries.is_empty() {
@@ -901,7 +903,7 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
     let mut out_lines = Vec::new();
     if let Ok(existing) = std::fs::read_to_string(out_path) {
         for line in existing.lines() {
-            if !line.starts_with("MIOS_PORT_") {
+            if !line.starts_with("MIOS_PORT_") && !line.starts_with("MIOS_PORTS_") {
                 out_lines.push(line.to_string());
             }
         }
@@ -2380,8 +2382,9 @@ fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
 
     if std::path::Path::new("/usr/bin/firewall-offline-cmd").exists() {
         for (svc, proto) in ports {
-            let env_var = format!("MIOS_PORT_{}", svc);
-            if let Ok(port_val) = std::env::var(&env_var) {
+            let port = std::env::var(format!("MIOS_PORTS_{svc}"))
+                .or_else(|_| std::env::var(format!("MIOS_PORT_{svc}")));
+            if let Ok(port_val) = port {
                 let arg = format!("--add-port={}/{}", port_val, proto);
                 let _ = std::process::Command::new("/usr/bin/firewall-offline-cmd")
                     .arg("--zone=public")

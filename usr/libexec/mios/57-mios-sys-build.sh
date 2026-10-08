@@ -128,7 +128,7 @@ build_image_with_retry "localhost/mios-cuda" "/usr/share/mios/cuda" \
 # arg comes from the resolver, and an empty one fails the bake.
 log "Building localhost/mios-piper"
 _piper_args=()
-for _k in MIOS_PIPER_BASE MIOS_PIPER_VERSION MIOS_PIPER_VOICE MIOS_PIPER_UID MIOS_PIPER_GID; do
+for _k in MIOS_SERVICES_PIPER_BASE MIOS_SERVICES_PIPER_VERSION MIOS_SERVICES_PIPER_VOICE MIOS_SERVICES_PIPER_UID MIOS_SERVICES_PIPER_GID; do
     _v="${!_k}"
     if [[ -z "$_v" ]]; then
         log "ERROR: ${_k} resolved empty; set [services.piper] in mios.toml"

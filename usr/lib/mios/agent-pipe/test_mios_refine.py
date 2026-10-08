@@ -315,7 +315,7 @@ import sys
 import types
 from unittest import mock
 
-os.environ["MIOS_ANTIFAB_ENABLE"] = "false"
+os.environ["MIOS_VERITY_ANTIFAB_ENABLE"] = "false"
 
 _fails_antifab = 0
 

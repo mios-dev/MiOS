@@ -374,7 +374,7 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             reserved.bind(("127.0.0.1", 0))
             port = reserved.getsockname()[1]
         with tempfile.TemporaryDirectory(prefix="mios-http-test-") as directory, tempfile.TemporaryFile() as log:
-            env = dict(os.environ, MIOS_PORT_MCP=str(port), RUNTIME_DIRECTORY=directory)
+            env = dict(os.environ, MIOS_PORTS_MCP=str(port), RUNTIME_DIRECTORY=directory)
             process = subprocess.Popen([sys.executable, str(RELAY), "--http", "--tmux-only"],
                                        env=env, stdout=log, stderr=log)
             try:

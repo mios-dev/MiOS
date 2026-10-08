@@ -520,7 +520,7 @@ async def _quarantine_gate(tool: str, args: dict, *,
         if session_id:
             a_tainted, _chain = await _session_is_tainted(session_id)
             if not a_tainted and mios_scratchpad.SQLITE_VEC_ENABLE:
-                scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
+                scratchpad_dir = os.environ.get("MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR", "/tmp")
                 if mios_scratchpad.has_tainted(session_id, scratchpad_dir):
                     a_tainted = True
 

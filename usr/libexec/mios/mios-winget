@@ -12,7 +12,7 @@ usage() {
 }
 
 _find_winget() {
-    local op="${MIOS_USER:-}"
+    local op="${MIOS_IDENTITY_USERNAME:-}"
     if [[ -z "$op" ]] && [[ "${USER:-root}" != "root" ]]; then
         op="$USER"
     fi

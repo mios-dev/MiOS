@@ -81,7 +81,7 @@ def _portal_port(env: str, key: str, default: int) -> int:
 
 PORTAL_PASSWORD = (os.environ.get("MIOS_PORTAL_PASSWORD")
                    or _pcfg("portal", "password")
-                   or os.environ.get("MIOS_DEFAULT_PASSWORD")
+                   or os.environ.get("MIOS_IDENTITY_DEFAULT_PASSWORD")
                    or _pcfg("identity", "default_password") or "mios")
 PORTAL_USER = (os.environ.get("MIOS_PORTAL_USER")
                or _pcfg("portal", "user")
@@ -1249,8 +1249,8 @@ async def portal_login_logic(request: Request):
 async def portal_page_logic(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
-    _port_owui = _portal_port("MIOS_PORT_OPEN_WEBUI", "open_webui", 8200)
-    _port_searxng = _portal_port("MIOS_PORT_SEARXNG", "searxng", 8800)
+    _port_owui = _portal_port("MIOS_PORTS_OPEN_WEBUI", "open_webui", 8200)
+    _port_searxng = _portal_port("MIOS_PORTS_SEARXNG", "searxng", 8800)
     _port_inject = (
         f"<script>var _MIOS_PORT_OWUI={_port_owui};"
         f"var _MIOS_PORT_SEARXNG={_port_searxng};</script></head>"

@@ -27,7 +27,7 @@ DEFAULT_SQLITE_SEARCH_PATHS = [
 ]
 DEFAULT_PG_DATA_DIR = "/var/lib/mios/pgvector"
 # SSOT [ports].pgvector_internal: the in-container listener (host maps 8600->5432).
-DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORT_PGVECTOR_INTERNAL", "5432"))
+DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORTS_PGVECTOR_INTERNAL", "5432"))
 
 class DbDoctor:
     """Detects and repairs database corruption across SQLite and PostgreSQL stores."""

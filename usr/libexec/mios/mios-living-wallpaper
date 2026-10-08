@@ -22,8 +22,8 @@ fi
 
 echo "[living-wallpaper] Starting animated wallpaper daemon"
 
-BG_COLOR="${MIOS_COLOR_BG:-#282262}"
-ACCENT_COLOR="${MIOS_COLOR_ACCENT:-#1A407F}"
+BG_COLOR="${MIOS_COLORS_BG:-#282262}"
+ACCENT_COLOR="${MIOS_COLORS_ACCENT:-#1A407F}"
 
 if [[ "$MODE" == "static" ]]; then
     echo "[living-wallpaper] mode is static"

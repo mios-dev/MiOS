@@ -59,9 +59,9 @@ COPY --from=rust-builder /out/usr/ /usr/
 
 # Explicit overrides only. Unset or empty, each resolves from the six-tier
 # SSOT inside the build ([identity].username/hostname, [ai].model/embed_model).
-ARG MIOS_USER
-ARG MIOS_HOSTNAME
-ARG MIOS_FLATPAKS=
+ARG MIOS_IDENTITY_USERNAME
+ARG MIOS_IDENTITY_HOSTNAME
+ARG MIOS_DESKTOP_FLATPAKS=
 ARG MIOS_AI_MODEL
 ARG MIOS_AI_EMBED_MODEL
 # ADR-0025 image profile ([profiles]); empty means [profiles].default.
@@ -106,20 +106,20 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     ${DNF_BIN:-dnf5} clean metadata 2>/dev/null || ${DNF_BIN:-dnf} clean metadata 2>/dev/null || true; \
     install_packages_strict base; \
     git -C /tmp/build ls-files --deleted -z | git -C /tmp/build checkout-index -z --stdin; \
-    if [[ -n "${MIOS_FLATPAKS}" ]]; then \
-        echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
+    if [[ -n "${MIOS_DESKTOP_FLATPAKS}" ]]; then \
+        echo "${MIOS_DESKTOP_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
     _res="$(command -v mios-resolver || echo /usr/libexec/mios/mios-resolver)"; \
     eval "$("$_res" --root /tmp/build --emit=shell \
         | grep -E '^export MIOS_(USER|HOSTNAME|AI_MODEL|AI_EMBED_MODEL)=' | sed 's/^export /_ssot_/')"; \
-    for _v in MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; do \
+    for _v in MIOS_IDENTITY_USERNAME MIOS_IDENTITY_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; do \
         _s="_ssot_${_v}"; \
         [ -n "${!_v:-}" ] || { [ -n "${!_s:-}" ] || { echo "[build] ERROR: ${_v} is not resolved by the SSOT" >&2; exit 1; }; printf -v "$_v" '%s' "${!_s}"; }; \
         echo "[build] ${_v}=${!_v}"; \
     done; \
-    export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
+    export MIOS_IDENTITY_USERNAME MIOS_IDENTITY_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
     /usr/libexec/mios/miosd drift-check --root /tmp/build; \
-    MIOS_ROOT=/tmp/build bash /tmp/build/tools/sync-generated.sh; \
+    mios-gen sync --root /tmp/build; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     install_packages_strict mcp; \
     python3.13 /tmp/build/usr/libexec/mios/mios-mcp-server --install-native --source-root /tmp/build; \

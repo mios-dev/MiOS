@@ -117,12 +117,12 @@ def parse_sig(sig: str, vcfg: dict = None) -> dict:
         else:
             param_type = "string"
             _routing_cfg = _toml_section("routing") or {}
-            _int_kw = (os.environ.get("MIOS_INTEGER_PARAM_KEYWORDS")
+            _int_kw = (os.environ.get("MIOS_ROUTING_INTEGER_PARAM_KEYWORDS")
                        or _routing_cfg.get("integer_param_keywords")
                        or ["limit", "count", "timeout", "port", "every", "concurrency", "maxsize"])
             if isinstance(_int_kw, str):
                 _int_kw = [x.strip() for x in _int_kw.split(",") if x.strip()]
-            _bool_kw = (os.environ.get("MIOS_BOOLEAN_PARAM_KEYWORDS")
+            _bool_kw = (os.environ.get("MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS")
                         or _routing_cfg.get("boolean_param_keywords")
                         or ["enable", "force", "success", "active", "dryrun"])
             if isinstance(_bool_kw, str):
@@ -235,7 +235,7 @@ class GatewayWorker:
             try:
                 meta = req.payload.get("metadata") if isinstance(req.payload.get("metadata"), dict) else {}
                 session_id = str(meta.get("chat_id") or meta.get("session_id") or req.payload.get("chat_id") or uuid.uuid4().hex[:12])
-                scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
+                scratchpad_dir = os.environ.get("MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR", "/tmp")
 
                 conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)
                 try:
@@ -299,7 +299,7 @@ class GatewayWorker:
                 res = original_execute(tool_name, arguments)
                 try:
                     output_str = str(res)
-                    _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+                    _pipe_port = os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700")
                     endpoint = os.environ.get(
                         "MIOS_AI_ENDPOINT", f"http://localhost:{_pipe_port}")
                     url = f"{endpoint}/v1/embeddings"

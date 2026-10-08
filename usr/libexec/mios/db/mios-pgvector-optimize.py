@@ -104,7 +104,7 @@ ORDER BY t.relname, c.relname;
 """
 
 # SSOT [ports].pgvector_internal: the in-container listener (host maps 8600->5432).
-DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORT_PGVECTOR_INTERNAL", "5432"))
+DEFAULT_PG_PORT = int(os.environ.get("MIOS_PORTS_PGVECTOR_INTERNAL", "5432"))
 
 class PgVectorOptimizer:
     """Orchestrates VACUUM ANALYZE and CONCURRENT REINDEX operations."""

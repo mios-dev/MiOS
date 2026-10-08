@@ -8,7 +8,7 @@ lock the operator out of Open WebUI.
 Resolves identity from layered mios.toml ([identity].username,
 [identity].email) and the password from the MiOS password SSOT (see
 _read_password): MIOS_OPERATOR_PASSWORD / MIOS_OWUI_ADMIN_PASSWORD ->
-mios.toml [identity].default_password -> MIOS_DEFAULT_PASSWORD -> "mios"
+mios.toml [identity].default_password -> MIOS_IDENTITY_DEFAULT_PASSWORD -> "mios"
 -- the SAME source Forge / Portal / Cockpit / RDP use, so one operator
 password works everywhere. A "__random__" override generates + writes a
 24-char password to /etc/mios/owui-admin-password (mode 0600 root-only).
@@ -105,7 +105,7 @@ def _read_password():
       2. MIOS_OWUI_ADMIN_PASSWORD   -- per-service override (parallels
                                        MIOS_FORGE_ADMIN_PASSWORD)
       3. mios.toml [identity].default_password  -- the canonical SSOT field
-      4. MIOS_DEFAULT_PASSWORD (install.env)    -- shell/systemd bridge of #3
+      4. MIOS_IDENTITY_DEFAULT_PASSWORD (install.env)    -- shell/systemd bridge of #3
       5. literal "mios"             -- vendor default; the same final fallback
                                        as usr/libexec/mios/forge-firstboot.sh
 
@@ -121,8 +121,8 @@ def _read_password():
          _env_or_file("MIOS_OWUI_ADMIN_PASSWORD", [SECRETS_ENV, INSTALL_ENV])),
         ("mios.toml [identity].default_password (SSOT)",
          _read_toml_default_password()),
-        ("MIOS_DEFAULT_PASSWORD (install.env)",
-         _env_or_file("MIOS_DEFAULT_PASSWORD", [INSTALL_ENV])),
+        ("MIOS_IDENTITY_DEFAULT_PASSWORD (install.env)",
+         _env_or_file("MIOS_IDENTITY_DEFAULT_PASSWORD", [INSTALL_ENV])),
         ("vendor default 'mios'", "mios"),
     ):
         if not pw:

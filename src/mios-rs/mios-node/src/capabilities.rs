@@ -102,7 +102,7 @@ impl Default for ActiveTransports {
             wireguard: false,
             ble_mesh: false,
             // The local endpoint is the node's SSOT port, resolved at run time.
-            endpoints: crate::ssot::get("MIOS_PORT_NODE")
+            endpoints: crate::ssot::get("MIOS_PORTS_NODE")
                 .map(|p| vec![format!("127.0.0.1:{p}")])
                 .unwrap_or_default(),
         }

@@ -15,6 +15,13 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
+  llama-rpc-server:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
   mios-account-sync:
     nodeSelector:
       mios.capability/service-plane: "true"
@@ -146,6 +153,13 @@ services:
         operator: "Exists"
         effect: "NoSchedule"
   mios-guacd:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+  mios-headscale:
     nodeSelector:
       mios.capability/service-plane: "true"
     tolerations:

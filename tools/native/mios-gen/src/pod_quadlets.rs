@@ -257,7 +257,10 @@ pub fn resolve_one(
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Ok(format!("${{{inner}}}"));
     }
-    if name.starts_with("MIOS_PORT_") || placeholders.contains(name) {
+    if name.starts_with("MIOS_PORTS_")
+        || name.starts_with("MIOS_PORT_")
+        || placeholders.contains(name)
+    {
         let def_expanded = if sep {
             format!(
                 ":-{}",
@@ -269,7 +272,10 @@ pub fn resolve_one(
         return Ok(format!("${{{name}{def_expanded}}}"));
     }
     let ssot = ssot_exports.get(name).cloned().unwrap_or_default();
-    if !ssot.is_empty() && sep && default.contains("${MIOS_PORT_") {
+    if !ssot.is_empty()
+        && sep
+        && (default.contains("${MIOS_PORTS_") || default.contains("${MIOS_PORT_"))
+    {
         let expanded_default = ssot_expand(default, ssot_exports);
         if expanded_default != ssot {
             return Err(format!(

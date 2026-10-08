@@ -26,6 +26,7 @@ mod render_manpages;
 mod render_ports;
 mod roadmap_index;
 mod standardize_docs;
+mod sync;
 mod sync_wiki;
 mod tmux_runtime;
 mod tmux_theme;
@@ -47,6 +48,24 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Project the complete canonical name registry and tracked consumer census.
+    NamesRegistry {
+        #[arg(long)]
+        root: Option<PathBuf>,
+    },
+    /// Regenerate every declared SSOT projection in dependency order.
+    Sync {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Validate every prerequisite and print the plan without changing files or the index.
+        #[arg(long)]
+        plan: bool,
+    },
+    /// Audit every SSOT variable's canonical name, aliases and collisions (no values).
+    Names {
+        #[arg(long)]
+        root: Option<PathBuf>,
+    },
     /// Emit the shared native Linux/Windows terminal policy as nine validated lines.
     TerminalConfig {
         #[arg(long)]
@@ -646,6 +665,45 @@ fn run_egress_firewall(root: &Path) -> Result<(), (String, i32)> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let (subcommand, target, result) = match cli.command {
+        Commands::NamesRegistry { root } => {
+            let root = resolve_root(root);
+            return match mios_gen::names_registry::run(&root) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("[mios-gen names-registry] {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Commands::Sync { root, plan } => {
+            let root = resolve_root(root);
+            return match sync::run(&root, plan) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("[mios-gen sync] {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Commands::Names { root } => {
+            let root = resolve_root(root);
+            let result = mios_resolver::resolve_merged(Some(&root), false)
+                .map_err(|error| error.to_string())
+                .and_then(|merged| mios_resolver::names::registry(&merged))
+                .and_then(|registry| {
+                    serde_json::to_string_pretty(&registry).map_err(|e| e.to_string())
+                });
+            return match result {
+                Ok(output) => {
+                    println!("{output}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("[mios-gen names] {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
         Commands::TerminalConfig {
             root,
             action,

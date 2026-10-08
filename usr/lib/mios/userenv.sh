@@ -30,10 +30,19 @@ _mios_load_unified() {
         local _r="" _native_exports=""
         command -v mios-resolver >/dev/null 2>&1 && _r=mios-resolver
         [[ -z "$_r" && -x /usr/libexec/mios/mios-resolver ]] && _r=/usr/libexec/mios/mios-resolver
-        if [[ -n "$_r" ]] && _native_exports=$("$_r" --emit=shell 2>/dev/null | tr -d '\r') \
-            && [[ -n "$_native_exports" ]] && eval "$_native_exports"; then
+        if [[ -n "$_r" ]]; then
+            if ! _native_exports=$("$_r" --emit=shell); then
+                [[ -z "$_xt" ]] || set -x
+                return 1
+            fi
+            _native_exports="${_native_exports//$'\r'/}"
+            if [[ -n "$_native_exports" ]] && eval "$_native_exports"; then
+                [[ -z "$_xt" ]] || set -x
+                return 0
+            fi
             [[ -z "$_xt" ]] || set -x
-            return 0
+            printf '[mios-resolver] native resolver produced no usable environment\n' >&2
+            return 1
         fi
         [[ -z "$_xt" ]] || set -x
     fi
@@ -62,7 +71,10 @@ _mios_load_unified() {
             _py_path="$MIOS_ROOT/usr/lib/mios/mios_toml.py"
         fi
         if [[ -f "$_py_path" ]]; then
-            _py_exports=$(PYTHONIOENCODING=utf-8 $py_cmd "$_py_path" --emit=shell 2>/dev/null | tr -d '\r')
+            if ! _py_exports=$(PYTHONIOENCODING=utf-8 "$py_cmd" "$_py_path" --emit=shell); then
+                return 1
+            fi
+            _py_exports="${_py_exports//$'\r'/}"
             if [[ -n "$_py_exports" ]]; then
                 eval "$_py_exports"
                 unset MIOS_PYTHON_BIN 2>/dev/null || true
@@ -71,9 +83,9 @@ _mios_load_unified() {
         fi
     fi
 }
-_mios_load_unified
+_mios_load_unified || { return 1 2>/dev/null || exit 1; }
 
-case "${MIOS_PG_LISTEN_LOOPBACK:-true}" in
+case "${MIOS_PGVECTOR_LISTEN_LOOPBACK:-true}" in
     false|False|FALSE|0|no|off) export MIOS_PG_BIND_ADDR="0.0.0.0" ;;
     *)                          export MIOS_PG_BIND_ADDR="127.0.0.1" ;;
 esac
@@ -86,10 +98,10 @@ _mios_legacy_get() {
         | tr -d '"' || true
 }
 
-if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]; then
+if [[ -z "${MIOS_IDENTITY_USERNAME:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]; then
     if [[ -f "${MIOS_CONFIG_DIR}/env.toml" ]]; then
         f="${MIOS_CONFIG_DIR}/env.toml"
-        for key in MIOS_USER MIOS_HOSTNAME MIOS_FLATPAKS MIOS_BASE_IMAGE MIOS_LOCAL_TAG; do
+        for key in MIOS_IDENTITY_USERNAME MIOS_IDENTITY_HOSTNAME MIOS_DESKTOP_FLATPAKS MIOS_BASE_IMAGE MIOS_LOCAL_TAG; do
             val="$(_mios_legacy_get "$f" "$key")"
             [[ -z "$val" ]] || export "$key=$val"
         done
@@ -107,7 +119,7 @@ if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/flatpaks.list" ]]; then
         flat=$(grep -vE '^\s*(#|$)' "${MIOS_CONFIG_DIR}/flatpaks.list" 2>/dev/null | paste -sd,)
-        [[ -z "$flat" ]] || export "MIOS_FLATPAKS=$flat"
+        [[ -z "$flat" ]] || export "MIOS_DESKTOP_FLATPAKS=$flat"
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/env" ]]; then
         set -a
@@ -117,28 +129,28 @@ if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]
 fi
 
 _ssot_lint_ports_dummy=(
-    "MIOS_PORT_AGENT_PIPE"
-    "MIOS_PORT_CHROME_CDP"
-    "MIOS_PORT_COCKPIT_LINK"
-    "MIOS_PORT_CPU_NODE"
-    "MIOS_PORT_CRAWL4AI"
-    "MIOS_PORT_FIRECRAWL"
-    "MIOS_PORT_FORGE_HTTP"
-    "MIOS_PORT_FORGE_SSH"
-    "MIOS_PORT_GUACD"
-    "MIOS_PORT_LLM_LIGHT"
-    "MIOS_PORT_NODE"
-    "MIOS_PORT_OPEN_WEBUI"
-    "MIOS_PORT_OTELCOL_OTLP"
-    "MIOS_PORT_OTELCOL_UI"
-    "MIOS_PORT_PGVECTOR"
-    "MIOS_PORT_PIPER"
-    "MIOS_PORT_PXE_HUB_API"
-    "MIOS_PORT_RADOSGW"
-    "MIOS_PORT_REDIS"
-    "MIOS_PORT_SEARXNG"
-    "MIOS_PORT_SGLANG"
-    "MIOS_PORT_VLLM"
-    "MIOS_PORT_WHISPER"
-    "MIOS_VERSION_FEDORA"
+    "MIOS_PORTS_AGENT_PIPE"
+    "MIOS_PORTS_CHROME_CDP"
+    "MIOS_PORTS_COCKPIT_LINK"
+    "MIOS_PORTS_CPU_NODE"
+    "MIOS_PORTS_CRAWL4AI"
+    "MIOS_PORTS_FIRECRAWL"
+    "MIOS_PORTS_FORGE_HTTP"
+    "MIOS_PORTS_FORGE_SSH"
+    "MIOS_PORTS_GUACD"
+    "MIOS_PORTS_LLM_LIGHT"
+    "MIOS_PORTS_NODE"
+    "MIOS_PORTS_OPEN_WEBUI"
+    "MIOS_PORTS_OTELCOL_OTLP"
+    "MIOS_PORTS_OTELCOL_UI"
+    "MIOS_PORTS_PGVECTOR"
+    "MIOS_PORTS_PIPER"
+    "MIOS_PORTS_PXE_HUB_API"
+    "MIOS_PORTS_RADOSGW"
+    "MIOS_PORTS_REDIS"
+    "MIOS_PORTS_SEARXNG"
+    "MIOS_PORTS_SGLANG"
+    "MIOS_PORTS_VLLM"
+    "MIOS_PORTS_WHISPER"
+    "MIOS_VERSIONS_FEDORA"
 )

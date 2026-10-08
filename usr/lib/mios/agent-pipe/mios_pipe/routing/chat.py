@@ -1358,7 +1358,7 @@ async def responses_api_logic(request: Request) -> Any:
         return JSONResponse(content={"error": {"message": "you must provide 'input'",
             "type": "invalid_request_error", "param": "input", "code": None}},
             status_code=400)
-    _port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+    _port = os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700")
     try:
         async with httpx.AsyncClient(timeout=300.0) as s:
             r = await s.post(f"http://127.0.0.1:{_port}/v1/chat/completions",
@@ -1476,7 +1476,7 @@ async def _kernel_chat_handler(decision, **ctx):
     decision.mode = "agent"
     return await _KERNEL.dispatcher.run(decision, **ctx)
 
-_ANTIFAB_ENABLE = os.environ.get("MIOS_ANTIFAB_ENABLE", "true").lower() not in {"false", "0", "no", "off"}
+_ANTIFAB_ENABLE = os.environ.get("MIOS_VERITY_ANTIFAB_ENABLE", "true").lower() not in {"false", "0", "no", "off"}
 
 def _contains_tool_result_block(text) -> bool:
     """True when `text` narrates a tool EXECUTION result (real-emitter sentinel or a

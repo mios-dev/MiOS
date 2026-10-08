@@ -728,7 +728,7 @@ The shell commands a workflow actually executes.
 
 build_exports() returns the UNEXPANDED map on purpose: it renders
 automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
-time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+time, and keeping `${MIOS_PORTS_AGENT_PIPE}` live there is what lets an
 operator's pre-export propagate. mios-resolver --emit=json is the resolved
 view and bakes. Comparing the two directly measured that difference in
 representation, not a divergence between the resolvers -- 103 "mismatches"

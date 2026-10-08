@@ -43,7 +43,7 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
 done
 unset _ue
 
-export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORT_AGENT_PIPE:-8700}/v1}"
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORTS_AGENT_PIPE:-8700}/v1}"
 export MIOS_AI_GATEWAY_MODEL="${MIOS_AI_GATEWAY_MODEL:-MiOS-Agent}"
 export MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
@@ -52,8 +52,8 @@ if [ -z "${MIOS_AI_KEY:-}" ] && [ -r /etc/mios/hermes/api.env ]; then
 fi
 export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 
-export MIOS_USER="${MIOS_USER:-${MIOS_DEFAULT_USER:-mios}}"
-export MIOS_HOSTNAME="${MIOS_HOSTNAME:-${MIOS_DEFAULT_HOST:-mios}}"
+export MIOS_IDENTITY_USERNAME="${MIOS_IDENTITY_USERNAME:-${MIOS_IDENTITY_USERNAME:-mios}}"
+export MIOS_IDENTITY_HOSTNAME="${MIOS_IDENTITY_HOSTNAME:-${MIOS_IDENTITY_HOSTNAME:-mios}}"
 export MIOS_VERSION="${MIOS_VERSION:-}"
 
 export MIOS_SHARE_DIR="${MIOS_SHARE_DIR:-/usr/share/mios}"

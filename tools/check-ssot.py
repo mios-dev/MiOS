@@ -456,15 +456,15 @@ pf_SKIP_SUBSTR = ("/reference/", "/doc/", "__pycache__", "/.git/", "manifest.jso
 pf_SKIP_EXT = (".md", ".json", ".tsv", ".txt", ".rmeta", ".pyc")
 
 pf_PATTERNS = (
-    re.compile(r"MIOS_PORT_([A-Z0-9_]+)\s*:[-=]\s*(\d+)"),        # ${X:-N} / ${X:=N}
-    re.compile(r'"MIOS_PORT_([A-Z0-9_]+)"\s*,\s*"(\d+)"'),        # get("X", "N")
-    re.compile(r"'MIOS_PORT_([A-Z0-9_]+)'\s*,\s*'(\d+)'"),
-    re.compile(r"'MIOS_PORT_([A-Z0-9_]+)'\s+(\d+)"),              # _MiosPort 'X' N
-    re.compile(r"^\s*Environment=MIOS_PORT_([A-Z0-9_]+)=(\d+)\s*$"),
+    re.compile(r"MIOS_PORTS?_([A-Z0-9_]+)\s*:[-=]\s*(\d+)"),        # ${X:-N} / ${X:=N}
+    re.compile(r'"MIOS_PORTS?_([A-Z0-9_]+)"\s*,\s*"(\d+)"'),        # get("X", "N")
+    re.compile(r"'MIOS_PORTS?_([A-Z0-9_]+)'\s*,\s*'(\d+)'"),
+    re.compile(r"'MIOS_PORTS?_([A-Z0-9_]+)'\s+(\d+)"),              # _MiosPort 'X' N
+    re.compile(r"^\s*Environment=MIOS_PORTS?_([A-Z0-9_]+)=(\d+)\s*$"),
     # `get(K, "N") or M` / `get(K) or "M"` -- the SECOND literal is the one that
     # actually runs when the variable is unset or empty, and the first sweep
     # missed it entirely.
-    re.compile(r"MIOS_PORT_([A-Z0-9_]+)[\"']?\s*[,)][^\n]{0,60}?\bor\s+[\"']?(\d+)"),
+    re.compile(r"MIOS_PORTS?_([A-Z0-9_]+)[\"']?\s*[,)][^\n]{0,60}?\bor\s+[\"']?(\d+)"),
     # The MIOS_<KEY>_PORT spelling: a second emitted name for the same value, so
     # a stale literal beside it is the same defect one alias removed.
     re.compile(r"MIOS_([A-Z0-9_]+)_PORT[\"']?\s*,\s*[\"']?(\d+)"),
@@ -615,8 +615,8 @@ def pb__tracked_files(root: str) -> list:
 
 def pb_referenced_ports(root: str, keys: set) -> set:
     """Port keys whose MIOS_PORT_<KEY> appears in a file that could bind or dial it."""
-    wanted = {("MIOS_PORT_" + k.upper()): k for k in keys}
-    pattern = re.compile(r"\bMIOS_PORT_([A-Z0-9_]+)\b")
+    wanted = {k.upper(): k for k in keys}
+    pattern = re.compile(r"\bMIOS_PORTS?_([A-Z0-9_]+)\b")
     found = set()
     for rel in pb__tracked_files(root):
         path = os.path.join(root, rel)
@@ -626,7 +626,7 @@ def pb_referenced_ports(root: str, keys: set) -> set:
         except OSError:
             continue
         for m in pattern.finditer(body):
-            key = wanted.get("MIOS_PORT_" + m.group(1))
+            key = wanted.get(m.group(1))
             if key:
                 found.add(key)
     return found
@@ -1461,7 +1461,7 @@ def bc_port_namers(data: dict, root: str) -> dict:
                               if not l.lstrip().startswith("#"))
             stem = name.rsplit(".", 1)[0]
             for key, num in ports.items():
-                if ("MIOS_PORT_%s" % key.upper()) in code or \
+                if any((prefix + key.upper()) in code for prefix in ("MIOS_PORTS_", "MIOS_PORT_")) or \
                         re.search(r"(?<![0-9])%d(?![0-9])" % num, code):
                     out[key].add(stem)
     return out
@@ -1473,10 +1473,10 @@ def bc_person_facing(data: dict) -> set:
     for value in ((data.get("urls") or {}).values()):
         if isinstance(value, str):
             out |= {m.lower() for m in
-                    re.findall(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}", value)}
+                    re.findall(r"\$\{MIOS_PORTS?_([A-Z0-9_]+)\}", value)}
     endpoint = str((data.get("ai") or {}).get("endpoint") or "")
     out |= {m.lower() for m in
-            re.findall(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}", endpoint)}
+            re.findall(r"\$\{MIOS_PORTS?_([A-Z0-9_]+)\}", endpoint)}
     return out
 
 def bc_seat_dead_weight(data: dict, root: str) -> list:

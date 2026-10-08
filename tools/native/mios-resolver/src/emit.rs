@@ -8,7 +8,21 @@ use crate::aliases::get_aliases;
 use crate::walk::{process_val, walk};
 
 pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
+    build_exports(merged, stack_offset, false)
+}
+
+/// Globals use the same naming/value engine. Only their historical projection
+/// scope differs: comments, env overrides and the dead Guacamole aliases.
+pub fn build_globals_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
+    let mut exports = build_exports(merged, stack_offset, true);
+    exports.remove("MIOS_PORT_GUACAMOLE");
+    exports.remove("MIOS_GUACAMOLE_PORT");
+    exports
+}
+
+fn build_exports(merged: &Value, stack_offset: i64, globals: bool) -> BTreeMap<String, String> {
     let mut exports = BTreeMap::new();
+    let mut legacy = BTreeMap::new();
     let all_pairs = walk(merged);
 
     // Any character that is not [A-Za-z0-9_] becomes `_`, matching
@@ -28,6 +42,9 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
     }
 
     for (path, val) in all_pairs {
+        if globals && path.rsplit('.').next() == Some("comment") {
+            continue;
+        }
         let val_processed = process_val(&path, &val, stack_offset);
         if val_processed.is_empty() {
             continue;
@@ -38,17 +55,7 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
             continue;
         }
 
-        let cbody = if let Some(rest) = path.strip_prefix("converge.") {
-            format!("CONV_{}", sanitize(&rest.to_uppercase()))
-        } else {
-            sanitize(&path.to_uppercase())
-        };
-
-        let canonical = if cbody.starts_with("MIOS_") {
-            cbody
-        } else {
-            format!("MIOS_{}", cbody)
-        };
+        let canonical = crate::names::canonical_name(&path);
 
         let sec_name = path.split('.').next().unwrap_or(&path);
         if is_mostly_dead_section(sec_name) && !is_emit_keep_var(&canonical) {
@@ -78,8 +85,13 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
             } else {
                 val_processed.clone()
             };
-            exports.insert(leg, v);
+            legacy.insert(leg, v);
         }
+    }
+    // Canonical keys retain their own typed value even when another key once
+    // used the same spelling as a compatibility alias (database vs OS account).
+    for (name, value) in legacy {
+        exports.entry(name).or_insert(value);
     }
 
     // MIOS_COLOR_<name> for every palette entry ([colors] over the palette
@@ -96,7 +108,11 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
 
     // [env] verbatim, last, so it wins -- mios_toml.emit_exports' env_tbl
     // merge (empty values skipped). Every emitter and runtime::get see it.
-    if let Some(env_table) = merged.get("env").and_then(|v| v.as_table()) {
+    if let Some(env_table) = merged
+        .get("env")
+        .and_then(|v| v.as_table())
+        .filter(|_| !globals)
+    {
         for (k, v) in env_table {
             let val = process_val(&format!("env.{k}"), v, stack_offset);
             if !val.is_empty() {
@@ -115,12 +131,12 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
 /// `EnvironmentFile=` and podman `--env-file`). It is deliberately NOT called
 /// by `build_exports_map`, because `emit_shell` and `emit_ps` render into bash
 /// and PowerShell, which expand at source time: keeping the reference live
-/// there is what makes an operator's pre-exported `MIOS_PORT_AGENT_PIPE`
+/// there is what makes an operator's pre-exported `MIOS_PORTS_AGENT_PIPE`
 /// propagate into `MIOS_AI_ENDPOINT`. Baking in the shared builder would take
 /// that property away from both generated globals files.
 ///
 /// systemd `EnvironmentFile=` and podman `--env-file` have no such expansion,
-/// so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1`
+/// so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1`
 /// means two different things depending on who reads it. It is also why
 /// `system-sync-env.sh` DROPPED that variable rather than emitting it: its
 /// filter rejects any value containing `$` (T-1060).
@@ -198,5 +214,24 @@ random_setting = "test"
         let exports = build_exports_map(&val, 0);
         assert!(exports.contains_key("MIOS_AI_ENDPOINT")); // In WALK_EMIT_KEEP
         assert!(!exports.contains_key("MIOS_AI_RANDOM_SETTING")); // Suppressed!
+    }
+}
+
+#[cfg(test)]
+mod canonical_export_tests {
+    #[test]
+    fn service_account_alias_cannot_replace_database_username() {
+        let data: toml::Value =
+            "[pgvector]\nuser='database'\n[services.pgvector]\nuser='os-account'\n"
+                .parse()
+                .unwrap();
+        for exports in [
+            super::build_exports_map(&data, 0),
+            super::build_globals_map(&data, 0),
+        ] {
+            assert_eq!(exports["MIOS_PGVECTOR_USER"], "database");
+            assert_eq!(exports["MIOS_PG_USER"], "database");
+            assert_eq!(exports["MIOS_SERVICES_PGVECTOR_USER"], "os-account");
+        }
     }
 }

@@ -37,11 +37,11 @@ Honest-fail: if BOTH engines fail, the response says so. NEVER fabricate
 page content.
 
 SSOT (env rendered from mios.toml [crawl] block via globals/userenv):
-  MIOS_CRAWL_CDP_URL    ws://127.0.0.1:9222   Chrome DevTools endpoint to attach
-  MIOS_CRAWL_CAMOUFOX   true                   enable the camoufox fail-retry
+  MIOS_SERVICES_WEBTOOLS_CDP_URL    ws://127.0.0.1:9222   Chrome DevTools endpoint to attach
+  MIOS_SERVICES_WEBTOOLS_CAMOUFOX   true                   enable the camoufox fail-retry
   MIOS_CRAWL_BIND       127.0.0.1              loopback bind (never LAN)
-  MIOS_PORT_CRAWL4AI    11235                  loopback service port
-  MIOS_CRAWL_MIN_CHARS  200                    markdown shorter than this from
+  MIOS_PORTS_CRAWL4AI    11235                  loopback service port
+  MIOS_SERVICES_WEBTOOLS_MIN_CHARS  200                    markdown shorter than this from
                                                CDP triggers the camoufox retry
 
 <!-- mios-src:2b3f3daa86bf from usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:5-44 -->

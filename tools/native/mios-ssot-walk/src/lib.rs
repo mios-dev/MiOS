@@ -18,6 +18,7 @@ pub const EXCLUDED_SECTIONS: &[&str] = &[
     // itself and never reads globals; projecting them emitted 739
     // constants no consumer reads.
     "units",
+    "generation",
 ];
 
 pub const WALK_MOSTLY_DEAD: &[&str] =

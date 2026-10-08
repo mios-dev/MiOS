@@ -19,11 +19,11 @@ Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
   MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
 pgvector:
-  MIOS_PG_HOST         — default localhost
-  MIOS_PORT_PGVECTOR   — default 5432
-  MIOS_PG_USER         — default mios
-  MIOS_PG_PASS         — default mios
-  MIOS_PG_DB           — default mios
+  MIOS_PGVECTOR_HOST         — default localhost
+  MIOS_PORTS_PGVECTOR   — default 5432
+  MIOS_PGVECTOR_USER         — default mios
+  MIOS_PGVECTOR_PASS         — default mios
+  MIOS_PGVECTOR_DB           — default mios
   MIOS_SYS_ENV_TABLE   — default mios_kb (collection name with hyphens -> underscores)
 
 Usage:
@@ -74,11 +74,11 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     key      = os.environ.get("MIOS_AI_KEY", "")
     model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
 
-    pg_host = os.environ.get("MIOS_PG_HOST", "localhost")
-    pg_port = int(os.environ.get("MIOS_PORT_PGVECTOR", "5432") or 5432)
-    pg_user = os.environ.get("MIOS_PG_USER", "mios")
-    pg_pass = os.environ.get("MIOS_PG_PASS", "mios")
-    pg_db   = os.environ.get("MIOS_PG_DB", "mios")
+    pg_host = os.environ.get("MIOS_PGVECTOR_HOST", "localhost")
+    pg_port = int(os.environ.get("MIOS_PORTS_PGVECTOR", "5432") or 5432)
+    pg_user = os.environ.get("MIOS_PGVECTOR_USER", "mios")
+    pg_pass = os.environ.get("MIOS_PGVECTOR_PASS", "mios")
+    pg_db   = os.environ.get("MIOS_PGVECTOR_DB", "mios")
 
     collection = os.environ.get("MIOS_KB_COLLECTION", "mios-kb")
     table_name = collection.replace("-", "_")

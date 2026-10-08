@@ -43,6 +43,23 @@ _GATE_EXE = os.path.join(_ROOT, "src", "mios-rs", "target", "debug", "mios-gate.
 _GATE_ELF = os.path.join(_ROOT, "src", "mios-rs", "target", "debug", "mios-gate")
 _GATE_BIN = _GATE_EXE if os.path.isfile(_GATE_EXE) else (_GATE_ELF if os.path.isfile(_GATE_ELF) else "mios-gate")
 
+
+def native_sync_fixture(directory: str, *, register: bool = False):
+    """Independent Git checkout exercising the production native sync command."""
+    binary = os.environ.get("MIOS_GEN_BIN") or shutil.which("mios-gen")
+    if not binary:
+        raise AssertionError("mios-gen is required for native projection verification")
+    root = Path(directory)
+    ssot = root / "usr/share/mios/mios.toml"
+    ssot.parent.mkdir(parents=True)
+    action = "id='census'\nregister=true" if register else "id='copy'\ncopy=['input','output']"
+    ssot.write_text(f"[generation.sync]\nunit_projections=[]\n[[generation.sync.steps]]\n{action}\n", encoding="utf-8")
+    (root / "input").write_bytes(b"projected bytes\n")
+    (root / "output").write_bytes(b"previous bytes\n")
+    subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True, capture_output=True)
+    return [binary, "sync", "--root", str(root)]
+
 # Test file pattern for libexec exclusions (matches tools/drift-checks.py definition)
 _TEST_BASENAME = re.compile(r"^(test[-_].*|.*[-_]test)(\.py|\.sh|\.ps1)?$")
 
@@ -790,10 +807,19 @@ class TestTier1FeatureCoverage(unittest.TestCase):
             self.assertIn("gnullvm", content.lower())
 
     def test_f9_04_sync_generated_script_exists(self):
-        """F9.4: SSOT projection tool tools/sync-generated.sh exists and is non-empty."""
-        script = os.path.join(_ROOT, "tools", "sync-generated.sh")
-        self.assertTrue(os.path.isfile(script))
-        self.assertGreater(os.path.getsize(script), 100)
+        """F9.4: Native plan is read-only and execution projects the selected root."""
+        with tempfile.TemporaryDirectory() as directory:
+            command = native_sync_fixture(directory)
+            root = Path(directory)
+            index = (root / ".git/index").read_bytes()
+            result = subprocess.run(command + ["--plan"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(json.loads(result.stdout)["steps"]), 1)
+            self.assertEqual((root / "output").read_bytes(), b"previous bytes\n")
+            self.assertEqual((root / ".git/index").read_bytes(), index)
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / "output").read_bytes(), b"projected bytes\n")
 
     def test_f9_05_ssot_table_projections_consistency(self):
         """F9.5: Bootstrap table mappings in mios.toml match sync-bootstrap registry."""
@@ -1226,9 +1252,19 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
         self.assertNotEqual(lf, crlf)
 
     def test_f9_b05_sync_generated_detects_untracked_drift(self):
-        """F9.B5: sync-generated projection targets exist."""
-        script = os.path.join(_ROOT, "tools", "sync-generated.sh")
-        self.assertTrue(os.path.isfile(script))
+        """F9.B5: Explicit native census includes new files without staging their content."""
+        with tempfile.TemporaryDirectory() as directory:
+            command = native_sync_fixture(directory, register=True)
+            root = Path(directory)
+            (root / "new consumer.sh").write_text("echo ${MIOS_PORTS_AGENT_PIPE}\n", encoding="utf-8")
+            census = ["git", "-C", directory, "ls-files", "-z"]
+            self.assertNotIn(b"new consumer.sh\0", subprocess.check_output(census))
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("registered intent-to-add: new consumer.sh", result.stdout)
+            self.assertIn(b"new consumer.sh\0", subprocess.check_output(census))
+            staged = subprocess.check_output(["git", "-C", directory, "diff", "--cached", "--", "new consumer.sh"])
+            self.assertEqual(staged, b"")
 
     # ------------------------------------------------------------------------
     # F10 Boundaries

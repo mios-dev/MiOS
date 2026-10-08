@@ -7,7 +7,7 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
-FLATPAK_LIST="${MIOS_FLATPAKS:-}"
+FLATPAK_LIST="${MIOS_DESKTOP_FLATPAKS:-}"
 if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/usr/share/mios/flatpak-list ]]; then
     FLATPAK_LIST="$(tr '\n' ',' < /tmp/build/usr/share/mios/flatpak-list | sed 's/,*$//')"
 fi

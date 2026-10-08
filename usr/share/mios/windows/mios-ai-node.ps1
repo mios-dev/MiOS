@@ -83,7 +83,7 @@ function Get-PortFromSsot([string]$envVar, [string]$key, [int]$default) {
     return $default
 }
 
-$llmLightPort = Get-PortFromSsot 'MIOS_PORT_LLM_LIGHT' 'llm_light' 8500
+$llmLightPort = Get-PortFromSsot 'MIOS_PORTS_LLM_LIGHT' 'llm_light' 8500
 
 function Info($m) { Write-Host "  [*] $m" -ForegroundColor Cyan    }
 function Ok($m)   { Write-Host "  [+] $m" -ForegroundColor Green   }

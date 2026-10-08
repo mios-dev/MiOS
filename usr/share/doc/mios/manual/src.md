@@ -504,12 +504,12 @@ resolved-environment view) and `emit_install_env` (systemd
 `EnvironmentFile=` and podman `--env-file`). It is deliberately NOT called
 by `build_exports_map`, because `emit_shell` and `emit_ps` render into bash
 and PowerShell, which expand at source time: keeping the reference live
-there is what makes an operator's pre-exported `MIOS_PORT_AGENT_PIPE`
+there is what makes an operator's pre-exported `MIOS_PORTS_AGENT_PIPE`
 propagate into `MIOS_AI_ENDPOINT`. Baking in the shared builder would take
 that property away from both generated globals files.
 
 systemd `EnvironmentFile=` and podman `--env-file` have no such expansion,
-so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1`
+so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1`
 means two different things depending on who reads it. It is also why
 `system-sync-env.sh` DROPPED that variable rather than emitting it: its
 filter rejects any value containing `$` (T-1060).

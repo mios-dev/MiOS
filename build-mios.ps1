@@ -3110,17 +3110,17 @@ sudo tee /etc/mios/hermes/config.local.yaml >/dev/null <<'CFGLOCAL'
 # override to /var/lib/mios/hermes/operator.yaml + adjust the
 # include path.
 backend:
-  base_url: http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}
+  base_url: http://localhost:${MIOS_PORTS_LLM_LIGHT:-8450}
 auxiliary:
   # LLM Light's OpenAI-compatible surface for compression / summarization /
   # memory flush. Port 8080 was a legacy inference bind -- after the
   # retired-lane purge, 8080 is code-server, so the previous default 8080/v1
   # made Hermes 401 against code-server then fall through to its
   # openrouter auto-detect (which also 401'd without an API key).
-  base_url: http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}/v1
+  base_url: http://localhost:${MIOS_PORTS_LLM_LIGHT:-8450}/v1
 tools:
   web_search:
-    base_url: http://localhost:${MIOS_PORT_SEARXNG:-8899}
+    base_url: http://localhost:${MIOS_PORTS_SEARXNG:-8899}
 
 # model / custom_providers / agent are intentionally NOT defined here.
 # mios-hermes-firstboot seeds /var/lib/mios/hermes/config.yaml (=
@@ -7575,7 +7575,7 @@ exit 0
 mkdir -p /etc/mios
 touch /etc/mios/install.env
 if [ -n '$MiosHash' ]; then printf "MIOS_USER_PASSWORD_HASH='%s'\n" '$MiosHash' > /etc/mios/secrets.env; chmod 0600 /etc/mios/secrets.env; fi
-for p in "MIOS_USER=$MiosUser" "MIOS_HOSTNAME=$MiosHostname" "MIOS_AI_MODEL=$MiosAiModel" "MIOS_AI_EMBED_MODEL=$MiosAiEmbedModel" "MIOS_LLAMACPP_BAKE_MODELS=$MiosLlamacppBakeModels" "MIOS_VLLM_BAKE_MODEL=$MiosVllmBakeModel"; do
+for p in "MIOS_IDENTITY_USERNAME=$MiosUser" "MIOS_IDENTITY_HOSTNAME=$MiosHostname" "MIOS_AI_MODEL=$MiosAiModel" "MIOS_AI_EMBED_MODEL=$MiosAiEmbedModel" "MIOS_LLAMACPP_BAKE_MODELS=$MiosLlamacppBakeModels" "MIOS_VLLM_BAKE_MODEL=$MiosVllmBakeModel"; do
     k="`${p%%=*}"; v="`${p#*=}"
     grep -q "^`${k}=" /etc/mios/install.env && sed -i "s|^`${k}=.*|`${k}=`${v}|" /etc/mios/install.env || printf '%s=%s\n' "`$k" "`$v" >> /etc/mios/install.env
 done

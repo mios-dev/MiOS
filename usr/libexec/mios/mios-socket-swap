@@ -39,7 +39,7 @@ DEFAULT_SERVICE = "agent-pipe"
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
 import mios_toml  # noqa: E402 -- the ONE shared layered-mios.toml resolver
 
-_ENV_PORT = os.environ.get("MIOS_PORT_AGENT_PIPE", "")
+_ENV_PORT = os.environ.get("MIOS_PORTS_AGENT_PIPE", "")
 DEFAULT_PORT = int(_ENV_PORT) if _ENV_PORT.isdigit() else int(mios_toml.get("ports", "agent_pipe"))  # SSOT [ports].agent_pipe
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_DRAIN_TIMEOUT = 15.0
@@ -756,7 +756,7 @@ class SocketSwapper:
         env = os.environ.copy()
         env["LISTEN_FDS"] = "2"
         env["LISTEN_FDNAMES"] = "tcp:unix"
-        env["MIOS_PORT_AGENT_PIPE"] = str(self.port)
+        env["MIOS_PORTS_AGENT_PIPE"] = str(self.port)
 
         # Spawn candidate process with pass_fds
         try:

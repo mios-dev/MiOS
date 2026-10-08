@@ -427,7 +427,7 @@ reference and in historical migration notes; pgvector is the sole vector store).
 | Inference lane map | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-llm-light.service` (upstream llama-swap proxy) | every agent that requests a model from the `llm_light` lane |
 | Agent datastore schema | `usr/share/mios/postgres/schema-init.sql` | `mios-ai-firstboot` (applies it) | agent-pipe (`mios_pg.py`), Hermes, `mios-pg-query` / `mios-db --pg` on `:5432` |
 | Image refs | `mios.toml [image].*` | userenv.sh → `MIOS_IMAGE_REF`, `MIOS_BASE_IMAGE`, `MIOS_BIB_IMAGE` | Containerfile, `bootc switch`, `build-mios.*` |
-| Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_USER`, `MIOS_HOSTNAME`, `MIOS_USER_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
+| Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_IDENTITY_USERNAME`, `MIOS_IDENTITY_HOSTNAME`, `MIOS_IDENTITY_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
 | Pipeline phases | `./mios-pipeline.{sh,ps1}` | -- | calls `bootstrap.sh` / `build-mios.{sh,ps1}` / `install.{sh,ps1}` per phase |
 
 ## Three-layer overlay (read order: lowest → highest)

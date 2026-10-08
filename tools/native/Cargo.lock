@@ -847,10 +847,7 @@ dependencies = [
 name = "generate-names-registry"
 version = "0.3.0"
 dependencies = [
- "mios-resolver",
- "regex",
- "serde",
- "toml",
+ "mios-gen",
 ]
 
 [[package]]

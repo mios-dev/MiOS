@@ -8,7 +8,7 @@ warn() { echo "[mios-greenboot] WARNING: $*" >&2; }
 
 # Sourced globals or defaults
 TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
-PORT="${MIOS_PORT_AGENT_PIPE:-8700}"
+PORT="${MIOS_PORTS_AGENT_PIPE:-8700}"
 HOST="${MIOS_BLADE_HOST:-127.0.0.1}"
 
 log "Checking blade reachability at http://${HOST}:${PORT}/v1/cluster/health..."

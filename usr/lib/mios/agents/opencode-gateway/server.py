@@ -16,7 +16,7 @@ Endpoints:
                                (or an SSE delta stream when stream=true)
 
 Config (all via env, SSOT-rendered by the unit / userenv.sh):
-  MIOS_PORT_OPENCODE_GATEWAY   listen port (default 8780)
+  MIOS_PORTS_OPENCODE_GATEWAY   listen port (default 8780)
   MIOS_OPENCODE_BIN            path to the opencode binary
   MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
                                must match [agents.opencode].model + the key in
@@ -43,7 +43,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8780"))
+PORT = int(os.environ.get("MIOS_PORTS_OPENCODE_GATEWAY", "8780"))
 OPENCODE_BIN = os.environ.get(
     "MIOS_OPENCODE_BIN", "/usr/lib/mios/agents/opencode/bin/opencode"
 )

@@ -2824,7 +2824,7 @@ class qsr_TestQuadletSecretsRotation(unittest.TestCase):
             # Assert pre-existing password is NOT disrupted
             self.assertEqual(secrets_map["POSTGRES_PASSWORD"], "my_existing_db_password_123")
             # Assert missing default keys were generated
-            self.assertIn("MIOS_DEFAULT_PASSWORD", secrets_map)
+            self.assertIn("MIOS_IDENTITY_DEFAULT_PASSWORD", secrets_map)
             self.assertIn("K3S_TOKEN", secrets_map)
             self.assertIn("WEBUI_SECRET_KEY", secrets_map)
             self.assertEqual(len(secrets_map["K3S_TOKEN"]), 64)

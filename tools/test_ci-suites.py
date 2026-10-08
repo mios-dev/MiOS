@@ -7,6 +7,7 @@ A checker that passes on a deliberately broken registry is the defect this
 whole registry exists to prevent, so every assertion here is a red, not a green.
 """
 import contextlib
+import copy
 import importlib.util
 import io
 import os
@@ -316,12 +317,12 @@ class TestNativeProjectionTools(unittest.TestCase):
         self.bins.mkdir()
         self.script = str(Path(_HERE, "sync-generated.sh"))
 
-    def run_shell(self, expression, **overrides):
+    def run_shell(self, **overrides):
         env = os.environ.copy()
         env.pop("MIOS_NATIVE_BIN_DIR", None)
+        env.pop("MIOS_GEN_BIN", None)
         env.update(MIOS_ROOT=str(self.root), **overrides)
-        return subprocess.run(["bash", "-c", 'source "$1"; ' + expression,
-                               "projection-test", self.script], env=env,
+        return subprocess.run(["bash", self.script], env=env,
                               capture_output=True, text=True, timeout=15)
 
     def tool(self, directory, name):
@@ -331,26 +332,26 @@ class TestNativeProjectionTools(unittest.TestCase):
         path.chmod(0o755)
         return path
 
-    def test_installed_native_catalog_is_discovered(self):
-        expected = self.tool(self.bins, "mios-projection-fixture")
-        result = self.run_shell('native_bin mios-projection-fixture',
+    def test_installed_native_entrypoint_receives_root_and_sync_verb(self):
+        expected = self.tool(self.bins, "mios-gen")
+        expected.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+        result = self.run_shell(
                                 PATH=str(self.bins) + os.pathsep + os.environ["PATH"])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, str(expected))
+        self.assertEqual(result.stdout.splitlines(), ['sync', '--root', str(self.root)])
 
     def test_explicit_directory_is_authoritative_and_requires_executable(self):
         expected = self.tool(self.bins, "mios-gen")
-        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
-        self.assertEqual(result.stdout, str(expected))
+        result = self.run_shell(MIOS_NATIVE_BIN_DIR=str(self.bins))
         self.assertEqual(result.returncode, 0, result.stderr)
         expected.chmod(0o644)
-        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        result = self.run_shell(MIOS_NATIVE_BIN_DIR=str(self.bins))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
 
     def test_linux_does_not_select_windows_build_artifact(self):
         self.tool(self.bins, "mios-gen.exe")
-        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        result = self.run_shell(MIOS_NATIVE_BIN_DIR=str(self.bins))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
 
@@ -416,11 +417,66 @@ class TestNativeProjectionTools(unittest.TestCase):
                 self.assertEqual(marker.read_text().splitlines(), ['initialized','native-build'])
 
     def test_missing_tool_fails_before_any_projection(self):
-        result = self.run_shell('main', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        result = self.run_shell(MIOS_NATIVE_BIN_DIR=str(self.bins))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("required native tool mios-gen is missing", result.stderr)
         self.assertNotIn("[ports.projection]", result.stdout)
         self.assertNotIn("render-ports.py", result.stderr)
+
+    def test_native_resolver_rejection_cannot_fall_back_to_another_resolver(self):
+        native = self.tool(self.bins, 'mios-resolver')
+        native.write_text('#!/bin/sh\necho "planted resolver rejection" >&2\nexit 9\n')
+        marker = self.root / 'fallback-ran'
+        fallback = self.tool(self.bins, 'miosd')
+        fallback.write_text('#!/bin/sh\ntouch "$FALLBACK_MARKER"\nexit 0\n')
+        env = dict(os.environ, MIOS_ROOT=str(self.root),
+                   MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL='true', FALLBACK_MARKER=str(marker),
+                   PATH=str(self.bins) + os.pathsep + os.environ['PATH'])
+        result = subprocess.run(['bash', '-c', 'source "$1"', 'resolver-test',
+                                 str(Path(_ROOT, 'usr/lib/mios/userenv.sh'))],
+                                env=env, capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('planted resolver rejection', result.stderr)
+        self.assertFalse(marker.exists())
+
+
+class TestCanonicalInputs(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location('mios_names_test', Path(_ROOT, 'usr/lib/mios/mios_toml.py'))
+        cls.resolver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.resolver)
+
+    def test_old_input_propagates_to_canonical_and_all_synonyms(self):
+        data = {'ports': {'agent_pipe': 8700}}
+        self.resolver.overlay_inputs(data, {'MIOS_PORT_AGENT_PIPE': '9100'}.get)
+        values = self.resolver.emit_exports(data)
+        for name in ('MIOS_PORTS_AGENT_PIPE', 'MIOS_PORT_AGENT_PIPE', 'MIOS_AGENT_PIPE_PORT'):
+            self.assertEqual(values[name], '9100')
+
+    def test_conflicting_inputs_are_redacted_and_transactional(self):
+        original = {'identity': {'username': 'mios'}, 'ports': {'agent_pipe': 8700}}
+        data = copy.deepcopy(original)
+        env = {'MIOS_PORT_AGENT_PIPE': '9100', 'MIOS_USER': 'secret-one', 'MIOS_DEFAULT_USER': 'secret-two'}
+        with self.assertRaises(ValueError) as caught:
+            self.resolver.overlay_inputs(data, env.get)
+        self.assertIn('MIOS_USER', str(caught.exception))
+        self.assertNotIn('secret-', str(caught.exception))
+        self.assertEqual(data, original)
+        env['MIOS_IDENTITY_USERNAME'] = 'canonical'
+        self.resolver.overlay_inputs(data, env.get)
+        self.assertEqual(self.resolver.emit_exports(data)['MIOS_IDENTITY_USERNAME'], 'canonical')
+
+    def test_ambiguous_aliases_and_image_tags_are_not_interchangeable(self):
+        data = {'identity': {'fullname': 'one'}, 'user': {'name': 'two'},
+                'image': {'sidecars': {'k3s': 'registry.example/k3s:v1'}}}
+        names = self.resolver.input_aliases(data)
+        self.assertNotIn('MIOS_USER_FULLNAME', names['MIOS_IDENTITY_FULLNAME'])
+        self.assertTrue(all('MIOS_K3S_VERSION' not in aliases for aliases in names.values()))
+
+    def test_lexical_collisions_fail(self):
+        with self.assertRaisesRegex(ValueError, 'MIOS_A_X_Y'):
+            self.resolver.input_aliases({'a': {'x_y': 1, 'x': {'y': 2}}})
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

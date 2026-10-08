@@ -49,7 +49,7 @@ STATUS_DEGRADED = "degraded"
 STATUS_OFFLINE = "offline"
 
 DEFAULT_CLUSTER_NODES_PATH = "/run/mios/cluster/nodes.json"
-_LIGHT_PORT = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
+_LIGHT_PORT = os.environ.get("MIOS_PORTS_LLM_LIGHT", "8500")
 
 
 # ==============================================================================
@@ -287,7 +287,7 @@ class MeshTopology:
                 gpu_vram_total_mb=24576,
                 cpu_load_pct=22.4,
             ),
-            endpoint_url=f"http://10.244.0.1:{os.environ.get('MIOS_PORT_VLLM', '8520')}/v1",
+            endpoint_url=f"http://10.244.0.1:{os.environ.get('MIOS_PORTS_VLLM', '8520')}/v1",
         )
 
         # Blade 02: Light inference, coding, and fast vector embeddings
@@ -323,7 +323,7 @@ class MeshTopology:
                 gpu_vram_total_mb=24576,
                 cpu_load_pct=68.5,
             ),
-            endpoint_url=f"http://10.244.0.3:{os.environ.get('MIOS_PORT_SGLANG', '8530')}/v1",
+            endpoint_url=f"http://10.244.0.3:{os.environ.get('MIOS_PORTS_SGLANG', '8530')}/v1",
         )
 
         # Blade 04: Dedicated sandbox & embeddings node (Degraded network latency)

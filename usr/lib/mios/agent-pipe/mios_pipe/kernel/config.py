@@ -73,15 +73,15 @@ def _dispatch_num(env: str, key: str, default, cast=int):
     """env override -> mios.toml [dispatch].<key> -> default; keeps a legitimate 0."""
     return _cfg_num(_DISPATCH_TOML, env, key, default, cast)
 
-PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
+PORT = int(os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
-MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORT_MCP", "mcp", None)
-_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500")
+MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORTS_MCP", "mcp", None)
+_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORTS_LLM_LIGHT") or "8500")
 BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
            or (_LIGHT_BASE + "/v1"
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
                   in {"1", "true", "yes", "on"}
-               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1")).rstrip("/")
+               else f"http://localhost:{os.environ.get('MIOS_PORTS_HERMES', '8720')}/v1")).rstrip("/")
 _BACKEND_IS_LIGHT = (
     (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
     in {"1", "true", "yes", "on"}
@@ -93,10 +93,10 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (mios-llm-light on
 _HERMES_ENDPOINT = (os.environ.get("MIOS_HERMES_ENDPOINT")
                     or _toml_section("hermes").get("endpoint")
-                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
-_HERMES_WORKER_ENDPOINT = (os.environ.get("MIOS_HERMES_WORKER_ENDPOINT")
+                    or f"http://localhost:{os.environ.get('MIOS_PORTS_HERMES', '8720')}/v1").rstrip("/")
+_HERMES_WORKER_ENDPOINT = (os.environ.get("MIOS_AGENTS_HERMES_ENDPOINT")
                            or _toml_section("agents").get("hermes", {}).get("endpoint")
-                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
+                           or f"http://localhost:{os.environ.get('MIOS_PORTS_HERMES', '8720')}/v1").rstrip("/")
 _AUTH_HOSTPORTS = {
     _BACKEND_HOSTPORT,
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
@@ -114,7 +114,7 @@ _TOOL_BACKEND_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
 _TOOL_BACKEND_HEAVY = (os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY")
                        or _toml_section("nodes").get("local-sglang", {}).get("endpoint")
-                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8530')}/v1").rstrip("/")
+                       or f"http://localhost:{os.environ.get('MIOS_PORTS_SGLANG', '8530')}/v1").rstrip("/")
 _TOOL_BACKEND_HEAVY_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY_MODEL", "mios-heavy")
 _HEAVY_PROBE_TTL = float(os.environ.get("MIOS_AGENT_PIPE_HEAVY_PROBE_TTL", "30"))
@@ -211,7 +211,7 @@ REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _STACK_MODEL)
 REFINE_ENDPOINT = os.environ.get(
     "MIOS_REFINE_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
-REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "30"))
+REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_SECONDS", "30"))
 REFINE_ATTEMPTS = int(os.environ.get("MIOS_REFINE_ATTEMPTS", "2"))
 REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "700"))
 REFINE_BYPASS_CHARS = int(os.environ.get("MIOS_REFINE_BYPASS_CHARS", "24"))
@@ -230,7 +230,7 @@ POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", _STACK_MODEL)
 POLISH_ENDPOINT = os.environ.get(
     "MIOS_POLISH_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
-POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
+POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_SECONDS", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
 
 _COUNCIL_TOML = _toml_section("agent_pipe.council") or _toml_section("council") or {}
@@ -289,7 +289,7 @@ _PGVECTOR_TOML = _toml_section("pgvector") or {}
 # Postgres is the agent plane's SOLE datastore since the WS-A3 cutover, so
 # "enabled and backed by postgres" IS "primary". These were referenced from
 # server.py without ever being defined -- see manual ch54.
-_PG_ENABLED = _cfg_bool(_PGVECTOR_TOML, "MIOS_PG_ENABLE", "enable", True)
+_PG_ENABLED = _cfg_bool(_PGVECTOR_TOML, "MIOS_PGVECTOR_ENABLE", "enable", True)
 _PG_PRIMARY = _PG_ENABLED and str(
     os.environ.get("MIOS_PG_BACKEND")
     or _PGVECTOR_TOML.get("db_backend", "postgres")).strip().lower() == "postgres"

@@ -117,7 +117,7 @@ class KVForkManager:
     def __init__(self, llama_base_url: str | None = None,
                  dry_run: bool = False) -> None:
         if llama_base_url is None:
-            _port = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
+            _port = os.environ.get("MIOS_PORTS_LLM_LIGHT", "8500")
             llama_base_url = os.environ.get("MIOS_LLM_LIGHT_ENDPOINT") or f"http://localhost:{_port}"
         self.llama_base_url = llama_base_url.rstrip("/")
         self.dry_run = dry_run

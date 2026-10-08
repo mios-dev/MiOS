@@ -159,8 +159,8 @@ async def chat_completions(req: ChatCompletionRequest):
     max_steps = gateway_cfg.get("max_steps", 30)
 
     # Law 5: the legacy orchestrator port is RETIRED. [ai].endpoint is
-    # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- resolve it the same way.
-    _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+    # "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1" -- resolve it the same way.
+    _pipe_port = os.environ.get("MIOS_PORTS_AGENT_PIPE", "8700")
     ai_endpoint = os.environ.get(
         "MIOS_AI_ENDPOINT", "http://localhost:%s/v1" % _pipe_port)
 
@@ -364,5 +364,5 @@ async def chat_completions(req: ChatCompletionRequest):
 if __name__ == "__main__":
     import uvicorn
     gateway_cfg = _toml_section("gateway")
-    port = int(os.environ.get("MIOS_PORT_HERMES", gateway_cfg.get("port") or 8720))
+    port = int(os.environ.get("MIOS_PORTS_HERMES", gateway_cfg.get("port") or 8720))
     uvicorn.run(app, host="0.0.0.0", port=port)

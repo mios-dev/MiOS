@@ -101,7 +101,7 @@ def check_resolver_differential_parity() -> int:
 
     # build_exports() returns the UNEXPANDED map on purpose: it renders
     # automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
-    # time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+    # time, and keeping `${MIOS_PORTS_AGENT_PIPE}` live there is what lets an
     # operator's pre-export propagate. mios-resolver --emit=json is the resolved
     # view and bakes. Comparing the two directly measured that difference in
     # representation, not a divergence between the resolvers -- 103 "mismatches"
@@ -379,7 +379,7 @@ def check_no_duplicate_value_key() -> int:
         by_value.setdefault(val, []).append(key)
 
     # Two spellings of ONE key are not two keys. The resolver emits an aliased
-    # name beside the walked name -- MIOS_CODEMODE_SOCKET and
+    # name beside the walked name -- MIOS_CODE_MODE_SOCKET and
     # MIOS_CODE_MODE_SOCKET are one declaration -- so counting them as a
     # collision made every new key in an aliased table breach the ratchet, which
     # would have forced the ceiling up for a duplicate that is not one.

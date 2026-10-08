@@ -1,9 +1,186 @@
-// AI-hint: Legacy MIOS_* alias map -- ordered dotted-path to alias table mirroring get_aliases(), including the [ports] dual-alias forms.
+// AI-hint: One canonical variable-name convention and compatibility inventory for every SSOT consumer.
 // AI-related: usr/lib/mios/mios_toml.py, usr/share/mios/referenced_names.txt
+use serde::Serialize;
+use std::collections::{BTreeMap, BTreeSet};
+use toml::Value;
+
+/// The capability key determines the name; punctuation never introduces a
+/// second namespace or a reader-specific abbreviation.
+pub fn canonical_name(path: &str) -> String {
+    let upper = path.to_uppercase();
+    let body: String = upper
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if body.starts_with("MIOS_") {
+        body
+    } else {
+        format!("MIOS_{body}")
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct NameEntry {
+    pub key: String,
+    pub canonical: String,
+    pub emitted: bool,
+    pub aliases: Vec<NameAlias>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NameAlias {
+    pub name: String,
+    pub semantics: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NameRegistry {
+    pub convention: &'static str,
+    pub entries: Vec<NameEntry>,
+    pub ambiguous_aliases: BTreeMap<String, Vec<String>>,
+}
+
+impl NameRegistry {
+    /// Only interchangeable inputs with one owner may cross the compatibility boundary.
+    pub fn input_aliases(&self) -> BTreeMap<String, Vec<String>> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.emitted)
+            .map(|entry| {
+                let aliases: Vec<_> = entry
+                    .aliases
+                    .iter()
+                    .filter(|alias| {
+                        alias.semantics == "same-value"
+                            && !self.ambiguous_aliases.contains_key(&alias.name)
+                    })
+                    .map(|alias| alias.name.clone())
+                    .collect();
+                (entry.canonical.clone(), aliases)
+            })
+            .collect()
+    }
+}
+
+/// Metadata only: never serialize values, credentials, or process environment.
+/// Distinct keys that collapse lexically are an error before any output writes.
+pub fn registry(merged: &Value) -> Result<NameRegistry, String> {
+    let exports = crate::emit::build_exports_map(merged, crate::stack_offset_of(merged));
+    let mut canonical_owners = BTreeMap::new();
+    let mut alias_owners: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut alias_names = BTreeSet::new();
+    let mut entries = Vec::new();
+    for (key, _) in crate::walk::walk(merged) {
+        let canonical = canonical_name(&key);
+        if let Some(previous) = canonical_owners.insert(canonical.clone(), key.clone()) {
+            return Err(format!(
+                "canonical variable collision {canonical}: {previous} and {key}"
+            ));
+        }
+        let aliases = get_aliases(&key)
+            .into_iter()
+            .filter(|name| name != &canonical)
+            .map(|name| {
+                alias_names.insert(name.clone());
+                alias_owners
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(key.clone());
+                let semantics = if key.starts_with("image.sidecars.") && name.ends_with("_VERSION")
+                {
+                    "image-tag"
+                } else {
+                    "same-value"
+                };
+                NameAlias { name, semantics }
+            })
+            .collect();
+        entries.push(NameEntry {
+            emitted: exports.contains_key(&canonical),
+            key,
+            canonical,
+            aliases,
+        });
+    }
+    for (name, key) in canonical_owners {
+        alias_owners.entry(name).or_default().insert(key);
+    }
+    let ambiguous_aliases = alias_owners
+        .into_iter()
+        .filter(|(name, owners)| alias_names.contains(name) && owners.len() > 1)
+        .map(|(name, owners)| (name, owners.into_iter().collect()))
+        .collect();
+    Ok(NameRegistry {
+        convention: "section.key -> MIOS_SECTION_KEY",
+        entries,
+        ambiguous_aliases,
+    })
+}
+
+/// Accept old environment inputs at the process boundary while consumers move
+/// to canonical names. A canonical input wins; disagreeing synonyms fail with
+/// names only. Never put these process-local values into generated source.
+pub fn overlay_inputs(
+    merged: &mut Value,
+    environment: impl Fn(&str) -> Option<String>,
+) -> Result<(), String> {
+    let registry = registry(merged)?;
+    let mut overrides = BTreeMap::new();
+    for (canonical, aliases) in registry.input_aliases() {
+        let canonical_input = environment(&canonical).filter(|v| !v.is_empty());
+        let value = if canonical_input.is_some() {
+            canonical_input
+        } else {
+            let mut selected: Option<(String, String)> = None;
+            for alias in &aliases {
+                if let Some(value) = environment(alias).filter(|v| !v.is_empty()) {
+                    if let Some((name, previous)) = &selected {
+                        if previous != &value {
+                            return Err(format!(
+                                "conflicting legacy inputs {name} and {alias}; set {canonical}"
+                            ));
+                        }
+                    } else {
+                        selected = Some((alias.clone(), value));
+                    }
+                }
+            }
+            selected.map(|(_, value)| value)
+        };
+        if let Some(value) = value {
+            overrides.insert(canonical, Value::String(value.clone()));
+            for alias in aliases {
+                overrides.insert(alias, Value::String(value.clone()));
+            }
+        }
+    }
+    if overrides.is_empty() {
+        return Ok(());
+    }
+    let table = merged.as_table_mut().ok_or("SSOT root must be a table")?;
+    let env = table
+        .entry("env")
+        .or_insert_with(|| Value::Table(Default::default()))
+        .as_table_mut()
+        .ok_or("SSOT env must be a table")?;
+    env.extend(overrides);
+    Ok(())
+}
+
 pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     let mut aliases = Vec::new();
 
-    if let Some(rest) = dotted_path.strip_prefix("ai.vllm.") {
+    if let Some(rest) = dotted_path.strip_prefix("converge.") {
+        // Boundary compatibility for already installed units; canonical output
+        // always uses the complete capability section name.
+        aliases.push(format!("MIOS_CONV_{}", py_key(rest)));
+    } else if let Some(rest) = dotted_path.strip_prefix("ai.vllm.") {
         let suffix = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if suffix == "V1_ENGINE" {
             aliases.push("MIOS_VLLM_USE_V1".into());
@@ -22,6 +199,9 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     } else if dotted_path == "identity.username" {
         aliases.push("MIOS_USER".into());
         aliases.push("MIOS_DEFAULT_USER".into());
+    } else if dotted_path == "identity.uid" {
+        aliases.push("MIOS_UID".into());
+        aliases.push("MIOS_USER_UID".into());
     } else if dotted_path == "identity.fullname" {
         aliases.push("MIOS_USER_FULLNAME".into());
     } else if dotted_path == "identity.hostname" {
@@ -416,6 +596,87 @@ fn py_key(rest: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonical_names_follow_capabilities_without_reader_abbreviations() {
+        for (key, expected) in [
+            ("identity.username", "MIOS_IDENTITY_USERNAME"),
+            ("ports.agent_pipe", "MIOS_PORTS_AGENT_PIPE"),
+            ("converge.timeout_s", "MIOS_CONVERGE_TIMEOUT_S"),
+            ("units.worker@.service", "MIOS_UNITS_WORKER__SERVICE"),
+        ] {
+            assert_eq!(canonical_name(key), expected);
+        }
+    }
+
+    #[test]
+    fn registry_rejects_lexical_collisions_and_does_not_expose_values() {
+        let good: Value = toml::from_str("[identity]\nusername='secret-canary'\n").unwrap();
+        let output = serde_json::to_string(&registry(&good).unwrap()).unwrap();
+        assert!(output.contains("MIOS_IDENTITY_USERNAME"));
+        assert!(!output.contains("secret-canary"));
+        let bad: Value = toml::from_str("[a]\nx_y=1\n[a.x]\ny=2\n").unwrap();
+        let error = registry(&bad).unwrap_err();
+        assert!(error.contains("MIOS_A_X_Y") && error.contains("a.x_y") && error.contains("a.x.y"));
+    }
+
+    #[test]
+    fn ambiguous_aliases_and_tag_semantics_are_not_silently_folded() {
+        let input: Value = toml::from_str("[identity]\nfullname='one'\n[user]\nname='two'\n[image.sidecars]\nk3s='docker.io/rancher/k3s:v1'\n").unwrap();
+        let registry = registry(&input).unwrap();
+        assert_eq!(
+            registry.ambiguous_aliases["MIOS_USER_FULLNAME"],
+            ["identity.fullname", "user.name"]
+        );
+        let image = registry
+            .entries
+            .iter()
+            .find(|e| e.key == "image.sidecars.k3s")
+            .unwrap();
+        assert!(image
+            .aliases
+            .iter()
+            .any(|a| a.name == "MIOS_K3S_VERSION" && a.semantics == "image-tag"));
+    }
+
+    #[test]
+    fn old_inputs_survive_and_canonical_inputs_win_without_secret_diagnostics() {
+        let original: Value =
+            toml::from_str("[ports]\nagent_pipe=8700\n[identity]\nusername='mios'\n").unwrap();
+        let mut input = original.clone();
+        overlay_inputs(&mut input, |key| {
+            (key == "MIOS_PORT_AGENT_PIPE").then(|| "9100".into())
+        })
+        .unwrap();
+        let exports = crate::emit::build_exports_map(&input, 0);
+        assert_eq!(exports["MIOS_PORTS_AGENT_PIPE"], "9100");
+        assert_eq!(exports["MIOS_AGENT_PIPE_PORT"], "9100");
+        let env = BTreeMap::from([
+            ("MIOS_USER", "secret-one"),
+            ("MIOS_DEFAULT_USER", "secret-two"),
+        ]);
+        let mut conflict = original.clone();
+        let error = overlay_inputs(&mut conflict, |key| env.get(key).map(|v| (*v).to_string()))
+            .unwrap_err();
+        assert!(error.contains("MIOS_USER") && error.contains("MIOS_DEFAULT_USER"));
+        assert!(!error.contains("secret-one") && !error.contains("secret-two"));
+        assert_eq!(
+            conflict, original,
+            "failed validation must not partially overlay input"
+        );
+        overlay_inputs(&mut conflict, |key| {
+            if key == "MIOS_IDENTITY_USERNAME" {
+                Some("canonical".into())
+            } else {
+                env.get(key).map(|v| (*v).to_string())
+            }
+        })
+        .unwrap();
+        assert_eq!(
+            crate::emit::build_exports_map(&conflict, 0)["MIOS_IDENTITY_USERNAME"],
+            "canonical"
+        );
+    }
 
     #[test]
     fn test_identity_aliases() {

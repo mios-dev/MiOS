@@ -447,11 +447,11 @@ mod tests {
     /// and its own header records the failure: code-server dies "Invalid URL".
     #[test]
     fn a_protected_line_still_bakes_its_default_forms() {
-        let unit = "[Service]\nEnvironment=MIOS_X=1\nExecStart=/bin/cs \\\n  --env A=${MIOS_X} \\\n  --bind-addr 127.0.0.1:${MIOS_PORT_CODE_SERVER:-8900}\n";
+        let unit = "[Service]\nEnvironment=MIOS_X=1\nExecStart=/bin/cs \\\n  --env A=${MIOS_X} \\\n  --bind-addr 127.0.0.1:${MIOS_PORTS_CODE_SERVER:-8900}\n";
         let out = render_file(
             unit,
             &cfg(),
-            &ssot(&[("MIOS_X", "9"), ("MIOS_PORT_CODE_SERVER", "8900")]),
+            &ssot(&[("MIOS_X", "9"), ("MIOS_PORTS_CODE_SERVER", "8900")]),
         );
         assert!(
             out.rendered.contains("--env A=${MIOS_X}"),
@@ -532,11 +532,11 @@ mod tests {
     /// files carried exactly this (T-1040).
     #[test]
     fn an_unresolvable_image_tag_is_reported_with_its_line() {
-        let unit = "[Container]\nImage=quay.io/ceph/ceph:${MIOS_VERSION_CEPH}\n";
+        let unit = "[Container]\nImage=quay.io/ceph/ceph:${MIOS_VERSIONS_CEPH}\n";
         let out = render_file(unit, &cfg(), &ssot(&[]));
         assert_eq!(1, out.unresolved.len(), "{:?}", out.unresolved);
         assert_eq!(2, out.unresolved[0].0);
-        assert_eq!("MIOS_VERSION_CEPH", out.unresolved[0].1);
+        assert_eq!("MIOS_VERSIONS_CEPH", out.unresolved[0].1);
     }
 
     #[test]

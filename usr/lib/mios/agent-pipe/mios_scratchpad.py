@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-SQLITE_VEC_ENABLE = os.environ.get("MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+SQLITE_VEC_ENABLE = os.environ.get("MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE", "false").lower() in ("true", "1", "yes", "on")
 
 if SQLITE_VEC_ENABLE:
     import sqlite3

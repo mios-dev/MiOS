@@ -78,7 +78,7 @@ fn render(cfg: &AiConfig, shape: Shape) -> String {
     )
 }
 
-/// Expands every `${MIOS_PORT_<KEY>}` against [ports].<key>. Any other
+/// Expands canonical `${MIOS_PORTS_<KEY>}` and legacy port inputs against [ports].<key>. Any other
 /// placeholder, or a port key [ports] does not declare, is refused: a literal
 /// `${...}` in a URL a client dials is a broken config, not a default.
 fn expand_ports(s: &str, ports: &toml::value::Table) -> Result<String, String> {
@@ -92,7 +92,8 @@ fn expand_ports(s: &str, ports: &toml::value::Table) -> Result<String, String> {
             .ok_or_else(|| format!("unterminated placeholder in '{s}'"))?;
         let name = &after[..end];
         let key = name
-            .strip_prefix("MIOS_PORT_")
+            .strip_prefix("MIOS_PORTS_")
+            .or_else(|| name.strip_prefix("MIOS_PORT_"))
             .ok_or_else(|| format!("placeholder ${{{name}}} in '{s}' is not a [ports] reference"))?
             .to_ascii_lowercase();
         let port = ports
@@ -228,7 +229,7 @@ mod tests {
         d
     }
 
-    const GOOD: &str = "[ai]\nendpoint = \"http://localhost:${MIOS_PORT_AGENT_PIPE}/v1\"\n\
+    const GOOD: &str = "[ai]\nendpoint = \"http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1\"\n\
                         agent_model = \"MiOS AI\"\nembed_model = \"nomic-embed-text\"\n\
                         [ports]\nagent_pipe = 8700\n";
 
@@ -296,6 +297,22 @@ mod tests {
         );
         let e = read_config(d.path()).expect_err("must refuse");
         assert!(e.contains("[ports].nope"), "{e}");
+    }
+
+    #[test]
+    fn canonical_and_legacy_port_references_preserve_the_same_endpoint() {
+        let table: toml::Table = "agent_pipe=9100".parse().expect("fixture");
+        for prefix in ["MIOS_PORTS_", "MIOS_PORT_"] {
+            let endpoint = format!("http://localhost:${{{prefix}AGENT_PIPE}}/v1");
+            assert_eq!(
+                expand_ports(&endpoint, &table).expect("declared port"),
+                "http://localhost:9100/v1"
+            );
+            let missing = format!("http://localhost:${{{prefix}MISSING}}/v1");
+            assert!(expand_ports(&missing, &table)
+                .expect_err("missing port")
+                .contains("[ports].missing"));
+        }
     }
 
     #[test]

@@ -703,9 +703,9 @@ T-1135: WHEN mios-mcp.service starts THE SYSTEM SHALL have its MCP port
 defined -- by the resolver-rendered /etc/mios/install.env, not a literal.
 
 * the exports the resolver renders from the vendor mios.toml carry
-  MIOS_PORT_MCP / MIOS_PORTS_MCP equal to [ports].mcp;
+  MIOS_PORTS_MCP / MIOS_PORTS_MCP equal to [ports].mcp;
 * mcp-server-runner's preamble, run under exactly that environment (ambient
-  MIOS_* scrubbed), resolves MIOS_MCP_PORT to that value;
+  MIOS_* scrubbed), resolves MIOS_PORTS_MCP to that value;
 * neither the unit nor its [units."mios-mcp.service"] SSOT mirror assigns a
   MIOS_* port literal.
 

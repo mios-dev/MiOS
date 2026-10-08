@@ -146,7 +146,7 @@ def _runner_preamble(paths_sh):
         lines = f.read().splitlines()
     end = next(i for i, l in enumerate(lines) if l.startswith("export MIOS_AI_ENDPOINT"))
     body = "\n".join(lines[:end + 1]).replace('"/usr/lib/mios/paths.sh"', f'"{paths_sh}"')
-    return body + '\necho "PORT=$MIOS_MCP_PORT"\n'
+    return body + '\necho "PORT=$MIOS_PORTS_MCP"\n'
 
 def _run_preamble(paths_sh, env):
     with tempfile.TemporaryDirectory() as d:
@@ -195,18 +195,18 @@ def t_runner_port_contract():
             f.write(":\n")
         ep = {"MIOS_AI_ENDPOINT": "http://localhost:1/v1"}
         for name, extra in (("MIOS_PORTS_MCP only", {"MIOS_PORTS_MCP": "8770"}),
-                            ("MIOS_PORT_MCP only", {"MIOS_PORT_MCP": "8770"})):
+                            ("MIOS_PORTS_MCP only", {"MIOS_PORTS_MCP": "8770"})):
             r = _run_preamble(stub, {**ep, **extra})
             _check_mcp_sandbox(f"runner-port: {name} resolves",
                                r.returncode == 0 and "PORT=8770" in r.stdout,
                                f"rc={r.returncode} out={r.stdout.strip()!r} err={r.stderr.strip()[-160:]!r}")
         r = _run_preamble(stub, ep)
         _check_mcp_sandbox("runner-port: unset port fails with named error",
-                           r.returncode != 0 and "MIOS_PORT_MCP is unset" in r.stderr
+                           r.returncode != 0 and "MIOS_PORTS_MCP is unset" in r.stderr
                            and "PORT=" not in r.stdout,
                            f"rc={r.returncode} err={r.stderr.strip()[-160:]!r}")
         r = _run_preamble(os.path.join(d, "absent", "paths.sh"),
-                          {**ep, "MIOS_PORT_MCP": "8770"})
+                          {**ep, "MIOS_PORTS_MCP": "8770"})
         _check_mcp_sandbox("runner-port: missing paths.sh is a hard failure",
                            r.returncode != 0 and "paths.sh not found" in r.stderr
                            and "PORT=" not in r.stdout,
