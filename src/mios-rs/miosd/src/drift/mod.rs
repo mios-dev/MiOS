@@ -222,6 +222,7 @@ impl Check for BackfillCoverageCheck {
 }
 
 pub mod aiplane;
+pub mod audit;
 pub mod bake;
 pub mod boot;
 pub mod converge;

@@ -401,7 +401,7 @@ fn main() -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
-    println!("mios-render-quadlets: rendered {changed} of {scanned} file(s)");
+    println!("mios-render-quadlets: checked {scanned} file(s), updated {changed}, unchanged {}; no unresolved placeholders", scanned - changed);
     ExitCode::SUCCESS
 }
 

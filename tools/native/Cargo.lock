@@ -1514,6 +1514,7 @@ dependencies = [
 name = "mios-ai-config"
 version = "0.3.0"
 dependencies = [
+ "mios-resolver",
  "serde_json",
  "tempfile",
  "toml",
@@ -1650,6 +1651,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "libc",
+ "mios-unit-gen",
  "serde",
  "serde_json",
  "tempfile",

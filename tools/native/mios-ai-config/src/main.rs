@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+mod runtime;
 
 const SSOT: &str = "usr/share/mios/mios.toml";
 /// Every projected copy: the admin-layer client config, and the vendor ai/v1
@@ -150,6 +151,7 @@ fn read_config(root: &Path) -> Result<AiConfig, String> {
 fn main() -> ExitCode {
     let mut root = PathBuf::from(".");
     let mut check = false;
+    let mut runtime_mode = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -158,6 +160,7 @@ fn main() -> ExitCode {
                 None => return die("--root needs a directory"),
             },
             "--check" => check = true,
+            "--probe" | "--opencode-stdin" => runtime_mode = Some(a),
             "-h" | "--help" => {
                 print!("{USAGE}");
                 return ExitCode::SUCCESS;
@@ -166,6 +169,20 @@ fn main() -> ExitCode {
         }
     }
 
+    if let Some(mode) = runtime_mode {
+        let (endpoint, model) = match runtime::connection(&root) { Ok(v) => v, Err(e) => return die(&e) };
+        if mode == "--probe" {
+            return match runtime::probe(&endpoint, &model) {
+                Ok(count) => { println!("mios-ai-config: route ready: {endpoint}; selected model {model}; {count} advertised model(s); inference not tested"); ExitCode::SUCCESS },
+                Err(e) => die(&e),
+            };
+        }
+        let input = match serde_json::from_reader(std::io::stdin()) { Ok(v) => v, Err(e) => return die(&format!("invalid OpenCode input: {e}")) };
+        return match runtime::opencode(input, &endpoint, &model) {
+            Ok(value) => { println!("{value}"); ExitCode::SUCCESS },
+            Err(e) => die(&e),
+        };
+    }
     let cfg = match read_config(&root) {
         Ok(c) => c,
         Err(e) => return die(&e),

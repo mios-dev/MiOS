@@ -2,9 +2,11 @@
 // AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
 
 pub mod launcher;
+pub mod host_tmux;
 pub mod process;
 pub mod socket;
 pub mod ssot;
+pub mod tmux_theme;
 
 pub use process::{
     configure_hidden, is_hidden_flag, workspace_lock, ProcessError, CREATE_NO_WINDOW,

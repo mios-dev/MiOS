@@ -1657,7 +1657,7 @@ def _project_agent_clients(home=None):
     endpoint = os.environ.get("MIOS_AI_ENDPOINT") or exports.get("MIOS_AI_ENDPOINT")
     if not endpoint:
         raise ValueError("SSOT AI endpoint is required")
-    model = os.environ.get("MIOS_AI_MODEL") or exports["MIOS_AI_MODEL"]
+    model = os.environ.get("MIOS_AI_GATEWAY_MODEL") or exports["MIOS_AI_AGENT_MODEL"]
 
     def save(relative, key, value):
         path = home / relative
@@ -1692,22 +1692,13 @@ def _project_agent_clients(home=None):
     servers["mios-control"] = {"type": "local", "command": [entry["command"], *entry["args"]]}
     if not v2:
         servers["mios-control"]["enabled"] = True
-    # OpenCode's OpenAI-compatible provider is singular and nests transport
-    # options. The old plural entry was ignored, leaving installed CLIs unable
-    # to select the local model. Remove only that MiOS-owned legacy entry.
-    legacy = oc.get("providers", {})
-    if legacy.get("local", {}).get("name") == "Local MiOS":
-        del legacy["local"]
-        if not legacy:
-            oc.pop("providers", None)
-    oc.setdefault("provider", {})["local"] = {
-        "name": "Local MiOS",
-        "npm": "@ai-sdk/openai-compatible",
-        "options": {"baseURL": endpoint},
-        "models": {model: {"name": model}},
-    }
-    if not oc.get("model") or oc["model"].startswith("local/"):
-        oc["model"] = "local/" + model
+    # Both platform installers use the same native owned-provider projection.
+    projection = subprocess.run(["/usr/bin/mios-ai-config", "--root", "/", "--opencode-stdin"],
+                                input=json.dumps(oc), capture_output=True, text=True, timeout=10,
+                                env={**os.environ, "MIOS_AI_ENDPOINT": endpoint, "MIOS_AI_GATEWAY_MODEL": model})
+    if projection.returncode:
+        raise RuntimeError("Native local OpenCode projection failed: " + projection.stderr.strip())
+    oc = json.loads(projection.stdout)
     ocpath.parent.mkdir(parents=True, exist_ok=True)
     octext = json.dumps(oc, indent=2, sort_keys=True) + "\n"
     if not ocpath.exists() or ocpath.read_text() != octext:
@@ -1990,7 +1981,13 @@ def main() -> int:
         if not endpoint:
             raise ValueError("SSOT AI endpoint is required")
         os.environ.setdefault("MIOS_AI_ENDPOINT", endpoint)
-        os.environ.setdefault("MIOS_AI_MODEL", exports["MIOS_AI_MODEL"])
+        os.environ.setdefault("MIOS_AI_GATEWAY_MODEL", exports["MIOS_AI_AGENT_MODEL"])
+        # Do not launch a worker against an absent route or a different model.
+        # This GET-only native gate never performs inference or starts services.
+        readiness = subprocess.run(["/usr/bin/mios-ai-config", "--root", "/", "--probe"],
+                                   capture_output=True, text=True, timeout=10)
+        if readiness.returncode:
+            raise RuntimeError(readiness.stderr.strip() or "Local AI route is not ready")
         os.environ.setdefault("OPENAI_BASE_URL", endpoint)
         os.environ.setdefault("OPENAI_API_BASE", endpoint)
         ui = None

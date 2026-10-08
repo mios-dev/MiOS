@@ -4433,167 +4433,22 @@ function Install-MiosWindowsTools {
 }
 
 function Install-MiOSTmuxProfile {
-    # Stages canonical MiOS tmux configuration (.tmux.conf) from SSOT theme and keys.
-    # Staged to $env:USERPROFILE\.tmux.conf, M:\MiOS\tmux\tmux.conf, and %LOCALAPPDATA%\tmux\tmux.conf.
-    # If a tmux server is active on Windows, reloads it dynamically with the SSOT theme.
-    $_tmuxThemeCandidates = @(
-        'M:\usr\share\mios\tmux\mios-theme.tmux.conf',
-        (Join-Path $MiosRepoDir 'usr\share\mios\tmux\mios-theme.tmux.conf'),
-        (Join-Path $MiosBootstrapShadow 'usr\share\mios\tmux\mios-theme.tmux.conf'),
-        'C:\MiOS\usr\share\mios\tmux\mios-theme.tmux.conf',
-        'C:\mios-bootstrap\usr\share\mios\tmux\mios-theme.tmux.conf'
-    )
-    $_themeContent = $null
-    foreach ($_tc in $_tmuxThemeCandidates) {
-        if ($_tc -and (Test-Path -LiteralPath $_tc)) {
-            try { $_themeContent = [System.IO.File]::ReadAllText($_tc, [System.Text.UTF8Encoding]::new($false)); break } catch {}
+    param([switch]$Required)
+    # Bootstrap may run before the native catalog is installed. Final installation
+    # and runtime must use the native renderer; a deferred phase is never success.
+    $nativeRoots = @($env:MIOS_NATIVE_BIN, (Join-Path $env:ProgramData 'MiOS\bin'), (Join-Path $env:LOCALAPPDATA 'MiOS\bin'))
+    foreach ($nativeRoot in $nativeRoots) {
+        if (-not $nativeRoot) { continue }
+        $launcher = Join-Path $nativeRoot 'mios-launch.exe'
+        if ((Test-Path -LiteralPath $launcher -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $nativeRoot 'native-binding.json') -PathType Leaf)) {
+            & $launcher --stage-host-terminal
+            if ($LASTEXITCODE -ne 0) { throw "Native layered SSOT tmux projection failed (exit $LASTEXITCODE)" }
+            return (Join-Path $env:LOCALAPPDATA 'MiOS\terminal\mios-host.tmux.conf')
         }
     }
-    if (-not $_themeContent) {
-        $p = Get-MiosPalette
-        $bg = if ($p.bg) { $p.bg } else { '#282262' }
-        $fg = if ($p.fg) { $p.fg } else { '#E7DFD3' }
-        $accent = if ($p.accent) { $p.accent } else { '#1A407F' }
-        $cursor = if ($p.cursor) { $p.cursor } else { '#F35C15' }
-        $green = if ($p.ansi_2_green) { $p.ansi_2_green } else { '#3E7765' }
-        $muted = if ($p.muted) { $p.muted } else { '#948E8E' }
-        $_themeContent = @"
-# AI-hint: Fallback MiOS Canonical Tmux Theme from palette SSOT
-set -g status on
-set -g status-interval 2
-set -g status-position bottom
-set -g status-style "bg=default,fg=$fg"
-set -g window-style "bg=default,fg=$fg"
-set -g window-active-style "bg=default,fg=$fg"
-set -g status-justify left
-set -g window-status-separator ""
-set -g default-terminal "tmux-256color"
-set -as terminal-features ",xterm*:RGB"
-set -as terminal-overrides ",xterm*:Tc"
-set -g pane-border-style "fg=$muted"
-set -g pane-active-border-style "fg=$cursor"
-set -g pane-border-lines heavy
-set -g mode-style "bg=$accent,fg=$fg"
-set -g message-style "bg=$accent,fg=$fg"
-set -g message-command-style "bg=$bg,fg=$cursor"
-set -g status-left-length 50
-set -g status-left "#[fg=$accent,bg=default]#[fg=$fg,bg=$accent,bold]  MiOS #[fg=$accent,bg=$green]#[fg=$bg,bg=$green,bold]  #S #[fg=$green,bg=default] "
-set -g window-status-format "#[fg=$muted,bg=default]  #I  #W  "
-set -g window-status-current-format "#[fg=$cursor,bg=default]#[fg=$bg,bg=$cursor,bold] #I  #W #[fg=$cursor,bg=default]"
-set -g status-right-length 100
-set -g status-right "#[fg=$accent,bg=default]#[fg=$fg,bg=$accent]  %H:%M #[fg=$accent,bg=$green]#[fg=$bg,bg=$green,bold]  %Y-%m-%d #[fg=$green,bg=$cursor]#[fg=$bg,bg=$cursor,bold]  #H #[fg=$cursor,bg=default]"
-"@
-    }
-
-    $_tmuxKeysCandidates = @(
-        'M:\usr\share\mios\tmux\mios-keys.tmux.conf',
-        (Join-Path $MiosRepoDir 'usr\share\mios\tmux\mios-keys.tmux.conf'),
-        (Join-Path $MiosBootstrapShadow 'usr\share\mios\tmux\mios-keys.tmux.conf'),
-        'C:\MiOS\usr\share\mios\tmux\mios-keys.tmux.conf',
-        'C:\mios-bootstrap\usr\share\mios\tmux\mios-keys.tmux.conf'
-    )
-    $_keysContent = $null
-    foreach ($_kc in $_tmuxKeysCandidates) {
-        if ($_kc -and (Test-Path -LiteralPath $_kc)) {
-            try { $_keysContent = [System.IO.File]::ReadAllText($_kc, [System.Text.UTF8Encoding]::new($false)); break } catch {}
-        }
-    }
-    if (-not $_keysContent) {
-        $_keysContent = @'
-unbind-key -a -T prefix
-set -g prefix C-b
-set -g prefix2 None
-bind-key C-b send-prefix
-set -s escape-time 50
-set -g repeat-time 500
-set -g history-limit 50000
-set -g mouse on
-bind-key t new-window
-bind-key h select-pane -L
-bind-key j select-pane -D
-bind-key k select-pane -U
-bind-key l select-pane -R
-bind-key s split-window -v
-bind-key v split-window -h
-bind-key n next-window
-bind-key p previous-window
-bind-key w choose-tree -Zw
-bind-key z resize-pane -Z
-bind-key y copy-mode
-bind-key d detach-client
-bind-key b send-prefix
-'@
-    }
-
-    $_winTmuxConf = @"
-# AI-hint: MiOS Windows Native Tmux Configuration rendered from mios.toml SSOT
-# =====================================================================
-# Terminal Capabilities & Extended Keys (Windows / Blink / ConPTY / SSH)
-# =====================================================================
-set -g default-terminal "tmux-256color"
-set -as terminal-features ",xterm*:RGB"
-set -as terminal-overrides ",xterm*:Tc"
-set -s extended-keys on
-set -gw xterm-keys on
-set -g mouse on
-
-# =====================================================================
-# MiOS Canonical Tmux Theme
-# =====================================================================
-$_themeContent
-
-# =====================================================================
-# MiOS Canonical Tmux Keybindings
-# =====================================================================
-$_keysContent
-
-# =====================================================================
-# Blink Mobile & iOS Touch Combos (BTab / Shift+Tab pass-through)
-# =====================================================================
-bind-key -n BTab send-keys Escape "[Z"
-bind-key Tab send-keys Escape "[Z"
-bind-key `` send-keys Escape "[Z"
-bind-key -n M-BTab send-keys Escape "[Z"
-"@
-
-    $_targetDirs = @(
-        $env:USERPROFILE,
-        (Join-Path $env:LOCALAPPDATA 'tmux'),
-        (Join-Path $env:LOCALAPPDATA 'MiOS\tmux')
-    )
-    if (Test-Path -LiteralPath 'M:\') {
-        $_targetDirs += 'M:\MiOS\tmux'
-    }
-
-    $_primaryConf = Join-Path $env:USERPROFILE '.tmux.conf'
-    foreach ($_td in $_targetDirs) {
-        if (-not (Test-Path -LiteralPath $_td)) {
-            New-Item -ItemType Directory -Path $_td -Force -ErrorAction SilentlyContinue | Out-Null
-        }
-        $_targetFile = if ($_td -eq $env:USERPROFILE) { $_primaryConf } else { Join-Path $_td 'tmux.conf' }
-        try {
-            [System.IO.File]::WriteAllText($_targetFile, $_winTmuxConf, [System.Text.UTF8Encoding]::new($false))
-            Log-Ok "tmux configuration staged: $_targetFile"
-        } catch {
-            Log-Warn "Failed to write tmux config to $_targetFile : $($_.Exception.Message)"
-        }
-    }
-
-    if (Test-Path -LiteralPath 'M:\MiOS\tmux') {
-        try {
-            [System.IO.File]::WriteAllText('M:\MiOS\tmux\mios-theme.tmux.conf', $_themeContent, [System.Text.UTF8Encoding]::new($false))
-            [System.IO.File]::WriteAllText('M:\MiOS\tmux\mios-keys.tmux.conf', $_keysContent, [System.Text.UTF8Encoding]::new($false))
-        } catch {}
-    }
-
-    if (Get-Process -Name tmux -ErrorAction SilentlyContinue) {
-        try {
-            & tmux.exe source-file $_primaryConf 2>$null
-            Log-Ok "Live tmux server reloaded with MiOS SSOT theme."
-        } catch {}
-    }
-
-    return $_primaryConf
+    if ($Required) { throw 'Native tmux renderer or runtime binding is missing; installation is incomplete.' }
+    Write-Host '  [tmux] Projection deferred until the native catalog and runtime binding are installed.' -ForegroundColor DarkGray
+    return $null
 }
 
 function Install-WindowsBranding {

@@ -87,6 +87,14 @@ enum Commands {
         #[arg(long)]
         root: Option<PathBuf>,
     },
+    /// Render the complete Windows host tmux configuration from layered SSOT.
+    RenderHostTmux {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Caller has verified the active client uses the configured Nerd font.
+        #[arg(long)]
+        font_verified: bool,
+    },
     /// Emit the shared native Linux/Windows terminal policy as nine validated lines.
     TerminalConfig {
         #[arg(long)]
@@ -784,6 +792,17 @@ fn main() -> ExitCode {
                     eprintln!("[mios-gen names] {error}");
                     ExitCode::FAILURE
                 }
+            };
+        }
+        Commands::RenderHostTmux { root, font_verified } => {
+            let root = resolve_root(root);
+            let result = mios_resolver::resolve_merged(Some(&root), false)
+                .map_err(|e| e.to_string())
+                .and_then(|merged| serde_json::to_value(merged).map_err(|e| e.to_string()))
+                .and_then(|config| mios_service_core::launcher::host_tmux_config_with_font(&config, font_verified));
+            return match result {
+                Ok(rendered) => { print!("{rendered}"); ExitCode::SUCCESS }
+                Err(error) => { eprintln!("[host-tmux] {error}"); ExitCode::FAILURE }
             };
         }
         Commands::TerminalConfig {

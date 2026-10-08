@@ -147,6 +147,32 @@ _warn_report() {
     _hline '-' '+' '+'
 }
 
+_check_critical_packages() {
+    local critical pkg
+    local -a critical_packages=()
+    VALIDATION_FAIL=0
+    PKG_OK=0
+    PKG_MISS=0
+    if ! critical="$(get_packages_strict critical)"; then
+        printf '[FATAL] critical package catalog is empty, missing or invalid\n' >&2
+        VALIDATION_FAIL=1
+        return 1
+    fi
+    # Package closures are a space-separated line, not one package per line.
+    IFS=$' \t\n' read -r -a critical_packages <<< "$critical"
+    for pkg in "${critical_packages[@]}"; do
+        if rpm -q "$pkg" > /dev/null 2>&1; then
+            printf '|  %-38s [ OK ] |\n' "$pkg"
+            PKG_OK=$(( PKG_OK + 1 ))
+        else
+            printf '|  %-38s [MISS] |\n' "$pkg"
+            PKG_MISS=$(( PKG_MISS + 1 ))
+            VALIDATION_FAIL=$(( VALIDATION_FAIL + 1 ))
+        fi
+    done
+    [[ "$VALIDATION_FAIL" -eq 0 ]]
+}
+
 _final_summary() {
     local scripts=$1 fail_count=$2 warn_count=$3 missing_pkgs=$4 elapsed=$5
     local result_label
@@ -197,8 +223,6 @@ NON_FATAL_SCRIPTS="
   76-uki-render.sh
   22-akmod-guards.sh
   62-oh-my-posh.sh
-  61-flatpak-bake.sh
-  49-cosign-policy.sh
   50-uupd-installer.sh
   68-bake-kvmfr.sh
   69-bake-lookingglass-client.sh
@@ -369,21 +393,10 @@ echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Package Health Check"
 _hline '-' '+' '+'
-mapfile -t CRITICAL_PACKAGES < <(get_packages "critical" 2>/dev/null || true)
-VALIDATION_FAIL=0
-PKG_OK=0
-PKG_MISS=0
-if [[ ${#CRITICAL_PACKAGES[@]} -gt 0 ]]; then
-    for pkg in "${CRITICAL_PACKAGES[@]}"; do
-        if rpm -q "$pkg" > /dev/null 2>&1; then
-            printf '|  %-38s [ OK ] |\n' "$pkg"
-            PKG_OK=$(( PKG_OK + 1 ))
-        else
-            printf '|  %-38s [MISS] |\n' "$pkg"
-            PKG_MISS=$(( PKG_MISS + 1 ))
-            VALIDATION_FAIL=$(( VALIDATION_FAIL + 1 ))
-        fi
-    done
+if ! _check_critical_packages; then
+    SCRIPT_FAIL=$(( SCRIPT_FAIL + 1 ))
+    FAILED_SCRIPTS+=("critical package health")
+    FAIL_LOG+=("critical package health: ${PKG_MISS} missing package(s), ${VALIDATION_FAIL} validation failure(s)")
 fi
 if rpm -qa 'kmod-nvidia*' 2>/dev/null | grep -q . ; then
     printf '|  %-38s [ OK ] |\n' "NVIDIA kmod(s)"

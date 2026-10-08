@@ -556,6 +556,10 @@ if (-not $SkipClients) {
         $object['mcp'].Remove('mios-control')
         $object['mcp']['servers']['mios-control'] = @{type='local';command=@($wsl)+$argsMcp}
     } else { $object['mcp']['mios-control'] = @{type='local';command=@($wsl)+$argsMcp;enabled=$true} }
+    # Resolve through the same guest SSOT and Rust provider projector as Linux.
+    $projection = ($object | ConvertTo-Json -Depth 40 -Compress) | & $wsl -d $Distro -u $LinuxUser -- /usr/bin/mios-ai-config --root / --opencode-stdin
+    if ($LASTEXITCODE -ne 0) { throw 'Native local OpenCode projection failed' }
+    $object = ($projection -join "`n") | ConvertFrom-Json -AsHashtable
     Save-MiosJson $opencode $object
 
     if (-not $RuntimeOnly) {
@@ -646,6 +650,9 @@ foreach ($path in $terminalPaths) {
     if ($default) { $terminal['defaultProfile'] = if ($default['guid']) { $default['guid'] } else { $default['name'] } }
     Save-MiosJson $path $terminal
 }
+# Installation, build-time staging and each runtime projection share the Rust renderer.
+& (Join-Path $BinDirectory 'mios-launch.exe') --stage-host-terminal
+if ($LASTEXITCODE -ne 0) { throw "Native host tmux projection failed (exit $LASTEXITCODE)" }
 # Reconcile the same entrypoints on install and each native runtime projection.
 # Preserve the icon and hotkey while replacing the retired hub launcher route.
 $shell = New-Object -ComObject WScript.Shell

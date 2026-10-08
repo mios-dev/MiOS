@@ -6236,8 +6236,7 @@ flatpaks      = [
     "fedora:org.gnome.Epiphany",                       # 50.x current (vs. potentially-stale Flathub)
     "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
     "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
-    "org.chromium.Chromium",                           # FOSS Chromium browser with Wayland + CDP support
-    "com.google.ChromeDev",
+    "com.google.ChromeDev",                           # secondary browser and agent CDP target
 ]
 
 
@@ -6274,7 +6273,7 @@ remote      = "flathub"
 role        = "browser"
 default     = false
 launcher    = "mios-chrome"
-description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-Agent CDP target. `launcher = mios-chrome` so dispatch sets the CDP port + WSLg env BEFORE flatpak-run."
+description = "Google Chrome Dev channel. Default secondary browser and Hermes-Agent CDP target. `launcher = mios-chrome` so dispatch sets the CDP port + WSLg env BEFORE flatpak-run."
 [desktop.apps.com.google.ChromeDev.overrides]
 # Hint Chrome to use Wayland natively (WSLg compositor) instead of
 # launching XWayland which has no GPU acceleration on this host.
@@ -8412,6 +8411,7 @@ right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-
 backend = "native-tmux"
 executable = "tmux.exe"
 socket_name = "mios-windows"
+glyph_mode = "auto" # nerd only after the native client font is verified; ascii is always safe
 session_name = "MiOS-WIN"
 shell = "cmd.exe"
 
@@ -12151,14 +12151,15 @@ list = [
   { ordinal = "51", name = "hardening", script = "51-hardening.sh", fatal = true, apply_class = "universal" },
   { ordinal = "52", name = "apply-boot-fixes", script = "52-apply-boot-fixes.sh", fatal = true, apply_class = "universal" },
   { ordinal = "53", name = "enable-log-copy-service", script = "53-enable-log-copy-service.sh", fatal = false, apply_class = "universal" },
-  { ordinal = "54", name = "bake-coderun-sandbox", script = "54-bake-coderun-sandbox.sh", fatal = true, apply_class = "universal" },
   { ordinal = "55", name = "native-build", script = "55-native-build.sh", fatal = true, apply_class = "universal" },
   { ordinal = "56", name = "fonts", script = "56-fonts.sh", fatal = true, apply_class = "universal" },
+  # The sandbox's shared base copies native binaries and all three font families.
+  { ordinal = "54", name = "bake-coderun-sandbox", script = "54-bake-coderun-sandbox.sh", fatal = true, apply_class = "universal" },
   { ordinal = "57", name = "gnome", script = "57-gnome.sh", fatal = false, apply_class = "universal" },
   { ordinal = "58", name = "gnome-remote-desktop", script = "58-gnome-remote-desktop.sh", fatal = false, apply_class = "universal" },
   { ordinal = "59", name = "tools", script = "59-tools.sh", fatal = true, apply_class = "universal" },
   { ordinal = "60", name = "flatpak-env", script = "60-flatpak-env.sh", fatal = true, apply_class = "universal" },
-  { ordinal = "61", name = "flatpak-bake", script = "61-flatpak-bake.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "61", name = "flatpak-bake", script = "61-flatpak-bake.sh", fatal = true, apply_class = "universal" },
   { ordinal = "62", name = "oh-my-posh", script = "62-oh-my-posh.sh", fatal = false, apply_class = "universal" },
   { ordinal = "65", name = "bake-hyprland", script = "65-bake-hyprland.sh", fatal = true, apply_class = "universal" },
   { ordinal = "66", name = "bake-quickshell", script = "66-bake-quickshell.sh", fatal = true, apply_class = "universal" },

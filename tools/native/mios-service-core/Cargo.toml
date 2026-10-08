@@ -8,6 +8,7 @@ edition.workspace = true
 description = "Shared daemon, relay, and service helpers for MiOS native binaries"
 
 [dependencies]
+mios-unit-gen = { path = "../mios-unit-gen" }
 anyhow = "1.0"
 serde.workspace = true
 serde_json.workspace = true

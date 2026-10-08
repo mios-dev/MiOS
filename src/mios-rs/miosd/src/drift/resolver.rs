@@ -24,8 +24,8 @@ impl Check for GlobalsPortsCheck {
     fn describe(&self) -> &'static str {
         "Assert PowerShell globals.ps1 ports match mios.toml [ports] SSOT"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Globals.ps1 ports parity".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-gen", &["render-globals", "--check"])
     }
 }
 
@@ -37,7 +37,7 @@ impl Check for GlobalsImageParityCheck {
     fn describe(&self) -> &'static str {
         "Assert PowerShell globals.ps1 image references match SSOT"
     }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Globals.ps1 image parity".to_string())
+    fn run(&self, ctx: &DriftCtx) -> Verdict {
+        super::audit::native(ctx, "mios-gen", &["render-globals", "--check"])
     }
 }

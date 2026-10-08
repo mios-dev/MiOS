@@ -83,6 +83,7 @@ pub fn host_tmux_args(config: &Value, config_path: &str) -> Result<Vec<String>, 
     Ok(vec![
         "-L".into(),
         socket,
+        "-u".into(),
         "-f".into(),
         argument(config_path)?,
         "new-session".into(),
@@ -93,18 +94,47 @@ pub fn host_tmux_args(config: &Value, config_path: &str) -> Result<Vec<String>, 
     ])
 }
 
+/// Render host policy with conservative glyphs until the outer client font is verified.
 pub fn host_tmux_config(config: &Value) -> Result<String, String> {
-    let rows = config
-        .pointer("/terminal/scrollback_rows")
-        .and_then(Value::as_u64)
-        .filter(|n| *n > 0)
-        .ok_or("Invalid SSOT terminal.scrollback_rows")?;
-    let mouse = config
-        .pointer("/keybindings/mouse")
-        .and_then(Value::as_bool)
-        .ok_or("Invalid SSOT keybindings.mouse")?;
-    // Keep the operator's other Windows tmux sessions and default server intact.
-    Ok(format!("# Generated from layered MiOS SSOT by native Rust.\nset -g history-limit {rows}\nset -g mouse {}\n", if mouse { "on" } else { "off" }))
+    host_tmux_config_with_font(config, false)
+}
+
+pub fn host_tmux_config_with_font(config: &Value, font_verified: bool) -> Result<String, String> {
+    let rows = config.pointer("/terminal/scrollback_rows").and_then(Value::as_u64)
+        .filter(|n| *n > 0).ok_or("Invalid SSOT terminal.scrollback_rows")?;
+    let shell = text(config, "/terminal/windows/shell")?;
+    let doc: toml::Value = toml::Value::try_from(config).map_err(|e| format!("Invalid tmux SSOT: {e}"))?;
+    let mut engine = crate::tmux_theme::TmuxThemeEngine::from_toml(&doc, None, None)?;
+    let mode = text(config, "/terminal/windows/glyph_mode")?;
+    match mode.as_str() {
+        "ascii" => engine.style = "minimal".into(),
+        "auto" if !font_verified => engine.style = "minimal".into(),
+        "auto" | "nerd" => (),
+        _ => return Err("Invalid SSOT terminal.windows.glyph_mode".into()),
+    }
+    let keys = mios_unit_gen::render_keybindings(&toml::to_string(&doc).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let keys = keys.get("usr/share/mios/tmux/mios-keys.tmux.conf")
+        .ok_or("Native keybindings projection omitted tmux")?;
+    let shell = shell.replace('\\', "\\\\").replace('"', "\\\"");
+    // Theme and keys come from the same engines as the Linux image and runtime.
+    // Terminal history wins over the cross-client keyboard history preference.
+    Ok(format!("# Generated from layered MiOS SSOT by native Rust.\n{}\n{}\nset -g history-limit {rows}\nset -g default-shell \"{shell}\"\nset -g default-command \"{shell}\"\nset -g automatic-rename on\nset -g automatic-rename-format \"#{{b:pane_current_command}}\"\n", engine.generate_config()?, keys))
+}
+
+/// COLORREF values in Windows Console's BGR-indexed ANSI order. Named default
+/// foreground/background remain authoritative over their ANSI slot aliases.
+pub fn windows_console_palette(config: &Value) -> Result<[u32; 16], String> {
+    let keys = ["bg", "ansi_4_blue", "ansi_2_green", "ansi_6_cyan", "ansi_1_red", "ansi_5_magenta", "ansi_3_yellow", "fg", "ansi_8_bright_black", "ansi_12_bright_blue", "ansi_10_bright_green", "ansi_14_bright_cyan", "ansi_9_bright_red", "ansi_13_bright_magenta", "ansi_11_bright_yellow", "ansi_15_bright_white"];
+    let mut palette = [0; 16];
+    for (slot, key) in keys.iter().enumerate() {
+        let value = config["colors"][key].as_str().ok_or_else(|| format!("Missing SSOT colors.{key}"))?;
+        if value.len() != 7 || !value.starts_with('#') || !value.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit) {
+            return Err(format!("Invalid SSOT colors.{key}"));
+        }
+        let rgb = u32::from_str_radix(&value[1..], 16).map_err(|e| e.to_string())?;
+        palette[slot] = ((rgb & 255) << 16) | (rgb & 0xff00) | (rgb >> 16);
+    }
+    Ok(palette)
 }
 
 fn argument(value: &str) -> Result<String, String> {
@@ -269,9 +299,7 @@ mod tests {
         assert!(host.contains(&"cmd.exe".into()));
         assert!(!host.contains(&"custom-guest".into()));
         config["keybindings"]["mouse"] = json!(false);
-        assert!(host_tmux_config(&config)
-            .unwrap()
-            .contains("set -g mouse off"));
+        // Complete renderer policy is covered with real SSOT below.
     }
     #[test]
     fn landscape_portrait_and_fullscreen_keep_existing_panes() {
