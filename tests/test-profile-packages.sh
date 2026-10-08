@@ -220,9 +220,10 @@ calls() {
 
 health_checks() (
     # Execute the production health function without running image build stages.
+    # shellcheck source=/dev/null  # one function excerpted from automation/build.sh at run time
     source <(sed -n '/^_check_critical_packages() {/,/^}/p' "$ROOT/automation/build.sh")
     local catalog='gnome-shell gdm podman bootc libvirt kernel-core firewalld cockpit NetworkManager pipewire tuned chrony openssh-server'
-    local catalog_rc=0 missing='' result
+    local catalog_rc=0 missing=''
     get_packages_strict() { printf '%s\n' "$catalog"; return "$catalog_rc"; }
     rpm() {
         printf '%s\n' "$@" >> "$TMP/rpm-health.log"
@@ -243,6 +244,7 @@ health_checks() (
     # build.sh runs the health gate as a post-build stage: _run_stage records it
     # in FAIL_LOG and in the native progress ledger, whose final receipt is the
     # build's exit. Drive those production functions over a one-stage ledger.
+    # shellcheck source=/dev/null  # production functions excerpted at run time
     source <(sed -n -e '/^_post_package_health() {/,/^}/p' -e '/^_finding() {/,/^}/p' \
         -e '/^_run_stage() {/,/^}/p' -e '/^_stage_child() {/,/^}/p' "$ROOT/automation/build.sh")
     for fn in _post_package_health _finding _run_stage _stage_child; do
