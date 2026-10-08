@@ -51,4 +51,17 @@ class NativeGeneratorDispatch(unittest.TestCase):
         result = self.run_tool('cosign-policy', '--check')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_layered_host_policy_reaches_native_outputs(self):
+        host = self.root/'etc/mios/mios.toml'
+        host.parent.mkdir(parents=True)
+        host.write_text('[security.sigstore]\npolicy_mode="reject"\n', encoding='utf-8')
+        result = self.run_tool('cosign-policy')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        policy = self.root/'usr/lib/containers/policy.json'
+        self.assertIn('"reject"', policy.read_text())
+        host.write_text('[security.sigstore\n', encoding='utf-8')
+        result = self.run_tool('cosign-policy')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('"reject"', policy.read_text())
+
 if __name__ == '__main__': unittest.main()

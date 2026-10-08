@@ -31,5 +31,5 @@ for _c in "${MIOS_MIOSD_BIN:-}" \
 done
 
 [[ -n "$_miosd" ]] || { mios_err "Native miosd is required; install the SSOT release catalog"; exit 1; }
-MIOS_ROOT="$ROOT" MIOS_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" "$_miosd" generate-quadlets
+MIOS_ROOT="$ROOT" MIOS_VENDOR_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" "$_miosd" generate-quadlets
 mios_ok "Quadlets generated into ${OUT_DIR} via native mios-gen"
