@@ -43,12 +43,12 @@ enum Commands {
         #[arg(long, default_value = std::env::consts::ARCH)]
         arch: String,
     },
-    /// Lint, cross-build and verify a Windows executable using the SSOT catalog
+    /// Lint, cross-build and verify the Windows catalog, or one selected executable
     NativeWindowsBuild {
         #[arg(long, default_value = ".")]
         root: String,
         #[arg(long)]
-        binary: String,
+        binary: Option<String>,
         #[arg(long)]
         target_dir: std::path::PathBuf,
     },
@@ -58,6 +58,15 @@ enum Commands {
         root: String,
         #[arg(long)]
         lint: bool,
+    },
+    /// Validate and transactionally install every declared Windows executable.
+    NativeWindowsInstall {
+        #[arg(long)]
+        root: std::path::PathBuf,
+        #[arg(long)]
+        source: std::path::PathBuf,
+        #[arg(long)]
+        bin_dir: std::path::PathBuf,
     },
     /// Check every installed SSOT native artifact without requiring Cargo
     NativeRuntimeCheck {
@@ -1042,12 +1051,22 @@ async fn main() {
             binary,
             target_dir,
         } => {
-            match mios_build::verification::windows_build(
-                std::path::Path::new(root),
-                binary,
-                target_dir,
-            ) {
-                Ok(path) => println!("[miosd] Verified Windows artifact: {}", path.display()),
+            let result = if let Some(binary) = binary {
+                mios_build::verification::windows_build(
+                    std::path::Path::new(root),
+                    binary,
+                    target_dir,
+                )
+                .map(|path| format!("Verified Windows artifact: {}", path.display()))
+            } else {
+                mios_build::verification::windows_build_catalog(
+                    std::path::Path::new(root),
+                    target_dir,
+                )
+                .map(|count| format!("{count} Windows native release artifacts built and verified"))
+            };
+            match result {
+                Ok(receipt) => println!("[miosd] {receipt}"),
                 Err(error) => {
                     eprintln!("[miosd] Windows build: {error}");
                     std::process::exit(1);
@@ -1077,6 +1096,19 @@ async fn main() {
             }
             println!("[miosd] SSOT-required lint tools verified; workspace lint requested: {lint}");
         }
+        Commands::NativeWindowsInstall {
+            root,
+            source,
+            bin_dir,
+        } => match mios_build::verification::windows_install(root, source, bin_dir) {
+            Ok(count) => {
+                println!("[miosd] {count} Windows native release artifacts installed and verified")
+            }
+            Err(error) => {
+                eprintln!("[miosd] Windows installation: {error}");
+                std::process::exit(1);
+            }
+        },
         Commands::NativeRuntimeCheck {
             root,
             platform,

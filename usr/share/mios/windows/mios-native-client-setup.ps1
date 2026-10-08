@@ -358,12 +358,12 @@ if (Test-Path -LiteralPath $svcToolSrc) {
     Copy-Item -LiteralPath $svcToolSrc -Destination (Join-Path $BinDirectory 'MiosServiceTool.exe') -Force
 }
 $windowsBuild = $config['nativeWindows']
-$nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'])\release\mios-launch.exe"
+$nativeDirectory = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'])\release"
 # Cargo verifies the source fingerprint even when a prior artifact exists.
 & {
     $builderName = $config['theme']['terminal']['dev_profile_name']
     $builder = @("podman-$builderName",$builderName) | Where-Object { $_ -in $registered } | Select-Object -First 1
-    if (-not $builder) { throw 'MiOS-DEV is required to build the native Windows terminal launcher' }
+    if (-not $builder) { throw 'MiOS-DEV is required to build the native Windows catalog' }
     # WSL's argument bridge consumes unquoted backslashes in Windows paths.
     $sourceLinux = (& wsl.exe -d $builder -u root -- wslpath -a -u $SourceRoot.Replace('\','/')) -join ''
     if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the system source in MiOS-DEV' }
@@ -386,13 +386,17 @@ $nativeExe = Join-Path $SourceRoot "tools\native\target\$($windowsBuild['target'
     if ($LASTEXITCODE -ne 0) { throw 'SSOT Rust lint/format components are unavailable' }
     & wsl.exe -d $builder -u root -- env @toolchainEnv rustup target add --toolchain $channel $windowsBuild['target']
     if ($LASTEXITCODE -ne 0) { throw 'SSOT Windows Rust target is unavailable' }
-    & wsl.exe -d $builder -u root -- env @toolchainEnv "RUSTUP_TOOLCHAIN=$channel" /usr/libexec/mios/miosd native-windows-build --root $sourceLinux --binary mios-launch --target-dir /var/tmp/mios-native-build
-    if ($LASTEXITCODE -ne 0) { throw 'Native Windows launcher lint, build or PE artifact verification failed inside MiOS-DEV' }
-    Copy-Item -LiteralPath $nativeExe -Destination (Join-Path $BinDirectory 'mios-launch.exe') -Force
-    $installedExeLinux = (& wsl.exe -d $builder -u root -- wslpath -a -u (Join-Path $BinDirectory 'mios-launch.exe').Replace('\','/')) -join ''
-    if ($LASTEXITCODE -ne 0 -or -not $installedExeLinux) { throw 'Cannot resolve the installed Windows launcher for verification' }
-    & wsl.exe -d $builder -u root -- /usr/libexec/mios/miosd native-artifact-check $installedExeLinux --platform windows --root $sourceLinux
-    if ($LASTEXITCODE -ne 0) { throw 'Installed Windows launcher failed SSOT artifact verification' }
+    & wsl.exe -d $builder -u root -- env @toolchainEnv "RUSTUP_TOOLCHAIN=$channel" /usr/libexec/mios/miosd native-windows-build --root $sourceLinux --target-dir /var/tmp/mios-native-build
+    if ($LASTEXITCODE -ne 0) { throw 'Native Windows catalog lint, build or PE verification failed inside MiOS-DEV' }
+    # Run the management binary from staging so replacement never locks its own
+    # installed executable. Rust validates every staged/copied member and rolls
+    # back replacements if a running application prevents installation.
+    $nativeManager = Join-Path $nativeDirectory 'miosd.exe'
+    if (-not (Test-Path -LiteralPath $nativeManager -PathType Leaf)) { throw 'Verified Windows management binary was not staged' }
+    & $nativeManager native-windows-install --root $SourceRoot --source $nativeDirectory --bin-dir $BinDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'Native Windows catalog installation failed; see the preserved transaction receipt' }
+    & $nativeManager native-runtime-check --root $SourceRoot --platform windows --bin-dir $BinDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'Installed Windows native catalog failed SSOT artifact verification' }
 }
 Save-MiosJson (Join-Path $BinDirectory 'native-binding.json') @{distro=$Distro; linuxUser=$LinuxUser; windowsHub=$hub; engine=$engine; mcpPython=$mcpPython;terminalDirectory=$config['terminal']['start_directory']}
 & (Join-Path $BinDirectory 'mios-oscontrol-server.ps1') -Install

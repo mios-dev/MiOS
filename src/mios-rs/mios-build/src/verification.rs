@@ -298,6 +298,20 @@ fn windows_driver(policy: &super::NativeWindows) -> Result<&'static str, String>
     }
 }
 
+/// Build the complete declared Windows catalog with the same lint and import
+/// checks as an individual build. A failed member prevents installation.
+pub fn windows_build_catalog(root: &Path, output: &Path) -> Result<usize, String> {
+    let plan = super::native_target_plan(root, "windows")?;
+    if plan.is_empty() {
+        return Err("native Windows catalog selects zero artifacts".into());
+    }
+    for selected in &plan {
+        windows_build(root, &selected.binary, output)?;
+        println!("[native-build] verified Windows {}", selected.binary);
+    }
+    Ok(plan.len())
+}
+
 /// Uses the shipped role catalog without Cargo metadata, so the final image can
 /// check its real installed programs after the build toolchain has been stripped.
 /// Windows callers provide the installed flat bin directory; Linux uses FHS.
@@ -335,6 +349,94 @@ pub fn runtime_check(
     }
     if count == 0 {
         return Err("native runtime catalog selects zero artifacts".into());
+    }
+    Ok(count)
+}
+
+/// Install the complete declared Windows catalog. Validate source and copied bytes
+/// before replacement; retain recoverable originals if any replacement fails.
+pub fn windows_install(root: &Path, source: &Path, destination: &Path) -> Result<usize, String> {
+    let count = runtime_check(root, "windows", "x86_64", Some(source))?;
+    let config = config(root)?;
+    let mut names: Vec<String> = config
+        .categories
+        .values()
+        .flat_map(|group| group.binaries.iter())
+        .filter(|binary| super::supports_platform(&config, binary, "windows"))
+        .map(|binary| format!("{binary}.exe"))
+        .collect();
+    names.sort();
+    std::fs::create_dir_all(destination).map_err(|e| format!("Windows install directory: {e}"))?;
+    let destination = destination.canonicalize().map_err(|e| e.to_string())?;
+    if source.canonicalize().map_err(|e| e.to_string())? == destination {
+        return Err("Windows staging and installation directories must differ".into());
+    }
+    for name in &names {
+        match std::fs::symlink_metadata(destination.join(name)) {
+            Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "Windows install destination {name} is not a regular file"
+                ))
+            }
+            Ok(_) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => return Err(format!("Windows install destination {name}: {e}")),
+        }
+    }
+    let transaction = tempfile::Builder::new()
+        .prefix(".mios-native-install-")
+        .tempdir_in(&destination)
+        .map_err(|e| format!("Windows install staging: {e}"))?;
+    let staged = transaction.path().join("new");
+    let previous = transaction.path().join("previous");
+    std::fs::create_dir(&staged)
+        .and_then(|()| std::fs::create_dir(&previous))
+        .map_err(|e| e.to_string())?;
+    for name in &names {
+        std::fs::copy(source.join(name), staged.join(name))
+            .map_err(|e| format!("Windows stage {name}: {e}"))?;
+    }
+    runtime_check(root, "windows", "x86_64", Some(&staged))?;
+    let mut replaced = Vec::new();
+    let result = (|| -> Result<(), String> {
+        for name in &names {
+            let target = destination.join(name);
+            let existed = target.exists();
+            if existed {
+                std::fs::rename(&target, previous.join(name))
+                    .map_err(|e| format!("Windows preserve {name}: {e}"))?;
+            }
+            replaced.push((name, existed));
+            std::fs::rename(staged.join(name), &target)
+                .map_err(|e| format!("Windows install {name}: {e}"))?;
+        }
+        runtime_check(root, "windows", "x86_64", Some(&destination))?;
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let mut errors = vec![error];
+        for (name, existed) in replaced.into_iter().rev() {
+            let target = destination.join(name);
+            match std::fs::remove_file(&target) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => {
+                    errors.push(format!("rollback remove {name}: {e}"));
+                    continue;
+                }
+            }
+            if existed {
+                if let Err(e) = std::fs::rename(previous.join(name), &target) {
+                    errors.push(format!("rollback restore {name}: {e}"));
+                }
+            }
+        }
+        let recovery = transaction.keep();
+        return Err(format!(
+            "{}; preserved transaction: {}",
+            errors.join("; "),
+            recovery.display()
+        ));
     }
     Ok(count)
 }
@@ -470,6 +572,113 @@ mod tests {
             .contains("artifact"));
         assert!(runtime_check(root.path(), "windows", "x86_64", None).is_err());
         assert!(runtime_check(root.path(), "darwin", "aarch64", Some(&bins)).is_err());
+    }
+
+    #[test]
+    fn windows_install_rejects_bad_catalog_before_replacing_existing_programs() {
+        let root = fixture();
+        let source = root.path().join("staged");
+        let destination = root.path().join("installed");
+        std::fs::create_dir(&source).unwrap();
+        let config = config(root.path()).unwrap();
+        for name in config.windows_only.iter().chain(&config.windows_shared) {
+            std::fs::write(source.join(format!("{name}.exe")), pe("kernel32.dll")).unwrap();
+        }
+        assert_eq!(
+            windows_install(root.path(), &source, &destination).unwrap(),
+            config.windows_only.len() + config.windows_shared.len()
+        );
+        let original = std::fs::read(destination.join("mios-gen.exe")).unwrap();
+        std::fs::write(source.join("mios-gen.exe"), pe("foreign-runtime.dll")).unwrap();
+        assert!(windows_install(root.path(), &source, &destination)
+            .unwrap_err()
+            .contains("foreign-runtime"));
+        assert_eq!(
+            std::fs::read(destination.join("mios-gen.exe")).unwrap(),
+            original
+        );
+        std::fs::write(source.join("mios-gen.exe"), pe("kernel32.dll")).unwrap();
+        std::fs::remove_file(destination.join("mios-launch.exe")).unwrap();
+        std::fs::create_dir(destination.join("mios-launch.exe")).unwrap();
+        assert!(windows_install(root.path(), &source, &destination)
+            .unwrap_err()
+            .contains("not a regular file"));
+        assert_eq!(
+            std::fs::read(destination.join("mios-gen.exe")).unwrap(),
+            original
+        );
+    }
+
+    #[test]
+    fn windows_install_replaces_catalog_and_preserves_unrelated_files() {
+        let root = fixture();
+        let source = root.path().join("staged");
+        let destination = root.path().join("installed");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::create_dir(&destination).unwrap();
+        let config = config(root.path()).unwrap();
+        let mut previous = pe("kernel32.dll");
+        previous.extend_from_slice(b"previous generation");
+        for name in config.windows_only.iter().chain(&config.windows_shared) {
+            let name = format!("{name}.exe");
+            std::fs::write(source.join(&name), pe("kernel32.dll")).unwrap();
+            std::fs::write(destination.join(name), &previous).unwrap();
+        }
+        let unrelated = destination.join("operator-owned.txt");
+        std::fs::write(&unrelated, b"preserve").unwrap();
+        windows_install(root.path(), &source, &destination).unwrap();
+        for name in config.windows_only.iter().chain(&config.windows_shared) {
+            assert_eq!(
+                std::fs::read(destination.join(format!("{name}.exe"))).unwrap(),
+                pe("kernel32.dll")
+            );
+        }
+        assert_eq!(std::fs::read(unrelated).unwrap(), b"preserve");
+        assert!(windows_install(root.path(), &source, &source)
+            .unwrap_err()
+            .contains("must differ"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_install_locked_program_restores_already_replaced_files() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let root = fixture();
+        let source = root.path().join("staged");
+        let destination = root.path().join("installed");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::create_dir(&destination).unwrap();
+        let config = config(root.path()).unwrap();
+        let mut previous = pe("kernel32.dll");
+        previous.extend_from_slice(b"previous generation");
+        let mut names: Vec<_> = config
+            .windows_only
+            .iter()
+            .chain(&config.windows_shared)
+            .map(|name| format!("{name}.exe"))
+            .collect();
+        names.sort();
+        for name in &names {
+            std::fs::write(source.join(name), pe("kernel32.dll")).unwrap();
+            std::fs::write(destination.join(name), &previous).unwrap();
+        }
+        // Leave one earlier target absent, so rollback must also remove a new file.
+        assert!(names[0].as_str() < "mios-gen.exe");
+        std::fs::remove_file(destination.join(&names[0])).unwrap();
+        let locked = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(destination.join("mios-gen.exe"))
+            .unwrap();
+        let error = windows_install(root.path(), &source, &destination).unwrap_err();
+        assert!(error.contains("Windows preserve mios-gen.exe"), "{error}");
+        assert!(error.contains("preserved transaction:"), "{error}");
+        drop(locked);
+        assert!(!destination.join(&names[0]).exists());
+        for name in &names[1..] {
+            assert_eq!(std::fs::read(destination.join(name)).unwrap(), previous);
+        }
     }
 
     #[test]

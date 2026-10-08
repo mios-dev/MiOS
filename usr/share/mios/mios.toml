@@ -12724,7 +12724,7 @@ max_tracked_files = 3662
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 323
+max_tracked_mb    = 325
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
@@ -13597,6 +13597,10 @@ unit_projections = ["blade-dropins", "blade-karg", "uki-cmdline", "cockpit", "ip
 [[generation.sync.steps]]
 id = "index.untracked"
 register = true
+# Update generated SSOT budgets before any projection consumes their values.
+[[generation.sync.steps]]
+id = "metrics.ceiling"
+calls = [{ tool = "mios-size-ceiling" }]
 [[generation.sync.steps]]
 id = "ports.projection"
 calls = [{ tool = "mios-gen", args = ["render-ports", "--root", "{root}"] }]
@@ -13670,9 +13674,6 @@ calls = [{ tool = "mios-toolchain-pin" }]
 [[generation.sync.steps]]
 id = "ai.config"
 calls = [{ tool = "mios-ai-config", args = ["--root", "{root}"] }]
-[[generation.sync.steps]]
-id = "metrics.ceiling"
-calls = [{ tool = "mios-size-ceiling" }]
 [[generation.sync.steps]]
 id = "env.baseline"
 snapshot = ["usr/libexec/mios/mios-env-snapshot", "usr/share/mios/reference/env-baseline.txt"]
