@@ -310,7 +310,7 @@ async def chat_completions(req: ChatCompletionRequest):
                     # stop / length / tool_calls / content_filter / function_call --
                     # and a client switching on it drops the turn on anything else.
                     # The failure is already carried in the delta text.
-                    yield openai_chunk(f"\n[Agent Error: {stream_err}]\n", finish_reason="stop")
+                    yield openai_chunk("\n[Agent execution failed]\n", finish_reason="stop")
             if not _closed:
                 yield openai_chunk("", finish_reason="stop")
             yield "data: [DONE]\n\n"
@@ -358,7 +358,7 @@ async def chat_completions(req: ChatCompletionRequest):
                     }]
                 }
             log.error("Agent execution error: %s", run_err)
-            return openai_error(f"Agent loop failed: {run_err}", status=500,
+            return openai_error("Agent execution failed", status=500,
                                 err_type="api_error", code="agent_loop_failed")
 
 if __name__ == "__main__":
