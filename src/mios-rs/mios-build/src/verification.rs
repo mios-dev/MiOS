@@ -317,7 +317,7 @@ pub fn runtime_check(
     let mut count = 0;
     for category in config.categories.values() {
         for binary in &category.binaries {
-            if config.windows_only.iter().any(|v| v == binary) != (platform == "windows") {
+            if !super::supports_platform(&config, binary, platform) {
                 continue;
             }
             let directory = bin_dir
@@ -452,12 +452,12 @@ mod tests {
         let bins = root.path().join("windows bin with spaces");
         std::fs::create_dir(&bins).unwrap();
         let config = config(root.path()).unwrap();
-        for name in &config.windows_only {
+        for name in config.windows_only.iter().chain(&config.windows_shared) {
             std::fs::write(bins.join(format!("{name}.exe")), pe("kernel32.dll")).unwrap();
         }
         assert_eq!(
             runtime_check(root.path(), "windows", "x86_64", Some(&bins)).unwrap(),
-            config.windows_only.len()
+            config.windows_only.len() + config.windows_shared.len()
         );
         let target = bins.join(format!("{}.exe", config.windows_only[0]));
         std::fs::write(&target, pe("libgcc_s_seh-1.dll")).unwrap();

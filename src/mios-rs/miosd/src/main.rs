@@ -4,6 +4,7 @@
 #![warn(clippy::unwrap_used, clippy::panic, clippy::todo)]
 
 mod drift;
+mod native_generator;
 mod terminal_runtime;
 
 // AI-related: Containerfile, automation/98-drift-checks.sh
@@ -2332,49 +2333,9 @@ fn run_finalize_osrelease(
     Ok(())
 }
 
-/// Run one of the repo's generator scripts, resolved against MIOS_ROOT.
-///
-/// Four subcommands each carried their own copy of this. Every copy resolved
-/// the script relative to the process working directory, and every copy ended
-/// in an else-branch that printed "... up to date." and returned Ok when the
-/// script was not there -- a claim about an artefact it had never opened. Run
-/// from anywhere but the repo root, `miosd render-uki-cmdline` reported the
-/// kernel cmdline current without reading a single kargs.d fragment, and the
-/// build stage that called it took that for a render (T-1018).
-///
-/// An absent generator is now an error naming the root it looked under, so a
-/// wrong MIOS_ROOT fails loudly instead of passing quietly.
-fn run_repo_generator(
-    rel: &str,
-    check: bool,
-    subject: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
-    let script = std::path::Path::new(&root).join(rel);
-    if !script.is_file() {
-        return Err(format!(
-            "{}: generator {} not found (MIOS_ROOT={}) -- nothing was rendered, \
-             so nothing can be reported up to date",
-            subject,
-            script.display(),
-            root
-        )
-        .into());
-    }
-    let mut cmd = std::process::Command::new("python3");
-    cmd.arg(&script);
-    if check {
-        cmd.arg("--check");
-    }
-    let status = cmd.status()?;
-    if !status.success() {
-        return Err(format!("{}: {} failed", subject, script.display()).into());
-    }
-    Ok(())
-}
-
 fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    run_repo_generator("tools/generate-cosign-policy.py", check, "cosign-policy")
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    native_generator::run(std::path::Path::new(&root), "cosign-policy", check)
 }
 
 fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
@@ -2559,5 +2520,6 @@ fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>>
 }
 
 fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    run_repo_generator("tools/generate-pod-quadlets.py", check, "generate-quadlets")
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    native_generator::run(std::path::Path::new(&root), "pod-quadlets", check)
 }

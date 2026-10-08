@@ -62,6 +62,28 @@ fn main() -> Result<()> {
         let stack_offset = mios_resolver::stack_offset_of(&merged);
 
         match format.as_str() {
+            "repos" => match mios_resolver::emit_repos::emit_repos(&merged) {
+                Ok(output) => {
+                    print!("{output}");
+                    Ok(())
+                }
+                Err(error) => {
+                    eprintln!("[mios-resolver] {error}");
+                    std::process::exit(1);
+                }
+            },
+            "build-shell" => {
+                match mios_resolver::emit_build::emit_build_shell(&merged, stack_offset) {
+                    Ok(output) => {
+                        print!("{output}");
+                        Ok(())
+                    }
+                    Err(error) => {
+                        eprintln!("[mios-resolver] {error}");
+                        std::process::exit(1);
+                    }
+                }
+            }
             "shell" => {
                 let ref_names = root.map(|r| r.join("usr/share/mios/referenced_names.txt"));
                 let output = emit_shell(&merged, stack_offset, ref_names.as_deref());

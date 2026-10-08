@@ -9,6 +9,7 @@ codeberg.org/forgejo/forgejo:latest	local	extra	1.0
 code.forgejo.org/forgejo/runner:latest	local	extra	1.0
 docker.io/guacamole/guacamole:latest	local	extra	1.0
 docker.io/guacamole/guacd:latest	local	extra	1.0
+docker.io/headscale/headscale:latest	local	extra	1.0
 docker.io/rancher/k3s:latest	local	extra	1.0
 docker.io/lmsysorg/sglang:latest	local	sys	1.0
 docker.io/vllm/vllm-openai:latest	local	extra	1.0

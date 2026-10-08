@@ -3,6 +3,8 @@
 pub mod aliases;
 pub mod db_overlay;
 pub mod emit;
+pub mod emit_build;
+pub mod emit_repos;
 pub mod emit_install_env;
 pub mod emit_json;
 pub mod emit_ps;

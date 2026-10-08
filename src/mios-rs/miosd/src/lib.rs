@@ -9,5 +9,6 @@
 pub mod cli;
 pub mod daemon;
 pub mod drift;
+pub mod native_generator;
 pub mod secret;
 pub mod server;

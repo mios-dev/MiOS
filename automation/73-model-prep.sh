@@ -15,6 +15,7 @@ source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
 
 SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
 SEED_DIR="${MIOS_LLAMACPP_MODELS_DIR:?SSOT models directory unresolved}"
+install -d -m 0755 "$(dirname "$SEED_DIR")"
 
 if [[ -z "$SPEC" ]]; then
     mios_log "MIOS_LLAMACPP_BAKE_MODELS empty"
@@ -88,6 +89,7 @@ fi
 
 MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
 SEED_DIR="/usr/share/mios/vllm/model"
+install -d -m 0755 "$(dirname "$SEED_DIR")"
 
 if [[ -z "$MODEL" ]]; then
     mios_log "MIOS_VLLM_BAKE_MODEL empty"
