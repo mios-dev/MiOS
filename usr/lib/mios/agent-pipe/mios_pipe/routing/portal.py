@@ -96,9 +96,31 @@ PORTAL_SESSION_TTL = int(os.environ.get("MIOS_PORTAL_SESSION_TTL")
 PORTAL_COOKIE = "mios_portal"
 _portal_secret_cfg = (os.environ.get("MIOS_PORTAL_SECRET")
                       or _pcfg("portal", "secret") or "")
-_PORTAL_SECRET = (_portal_secret_cfg.encode("utf-8") if _portal_secret_cfg
-                  else hashlib.sha256(b"mios-portal-session|"
-                                      + PORTAL_PASSWORD.encode("utf-8")).digest())
+
+def _portal_session_key() -> bytes:
+    """Stretch password-derived keys once per worker; explicit secrets stay stable.
+
+    A fixed, versioned domain separator preserves restart/multiworker agreement
+    without storing another secret. Changing the password or work factor revokes
+    derived sessions. Upgrade from the old single-hash key requires a new login.
+    """
+    if _portal_secret_cfg:
+        return _portal_secret_cfg.encode("utf-8")
+    raw = os.environ.get("MIOS_PORTAL_SESSION_KDF_ITERATIONS")
+    if raw in (None, ""):
+        raw = _pcfg("portal", "session_kdf_iterations", 600000)
+    if type(raw) not in (int, str):
+        raise ValueError("portal.session_kdf_iterations must be an integer >= 600000")
+    try:
+        iterations = int(raw)
+    except ValueError:
+        raise ValueError("portal.session_kdf_iterations must be an integer >= 600000") from None
+    if iterations < 600000:
+        raise ValueError("portal.session_kdf_iterations must be an integer >= 600000")
+    return hashlib.pbkdf2_hmac("sha256", PORTAL_PASSWORD.encode("utf-8"),
+                               b"mios-portal-session|v2", iterations)
+
+_PORTAL_SECRET = _portal_session_key()
 
 def _portal_make_token(user: str) -> str:
     """Stateless signed session token: b64(user|exp).hmac(secret)."""

@@ -167,6 +167,7 @@ portal.require_login  MIOS_PORTAL_REQUIRE_LOGIN
 portal.user  MIOS_PORTAL_USER
 portal.password  MIOS_PORTAL_PASSWORD
 portal.session_ttl  MIOS_PORTAL_SESSION_TTL
+portal.session_kdf_iterations  MIOS_PORTAL_SESSION_KDF_ITERATIONS
 portal.secret  MIOS_PORTAL_SECRET
 portal.discord_channel_default  MIOS_PORTAL_DISCORD_CHANNEL_DEFAULT
 portal.discord_guild_default  MIOS_PORTAL_DISCORD_GUILD_DEFAULT

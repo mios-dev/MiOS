@@ -2068,9 +2068,11 @@ require_login = true     # false ONLY if a reverse proxy already authenticates
 user          = ""       # empty = inherits [identity].username
 password      = ""       # empty = inherits [identity].default_password
 session_ttl   = 604800   # signed-cookie lifetime in seconds (default 7 days)
+session_kdf_iterations = 600000  # PBKDF2-HMAC-SHA-256; minimum 600000, derived once per worker
 # secret: empty = derive the cookie-HMAC key from the password (so rotating the
-# password invalidates live sessions). Set a stable value to keep sessions
-# alive across password changes.
+# password or KDF work factor invalidates live sessions). Set a stable value
+# to keep sessions alive across password changes. The PBKDF2 upgrade requires
+# one new login for password-derived sessions; explicit secrets are unchanged.
 secret        = ""
 
 discord_channel_default = ""
