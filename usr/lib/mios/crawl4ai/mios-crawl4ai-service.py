@@ -44,6 +44,7 @@ SSOT (env rendered from mios.toml [crawl] block via globals/userenv):
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -51,6 +52,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+
+log = logging.getLogger("mios-crawl4ai")
 
 CDP_URL = (os.environ.get("MIOS_SERVICES_WEBTOOLS_CDP_URL")
            or "http://127.0.0.1:%s" % os.environ.get("MIOS_PORTS_CHROME_CDP", "9222")).strip()
@@ -201,7 +204,8 @@ async def crawl(req: CrawlReq) -> dict:
                         "links": r["internal_links"] + r["external_links"]}
             cdp_err = "blocked or near-empty markdown"
         except Exception as e:
-            cdp_err = f"cdp error: {e}"
+            log.warning("CDP crawl failed: %s", e)
+            cdp_err = "CDP crawl unavailable"
 
     if force_cam or CAMOUFOX_ON:
         try:
@@ -213,7 +217,8 @@ async def crawl(req: CrawlReq) -> dict:
                         "primary_error": cdp_err}
             cam_err = "camoufox returned near-empty markdown"
         except Exception as e:
-            cam_err = f"camoufox error: {e}"
+            log.warning("Camoufox crawl failed: %s", e)
+            cam_err = "Camoufox crawl unavailable"
     else:
         cam_err = "camoufox disabled (MIOS_SERVICES_WEBTOOLS_CAMOUFOX=false)"
 

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 import shlex
@@ -51,8 +52,9 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
     import subprocess
     cephfs_enable = os.environ.get("MIOS_STORAGE_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if cephfs_enable:
-        sess_id = session_id or uuid.uuid4().hex[:8]
-        sess_id = "".join(c for c in sess_id if c.isalnum() or c in "-_")[:32]
+        # A digest preserves stable isolation for arbitrary external IDs without
+        # separator filtering, truncation aliases or shell-significant Unicode.
+        sess_id = hashlib.sha256((session_id or uuid.uuid4().hex).encode("utf-8")).hexdigest()[:32]
         uid = os.getuid() if hasattr(os, "getuid") else 1000
         runtime_dir = f"/run/user/{uid}/session-{sess_id}"
         try:
@@ -274,4 +276,3 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         cmd += " -"
         return cmd
     return None
-

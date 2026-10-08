@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3816,
-  "total_metadata_entries": 3108,
-  "total_hints": 3098,
+  "total_files_scanned": 3817,
+  "total_metadata_entries": 3109,
+  "total_hints": 3099,
   "total_functions_indexed": 1462,
-  "total_related_links": 5144,
+  "total_related_links": 5148,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -7299,6 +7299,20 @@
         "usr/libexec/mios/mios-hardware-profile",
         "automation/20-hardware.sh",
         "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-http-error-safety.py",
+      "hint": "Executes production HTTP handlers with failing dependencies to verify public redaction and preserved success/error envelopes.",
+      "related": [
+        "usr/lib/mios/agent-pipe/server.py",
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py",
+        "usr/lib/mios/gateway-agent/server.py",
+        "usr/lib/mios/crawl4ai/mios-crawl4ai-service.py"
       ],
       "functions": [],
       "doc": null,

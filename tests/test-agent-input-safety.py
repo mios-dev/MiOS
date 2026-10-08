@@ -3,12 +3,15 @@
 # AI-related: usr/lib/mios/agents/opencode-gateway/server.py, usr/lib/mios/agent-pipe/mios_dispatch.py, usr/lib/mios/agent-pipe/mios_ast_diff.py
 """Exercise production input handling without network or model subprocesses."""
 import ast
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
+import uuid
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -34,6 +37,63 @@ normalize = namespace["_normalize_tool_name"]
 
 
 class InputSafety(unittest.TestCase):
+    def test_session_paths_and_readonly_database_use_same_identity(self):
+        import os
+        import sqlite3
+        real_connect = sqlite3.connect
+
+        class VectorStubConnection(sqlite3.Connection):
+            # Only the vector extension is stubbed; filesystem/URI/SQL are real.
+            def execute(self, sql, *args):
+                if sql.startswith("CREATE VIRTUAL TABLE"):
+                    sql = "CREATE TABLE IF NOT EXISTS vec_scratch(content TEXT, tainted INTEGER)"
+                return super().execute(sql, *args)
+
+        with patch.dict(os.environ, {"MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE": "true"}), patch.dict(sys.modules, {"sqlite_vec": SimpleNamespace(load=lambda conn: None)}):
+            scratch = load("usr/lib/mios/agent-pipe/mios_scratchpad.py", "scratch_input_safety")
+        with tempfile.TemporaryDirectory() as tmp, patch.object(sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, factory=VectorStubConnection, **kw)):
+            directory = Path(tmp) / "scratch # space"
+            directory.mkdir()
+            (directory / "mios-session-..").mkdir()  # Makes the old traversal reachable.
+            paths = set()
+            for session in ("normal-123", "../../../escape", "a/b", "ab", "a\\b", "?mode=rw#fragment", "用户:session", "x" * 1000):
+                with self.subTest(session=session):
+                    conn, path = scratch.create_scratchpad(session, str(directory))
+                    try:
+                        self.assertEqual(path.resolve().parent, directory.resolve())
+                        self.assertNotIn(path, paths)
+                        paths.add(path)
+                        conn.execute("INSERT INTO vec_scratch VALUES ('content', 1)")
+                        conn.commit()
+                        self.assertTrue(scratch.has_tainted(session, str(directory)))
+                        conn.execute("UPDATE vec_scratch SET tainted = 0")
+                        conn.commit()
+                        self.assertFalse(scratch.has_tainted(session, str(directory)))
+                    finally:
+                        scratch.destroy_scratchpad(conn, path)
+                    self.assertFalse(path.exists())
+
+    def test_runtime_session_identifiers_do_not_alias(self):
+        import os
+        source = ast.parse((ROOT / "usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py").read_text(encoding="utf-8"))
+        function = next(n for n in source.body if isinstance(n, ast.FunctionDef) and n.name == "_sandbox_wrap_cmd")
+        scope = dict(os=os, hashlib=hashlib, uuid=uuid, Optional=object, SANDBOX_ENFORCE=False, _VERB_CATALOG={})
+        # Future annotations avoid importing the full sandbox/agent runtime.
+        module = ast.Module(body=[ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0), function], type_ignores=[])
+        exec(compile(ast.fix_missing_locations(module), "runtime-session-input", "exec"), scope)
+        directories = []
+        with patch.dict(os.environ, {"MIOS_STORAGE_CEPHFS_ENABLE": "true"}), patch.object(subprocess, "run", side_effect=FileNotFoundError), patch.object(os, "makedirs") as mkdir, patch.object(os, "chmod"):
+            for session in ("a/b", "ab", "a\\b", "用户", "x" * 1000, "x" * 999 + "y"):
+                command, workspace = scope["_sandbox_wrap_cmd"]("read", "true", SimpleNamespace(confined=False), session)
+                directory = mkdir.call_args.args[0]
+                self.assertRegex(Path(directory).name, r"^session-[0-9a-f]{32}$")
+                self.assertTrue(command.startswith("XDG_RUNTIME_DIR=" + directory + " "))
+                self.assertIsNone(workspace)
+                directories.append(directory)
+            again, _ = scope["_sandbox_wrap_cmd"]("read", "true", SimpleNamespace(confined=False), "a/b")
+            self.assertTrue(again.startswith("XDG_RUNTIME_DIR=" + directories[0] + " "))
+        self.assertEqual(len(directories), len(set(directories)))
+
     def test_prompt_is_one_positional_argument(self):
         response = SimpleNamespace(stdout=json.dumps({"part": {"type": "text", "text": "answer"}}), stderr="", returncode=0)
         for prompt in ("ordinary task", "--command=touch /tmp/unwanted", "--attach=http://remote", "--auto", "-m other/model", "a\nb 'quoted'"):
