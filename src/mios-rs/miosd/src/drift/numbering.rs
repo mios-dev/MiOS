@@ -128,7 +128,10 @@ impl Check for DAGIntegrityCheck {
                 let prefix = format!("{directory}/");
                 for path in super::audit::files(&ctx.root, directory)?
                     .iter()
-                    .filter(|p| p.strip_prefix(&prefix).is_some_and(|rest| !rest.contains('/')))
+                    .filter(|p| {
+                        p.strip_prefix(&prefix)
+                            .is_some_and(|rest| !rest.contains('/'))
+                    })
                     .filter(|p| {
                         [".service", ".container", ".pod"]
                             .iter()

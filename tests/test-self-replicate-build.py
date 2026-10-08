@@ -2,6 +2,7 @@
 # AI-functions: test_build_context_ignores_generated_artifacts, test_build_context_preserves_tracked_sources, test_self_replication_build_and_digest
 
 """Tests for T-966 & T-967: autonomous self-replication build trigger and digest verification."""
+import re
 import sys
 import subprocess
 import tempfile
@@ -73,8 +74,16 @@ def test_node_daemon_unit_command():
     assert not any(":-" in value for value in [service["ExecStart"], *service["Environment"]]), "node unit must carry no shell default expressions"
     unit = (root / "usr/lib/systemd/system/mios-node.service").read_text()
     assert f"ExecStart={service['ExecStart']}" in unit, "node unit must match SSOT"
+    # systemd expands ${VAR} only in Exec*= lines, so the projection
+    # (mios-unit-gen) ships Environment= values with [ports] resolved.
+    ports = config["ports"]
+    offset = int(ports.get("stack_id", 0)) * 10000
+    def resolved(value):
+        return re.sub(r"\$\{MIOS_PORTS_([A-Z0-9_]+)\}",
+                      lambda m: str(int(ports[m.group(1).lower()]) + offset), value)
     for value in service["Environment"]:
-        assert f"Environment={value}" in unit, "node environment must match SSOT"
+        assert "${" not in resolved(value), f"unresolvable SSOT port in {value}"
+        assert f"Environment={resolved(value)}" in unit, "node environment must match SSOT"
 
 
 if __name__ == "__main__":

@@ -537,17 +537,27 @@ fn structured(ctx: &DriftCtx) -> audit::Audit {
                 None => None,
                 Some(Some(path)) => Some(path.trim()),
                 Some(None) => {
-                    errors.push(format!("{at}: [nodes.{name}] host_served must be a repo path"));
+                    errors.push(format!(
+                        "{at}: [nodes.{name}] host_served must be a repo path"
+                    ));
                     continue;
                 }
             };
             if let Some(path) = host_served {
                 match std::fs::read_to_string(ctx.root.join(path)) {
                     Ok(body)
-                        if body.split_whitespace().collect::<Vec<_>>().windows(2).any(|w| {
-                            w[0].eq_ignore_ascii_case("-Port") && w[1] == port.as_str()
-                        }) || body.contains(&format!(":{}", port.as_str())) => {}
-                    Ok(_) => errors.push(format!("{at}: [nodes.{name}] host_served {path} does not listen on localhost:{}", port.as_str())),
+                        if body
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .windows(2)
+                            .any(|w| {
+                                w[0].eq_ignore_ascii_case("-Port") && w[1] == port.as_str()
+                            })
+                            || body.contains(&format!(":{}", port.as_str())) => {}
+                    Ok(_) => errors.push(format!(
+                        "{at}: [nodes.{name}] host_served {path} does not listen on localhost:{}",
+                        port.as_str()
+                    )),
                     Err(e) => errors.push(format!("{at}: [nodes.{name}] host_served {path}: {e}")),
                 }
             } else if !served.contains(port.as_str()) {
@@ -1183,10 +1193,19 @@ AI_HINT_TXT_RE = re.compile(r"AI-hint:\s*(.+?)\s*(?:-->)?\s*$", re.I)
         let host = format!("{base}[nodes.local-host]\nendpoint = \"http://127.0.0.1:${{MIOS_PORTS_CPU_NODE}}/v1\"\nhost_served = \"usr/share/mios/windows/host.cfg\"\n");
         fs::remove_file(root.join("usr/lib/systemd/system/cpu.service"))?;
         write(root, SSOT, &host)?;
-        assert!(structured(&ctx).is_err_and(|e| e.contains("host_served usr/share/mios/windows/host.cfg")));
-        write(root, "usr/share/mios/windows/host.cfg", "-File srv.ps1 -Mode Server -Port 9999\n")?;
+        assert!(structured(&ctx)
+            .is_err_and(|e| e.contains("host_served usr/share/mios/windows/host.cfg")));
+        write(
+            root,
+            "usr/share/mios/windows/host.cfg",
+            "-File srv.ps1 -Mode Server -Port 9999\n",
+        )?;
         assert!(structured(&ctx).is_err_and(|e| e.contains("does not listen on localhost:8510")));
-        write(root, "usr/share/mios/windows/host.cfg", "-File srv.ps1 -Mode Server -Port 8510\n")?;
+        write(
+            root,
+            "usr/share/mios/windows/host.cfg",
+            "-File srv.ps1 -Mode Server -Port 8510\n",
+        )?;
         assert!(structured(&ctx).is_ok_and(|m| m.contains("2 localhost lane(s)")));
         write(
             root,

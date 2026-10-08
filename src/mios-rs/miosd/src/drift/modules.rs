@@ -79,7 +79,9 @@ fn length(ctx: &DriftCtx) -> super::audit::Audit {
     // root) are where features fold in, so they carry no line ceiling.
     let submodule_roots = super::audit::strings(&doc, "refactor.submodule_roots")?;
     if submodule_roots.is_empty() || submodule_roots.iter().any(|r| !r.ends_with('/')) {
-        return Err("SSOT refactor.submodule_roots must list package prefixes ending in '/'".into());
+        return Err(
+            "SSOT refactor.submodule_roots must list package prefixes ending in '/'".into(),
+        );
     }
     let mut expected = std::collections::BTreeMap::new();
     for row in registered {
@@ -105,7 +107,9 @@ fn length(ctx: &DriftCtx) -> super::audit::Audit {
             .ok_or("Module outside agent-pipe")?;
         if !rel.ends_with(".py")
             || rel.ends_with("__init__.py")
-            || !submodule_roots.iter().any(|root| rel.starts_with(root.as_str()))
+            || !submodule_roots
+                .iter()
+                .any(|root| rel.starts_with(root.as_str()))
         {
             continue;
         }
