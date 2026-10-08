@@ -2541,34 +2541,69 @@ def check_container_ports() -> int:
         d = _toml.load(fh)
     ports = d.get("ports") or {}
 
-    port_vals = {name: val for name, val in ports.items() if name != "stack_id" and isinstance(val, int)}
+    # Twin of container_ports in src/mios-rs/miosd/src/drift/ports.rs (Law 13).
+    # bool is an int subclass in Python; the native side reads integers only.
+    port_vals = {name: val for name, val in ports.items()
+                 if name != "stack_id" and isinstance(val, int) and not isinstance(val, bool)}
+    if not port_vals:
+        print("SSOT [ports] declares no integer port, so no Quadlet literal can be recognised",
+              file=sys.stderr)
+        return 1
+    # Container-side listening ports. This used to hard-code (8080, 3002), the
+    # SearXNG and firecrawl upstream internals; SSOT now names that class
+    # `*_internal`. They may appear as the container side of a mapping or in an
+    # in-container `X=N`, never as a bare host-side `PublishPort=N`.
+    internal = {val for name, val in port_vals.items() if name.endswith("_internal")}
+    # MIOS_PORTS_<KEY> is the canonical [ports] env name. The fallback regex knew
+    # only the older MIOS_PORT_ prefix, so every SSOT-wired `${MIOS_PORTS_X:-N}`
+    # in the tree was reported as a hand-copied literal.
+    patterns = [(name, val,
+                 re.compile(r'\$\{MIOS_PORTS?_[A-Z0-9_]+:-' + str(val) + r'\}'),
+                 re.compile(rf'\b{val}\b'))
+                for name, val in port_vals.items()]
 
     viol = []
+    subjects = 0
     quadlet_dirs = ["usr/share/containers/systemd", "etc/containers/systemd"]
     for qd in quadlet_dirs:
         dir_path = os.path.join(root, qd)
         if not os.path.isdir(dir_path):
             continue
         for dp, _dn, files in os.walk(dir_path):
-            for fn in files:
+            for fn in sorted(files):
                 if not fn.endswith(".container"):
                     continue
                 path = os.path.join(dp, fn)
                 try:
-                    lines = open(path, encoding="utf-8", errors="ignore").readlines()
-                except OSError:
+                    lines = open(path, encoding="utf-8", errors="ignore").read().splitlines()
+                except OSError as exc:
+                    viol.append(f"{fn}: unreadable, so its ports were never compared: {exc}")
                     continue
+                subjects += 1
                 for idx, line in enumerate(lines, 1):
-                    active = re.sub(r'#.*', '', line).strip()
-                    if not active:
+                    # systemd unit syntax: only a WHOLE line starting with # or ;
+                    # is a comment. Stripping `#.*` also cut active values at a
+                    # mid-line # (URL fragments, `$#`), hiding literals that run.
+                    active = line.strip()
+                    if not active or active.startswith(("#", ";")):
                         continue
-                    for name, val in port_vals.items():
-                        cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z0-9_]+:-' + str(val) + r'\}', '', active)
-                        if re.search(rf'\b{val}\b', cleaned):
-                            if val in (8080, 3002) and (":" + str(val) in cleaned or "=" + str(val) in cleaned and not cleaned.startswith("PublishPort=")):
-                                continue
-                            viol.append(f"{fn}:{idx}: manual port literal {val} for '{name}' used in active line: {line.strip()}")
+                    for name, val, fallback, literal in patterns:
+                        cleaned = fallback.sub("", active)
+                        if not literal.search(cleaned):
+                            continue
+                        container_side = (f":{val}" in cleaned
+                                          or (f"={val}" in cleaned
+                                              and not cleaned.startswith("PublishPort=")))
+                        if val in internal and container_side:
+                            continue
+                        viol.append(f"{fn}:{idx}: manual port literal {val} for [ports].{name}; "
+                                    f"write ${{MIOS_PORTS_{name.upper()}:-{val}}} so the SSOT "
+                                    f"value reaches the unit: {active}")
 
+    if subjects == 0:
+        print("no Quadlet .container file was read under " + ", ".join(quadlet_dirs)
+              + " -- the corpus is wrong, so an empty result is not a pass", file=sys.stderr)
+        return 1
     for v in viol:
         print(v)
     return 1 if viol else 0
