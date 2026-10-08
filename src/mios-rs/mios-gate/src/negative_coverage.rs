@@ -1,5 +1,5 @@
 // AI-hint: Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this gate is what keeps the phantom population at zero.
-// AI-related: tools/drift-checks.py (strangled by this port, T-1009 unit 1), automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/mios.toml
+// AI-related: automation/98-drift-checks.sh, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/mios.toml
 
 use crate::Report;
 use regex::Regex;

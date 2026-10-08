@@ -1,5 +1,5 @@
 // AI-hint: Law-11 extension gate: fails any credential literal baked into a world-readable unit whose exact path:KEY=value is not on the shrink-only register.
-// AI-related: usr/share/mios/mios.toml, usr/share/containers/systemd, usr/lib/systemd/system, tools/generate-pod-quadlets.py
+// AI-related: usr/share/mios/mios.toml, usr/share/containers/systemd, usr/lib/systemd/system, tools/native/mios-gen/src/pod_quadlets.rs
 
 use crate::Report;
 use std::collections::BTreeSet;

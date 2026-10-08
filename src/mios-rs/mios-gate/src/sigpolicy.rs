@@ -1,5 +1,5 @@
 // AI-hint: Asserts usr/lib/containers/policy.json is byte-identical to what [security.sigstore] projects, the regenerate-and-diff half of Law 8 that this surface never had.
-// AI-related: usr/share/mios/mios.toml, usr/lib/containers/policy.json, tools/generate-cosign-policy.py, automation/49-cosign-policy.sh
+// AI-related: usr/share/mios/mios.toml, usr/lib/containers/policy.json, tools/native/mios-gen/src/main.rs, automation/49-cosign-policy.sh
 
 use crate::Report;
 use std::path::Path;

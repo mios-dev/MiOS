@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration test suite for mios-gen render-ports (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/render_ports.rs, tools/render-ports.py, tests/drift-gate-negatives.sh
+// AI-related: tools/native/mios-gen/src/render_ports.rs, tests/drift-gate-negatives.sh
 
 use std::fs;
 use std::path::{Path, PathBuf};

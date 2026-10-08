@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive 4-tier E2E test suite for MiOS Gateway Context Budgeting, Windows Low-Power Wallpaper Lifecycle, and Static Rust Consolidation (F1-F13).
 # AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py, usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py, usr/share/mios/windows/Set-MiOSWallpaper.ps1, tools/native/mios-hardcode-lint, tools/native/mios-service-core
-# AI-doc: TEST_INFRA.md, TEST_READY.md, PROJECT.md
+# AI-doc: usr/share/doc/mios/manual/tests.md, usr/share/doc/mios/manual/tests.md, PROJECT.md
 """Comprehensive 4-Tier E2E Test Suite for MiOS Gateway, Wallpaper & Rust Consolidation.
 
 Tiers:

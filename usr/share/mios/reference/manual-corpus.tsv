@@ -2050,7 +2050,7 @@ build-mios.ps1	5521	5522	2	22	901d7b0f05b3	STAY	local-scoped		0				0
 build-mios.ps1	5529	5530	2	12	9c65d765b745	STAY	local-scoped		0				0
 build-mios.ps1	5533	5535	3	27	fb43fc16c228	STAY	midsize-why		0				0
 build-mios.ps1	5554	5554	1	8	fc9c632b8af0	STAY	local-scoped		0				0
-build-mios.ps1	5557	5558	2	18	61d012ab345c	STAY	local-scoped		0				0
+build-mios.ps1	5557	5558	2	17	d1d295da1194	STAY	local-scoped		0				0
 build-mios.ps1	5567	5567	1	5	91f1fc52d26d	STAY	local-scoped		0				0
 build-mios.ps1	5570	5570	1	7	729ee9992a69	STAY	local-scoped		0				0
 build-mios.ps1	5588	5588	1	8	2766924b598f	STAY	local-scoped		0				0
@@ -2948,11 +2948,11 @@ src/mios-rs/mios-gate/src/artifact.rs	1424	1424	1	14	feb46ea431ca	STAY	local-sco
 src/mios-rs/mios-gate/src/artifact_layers.rs	1	2	2	29	032e9e0f0f54	STAY	ai-header		0				0
 src/mios-rs/mios-gate/src/artifact_layers.rs	15	17	3	33	381532207065	STAY	midsize-why		0				0
 src/mios-rs/mios-gate/src/artifact_layers.rs	34	35	2	27	05b1770a9ea4	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/canonical_bools.rs	1	2	2	38	72851221e650	STAY	ai-header		0				0
+src/mios-rs/mios-gate/src/canonical_bools.rs	1	2	2	31	5cc83b00ce65	STAY	ai-header		0				0
 src/mios-rs/mios-gate/src/canonical_bools.rs	19	20	2	20	8b27f4c7a523	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/canonical_bools.rs	29	29	1	13	3de144c3781a	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/canonical_bools.rs	35	36	2	20	8e4e8e51ea8d	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/credentials.rs	1	2	2	28	a983aec5a9ee	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/src.md	mios-src:a983aec5a9ee	28	0
+src/mios-rs/mios-gate/src/credentials.rs	1	2	2	28	90f5cc107997	STAY	ai-header		0				0
 src/mios-rs/mios-gate/src/credentials.rs	10	11	2	19	d8d6738aa2c6	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/credentials.rs	24	25	2	21	aab7d6949e91	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/credentials.rs	47	47	1	13	9721b1736ff6	STAY	local-scoped		0				0
@@ -3068,7 +3068,7 @@ src/mios-rs/mios-gate/src/main.rs	73	74	2	18	f58d22ccf859	STAY	local-scoped		0		
 src/mios-rs/mios-gate/src/main.rs	84	84	1	11	b389036948ed	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/main.rs	109	109	1	10	6c5ac2712f49	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/main.rs	113	113	1	8	583f20a4a41c	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/negative_coverage.rs	1	2	2	51	e14c7d85497a	MIGRATE_HEADER	overlong-hint		0				0
+src/mios-rs/mios-gate/src/negative_coverage.rs	1	2	2	44	093eaa04fbde	MIGRATE_HEADER	overlong-hint		0				0
 src/mios-rs/mios-gate/src/negative_coverage.rs	26	27	2	20	8e4e8e51ea8d	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/negative_coverage.rs	71	73	3	32	8cc548bef13a	STAY	midsize-why		0				0
 src/mios-rs/mios-gate/src/negative_coverage.rs	78	79	2	16	b6e883470f9d	STAY	local-scoped		0				0
@@ -3147,7 +3147,7 @@ src/mios-rs/mios-gate/src/rust_categories.rs	296	296	1	8	3b701ef1021f	STAY	local
 src/mios-rs/mios-gate/src/rust_categories.rs	319	319	1	7	f120d37a14fb	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/rust_categories.rs	452	452	1	12	21686107a582	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/rust_categories.rs	563	563	1	11	7e3f540fa49a	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/sigpolicy.rs	1	2	2	25	8e2c94407bf0	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/src.md	mios-src:8e2c94407bf0	25	0
+src/mios-rs/mios-gate/src/sigpolicy.rs	1	2	2	25	17ac1d7939c8	STAY	ai-header		0				0
 src/mios-rs/mios-gate/src/sigpolicy.rs	20	27	8	70	6d5b9555b84e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:6d5b9555b84e	70	0
 src/mios-rs/mios-gate/src/sigpolicy.rs	45	46	2	28	4eec172b57cd	STAY	midsize-why		0				0
 src/mios-rs/mios-gate/src/sigpolicy.rs	87	89	3	32	ecdadcd3401b	STAY	midsize-why		0				0
@@ -3998,7 +3998,7 @@ src/mios-rs/miosd/src/drift/numbering.rs	20	23	4	47	3980a58c9a9e	MIGRATE	midsize
 src/mios-rs/miosd/src/drift/numbering.rs	29	30	2	17	27bb549c30fc	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/drift/numbering.rs	68	70	3	31	3043909248ef	STAY	midsize-why		0				0
 src/mios-rs/miosd/src/drift/ports.rs	1	2	2	15	126e626b7b6e	STAY	ai-header		0				0
-src/mios-rs/miosd/src/drift/projections.rs	1	2	2	13	3ecc2c6a6e82	STAY	ai-header		0				0
+src/mios-rs/miosd/src/drift/projections.rs	1	2	2	13	86d00f76a684	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/projections.rs	16	19	4	30	9b35088b4e3d	STAY	midsize-why		0				0
 src/mios-rs/miosd/src/drift/regen.rs	1	2	2	19	e32025babdc1	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/regen.rs	17	22	6	70	b2bbad5618f1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/drift.md	mios-src:b2bbad5618f1	70	0
@@ -4893,7 +4893,7 @@ tests/test-acoustic-wakeword-pipeline.py	356	356	1	6	304bd7f7c843	STAY	local-sco
 tests/test-adguard-dns.py	1	3	3	17	8c6204be825b	STAY	ai-header		0				0
 tests/test-adguard-dns.py	20	20	1	8	fad228e774ea	STAY	local-scoped		0				0
 tests/test-adguard-dns.py	40	40	1	4	c11222e1454a	STAY	local-scoped		0				0
-tests/test-adversarial-igpu-rpc.py	1	4	4	29	906a8c5f47a6	STAY	ai-header		0				0
+tests/test-adversarial-igpu-rpc.py	1	4	4	29	4b1e7659914d	STAY	ai-header		0				0
 tests/test-adversarial-igpu-rpc.py	5	27	22	147	274b29b90bec	MIGRATE	narrative-rationale		0				0
 tests/test-adversarial-igpu-rpc.py	56	58	3	7	e4e2f0edca8f	STAY	midsize-why		0				0
 tests/test-adversarial-igpu-rpc.py	61	61	1	8	9781f224231b	STAY	local-scoped		0				0
@@ -6137,7 +6137,7 @@ tests/test-hyprland-direct-scanout.sh	66	66	1	8	ee01e27ddb38	STAY	local-scoped		
 tests/test-hyprland-direct-scanout.sh	73	73	1	11	24a0c2052316	STAY	local-scoped		0				0
 tests/test-hyprland-direct-scanout.sh	91	91	1	10	e521e5cfb089	STAY	local-scoped		0				0
 tests/test-hyprland-direct-scanout.sh	104	104	1	11	1967485a5150	STAY	local-scoped		0				0
-tests/test-igpu-rpc-rust-e2e.py	1	4	4	32	380393bf2c61	STAY	ai-header		0				0
+tests/test-igpu-rpc-rust-e2e.py	1	4	4	32	e3399263827f	STAY	ai-header		0				0
 tests/test-igpu-rpc-rust-e2e.py	5	13	8	53	4d9375571593	MIGRATE	narrative-rationale		0				0
 tests/test-igpu-rpc-rust-e2e.py	36	36	1	1	504dbd7ea99e	DROP	banner		0				0
 tests/test-igpu-rpc-rust-e2e.py	45	45	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
@@ -7322,7 +7322,7 @@ tests/test-ptp-time.py	154	154	1	3	4cbf7d461469	DROP	banner		0				0
 tests/test-quadlet-prewarm-offline.py	1	2	2	13	9c8a5c16a949	STAY	ai-header		0				0
 tests/test-quadlet-prewarm-offline.py	4	4	1	10	0dc04cec741a	STAY	local-scoped		0				0
 tests/test-quadlet-prewarm-offline.py	10	10	1	11	8bd6e59e7292	STAY	local-scoped		0				0
-tests/test-quadlet-state-mounts.py	1	3	3	37	2379202a1b89	STAY	ai-header		0				0
+tests/test-quadlet-state-mounts.py	1	3	3	37	7d9e5da3aaa6	STAY	ai-header		0				0
 tests/test-quadlet-state-mounts.py	14	14	1	6	c9e81dd69c17	STAY	inline-scoped		0				0
 tests/test-quadlet-state-mounts.py	18	18	1	8	1562b9c85c85	STAY	local-scoped		0				0
 tests/test-quadlet-state-mounts.py	50	51	2	26	c6a58caa3258	STAY	midsize-why		0				0
@@ -8971,7 +8971,7 @@ tests/test_adversarial_gateway_stress.py	693	693	1	13	51e9fb1c31ce	STAY	local-sc
 tests/test_adversarial_gateway_stress.py	704	704	1	10	95169a7185ce	STAY	local-scoped		0				0
 tests/test_adversarial_gateway_stress.py	713	713	1	11	1f96d28c32f6	STAY	local-scoped		0				0
 tests/test_adversarial_gateway_stress.py	739	739	1	8	f77849bf5cdb	STAY	local-scoped		0				0
-tests/test_adversarial_hardcode_lint.py	1	3	3	16	ed6e6361a073	STAY	ai-header		0				0
+tests/test_adversarial_hardcode_lint.py	1	3	3	16	115b935b30c6	STAY	ai-header		0				0
 tests/test_adversarial_hardcode_lint.py	4	11	7	64	1ec904076385	MIGRATE	narrative-rationale		0				0
 tests/test_adversarial_hardcode_lint.py	46	46	1	13	febe24a06c4a	STAY	local-scoped		0				0
 tests/test_adversarial_hardcode_lint.py	50	50	1	6	7375f8a35018	STAY	local-scoped		0				0
@@ -9141,7 +9141,7 @@ tests/test_adversarial_m3_challenger.py	388	388	1	2	5963ed198b93	STAY	local-scop
 tests/test_adversarial_m3_challenger.py	394	394	1	2	c7f4b5f7cfbc	STAY	local-scoped		0				0
 tests/test_adversarial_m3_challenger.py	416	416	1	10	424abc5addf9	STAY	local-scoped		0				0
 tests/test_adversarial_m3_challenger.py	419	419	1	11	09e793ff19fd	STAY	local-scoped		0				0
-tests/test_gateway_wallpaper_rust_e2e.py	1	4	4	32	07897dba91e3	STAY	ai-header		0				0
+tests/test_gateway_wallpaper_rust_e2e.py	1	4	4	32	e242e3e6c79a	STAY	ai-header		0				0
 tests/test_gateway_wallpaper_rust_e2e.py	5	13	8	51	d1639dc8aebb	MIGRATE	narrative-rationale		0				0
 tests/test_gateway_wallpaper_rust_e2e.py	39	39	1	3	c2ae5bfaa517	STAY	local-scoped		0				0
 tests/test_gateway_wallpaper_rust_e2e.py	47	47	1	5	85aa36bb15c0	STAY	local-scoped		0				0
@@ -9370,7 +9370,7 @@ tests/test_gateway_wallpaper_rust_e2e.py	1920	1920	1	18	d7a7dafc76c2	STAY	local-
 tests/test_gateway_wallpaper_rust_e2e.py	1926	1926	1	4	b4af99cad57a	STAY	local-scoped		0				0
 tests/test_gateway_wallpaper_rust_e2e.py	1930	1930	1	4	3b88e0dc00c1	STAY	local-scoped		0				0
 tests/test_gateway_wallpaper_rust_e2e.py	1935	1937	3	3	a286385f40ba	DROP	banner		0				0
-tests/test_hardcode_lint_parity.py	1	4	4	26	1dac2c811a0d	STAY	ai-header		0				0
+tests/test_hardcode_lint_parity.py	1	4	4	26	467dc98d3887	STAY	ai-header		0				0
 tests/test_hardcode_lint_parity.py	5	18	13	93	d769f8940ee2	MIGRATE	narrative-history		0				0
 tests/test_hardcode_lint_parity.py	34	34	1	3	c2ae5bfaa517	STAY	local-scoped		0				0
 tests/test_hardcode_lint_parity.py	40	40	1	4	189ffece42a7	STAY	local-scoped		0				0
@@ -9433,7 +9433,7 @@ tests/test_hardcode_lint_parity.py	560	560	1	12	fba22ec4cd97	STAY	local-scoped		
 tests/test_hardcode_lint_parity.py	563	563	1	5	40d4e7062a5e	STAY	local-scoped		0				0
 tests/test_hardcode_lint_parity.py	568	570	3	2	80a433250a45	DROP	banner		0				0
 tests/test_hardcode_lint_parity.py	573	573	1	8	f2bc6b62e3c0	STAY	local-scoped		0				0
-tests/test_native_static_hardening_e2e.py	1	4	4	28	35a1a8db2c88	STAY	ai-header		0				0
+tests/test_native_static_hardening_e2e.py	1	4	4	28	47a0ae06c89d	STAY	ai-header		0				0
 tests/test_native_static_hardening_e2e.py	5	12	7	52	290289b062ae	MIGRATE	narrative-rationale		0				0
 tests/test_native_static_hardening_e2e.py	30	30	1	3	6e2713bbf804	STAY	local-scoped		0				0
 tests/test_native_static_hardening_e2e.py	35	35	1	4	8e044d4252f5	STAY	local-scoped		0				0
@@ -10074,7 +10074,7 @@ tools/fix-token-input.ps1	48	48	1	4	1681a6e8bd94	STAY	inline-scoped		0				0
 tools/fix-token-input.ps1	52	52	1	5	d81cd945a3cb	STAY	local-scoped		0				0
 tools/generate-k3s-manifests.ps1	1	2	2	15	2d4540258129	STAY	ai-header		0				0
 tools/generate-k3s-manifests.ps1	26	26	1	19	59a57e92ca38	STAY	local-scoped		0				0
-tools/generate-k3s-manifests.sh	1	4	4	22	a17bc66db646	STAY	ai-header		0				0
+tools/generate-k3s-manifests.sh	1	4	4	22	65d7b082765f	STAY	ai-header		0				0
 tools/generate-k3s-manifests.sh	14	14	1	32	32f0ee00c75e	STAY	inline-scoped		0				0
 tools/generate-k3s-manifests.sh	15	15	1	6	257c6937d527	STAY	inline-scoped		0				0
 tools/generate-k3s-manifests.sh	30	30	1	4	bbf39936c1f8	STAY	inline-scoped		0				0
@@ -10305,12 +10305,12 @@ tools/native/mios-edge-status/src/main.rs	788	788	1	15	97dcd29bbab6	STAY	local-s
 tools/native/mios-edge-status/src/main.rs	892	893	2	14	2fb42d90ada4	STAY	local-scoped		0				0
 tools/native/mios-edge-status/src/main.rs	1052	1052	1	11	4a2fb8be1a49	STAY	local-scoped		0				0
 tools/native/mios-gen/Cargo.toml	1	2	2	25	17e34186eecc	STAY	ai-header		0				0
-tools/native/mios-gen/src/adr_index.rs	1	2	2	16	b73ec71286ca	STAY	ai-header		0				0
+tools/native/mios-gen/src/adr_index.rs	1	2	2	16	1deccf298af9	STAY	ai-header		0				0
 tools/native/mios-gen/src/adr_index.rs	203	203	1	5	5fb54b6ea574	STAY	local-scoped		0				0
 tools/native/mios-gen/src/adr_index.rs	213	213	1	6	7032e0a4a226	STAY	local-scoped		0				0
 tools/native/mios-gen/src/adr_index.rs	223	223	1	11	f398a13e4003	STAY	local-scoped		0				0
 tools/native/mios-gen/src/adr_index.rs	252	252	1	12	12d0b46f3950	STAY	local-scoped		0				0
-tools/native/mios-gen/src/ai_manifest.rs	1	2	2	19	9e68e70e43ce	STAY	ai-header		0				0
+tools/native/mios-gen/src/ai_manifest.rs	1	2	2	19	3192c96d91fa	STAY	ai-header		0				0
 tools/native/mios-gen/src/ai_manifest.rs	125	126	2	21	13614580150d	STAY	local-scoped		0				0
 tools/native/mios-gen/src/ai_manifest.rs	565	565	1	9	d154ef60513f	STAY	local-scoped		0				0
 tools/native/mios-gen/src/ai_manifest.rs	591	591	1	6	4a1b30258fd3	STAY	local-scoped		0				0
@@ -10440,7 +10440,7 @@ tools/native/mios-gen/src/main.rs	401	401	1	7	5d728c48e379	STAY	local-scoped		0	
 tools/native/mios-gen/src/main.rs	405	405	1	5	919b0aa7ec45	STAY	local-scoped		0				0
 tools/native/mios-gen/src/main.rs	409	409	1	6	d05f96bd94ab	STAY	local-scoped		0				0
 tools/native/mios-gen/src/main.rs	1047	1047	1	9	55d8b2b81dc3	STAY	local-scoped		0				0
-tools/native/mios-gen/src/metal_vs_hosted.rs	1	2	2	14	73443b45e901	STAY	ai-header		0				0
+tools/native/mios-gen/src/metal_vs_hosted.rs	1	2	2	14	39ac1281b70b	STAY	ai-header		0				0
 tools/native/mios-gen/src/names_registry.rs	1	1	1	9	b5a77632845a	STAY	ai-header		0				0
 tools/native/mios-gen/src/names_registry.rs	28	32	5	40	5aa621a5600f	STAY	midsize-why		0				0
 tools/native/mios-gen/src/names_registry.rs	65	67	3	34	37843012f320	STAY	midsize-why		0				0
@@ -10484,14 +10484,14 @@ tools/native/mios-gen/src/render_globals.rs	526	526	1	2	6067e470d9fe	STAY	local-
 tools/native/mios-gen/src/render_globals.rs	613	613	1	2	40ba30c41982	STAY	inline-scoped		0				0
 tools/native/mios-gen/src/render_globals.rs	650	650	1	2	40ba30c41982	STAY	inline-scoped		0				0
 tools/native/mios-gen/src/render_globals.rs	675	675	1	3	a05a57ed5a6a	STAY	inline-scoped		0				0
-tools/native/mios-gen/src/render_manpages.rs	1	3	3	17	9a501ac2714f	STAY	ai-header		0				0
+tools/native/mios-gen/src/render_manpages.rs	1	3	3	17	23bbf3b8efff	STAY	ai-header		0				0
 tools/native/mios-gen/src/render_manpages.rs	112	112	1	2	1a33b035a54a	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_manpages.rs	145	145	1	4	d8c28f9197a4	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_manpages.rs	190	190	1	2	c112fbd5c283	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_manpages.rs	219	219	1	2	acfba1f27725	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_manpages.rs	241	241	1	5	05be5109c74e	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_manpages.rs	331	331	1	6	f2f2919b15ef	STAY	local-scoped		0				0
-tools/native/mios-gen/src/render_ports.rs	1	2	2	20	9d0804c4baf9	STAY	ai-header		0				0
+tools/native/mios-gen/src/render_ports.rs	1	2	2	20	390f87c9af78	STAY	ai-header		0				0
 tools/native/mios-gen/src/render_ports.rs	113	113	1	8	cd2d64f64a87	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_ports.rs	170	170	1	7	856977f1f093	STAY	local-scoped		0				0
 tools/native/mios-gen/src/render_ports.rs	182	182	1	6	7bb83f5e3858	STAY	local-scoped		0				0
@@ -10514,7 +10514,7 @@ tools/native/mios-gen/src/roadmap_index.rs	657	657	1	2	33ec975d56b1	DROP	banner	
 tools/native/mios-gen/src/roadmap_index.rs	689	689	1	2	4493cd0a3169	DROP	banner		0				0
 tools/native/mios-gen/src/roadmap_index.rs	710	710	1	2	c5833b6765ba	DROP	banner		0				0
 tools/native/mios-gen/src/roadmap_index.rs	713	713	1	2	ba283f37be39	STAY	local-scoped		0				0
-tools/native/mios-gen/src/standardize_docs.rs	1	3	3	22	6ead3ffde4f3	STAY	ai-header		0				0
+tools/native/mios-gen/src/standardize_docs.rs	1	3	3	22	41f13a9c54a4	STAY	ai-header		0				0
 tools/native/mios-gen/src/standardize_docs.rs	51	51	1	2	6d5ac73044ca	STAY	inline-scoped		0				0
 tools/native/mios-gen/src/standardize_docs.rs	65	65	1	2	f902be92f716	STAY	inline-scoped		0				0
 tools/native/mios-gen/src/standardize_docs.rs	66	66	1	2	029454b061ef	STAY	inline-scoped		0				0
@@ -10554,7 +10554,7 @@ tools/native/mios-gen/tests/adr_index.rs	134	134	1	3	f035d5e6a441	STAY	local-sco
 tools/native/mios-gen/tests/adr_index.rs	165	165	1	3	3fe6aee60139	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/adr_index.rs	196	196	1	6	a2aa63e935a5	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/adr_index.rs	227	227	1	6	d4dcfae8bfe7	STAY	local-scoped		0				0
-tools/native/mios-gen/tests/ai_manifest.rs	1	3	3	16	4cb2e40f2a4a	STAY	ai-header		0				0
+tools/native/mios-gen/tests/ai_manifest.rs	1	3	3	15	bfd6c62f2da6	STAY	ai-header		0				0
 tools/native/mios-gen/tests/ai_manifest.rs	57	57	1	7	765ee6c7998a	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/ai_manifest.rs	82	82	1	5	2e9af35dc322	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/ai_manifest.rs	113	113	1	13	f0a3682f5e80	STAY	local-scoped		0				0
@@ -10633,7 +10633,7 @@ tools/native/mios-gen/tests/render_manpages.rs	69	69	1	10	7bdc8724149a	STAY	loca
 tools/native/mios-gen/tests/render_manpages.rs	99	99	1	6	8952bb1ae726	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/render_manpages.rs	124	124	1	10	e86c530c4251	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/render_manpages.rs	163	163	1	7	15766a9a00e4	STAY	local-scoped		0				0
-tools/native/mios-gen/tests/render_ports.rs	1	3	3	17	e8e2ccb15398	STAY	ai-header		0				0
+tools/native/mios-gen/tests/render_ports.rs	1	3	3	16	886803dab691	STAY	ai-header		0				0
 tools/native/mios-gen/tests/render_ports.rs	49	49	1	6	9b7674c368a2	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/render_ports.rs	69	69	1	5	61edb195bc8b	STAY	local-scoped		0				0
 tools/native/mios-gen/tests/render_ports.rs	86	86	1	6	807d454ba466	STAY	local-scoped		0				0
@@ -11492,17 +11492,17 @@ tools/test_drift-checks.py	565	566	2	20	de2d33b38e3c	DROP	generated-artifact		0	
 tools/test_drift-checks.py	585	585	1	13	1527bfc2b17c	DROP	generated-artifact		0				0
 tools/test_drift-checks.py	598	599	2	18	83ce08731e05	DROP	generated-artifact		0				0
 tools/test_drift-checks.py	613	613	1	10	406ca479948f	DROP	generated-artifact		0				0
-tools/test_generate-gate-index.py	1	3	3	21	a6287f2c8f1f	DROP	generated-artifact		0				0
+tools/test_generate-gate-index.py	1	3	3	21	d4d0f0934c2e	DROP	generated-artifact		0				0
 tools/test_generate-gate-index.py	4	8	4	42	f5774b9fc1f0	DROP	generated-artifact		0				0
-tools/test_generate-gate-index.py	71	71	1	9	23090f621682	DROP	generated-artifact		0				0
+tools/test_generate-gate-index.py	81	81	1	9	23090f621682	DROP	generated-artifact		0				0
 tools/test_generate-mini-vs-hosted.py	345	347	3	30	60a4a1ba90ee	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/tools.md	mios-src:60a4a1ba90ee	30	1
-tools/test_generator_check_agrees_with_write.py	1	3	3	33	075d56151287	DROP	generated-artifact		0	usr/share/doc/mios/manual/_harvest/tools.md	mios-src:075d56151287	33	0
+tools/test_generator_check_agrees_with_write.py	1	3	3	33	c250e967aab7	DROP	generated-artifact		0				0
 tools/test_generator_check_agrees_with_write.py	4	21	17	142	7cb7a161c206	DROP	generated-artifact		0				0
-tools/test_generator_check_agrees_with_write.py	32	32	1	10	6b18eebd2b1e	DROP	generated-artifact		0				0
-tools/test_generator_check_agrees_with_write.py	46	46	1	10	38e0d7ed7455	DROP	generated-artifact		0				0
-tools/test_generator_check_agrees_with_write.py	66	66	1	14	8ebad5caf9dc	DROP	generated-artifact		0				0
-tools/test_generator_check_agrees_with_write.py	87	87	1	10	b2803a8d2b8e	DROP	generated-artifact		0				0
-tools/test_generator_check_agrees_with_write.py	93	96	4	45	271bd5e07e0f	DROP	generated-artifact		0				0
+tools/test_generator_check_agrees_with_write.py	34	34	1	10	6b18eebd2b1e	DROP	generated-artifact		0				0
+tools/test_generator_check_agrees_with_write.py	70	70	1	12	731099217f2d	DROP	generated-artifact		0				0
+tools/test_generator_check_agrees_with_write.py	89	89	1	10	38e0d7ed7455	DROP	generated-artifact		0				0
+tools/test_generator_check_agrees_with_write.py	104	104	1	14	8ebad5caf9dc	DROP	generated-artifact		0				0
+tools/test_generator_check_agrees_with_write.py	135	138	4	45	271bd5e07e0f	DROP	generated-artifact		0				0
 tools/test_mios_tracked.py	1	4	4	28	26ba0359172c	DROP	generated-artifact		0				0
 tools/test_mios_tracked.py	5	5	1	11	ee6dfe8e20ce	DROP	generated-artifact		0				0
 tools/test_mios_tracked.py	47	47	1	13	5f8bc64adeda	DROP	generated-artifact		0				0
@@ -16206,7 +16206,7 @@ usr/lib/mios/mios_toml.py	872	882	11	100	133a719d6497	MIGRATE	narrative-history	
 usr/lib/mios/mios_toml.py	907	907	1	6	257a4e420b6c	STAY	local-scoped		0				0
 usr/lib/mios/mios_toml.py	930	930	1	9	b90df500866e	STAY	local-scoped		0				0
 usr/lib/mios/mios_toml.py	954	975	22	158	0b6e10f68be6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:0b6e10f68be6	158	0
-usr/lib/mios/mios_translate.py	1	2	2	19	7d9b8ff1afce	STAY	ai-header		0				0
+usr/lib/mios/mios_translate.py	1	2	2	19	0fdf39de8a03	STAY	ai-header		0				0
 usr/lib/mios/mios_translate.py	3	8	5	41	8a0e1bc2b4b1	STAY	midsize-why		0				0
 usr/lib/mios/mios_translate.py	29	29	1	9	a218a07707b4	STAY	local-scoped		0				0
 usr/lib/mios/mios_translate.py	36	36	1	11	3dc02e19b1c7	STAY	local-scoped		0				0
@@ -24314,7 +24314,7 @@ usr/share/mios/templates/rust-crate/Cargo.toml	1	2	2	9	b70a1b59d113	STAY	ai-head
 usr/share/mios/templates/rust-crate/src/main.rs	1	2	2	10	c187fd76aa99	STAY	ai-header		0				0
 usr/share/mios/tests/test-a2a-loopback.sh	1	3	3	18	44450be1c331	STAY	ai-header		0				0
 usr/share/mios/tests/test-role-apply.sh	1	3	3	16	3f6f7c278903	STAY	ai-header		0				0
-usr/share/mios/tmux/blink-mobile-keys.tmux.conf	1	2	2	22	7ef7e994fe6f	STAY	ai-header		0				0
+usr/share/mios/tmux/blink-mobile-keys.tmux.conf	1	2	2	22	74dd32eb7ebc	STAY	ai-header		0				0
 usr/share/mios/tmux/blink-mobile-keys.tmux.conf	4	6	3	11	372ee5b1bb63	STAY	midsize-why		0				0
 usr/share/mios/tmux/blink-mobile-keys.tmux.conf	8	9	2	20	0f532bcc8014	STAY	local-scoped		0				0
 usr/share/mios/tmux/blink-mobile-keys.tmux.conf	13	15	3	28	22a5efa8a4d6	STAY	midsize-why		0				0
@@ -24422,7 +24422,7 @@ usr/share/mios/windows/mios-ai-node.ps1	443	443	1	10	72e3b406eed9	STAY	local-sco
 usr/share/mios/windows/mios-ai-node.ps1	449	449	1	3	f2842dd42c29	STAY	local-scoped		0				0
 usr/share/mios/windows/mios-ai-node.ps1	454	454	1	3	be63a36bd74c	STAY	local-scoped		0				0
 usr/share/mios/windows/mios-ai-node.ps1	463	463	1	1	769bb2605d47	STAY	local-scoped		0				0
-usr/share/mios/windows/mios-ai.ps1	1	2	2	18	61d012ab345c	STAY	ai-header		0				0
+usr/share/mios/windows/mios-ai.ps1	1	2	2	17	d1d295da1194	STAY	ai-header		0				0
 usr/share/mios/windows/mios-claude-mcp-setup.ps1	1	2	2	27	aa0b21868c19	STAY	ai-header		0				0
 usr/share/mios/windows/mios-claude-mcp-setup.ps1	3	3	1	0	e3b0c44298fc	STAY	inline-scoped		0				0
 usr/share/mios/windows/mios-claude-mcp-setup.ps1	21	21	1	0	62b67e1f685b	DROP	banner		0				0
@@ -24497,7 +24497,7 @@ usr/share/mios/windows/mios-native-client-setup.ps1	566	566	1	12	533383c75d40	ST
 usr/share/mios/windows/mios-native-client-setup.ps1	592	593	2	23	e7b67c291852	STAY	local-scoped		0				0
 usr/share/mios/windows/mios-native-client-setup.ps1	614	614	1	10	90ab2008e607	STAY	inline-scoped		0				0
 usr/share/mios/windows/mios-native-client-setup.ps1	645	646	2	23	e0ba400c792d	STAY	local-scoped		0				0
-usr/share/mios/windows/mios-native-shell.ps1	1	2	2	23	f706e5f06792	STAY	ai-header		0				0
+usr/share/mios/windows/mios-native-shell.ps1	1	2	2	22	72fe07c6f86a	STAY	ai-header		0				0
 usr/share/mios/windows/mios-native-shell.ps1	13	13	1	4	78c2b1bbbd75	STAY	local-scoped		0				0
 usr/share/mios/windows/mios-native-shell.ps1	28	28	1	11	d953b8b64f91	STAY	local-scoped		0				0
 usr/share/mios/windows/mios-native-shell.ps1	32	32	1	12	702d48d21585	STAY	local-scoped		0				0

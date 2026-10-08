@@ -1,5 +1,5 @@
 // AI-hint: SSOT projector and verifier for AI repository and tool manifests (ADR-0021 gen category).
-// AI-related: tools/generate-ai-manifest.py, automation/manifest.json, tools/manifest.json, specs/manifest.json
+// AI-related: tools/native/mios-gen/src/ai_manifest.rs, automation/manifest.json, tools/manifest.json, specs/manifest.json
 
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;

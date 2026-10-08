@@ -1,5 +1,5 @@
 # AI-hint: Keep MiOS terminal and agent verbs in the invoking PowerShell terminal while retaining the existing Windows management dispatcher.
-# AI-related: mios-native-entry.ps1, mios-native-client-setup.ps1, Get-MiOS.ps1
+# AI-related: usr/share/mios/windows/mios-native-client-setup.ps1, Get-MiOS.ps1
 param([string]$BinDirectory = $PSScriptRoot)
 
 $entry = Join-Path $BinDirectory 'mios-native-entry.ps1'

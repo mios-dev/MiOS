@@ -1,6 +1,6 @@
 // AI-hint: Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: usr/share/mios/mios.toml, tools/render-manpages.py, automation/98-drift-checks.sh
+// AI-related: usr/share/mios/mios.toml, tools/native/mios-gen/src/render_manpages.rs, automation/98-drift-checks.sh
 
 use std::collections::BTreeMap;
 use std::fs;
