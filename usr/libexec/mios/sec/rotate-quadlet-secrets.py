@@ -132,7 +132,8 @@ def main() -> int:
     if args.init:
         secrets_map = hardener.init_secrets_env(secrets_file=args.secrets_file)
         if args.json:
-            sys.stdout.write(json.dumps({"status": "ok", "secrets_file": args.secrets_file, "keys": list(secrets_map.keys())}, indent=2) + "\n")
+            # A count, like the text receipt: the initializer's result never reaches output.
+            sys.stdout.write(json.dumps({"status": "ok", "secrets_file": args.secrets_file, "key_count": len(secrets_map)}, indent=2) + "\n")
         else:
             sys.stdout.write(f"[secrets-init] Initialized {args.secrets_file} with {len(secrets_map)} keys (mode 0600)\n")
         return 0
