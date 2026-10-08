@@ -111,11 +111,16 @@ else
     mios_skip "aleasto/waydroid COPR already present"
 fi
 
-if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:nett00n:hyprland.repo ]; then
-    enable_copr "nett00n/hyprland" "fedora-${_fver}-x86_64" || mios_warn "Nett00n/hyprland COPR enable failed"
-else
-    mios_skip "nett00n/hyprland COPR already present"
+# Project required dependency repositories natively, without a COPR plugin.
+_resolver="${MIOS_RESOLVER_BIN:-/usr/bin/mios-resolver}"
+[[ -x "$_resolver" ]] || _resolver=/usr/libexec/mios/mios-resolver
+_repo_tmp="$(mktemp "${REPO_DIR}/.mios-external.XXXXXX")"
+if ! "$_resolver" --emit=repos > "$_repo_tmp"; then
+    rm -f "$_repo_tmp"
+    die "Native external repository projection failed"
 fi
+chmod 0644 "$_repo_tmp"
+mv -f "$_repo_tmp" "${REPO_DIR}/mios-external.repo"
 
 if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
     mios_log "Enabling Tailscale official repo"
@@ -136,7 +141,7 @@ fi
 
 mios_log "External repos enabled; refreshing metadata"
 if ! $DNF_BIN "${DNF_SETOPT[@]}" makecache -y 2>&1 | tail -20; then
-    mios_warn "Dnf makecache returned non-zero; continuing"
+    die "Dnf metadata refresh failed for the selected repositories"
 fi
 
 mios_log "Installing CrowdSec packages"

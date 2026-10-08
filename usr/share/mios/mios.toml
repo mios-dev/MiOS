@@ -1803,6 +1803,12 @@ source_exempt = ["MiOS-iGPU-Server.exe"]
 # tools/sign-powershell.ps1 takes -CertPassword as a SecureString, or prompts.
 signing_cert = ""
 
+[repos.external.hyprland]
+enabled = true
+name = "MiOS Hyprland and Quickshell dependencies (nett00n COPR)"
+baseurl = "https://download.copr.fedorainfracloud.org/results/nett00n/hyprland/fedora-$releasever-$basearch/"
+gpgkey = "https://download.copr.fedorainfracloud.org/results/nett00n/hyprland/pubkey.gpg"
+
 [repos.fedora]
 name = "Fedora {ver} - $basearch"
 metalink = "https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch"
@@ -1898,6 +1904,37 @@ tag_key = "image.dev_local_tag"
 [build.native]
 workspaces = ["tools/native", "src/mios-rs"]
 windows_only = ["mios-launch", "mios-wallpaperd"]
+# Shared generators, gates, CLIs and services must produce verified static releases on both platforms.
+windows_shared = [
+  "generate-names-registry",
+  "mios-ai-config",
+  "mios-aiplane-lint",
+  "mios-bake-plan",
+  "mios-browser",
+  "mios-comment-lex",
+  "mios-drift-runner",
+  "mios-edge-status",
+  "mios-hardcode-lint",
+  "mios-render-quadlets",
+  "mios-resolver",
+  "mios-size-ceiling",
+  "mios-ssot-lint",
+  "mios-task",
+  "mios-toml-get",
+  "mios-template-compile",
+  "mios-template-conform",
+  "mios-toolchain-pin",
+  "mios-unit-gen",
+  "mios-version-check",
+  "xtask",
+  "mios-gate",
+  "mios-probe",
+  "miosd",
+  "mios-install",
+  "mios-gen",
+  "mios-agent-relay",
+  "mios-node",
+]
 
 [build.native.linux]
 jobs = 2
@@ -2414,6 +2451,8 @@ max_exempt = 0
 
 [security.sigstore]
 cosign_major = 2
+cosign_version = "v2.6.4"
+cosign_release_url = "https://github.com/sigstore/cosign/releases/download"
 policy_mode = "insecureAcceptEverything"
 allowed_identities = []
 
@@ -6808,7 +6847,7 @@ pkgs = [
     "toolbox",
     "kubectl",
     "helm",
-    "sigstore-cosign",
+    # cosign is installed and checksum-verified by stage 49 from security.sigstore.
 ]
 
 [packages.build-toolchain]
@@ -6942,7 +6981,7 @@ pkgs = [
     "nftables",
     "policycoreutils",
     "setools-console",
-    "sigstore-cosign",
+    # cosign is installed and checksum-verified by stage 49 from security.sigstore.
     "iptables-legacy",
 ]
 
@@ -8037,6 +8076,7 @@ core = [
   "code.forgejo.org/forgejo/runner:latest",
   "codeberg.org/forgejo/forgejo:latest",
   "docker.io/adguard/adguardhome:latest",
+  "docker.io/headscale/headscale:latest",
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
@@ -9536,7 +9576,7 @@ User = "${MIOS_HEADSCALE_UID:-833}"
 Volume = [
   "/etc/headscale:/etc/headscale:Z",
   "/var/lib/headscale:/var/lib/headscale:Z",
-  "/var/run/headscale:/var/run/headscale:Z"
+  "/run/headscale:/var/run/headscale:Z"
 ]
 
 [containers.mios-headscale.Install]
@@ -12054,7 +12094,7 @@ list = [
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
   { ordinal = "04", name = "local-rpm-mirror", script = "04-local-rpm-mirror.sh", fatal = true, apply_class = "universal" },
   { ordinal = "05", name = "repos", script = "05-repos.sh", fatal = true, apply_class = "universal" },
-  { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = true, apply_class = "universal" },
   { ordinal = "07", name = "kernel", script = "07-kernel.sh", fatal = true, apply_class = "universal" },
   { ordinal = "10", name = "locale-theme", script = "10-locale-theme.sh", fatal = true, apply_class = "universal" },
   { ordinal = "11", name = "user", script = "11-user.sh", fatal = true, apply_class = "universal" },
@@ -12089,7 +12129,7 @@ list = [
   { ordinal = "46", name = "sshd-port", script = "46-sshd-port.sh", fatal = true, apply_class = "universal" },
   { ordinal = "47", name = "init-service", script = "47-init-service.sh", fatal = true, apply_class = "universal" },
   { ordinal = "48", name = "mios-dropin-fanout", script = "48-mios-dropin-fanout.sh", fatal = true, apply_class = "universal" },
-  { ordinal = "49", name = "cosign-policy", script = "49-cosign-policy.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "49", name = "cosign-policy", script = "49-cosign-policy.sh", fatal = true, apply_class = "universal" },
   { ordinal = "50", name = "uupd-installer", script = "50-uupd-installer.sh", fatal = false, apply_class = "universal" },
   { ordinal = "51", name = "hardening", script = "51-hardening.sh", fatal = true, apply_class = "universal" },
   { ordinal = "52", name = "apply-boot-fixes", script = "52-apply-boot-fixes.sh", fatal = true, apply_class = "universal" },
@@ -12103,8 +12143,8 @@ list = [
   { ordinal = "60", name = "flatpak-env", script = "60-flatpak-env.sh", fatal = true, apply_class = "universal" },
   { ordinal = "61", name = "flatpak-bake", script = "61-flatpak-bake.sh", fatal = false, apply_class = "universal" },
   { ordinal = "62", name = "oh-my-posh", script = "62-oh-my-posh.sh", fatal = false, apply_class = "universal" },
-  { ordinal = "65", name = "bake-hyprland", script = "65-bake-hyprland.sh", fatal = false, apply_class = "universal" },
-  { ordinal = "66", name = "bake-quickshell", script = "66-bake-quickshell.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "65", name = "bake-hyprland", script = "65-bake-hyprland.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "66", name = "bake-quickshell", script = "66-bake-quickshell.sh", fatal = true, apply_class = "universal" },
   { ordinal = "67", name = "bake-surfer", script = "67-bake-surfer.sh", fatal = false, apply_class = "universal" },
   { ordinal = "68", name = "bake-kvmfr", script = "68-bake-kvmfr.sh", fatal = false, apply_class = "universal" },
   { ordinal = "69", name = "bake-lookingglass-client", script = "69-bake-lookingglass-client.sh", fatal = false, apply_class = "universal" },

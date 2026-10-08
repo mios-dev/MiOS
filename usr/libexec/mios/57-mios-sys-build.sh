@@ -29,6 +29,12 @@ log "Base image configured: $BASE"
 log "Service base image configured: $SERVICE_BASE"
 log "Target storage root: $STORE"
 
+# Resolve all service build inputs once, in Rust, before any image mutation.
+_resolver="${MIOS_RESOLVER_BIN:-/usr/bin/mios-resolver}"
+[[ -x "$_resolver" ]] || _resolver=/usr/libexec/mios/mios-resolver
+_inputs="$("$_resolver" --emit=build-shell)" || { log "ERROR: native service build SSOT resolution failed"; exit 1; }
+eval "$_inputs"
+
 install -d -m 0700 "$SCRATCH"
 install -d -m 0700 "$SCRATCH/tmp" "$SCRATCH/run"
 CONF="$SCRATCH/storage.conf"
@@ -53,7 +59,6 @@ location = "docker.io"
 location = "mirror.gcr.io"
 RC
 
-SEARXNG_REF="$(python3 -c "import mios_toml; print(mios_toml.load_merged().get('build', {}).get('bake_refs', {}).get('searxng', 'master'))" 2>/dev/null || echo "master")"
 
 build_image_with_retry() {
     local target_tag="$1"
@@ -102,11 +107,9 @@ build_image_with_retry() {
 }
 
 log "Building localhost/mios-base"
-_mcp_packages="$(python3 -c 'import mios_toml; p=mios_toml.load_merged()["packages"]; print(" ".join(dict.fromkeys(p["mcp"]["pkgs"] + p["agent_cli"]["pkgs"])))')"
-[[ -n "$_mcp_packages" ]] || { log "ERROR: [packages.mcp].pkgs is empty"; exit 1; }
 build_image_with_retry "localhost/mios-base:latest" "/usr/share/mios/base" \
   --build-arg MIOS_BASE_IMAGE="$BASE" \
-  --build-arg "MIOS_MCP_PACKAGES=$_mcp_packages" --build-context mios=/
+  --build-arg "MIOS_MCP_PACKAGES=${MIOS_MCP_PACKAGES:?SSOT packages unresolved}" --build-context mios=/
 
 if [[ "${1:-}" == "--base-only" ]]; then
     exit 0
@@ -124,15 +127,9 @@ build_image_with_retry "localhost/mios-cuda" "/usr/share/mios/cuda" \
 # localhost/mios-piper bakes the [services.piper] voice (Law 12); every build
 # arg comes from the resolver, and an empty one fails the bake.
 log "Building localhost/mios-piper"
-_piper_env="$(PYTHONPATH="/usr/lib/mios:${SCRIPT_DIR}/../../lib/mios${PYTHONPATH:+:$PYTHONPATH}" python3 -c '
-import mios_toml
-e = mios_toml.emit_exports()
-for k in ("MIOS_PIPER_BASE", "MIOS_PIPER_VERSION", "MIOS_PIPER_VOICE", "MIOS_PIPER_UID", "MIOS_PIPER_GID"):
-    print("%s=%s" % (k, e.get(k, "")))
-')"
 _piper_args=()
 for _k in MIOS_PIPER_BASE MIOS_PIPER_VERSION MIOS_PIPER_VOICE MIOS_PIPER_UID MIOS_PIPER_GID; do
-    _v="$(printf '%s\n' "$_piper_env" | sed -n "s/^${_k}=//p")"
+    _v="${!_k}"
     if [[ -z "$_v" ]]; then
         log "ERROR: ${_k} resolved empty; set [services.piper] in mios.toml"
         exit 1

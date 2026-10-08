@@ -54,6 +54,8 @@ fn default_windows_driver() -> String {
 struct NativeConfig {
     workspaces: Vec<String>,
     windows_only: Vec<String>,
+    #[serde(default)]
+    windows_shared: Vec<String>,
     linux: NativeLinux,
     #[serde(default)]
     #[allow(dead_code)]
@@ -358,7 +360,26 @@ fn native_config_document(doc: &toml::Value) -> Result<NativeConfig, String> {
             ));
         }
     }
+    for binary in &config.windows_shared {
+        if !seen.contains(binary) || !windows.insert(binary) {
+            return Err(format!(
+                "windows_shared contains unknown, duplicate or Windows-only native binary {binary}"
+            ));
+        }
+    }
     Ok(config)
+}
+
+fn supports_platform(config: &NativeConfig, binary: &str, platform: &str) -> bool {
+    match platform {
+        "linux" => !config.windows_only.iter().any(|name| name == binary),
+        "windows" => config
+            .windows_only
+            .iter()
+            .chain(&config.windows_shared)
+            .any(|name| name == binary),
+        _ => false,
+    }
 }
 
 fn plan_native_metadata(
@@ -397,12 +418,7 @@ fn plan_native_metadata(
                             target.name
                         )
                     })?;
-                let target_platform = if config.windows_only.contains(&target.name) {
-                    "windows"
-                } else {
-                    "linux"
-                };
-                if platform != target_platform {
+                if !supports_platform(config, &target.name, platform) {
                     continue;
                 }
                 plan.push(NativeTarget {
@@ -413,7 +429,7 @@ fn plan_native_metadata(
                     install_dir: group.install_dir.clone(),
                     expose_bin: group.expose_bin,
                     compat_dirs: group.compat_dirs.clone(),
-                    platform: target_platform.into(),
+                    platform: platform.into(),
                 });
             }
         }
@@ -643,6 +659,28 @@ compat_dirs = []
         assert_eq!(plan[0].binary, "wallpaper");
         assert_eq!(plan[0].category, "daemons");
     }
+    #[test]
+    fn shared_executables_are_required_on_both_platforms() {
+        let catalog = CATALOG.replace(
+            "windows_only = [\"wallpaper\"]",
+            "windows_only = [\"wallpaper\"]\nwindows_shared = [\"tool\"]",
+        );
+        let config = native_config(&catalog).unwrap();
+        let windows = plan_native_metadata(&config, &all(), "windows").unwrap();
+        assert_eq!(windows.len(), 2);
+        assert!(windows.iter().any(|target| target.binary == "tool"));
+        let linux = plan_native_metadata(&config, &all(), "linux").unwrap();
+        assert!(linux.iter().any(|target| target.binary == "tool"));
+        assert!(!linux.iter().any(|target| target.binary == "wallpaper"));
+        for invalid in ["missing", "wallpaper", "tool\", \"tool"] {
+            assert!(native_config(&catalog.replace(
+                "windows_shared = [\"tool\"]",
+                &format!("windows_shared = [\"{invalid}\"]")
+            ))
+            .is_err());
+        }
+    }
+
     #[test]
     fn duplicate_category_membership_fails() {
         assert!(

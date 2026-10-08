@@ -584,19 +584,7 @@ check_pod_quadlets() {
             return 0
         fi
     fi
-    _need_python || return 0
-    local gen="$ROOT/tools/generate-pod-quadlets.py"
-    if [[ ! -f "$gen" ]]; then
-        _violation "tools/generate-pod-quadlets.py absent -- a tracked deliverable is missing, so this check cannot run"
-        return
-    fi
-    # MIOS_CRAWL_CAMOUFOX=True, ...). generate-pod-quadlets.py resolves
-    if env -i PATH="$PATH" HOME="${HOME:-/root}" LANG="${LANG:-C.UTF-8}" \
-            MIOS_ROOT="$ROOT" "$PYTHON" "$gen" --check; then
-        echo "[98-drift-checks]   Quadlet units in sync with mios.toml SSOT"
-    else
-        _violation "Quadlet unit(s) (.pod, .container, .network, .volume) STALE vs mios.toml SSOT -- regenerate with tools/generate-pod-quadlets.py"
-    fi
+    _violation "Native mios-gen is required for the Quadlet projection check; install the SSOT release catalog"
 }
 
 check_egress_firewall() {
