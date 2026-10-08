@@ -1555,6 +1555,8 @@
             <input type="text" id="f-portal-pass" data-key="portal.password" placeholder="(inherits mios)">
             <label for="f-portal-ttl">session_ttl (signed-cookie lifetime, seconds)</label>
             <input type="text" id="f-portal-ttl" data-key="portal.session_ttl" data-type="int" placeholder="604800">
+            <label for="f-portal-kdf">session_kdf_iterations (PBKDF2 work factor, minimum 600000; changes require login)</label>
+            <input type="text" id="f-portal-kdf" data-key="portal.session_kdf_iterations" data-type="int" placeholder="600000">
             <label for="f-portal-secret">secret (empty = derive the cookie-HMAC key from the password)</label>
             <input type="text" id="f-portal-secret" data-key="portal.secret" placeholder="(empty — derive from password)">
           </fieldset>

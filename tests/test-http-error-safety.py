@@ -4,6 +4,9 @@
 """No service startup, browser, model, database server or network is invoked."""
 import ast
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -201,6 +204,72 @@ class HttpErrorSafety(unittest.IsolatedAsyncioTestCase):
                                              "[Agent Max Steps Reached]" if outcome == "max_steps" else "answer")
                         if outcome == "error":
                             self.assertIs(scope["log"].error.call_args.args[1], failure)
+
+
+class PortalSessionTests(unittest.TestCase):
+    """Execute actual session settings/functions without importing service dependencies."""
+
+    def sessions(self, config=None, environment=None):
+        tree = ast.parse((ROOT / PORTAL).read_text(encoding="utf-8"))
+        assignments = {"PORTAL_PASSWORD", "PORTAL_USER", "PORTAL_SESSION_TTL",
+                       "_portal_secret_cfg", "_PORTAL_SECRET"}
+        functions = {"_pcfg", "_portal_session_key", "_portal_make_token", "_portal_token_ok"}
+        nodes = [node for node in tree.body if
+                 (isinstance(node, ast.FunctionDef) and node.name in functions) or
+                 (isinstance(node, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id in assignments
+                     for target in node.targets))]
+        scope = {"os": os, "hashlib": hashlib, "hmac": hmac, "base64": base64,
+                 "time": time, "Optional": __import__("typing").Optional,
+                 "_PORTAL_TOML": {"portal": config or {}, "identity": {"default_password": "test-password"}}}
+        with patch.dict(os.environ, environment or {}, clear=True):
+            exec(compile(ast.Module(nodes, type_ignores=[]), PORTAL, "exec"), scope)
+        return scope
+
+    def test_password_key_uses_stretched_derivation(self):
+        expected = hashlib.pbkdf2_hmac("sha256", b"test-password", b"mios-portal-session|v2", 600000)
+        with patch.object(hashlib, "pbkdf2_hmac", wraps=hashlib.pbkdf2_hmac) as derive:
+            scope = self.sessions()
+        self.assertEqual(scope["_PORTAL_SECRET"], expected)
+        derive.assert_called_once_with("sha256", b"test-password", b"mios-portal-session|v2", 600000)
+
+    def test_worker_restart_rotation_and_legacy_rejection(self):
+        first, second = self.sessions(), self.sessions()
+        token = first["_portal_make_token"]("mios")
+        self.assertTrue(second["_portal_token_ok"](token))
+        changed = self.sessions({"password": "rotated-password"})
+        self.assertFalse(changed["_portal_token_ok"](token))
+        body = token.partition(".")[0]
+        legacy_key = hashlib.sha256(b"mios-portal-session|test-password").digest()
+        legacy = body + "." + hmac.new(legacy_key, body.encode("ascii"), hashlib.sha256).hexdigest()[:32]
+        self.assertFalse(second["_portal_token_ok"](legacy))
+        self.assertFalse(second["_portal_token_ok"](token[:-1] + ("0" if token[-1] != "0" else "1")))
+        with patch.object(time, "time", return_value=time.time() + 604801):
+            self.assertFalse(second["_portal_token_ok"](token))
+
+    def test_explicit_secret_keeps_sessions_across_password_changes(self):
+        with patch.object(hashlib, "pbkdf2_hmac", side_effect=AssertionError("explicit secret must bypass derivation")):
+            first = self.sessions({"secret": "stable-test-key"})
+            second = self.sessions({"secret": "stable-test-key", "password": "rotated-password"})
+            environment = self.sessions({"secret": "ignored"}, {"MIOS_PORTAL_SECRET": "stable-test-key"})
+        token = first["_portal_make_token"]("mios")
+        self.assertTrue(second["_portal_token_ok"](token))
+        self.assertTrue(environment["_portal_token_ok"](token))
+
+    def test_ssot_and_environment_work_factor(self):
+        for config, environment, expected in (
+            ({"session_kdf_iterations": 610000}, {}, 610000),
+            ({"session_kdf_iterations": 610000}, {"MIOS_PORTAL_SESSION_KDF_ITERATIONS": "620000"}, 620000),
+            ({"session_kdf_iterations": 610000}, {"MIOS_PORTAL_SESSION_KDF_ITERATIONS": ""}, 610000),
+        ):
+            with self.subTest(config=config, environment=environment):
+                with patch.object(hashlib, "pbkdf2_hmac", return_value=b"derived-test-key") as derive:
+                    scope = self.sessions(config, environment)
+                self.assertEqual(scope["_PORTAL_SECRET"], b"derived-test-key")
+                self.assertEqual(derive.call_args.args[-1], expected)
+        for value in (0, -1, 599999, "invalid", True, 600000.5):
+            with self.subTest(invalid=value), self.assertRaises(ValueError):
+                self.sessions({"session_kdf_iterations": value})
 
 
 if __name__ == "__main__":
