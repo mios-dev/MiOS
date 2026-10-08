@@ -4903,29 +4903,34 @@ unused_key = "nothing reads this"
     sed -i 's/^max_unconsumed = [0-9]*$/max_unconsumed = 999/' "$toml"
     _nist_names "max_unconsumed" || _nist_fail "check_no_inert_ssot_tables did not report the raised [ssot_tables].max_unconsumed ceiling"
     cp "$bak" "$toml"
+    # The register's first live entry, read rather than named: a drained entry
+    # (browser was) must not turn the two arms below into no-ops.
+    local entry
+    entry="$(python3 -c 'import sys,tomllib; print((tomllib.load(open(sys.argv[1],"rb"))["ssot_tables"]["unconsumed"] or [""])[0])' "$toml")"
+    [[ -n "$entry" ]] || _nist_fail "[ssot_tables].unconsumed is empty -- the padding and drop arms have no subject"
     # Padding: registering a table that HAS a consumer must fail -- the
     # register only shrinks, and an entry that no longer reproduces is debt
     # already paid. `blades` is read by its own fleet-safety gate.
-    python3 - "$toml" <<'PYEOF'
+    python3 - "$toml" "$entry" <<'PYEOF'
 import re, sys
-p = sys.argv[1]
+p, entry = sys.argv[1], sys.argv[2]
 s = open(p).read()
-s2, n = re.subn(r'\n  "browser",[^\n]*', '\n  "blades",', s, count=1)
+s2, n = re.subn(r'\n  "%s",[^\n]*' % re.escape(entry), '\n  "blades",', s, count=1)
 assert n == 1, "no register entry was swapped -- the mutation would prove nothing"
 open(p, "w").write(s2)
 PYEOF
     _nist_names "blades" || _nist_fail "check_no_inert_ssot_tables did not name the consumed table padding the register"
     cp "$bak" "$toml"
     # Removing a register entry leaves its table unconsumed and unregistered.
-    python3 - "$toml" <<'PYEOF'
+    python3 - "$toml" "$entry" <<'PYEOF'
 import re, sys
-p = sys.argv[1]
+p, entry = sys.argv[1], sys.argv[2]
 s = open(p).read()
-s2, n = re.subn(r'\n  "browser",[^\n]*', '', s, count=1)
+s2, n = re.subn(r'\n  "%s",[^\n]*' % re.escape(entry), '', s, count=1)
 assert n == 1, "no register entry was removed -- the mutation would prove nothing"
 open(p, "w").write(s2)
 PYEOF
-    _nist_names "browser" || _nist_fail "check_no_inert_ssot_tables did not name the table whose register entry was dropped"
+    _nist_names "[$entry] has no access-shaped consumer" || _nist_fail "check_no_inert_ssot_tables did not name the table whose register entry was dropped"
     cp "$bak" "$toml"
     # Deleting the whole register must read as unbounded debt, not as no debt.
     python3 - "$toml" <<'PYEOF'
