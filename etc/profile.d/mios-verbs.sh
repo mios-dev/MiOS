@@ -5,6 +5,10 @@
 
 _mios_dashboard() {
     local _label="$1"; shift
+    if [[ "$_label" != monitor ]]; then
+        /usr/bin/mios-gen dashboard --root / "$@"
+        return $?
+    fi
     local _c _dash=""
     for _c in /usr/libexec/mios/mios-dashboard \
               /mnt/m/usr/libexec/mios/mios-dashboard; do
@@ -17,10 +21,10 @@ _mios_dashboard() {
 mios() {
     case "${1:-help}" in
         mini)
-            shift; _mios_dashboard mini --mini --once "$@"
+            shift; _mios_dashboard mini "$@"
             ;;
         dash|dashboard)
-            shift; ( export MIOS_DASH_SERVICES=1 MIOS_COMPACT=0; _mios_dashboard dash --dash --once "$@" )
+            shift; _mios_dashboard dash "$@"
             ;;
         mon|monitor)
             shift; _mios_dashboard monitor --monitor "$@"

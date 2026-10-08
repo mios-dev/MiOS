@@ -16,6 +16,9 @@ fn renders_real_palette_keys_shell_and_safe_glyph_fallback() {
     assert!(rendered.contains(config["colors"]["fg"].as_str().unwrap()));
     assert!(rendered.contains("set -g status-position bottom"));
     assert!(rendered.contains("bind-key h select-pane -L"));
+    assert!(rendered.contains("mios.cmd ai"));
+    assert!(rendered.contains("mios.cmd agents --watch"));
+    assert!(!rendered.contains("/usr/libexec/"));
     assert!(rendered.contains("set -g history-limit 9000"));
     assert!(rendered.contains("set -g default-shell \"cmd.exe\""));
     assert!(rendered.is_ascii(), "unknown font must not emit private-use glyphs");

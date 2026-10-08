@@ -319,19 +319,19 @@ mod desktop {
         Ok(String::from_utf16_lossy(&font.FaceName[..end]).eq_ignore_ascii_case(family) && family.to_ascii_lowercase().contains("nerd"))
     }
 
-    fn refresh_tmux(executable: &str, socket: Option<&str>, config: &Path) -> Result<(), String> {
+    fn refresh_tmux(executable: &str, socket: Option<&str>, config: &Path, timeout: Duration) -> Result<(), String> {
         let command = || {
             let mut command = Command::new(executable);
             if let Some(socket) = socket { command.args(["-L", socket]); }
             command
         };
-        let probe = hidden(command().arg("has-session")).output().map_err(|e| format!("tmux probe: {e}"))?;
+        let probe = mios_service_core::process::output_timeout(command().arg("has-session"), timeout).map_err(|e| format!("tmux probe: {e}"))?;
         if !probe.status.success() {
             let error = String::from_utf8_lossy(&probe.stderr);
             if probe.status.code() == Some(1) && (error.contains("no server") || error.contains("no sessions") || error.contains("error connecting")) { return Ok(()); }
             return Err(format!("tmux probe failed: {}: {error}", probe.status));
         }
-        let reload = hidden(command().arg("source-file").arg(config)).output().map_err(|e| format!("tmux reload: {e}"))?;
+        let reload = mios_service_core::process::output_timeout(command().arg("source-file").arg(config), timeout).map_err(|e| format!("tmux reload: {e}"))?;
         if !reload.status.success() { return Err(format!("tmux source-file failed: {}: {}", reload.status, String::from_utf8_lossy(&reload.stderr))); }
         Ok(())
     }
@@ -399,9 +399,11 @@ mod desktop {
             let owned = mios_service_core::host_tmux::stage(config, &config_path, &legacy, font_verified)?;
             let arguments = mios_service_core::launcher::host_tmux_args(config, &config_path.to_string_lossy())?;
             let executable = text(&config["terminal"]["windows"], "executable")?;
-            refresh_tmux(executable, Some(text(&config["terminal"]["windows"], "socket_name")?), &config_path)?;
-            if legacy.iter().any(|p| owned.contains(p)) { refresh_tmux(executable, None, &config_path)?; }
             if stage_only { return Ok(()); }
+            let timeout = config["terminal"]["windows"]["command_timeout_ms"].as_u64().filter(|n| *n > 0 && *n <= 30000).ok_or("Invalid SSOT terminal.windows.command_timeout_ms")?;
+            let timeout = Duration::from_millis(timeout);
+            refresh_tmux(executable, Some(text(&config["terminal"]["windows"], "socket_name")?), &config_path, timeout)?;
+            if legacy.iter().any(|p| owned.contains(p)) { refresh_tmux(executable, None, &config_path, timeout)?; }
             let status = Command::new(text(&config["terminal"]["windows"], "executable")?)
                 .args(arguments)
                 .env("MIOS_HOST_TMUX", "1")

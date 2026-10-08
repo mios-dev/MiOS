@@ -9,6 +9,21 @@ if ($current -and $current.Definition -notlike '*MiOS native in-terminal dispatc
     $global:MiosLegacyDispatcher = $current.ScriptBlock
 }
 $global:MiosNativeEntry = $entry
+function global:Invoke-MiosNativeDashboard {
+    [CmdletBinding()]
+    param([string[]]$Arguments = @())
+    $bin = Split-Path $global:MiosNativeEntry
+    $binding = Get-Content -Raw -LiteralPath (Join-Path $bin 'native-binding.json') | ConvertFrom-Json
+    $resolved = & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios-resolver --emit=json
+    if ($LASTEXITCODE -ne 0) { throw 'Live layered SSOT resolution failed; refusing a cached dashboard.' }
+    $width = $Host.UI.RawUI.WindowSize.Width
+    $resolved -join "`n" | & (Join-Path $bin 'mios-gen.exe') dashboard --resolved-stdin --width $width @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "Native dashboard failed (exit $LASTEXITCODE)" }
+}
+function global:Show-MiosDashboard {
+    param([string]$ConfigPath, [string]$LogoPath)
+    Invoke-MiosNativeDashboard
+}
 function global:mios {
     # MiOS native in-terminal dispatch
     [CmdletBinding()]

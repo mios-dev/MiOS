@@ -15,6 +15,7 @@ mod bib_configs;
 mod btop_theme;
 mod cargo_manifests;
 mod fastfetch;
+mod dashboard;
 mod gate_index;
 mod metal_vs_hosted;
 mod pipe_boundaries;
@@ -49,6 +50,19 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Render the complete native Linux/Windows dashboard from live layered SSOT.
+    Dashboard {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long)]
+        resolved_stdin: bool,
+        #[arg(long)]
+        width: Option<usize>,
+        #[arg(long)]
+        no_probe: bool,
+        #[arg(long)]
+        facts: Option<PathBuf>,
+    },
     /// Compare or apply the SSOT-declared bootstrap mirror, preserving unowned keys.
     BootstrapSync {
         #[arg(long)]
@@ -720,6 +734,12 @@ fn run_egress_firewall(root: &Path, check: bool) -> Result<(), (String, i32)> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let (subcommand, target, result) = match cli.command {
+        Commands::Dashboard { root, resolved_stdin, width, no_probe, facts } => {
+            return match dashboard::run(&resolve_root(root), resolved_stdin, width, no_probe, cli.format == "json", facts.as_deref()) {
+                Ok(output) => { println!("{output}"); ExitCode::SUCCESS }
+                Err(error) => { eprintln!("[dashboard] {error}"); ExitCode::FAILURE }
+            };
+        }
         Commands::ProjectionEvidence {
             root,
             generator,

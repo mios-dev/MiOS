@@ -8,11 +8,11 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("build", &["/usr/libexec/mios/mios-build-driver"]),
     (
         "dash",
-        &["/usr/libexec/mios/mios-dashboard", "--dash", "--once"],
+        &["/usr/bin/mios-gen", "dashboard", "--root", "/"],
     ),
     (
         "mini",
-        &["/usr/libexec/mios/mios-dashboard", "--mini", "--once"],
+        &["/usr/bin/mios-gen", "dashboard", "--root", "/"],
     ),
     ("mon", &["/usr/libexec/mios/mios-dashboard", "--monitor"]),
     (

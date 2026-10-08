@@ -3799,6 +3799,7 @@ key = "t"
 command = "/usr/libexec/mios/mios-terminal"
 desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal"
 tmux_command = "new-window"
+tmux_command_windows = "new-window"
 vscode_command = "workbench.action.terminal.toggleTerminal"
 
 [[keybindings.actions]]
@@ -3808,6 +3809,7 @@ key = "a"
 command = "/usr/bin/mios ai"
 desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action ai"
 tmux_command = "run-shell '/usr/libexec/mios/mios-terminal --action ai'"
+tmux_command_windows = "new-window -n MiOS-AI 'mios.cmd ai'"
 vscode_command = "runCommands"
 vscode_shell = "mios ai"
 
@@ -3818,6 +3820,7 @@ key = "g"
 command = "mios agents --watch"
 desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action agents"
 tmux_command = "run-shell '/usr/libexec/mios/mios-terminal --action agents'"
+tmux_command_windows = "new-window -n MiOS-Agents 'mios.cmd agents --watch'"
 vscode_command = "runCommands"
 vscode_shell = "mios agents --watch"
 
@@ -3828,6 +3831,7 @@ key = "m"
 command = "mios mon"
 desktop_command = "alacritty -e /usr/libexec/mios/mios-terminal --action system"
 tmux_command = "new-window -n MiOS-System mios mon"
+tmux_command_windows = "new-window -n MiOS-System 'mios.cmd mon'"
 vscode_command = "runCommands"
 vscode_shell = "mios mon"
 
@@ -3847,8 +3851,8 @@ bindings = [
   { key = "d", command = "detach-client" },
   { key = "Tab", command = "send-keys BTab" },
   { key = "b", command = "send-prefix" },
-  { key = "o", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-focus next'" },
-  { key = "f", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-view toggle'" },
+  { key = "o", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-focus next'", command_windows = "select-pane -t :.+" },
+  { key = "f", command = "run-shell '/usr/lib/mios/mcp/.venv/bin/python3 /usr/libexec/mios/mios-mcp-server --workspace-view toggle'", command_windows = "resize-pane -Z" },
 ]
 
 [routing]
@@ -8408,6 +8412,7 @@ frame_height        = 19      # = rows - 1, reserves 1 row for prompt
 right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-paint
 
 [terminal.windows]
+command_timeout_ms = 3000 # bounded control clients; never kill an existing tmux server
 backend = "native-tmux"
 executable = "tmux.exe"
 socket_name = "mios-windows"
@@ -8711,22 +8716,23 @@ show_battery_watts   = true
 log_level            = "WARNING"
 
 [dashboard]
+probe_timeout_ms = 250           # concurrent loopback TCP probes, both platforms
+facts_timeout_ms = 1500          # bounded structured fastfetch; never a shell template
 title           = "MiOS  --  My Personal Operating System"
 show_title      = true
 show_logo       = false           # 80x20 doesn't fit the 11-row ASCII logo. Set true once rows >= 30.
 show_verb_hints = true
 verb_hint       = "build  config  dash  mini  ai  code  dev  summary  user  pull  update  help"
 
-# show_services -- Linux-only.  When true (or MIOS_DASH_SERVICES=1),
-# mios-dashboard.sh appends the icon-driven Services / Stack / Tree
-# blocks below the metric rows. Default true now that the blocks
-# fit in 80x20 (3 service rows + 1 stack-count + 1 tree row).
+# Both platforms enumerate every member and pinned listener in ports.categories.
+# Full output scrolls when required; frame_height never drops services or values.
 show_services   = true
 
 rows = [
     ["version", "date"],
     ["user", "uptime"],
     ["cpu", "gpu_discrete"],
+    ["gpu_integrated"],
     ["disk_c", "disk_m"],
     ["ram", "swap"],
     ["kernel", "shell"],

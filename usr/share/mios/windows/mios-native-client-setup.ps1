@@ -183,6 +183,52 @@ function Convert-MiosOrdered($Value) {
     if ($Value -is [Collections.IList]) { return ,@($Value | ForEach-Object { Convert-MiosOrdered $_ }) }
     return $Value
 }
+function Set-MiosNativeProfile([string]$Path, [string]$Directory) {
+    $text = if (Test-Path -LiteralPath $Path) { [IO.File]::ReadAllText($Path) } else { '' }
+    $original = $text
+    $tokens = $null; $parseErrors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors.Count) { throw "Refusing to migrate invalid PowerShell profile: $Path" }
+    $functions = @($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Show-MiosDashboard'}, $true))
+    foreach ($function in ($functions | Sort-Object { $_.Extent.StartOffset } -Descending)) {
+        if ($function.Extent.Text -notmatch '_dashTomlText|_ServiceCell|_Frame') { continue }
+        $replacement = @'
+function Show-MiosDashboard {
+    param([string]$ConfigPath, [string]$LogoPath)
+    . (Join-Path '__BIN__' 'mios-native-shell.ps1') -BinDirectory '__BIN__'
+    Invoke-MiosNativeDashboard
+}
+'@
+        $replacement = $replacement.Replace('__BIN__', $Directory.Replace("'", "''"))
+        $text = $text.Remove($function.Extent.StartOffset, $function.Extent.EndOffset - $function.Extent.StartOffset).Insert($function.Extent.StartOffset, $replacement)
+    }
+    $text = [regex]::Replace($text, '(?ms)^# >>> MiOS native SSOT runtime >>>.*?^# <<< MiOS native SSOT runtime <<<\r?\n?', '').TrimEnd()
+    $hook = @'
+# >>> MiOS native SSOT runtime >>>
+$_miosNativeBin = '__BIN__'
+. (Join-Path $_miosNativeBin 'mios-native-shell.ps1') -BinDirectory $_miosNativeBin
+if (-not $env:MIOS_SKIP_MOTD -and -not $env:MIOS_HOST_TMUX -and -not $env:TMUX -and -not $env:SSH_CONNECTION -and -not [Console]::IsInputRedirected) {
+    & (Join-Path $_miosNativeBin 'mios-launch.exe') --host-terminal
+    if ($LASTEXITCODE -ne 0) { throw "Native MiOS host terminal failed (exit $LASTEXITCODE)" }
+    return
+}
+# <<< MiOS native SSOT runtime <<<
+'@
+    $hook = $hook.Replace('__BIN__', $Directory.Replace("'", "''"))
+    # Only the known generated profile may be prefixed; arbitrary operator
+    # profiles can have param/using/#requires statements that must stay first.
+    $next = if ($text -match '\$Global:MiosProfileLoaded') {
+        $ast = [Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseErrors)
+        if ($parseErrors.Count -or -not $ast.EndBlock.Statements.Count) { throw "Generated profile has no valid startup boundary: $Path" }
+        # Keep using/param/#requires and operator comments before executable
+        # startup. They remain valid even when added to a generated profile.
+        $offset = $ast.EndBlock.Statements[0].Extent.StartOffset
+        $text.Insert($offset, $hook + "`n") + "`n"
+    } else { $text + "`n`n" + $hook + "`n" }
+    $ast = [Management.Automation.Language.Parser]::ParseInput($next, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors.Count) { throw "Native profile migration produced invalid PowerShell: $Path" }
+    if ($next -cne $original) { Write-MiosFile $Path $next }
+}
 $shellSource = Join-Path $SourceRoot 'usr\share\mios\windows\mios-native-shell.ps1'
 if (-not (Test-Path -LiteralPath $shellSource)) { $shellSource = Join-Path $BinDirectory 'mios-native-shell.ps1' }
 if (Test-Path -LiteralPath $shellSource) {
@@ -198,6 +244,7 @@ if ($legacyHub -and (Test-Path -LiteralPath $legacyHub) -and (Test-Path -Literal
 # Upgrade the owned block in already installed profiles, including RuntimeOnly.
 $existingProfile = if (Test-Path -LiteralPath 'M:\MiOS\powershell\profile.ps1') { 'M:\MiOS\powershell\profile.ps1' } else { [string]$PROFILE.CurrentUserAllHosts }
 if (Test-Path -LiteralPath $existingProfile) {
+    Set-MiosNativeProfile $existingProfile $BinDirectory
     $existingText = [IO.File]::ReadAllText($existingProfile)
     # Retired shell dashboard calls survive in already-installed profile bodies.
     # Keep the body and operator edits, migrating only this MiOS entrypoint.
@@ -309,8 +356,8 @@ if ($env:SSH_CONNECTION -or $env:SSH_CLIENT -or $env:SSH_TTY) { $remote += 'MIOS
 switch ($verb) {
     'project' { exit 0 }
     'btop' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- btop @rest; exit $LASTEXITCODE }
-    'mini' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- python3 /usr/libexec/mios/mios-dashboard --mini --once @rest; exit $LASTEXITCODE }
-    'dash' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- python3 /usr/libexec/mios/mios-dashboard --dash --once @rest; exit $LASTEXITCODE }
+    'mini' { . (Join-Path $PSScriptRoot 'mios-native-shell.ps1'); Invoke-MiosNativeDashboard -Arguments $rest; exit $LASTEXITCODE }
+    'dash' { . (Join-Path $PSScriptRoot 'mios-native-shell.ps1'); Invoke-MiosNativeDashboard -Arguments $rest; exit $LASTEXITCODE }
     'mon' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios mon @rest; exit $LASTEXITCODE }
     'monitor' { & wsl.exe -d $binding.distro -u $binding.linuxUser -- /usr/bin/mios mon @rest; exit $LASTEXITCODE }
     'terminal' { & wsl.exe -d $binding.distro -u $binding.linuxUser --cd $directory -- @remote /usr/libexec/mios/mios-terminal @rest; exit $LASTEXITCODE }
@@ -497,22 +544,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not enable native CMD startup' }
 & $clink config prompt use mios-ssot | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not enable native MiOS CMD prompt' }
 
-# The existing profile retains its dashboard and verbs; the final owned block
-# resolves theme overrides on every PowerShell startup before initializing OMP.
+# Upgrade only the owned dashboard and startup hook, retaining other functions and edits.
 $profilePath = if (Test-Path -LiteralPath 'M:\MiOS\powershell\profile.ps1') { 'M:\MiOS\powershell\profile.ps1' } else { [string]$PROFILE.CurrentUserAllHosts }
-$profileText = if (Test-Path -LiteralPath $profilePath) { [IO.File]::ReadAllText($profilePath) } else { '' }
-$profileText = [regex]::Replace($profileText, '(?ms)^# >>> MiOS native SSOT runtime >>>.*?^# <<< MiOS native SSOT runtime <<<\r?\n?', '').TrimEnd()
-$hook = @'
-# >>> MiOS native SSOT runtime >>>
-$_miosNativeBin = '__BIN__'
-& (Join-Path $_miosNativeBin 'mios-native-client-setup.ps1') -RuntimeOnly -BinDirectory $_miosNativeBin
-. (Join-Path $_miosNativeBin 'mios-native-shell.ps1') -BinDirectory $_miosNativeBin
-$env:MIOS_OMP_JSON = Join-Path $env:LOCALAPPDATA 'MiOS\themes\mios.omp.json'
-$_miosOmp = Get-Command oh-my-posh.exe -ErrorAction SilentlyContinue
-if ($_miosOmp) { & $_miosOmp.Source init pwsh --config $env:MIOS_OMP_JSON | Invoke-Expression }
-# <<< MiOS native SSOT runtime <<<
-'@
-Write-MiosFile $profilePath ($profileText + "`n`n" + $hook.Replace('__BIN__', $BinDirectory.Replace("'", "''")) + "`n")
+Set-MiosNativeProfile $profilePath $BinDirectory
 Write-MiosFile (Join-Path $BinDirectory 'mios-agent-cli-setup.ps1') ([IO.File]::ReadAllText((Join-Path $SourceRoot 'usr\share\mios\windows\mios-agent-cli-setup.ps1')))
 if (-not $SkipAgentInstall) { & (Join-Path $BinDirectory 'mios-agent-cli-setup.ps1') -Distro $Distro -LinuxUser $LinuxUser }
 }
@@ -642,6 +676,10 @@ foreach ($path in $terminalPaths) {
         if ($item['name'] -eq $config['theme']['terminal']['dev_profile_name']) {
             $enginePath = if ($RuntimeOnly) { $binding.engine } else { $engine }
             $item['commandline'] = "`"$enginePath`" -NoLogo -NoProfile -File `"$(Join-Path $BinDirectory 'mios-native-entry.ps1')`" terminal"
+            $item['startingDirectory'] = '%USERPROFILE%'
+        }
+        if ($item['name'] -in @($config['theme']['terminal']['profile_name'], 'MiOS-CMD')) {
+            $item['commandline'] = "`"$(Join-Path $BinDirectory 'mios-launch.exe')`" --host-terminal"
             $item['startingDirectory'] = '%USERPROFILE%'
         }
         if ($item['source'] -eq 'Windows.Terminal.Wsl' -and $item['name'] -notin $registered) { $item['hidden'] = $true }

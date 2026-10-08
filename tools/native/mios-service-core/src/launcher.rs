@@ -103,7 +103,7 @@ pub fn host_tmux_config_with_font(config: &Value, font_verified: bool) -> Result
     let rows = config.pointer("/terminal/scrollback_rows").and_then(Value::as_u64)
         .filter(|n| *n > 0).ok_or("Invalid SSOT terminal.scrollback_rows")?;
     let shell = text(config, "/terminal/windows/shell")?;
-    let doc: toml::Value = toml::Value::try_from(config).map_err(|e| format!("Invalid tmux SSOT: {e}"))?;
+    let mut doc: toml::Value = toml::Value::try_from(config).map_err(|e| format!("Invalid tmux SSOT: {e}"))?;
     let mut engine = crate::tmux_theme::TmuxThemeEngine::from_toml(&doc, None, None)?;
     let mode = text(config, "/terminal/windows/glyph_mode")?;
     match mode.as_str() {
@@ -111,6 +111,20 @@ pub fn host_tmux_config_with_font(config: &Value, font_verified: bool) -> Result
         "auto" if !font_verified => engine.style = "minimal".into(),
         "auto" | "nerd" => (),
         _ => return Err("Invalid SSOT terminal.windows.glyph_mode".into()),
+    }
+    let actions = doc.get_mut("keybindings").and_then(|v| v.get_mut("actions")).and_then(toml::Value::as_array_mut).ok_or("Missing SSOT keybindings.actions")?;
+    for action in actions {
+        let windows = action.get("tmux_command_windows").and_then(toml::Value::as_str).filter(|s| !s.is_empty() && !s.chars().any(char::is_control)).ok_or("Missing or invalid SSOT keybindings.actions.tmux_command_windows")?.to_owned();
+        action.as_table_mut().ok_or("Invalid SSOT keybinding action")?.insert("tmux_command".into(), toml::Value::String(windows));
+    }
+    let bindings = doc.get_mut("keybindings").and_then(|v| v.get_mut("tmux")).and_then(|v| v.get_mut("bindings")).and_then(toml::Value::as_array_mut).ok_or("Missing SSOT keybindings.tmux.bindings")?;
+    for binding in bindings {
+        if let Some(windows) = binding.get("command_windows") {
+            let windows = windows.as_str().filter(|s| !s.is_empty() && !s.chars().any(char::is_control)).ok_or("Invalid SSOT keybindings.tmux.bindings.command_windows")?.to_owned();
+            binding.as_table_mut().ok_or("Invalid tmux binding")?.insert("command".into(), toml::Value::String(windows));
+        } else if binding.get("command").and_then(toml::Value::as_str).is_some_and(|s| s.starts_with("run-shell")) {
+            return Err("SSOT run-shell binding requires command_windows for host execution".into());
+        }
     }
     let keys = mios_unit_gen::render_keybindings(&toml::to_string(&doc).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     let keys = keys.get("usr/share/mios/tmux/mios-keys.tmux.conf")

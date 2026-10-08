@@ -2,6 +2,7 @@
 // AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
 
 pub mod launcher;
+pub mod dashboard;
 pub mod host_tmux;
 pub mod process;
 pub mod socket;
