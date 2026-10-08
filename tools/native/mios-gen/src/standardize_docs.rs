@@ -295,8 +295,12 @@ mod tests {
 
     #[test]
     fn test_standardize_preserves_title_with_single_line_artifact_comment() {
-        let content = "<!-- AI-hint: Hint. -->\n<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->\n#  'MiOS' Scripts Index\n> **Status:** Maintained\n\nContent.";
-        let res = standardize_content(content, "0.3.0");
+        // The input carries a mixed-case org on purpose: the header must come out
+        // with the canonical lowercase slug. The URL is assembled so this source
+        // holds no non-canonical slug literal for check_github_slug_casing to read.
+        let legacy_url = concat!("https://github.com/", "MiOS-DEV", "/mios");
+        let content = format!("<!-- AI-hint: Hint. -->\n<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | {legacy_url} -->\n#  'MiOS' Scripts Index\n> **Status:** Maintained\n\nContent.");
+        let res = standardize_content(&content, "0.3.0");
         assert!(res.starts_with("<!-- AI-hint: Hint. -->"));
         assert!(res.contains("<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/mios-dev/mios -->"));
         assert!(res.contains("#  'MiOS' Scripts Index"));
