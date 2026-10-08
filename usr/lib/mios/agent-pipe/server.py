@@ -1045,7 +1045,8 @@ async def cephfs_health():
         if proc_h.returncode == 0:
             health_data = json.loads(proc_h.stdout)
     except Exception as e:
-        health_data = {"status": "UNAVAILABLE", "error": str(e)}
+        log.warning("CephFS health probe failed: %s", e)
+        health_data = {"status": "UNAVAILABLE", "error": "CephFS health probe unavailable"}
 
     try:
         proc_d = subprocess.run(["ceph", "df", "--format", "json"], capture_output=True, text=True, timeout=5)
@@ -1084,7 +1085,7 @@ async def lora_load(request: Request):
         return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
     except Exception as e:
         log.error("Failed to load LoRA adapter on heavy backend: %s", e)
-        return JSONResponse(status_code=500, content={"error": f"Failed to load LoRA adapter: {e}"})
+        return JSONResponse(status_code=500, content={"error": "Failed to load LoRA adapter"})
 
 @app.get("/v1/inference/lora/list")
 async def lora_list():
@@ -1125,7 +1126,8 @@ async def ast_diff_endpoint(request: Request):
         result = engine.compute_ast_diff(orig, mod, lang)
         return JSONResponse(result)
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        log.warning("AST diff request failed: %s", e)
+        return JSONResponse(status_code=400, content={"error": "Invalid AST diff request"})
 
 @app.post("/v1/ast/review")
 async def ast_review_endpoint(request: Request):
@@ -1156,7 +1158,8 @@ async def ast_review_endpoint(request: Request):
         else:
             return JSONResponse(status_code=400, content={"error": f"Unknown action: {action}"})
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        log.warning("AST review request failed: %s", e)
+        return JSONResponse(status_code=400, content={"error": "Invalid AST review request"})
 
 from mios_pipe.kernel.httpclient import (   # noqa: E402  -- WS-A6/T-226 chokepoint
     _batch_request_hook, _get_client, configure as _configure_httpclient)

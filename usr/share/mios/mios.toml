@@ -12974,6 +12974,7 @@ unit = [
     "tests/test-subagent-cgroups.py",
     "tests/test-ast-merge.py",
     "tests/test-agent-input-safety.py",
+    "tests/test-http-error-safety.py",
     "tests/test-kernel-fuzz.py",
     "tests/test-crash-dedupe.py",
     "tests/test-roaming-seat.py",

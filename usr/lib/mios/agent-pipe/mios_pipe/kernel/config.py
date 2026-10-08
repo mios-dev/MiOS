@@ -398,7 +398,8 @@ def validate_config(toml_text: str, live_config: dict = None):
     try:
         max_bytes = _validate_max_bytes()
     except Exception as e:  # noqa: BLE001 -- no ceiling resolved: refuse
-        return (False, [f"[portal].config_max_body_bytes did not resolve: {e}"])
+        log.warning("Portal configuration safety cap unavailable: %s", e)
+        return (False, ["[portal].config_max_body_bytes did not resolve"])
     if size > max_bytes:
         return (False, [f"Config too large: {size} bytes exceeds the "
                         f"{max_bytes}-byte safety cap ([portal].config_max_body_bytes)."])
@@ -410,7 +411,8 @@ def validate_config(toml_text: str, live_config: dict = None):
     try:
         parsed = _toml.loads(toml_text)
     except Exception as e:
-        return (False, [f"Invalid TOML: {e}"])
+        log.warning("Configuration TOML parse failed: %s", e)
+        return (False, ["Invalid TOML syntax"])
 
     live = live_config if isinstance(live_config, dict) else {}
     for sec in _VALIDATE_CRITICAL_SECTIONS:
@@ -503,4 +505,3 @@ def write_user_config(cfg: dict, dest_path: str = None) -> None:
         mios_db_config.clear_cache()
     except Exception:
         pass
-

@@ -174,7 +174,7 @@ async def chat_completions(req: ChatCompletionRequest):
         )
     except Exception as e:
         log.error("Failed to initialize OpenAIServerModel: %s", e)
-        return openai_error(f"Model init failed: {e}", status=500,
+        return openai_error("Model initialization failed", status=500,
                             err_type="api_error", code="model_init_failed")
 
     tools = []
@@ -208,7 +208,7 @@ async def chat_completions(req: ChatCompletionRequest):
                     return JSONResponse(status_code=resp.status_code, content=data)
             except Exception as e:
                 log.error("Native pass-through error: %s", e)
-                return openai_error(f"Pass-through failed: {e}", status=502,
+                return openai_error("Upstream service unavailable", status=502,
                                     err_type="api_error",
                                     code="upstream_unavailable")
 
@@ -220,7 +220,7 @@ async def chat_completions(req: ChatCompletionRequest):
         )
     except Exception as e:
         log.error("Failed to initialize ToolCallingAgent: %s", e)
-        return openai_error(f"Agent init failed: {e}", status=500,
+        return openai_error("Agent initialization failed", status=500,
                             err_type="api_error", code="agent_init_failed")
 
     context = ""

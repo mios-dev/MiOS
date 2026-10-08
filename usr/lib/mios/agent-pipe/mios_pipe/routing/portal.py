@@ -1425,7 +1425,7 @@ async def get_portal_config(request: Request):
         return Response(content=toml_text, media_type="text/plain")
     except Exception as e:
         log.error("Failed to load/serialize layered config: %s", e)
-        return Response(content=f"Error: {e}", status_code=500, media_type="text/plain")
+        return Response(content="Unable to load configuration", status_code=500, media_type="text/plain")
 
 @portal_router.post("/portal/config")
 async def post_portal_config(request: Request, background_tasks: BackgroundTasks):
@@ -1446,7 +1446,7 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
         parsed_config = _toml.loads(toml_text)
     except Exception as e:
         log.warning("Invalid TOML posted to /portal/config: %s", e)
-        return JSONResponse({"error": f"Invalid TOML: {e}"}, status_code=400)
+        return JSONResponse({"error": "Invalid TOML syntax"}, status_code=400)
 
     from mios_pipe.kernel.config import write_user_config, validate_config
 
@@ -1474,7 +1474,7 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
         return JSONResponse({"status": "ok"})
     except Exception as e:
         log.error("Failed to save config: %s", e)
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "Unable to save configuration"}, status_code=500)
 
 _THEME_RENDER_BIN = os.environ.get(
     "MIOS_THEME_RENDER", "/usr/libexec/mios/mios-dotfiles-render")
