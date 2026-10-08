@@ -628,10 +628,20 @@ pub fn check(root: &Path) -> Report {
         findings.extend(stale.iter().map(|f| with_rename_hint(root, f)));
         return report(false, String::new(), findings);
     }
+    // The pass line states the count it measured, in the same form as the
+    // failure line. Without it a clean tree printed no number, and anything
+    // reading the count (the negative test's baseline) saw nothing to compare.
+    // Under a non-zero ceiling it also stops a pass from claiming every path
+    // resolves while some are only tolerated.
+    let verdict = if n == 0 {
+        "every path named in an AI header or a markdown link resolves"
+    } else {
+        "the remainder is tolerated by the ceiling, not resolved"
+    };
     report(
         true,
         format!(
-            "every path named in an AI header or a markdown link resolves across {} tracked file(s)",
+            "{n} stale reference(s) across {} tracked file(s) (max allowed {allowed_ceiling}); {verdict}",
             files.len()
         ),
         Vec::new(),
@@ -747,7 +757,14 @@ mod tests {
         let _ = fs::write(r.join("b.py"), "# AI-related: a.py\n");
         let _ = fs::write(r.join("a.py"), "x = 1\n");
         track(r);
-        assert!(check(r).ok, "a resolving target must not be reported");
+        let rep = check(r);
+        assert!(rep.ok, "a resolving target must not be reported");
+        // The pass states its measurement, so a reader can compare counts.
+        assert!(
+            rep.summary.starts_with("0 stale reference(s) across "),
+            "the pass line must carry the count: {}",
+            rep.summary
+        );
     }
 
     #[test]

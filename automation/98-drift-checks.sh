@@ -5038,7 +5038,9 @@ check_doc_refs_resolve() {
     fi
     local out
     if out="$("$bin" doc-refs-resolve --root "$ROOT" 2>&1)"; then
-        echo "[98-drift-checks]   every path named in an AI header or a markdown link resolves in the tracked tree"
+        # The binary's own line carries the measured count; a fixed sentence
+        # here dropped it, so a clean pass could not be compared with anything.
+        echo "[98-drift-checks]   ${out}"
     else
         _violations_from "check_doc_refs_resolve: " "$out"
     fi
