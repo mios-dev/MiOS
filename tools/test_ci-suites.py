@@ -305,5 +305,122 @@ class TestSuiteTimeout(unittest.TestCase):
                 os.killpg(proc.pid, 9)
                 proc.wait()
 
+
+@unittest.skipIf(os.name == "nt", "POSIX native executable lookup")
+class TestNativeProjectionTools(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bins = self.root / "native tools"
+        self.bins.mkdir()
+        self.script = str(Path(_HERE, "sync-generated.sh"))
+
+    def run_shell(self, expression, **overrides):
+        env = os.environ.copy()
+        env.pop("MIOS_NATIVE_BIN_DIR", None)
+        env.update(MIOS_ROOT=str(self.root), **overrides)
+        return subprocess.run(["bash", "-c", 'source "$1"; ' + expression,
+                               "projection-test", self.script], env=env,
+                              capture_output=True, text=True, timeout=15)
+
+    def tool(self, directory, name):
+        path = directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/bin/sh\nexit 0\n")
+        path.chmod(0o755)
+        return path
+
+    def test_installed_native_catalog_is_discovered(self):
+        expected = self.tool(self.bins, "mios-projection-fixture")
+        result = self.run_shell('native_bin mios-projection-fixture',
+                                PATH=str(self.bins) + os.pathsep + os.environ["PATH"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, str(expected))
+
+    def test_explicit_directory_is_authoritative_and_requires_executable(self):
+        expected = self.tool(self.bins, "mios-gen")
+        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        self.assertEqual(result.stdout, str(expected))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected.chmod(0o644)
+        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+
+    def test_linux_does_not_select_windows_build_artifact(self):
+        self.tool(self.bins, "mios-gen.exe")
+        result = self.run_shell('native_bin mios-gen', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+
+    def test_smoke_build_requires_successful_nonempty_ssot_base(self):
+        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
+        block = workflow.split("      - name: Smoke build\n", 1)[1]
+        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
+        script = "\n".join(line[10:] for line in block.splitlines())
+        reader = self.tool(self.root / "usr/libexec/mios", "mios-toml-get")
+        marker = self.root / "invoked"
+        sudo = self.tool(self.bins, "sudo")
+        sudo.write_text('#!/bin/sh\nprintf "%s\n" "$*" > "$BUILD_MARKER"\n')
+        env = dict(os.environ, BUILD_MARKER=str(marker),
+                   PATH=str(self.bins) + os.pathsep + os.environ["PATH"])
+        for output in ["exit 7", "exit 0", "echo registry.example/base:stable"]:
+            reader.write_text("#!/bin/sh\n" + output + "\n")
+            result = subprocess.run(["bash", "-c", script], cwd=self.root,
+                                    env=env, capture_output=True, text=True, timeout=15)
+            if output.startswith("exit"):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(marker.exists())
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("BASE_IMAGE=registry.example/base:stable", marker.read_text())
+
+    def test_fedora_rustup_init_bootstrap_is_required_before_native_build(self):
+        fixture = self.root / "source"
+        script = fixture / "automation/55-native-build.sh"
+        script.parent.mkdir(parents=True)
+        shutil.copyfile(Path(_ROOT, "automation/55-native-build.sh"), script)
+        manifest = fixture / "src/mios-rs/Cargo.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("")
+        for command in ['dirname', 'sed', 'mkdir', 'cp', 'chmod']:
+            (self.bins / command).symlink_to(shutil.which(command))
+        driver = self.root / "native-driver"
+        driver.write_text('#!/bin/sh\ncommand -v rustup >/dev/null || exit 9\necho native-build >> "$BUILD_MARKER"\n')
+        driver.chmod(0o755)
+        self.tool(self.bins, "rustc").write_text('#!/bin/sh\necho "host: fixture-host"\n')
+        self.tool(self.bins, "cargo").write_text(
+            '#!/bin/sh\nprevious=""\nfor value in "$@"; do\n'
+            'if [ "$previous" = --target-dir ]; then output="$value"; fi\nprevious="$value"\ndone\n'
+            'mkdir -p "$output/fixture-host/release"\n'
+            'cp "$NATIVE_DRIVER" "$output/fixture-host/release/miosd"\n')
+        self.tool(self.bins, "rustup-init").write_text(
+            '#!/bin/sh\n[ "$INIT_FAIL" = 1 ] && exit 7\n'
+            'mkdir -p "$CARGO_HOME/bin"\nprintf "#!/bin/sh\\nexit 0\\n" > "$CARGO_HOME/bin/rustup"\n'
+            'chmod +x "$CARGO_HOME/bin/rustup"\necho initialized >> "$BUILD_MARKER"\n')
+        marker = self.root / "build-order"
+        env = dict(os.environ, PATH=str(self.bins), CARGO_HOME=str(self.root / "cargo home"),
+                   CARGO_TARGET_DIR=str(self.root / "output with spaces"), NATIVE_DRIVER=str(driver),
+                   MIOS_NATIVE_INSTALL_ROOT=str(self.root / "installed"), BUILD_MARKER=str(marker))
+        env.pop('MIOS_NATIVE_DEST_DIR', None)
+        for failed in (True, False):
+            env['INIT_FAIL'] = '1' if failed else '0'
+            result = subprocess.run([shutil.which('bash'), str(script)], env=env,
+                                    capture_output=True, text=True, timeout=15)
+            if failed:
+                self.assertEqual(result.returncode, 7, result.stderr)
+                self.assertFalse(marker.exists())
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(marker.read_text().splitlines(), ['initialized','native-build'])
+
+    def test_missing_tool_fails_before_any_projection(self):
+        result = self.run_shell('main', MIOS_NATIVE_BIN_DIR=str(self.bins))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("required native tool mios-gen is missing", result.stderr)
+        self.assertNotIn("[ports.projection]", result.stdout)
+        self.assertNotIn("render-ports.py", result.stderr)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

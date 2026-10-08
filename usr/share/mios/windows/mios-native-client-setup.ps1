@@ -135,6 +135,15 @@ if ($LASTEXITCODE -ne 0) {
     & wsl.exe -d $Distro -u $LinuxUser -- python3 -c $runtimeProbe @($config['runtimeProbes'])
     if ($LASTEXITCODE -ne 0) { throw 'SSOT runtime commands still missing after package installation' }
 }
+$runtimeUid = (& wsl.exe -d $Distro -u $LinuxUser -- id -u).Trim()
+$runtimeGid = (& wsl.exe -d $Distro -u $LinuxUser -- id -g).Trim()
+if ($runtimeUid -notmatch '^[1-9][0-9]*$' -or $runtimeGid -notmatch '^[0-9]+$') { throw 'Could not resolve unprivileged terminal identity' }
+& wsl.exe -d $Distro -u $LinuxUser -- /usr/bin/miosd terminal-runtime-check --root / | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    if ($RuntimeOnly -and -not $RepairRuntime) { throw 'Unsafe MiOS terminal runtime; run mios repair. Existing sessions preserved.' }
+    & wsl.exe -d $Distro -u root -- /usr/bin/miosd terminal-runtime-check --root / --uid $runtimeUid --gid $runtimeGid --repair
+    if ($LASTEXITCODE -ne 0) { throw 'MiOS terminal runtime repair rejected; existing sessions preserved' }
+}
 if ($config['terminal']['start_directory'] -isnot [string] -or -not $config['terminal']['start_directory'].StartsWith('/')) { throw '[terminal].start_directory must be an absolute MiOS path' }
 $mcpPython = $config['mcp']['python']
 $check = & wsl.exe -d $Distro -u $LinuxUser -- $mcpPython -c 'import os; from mcp import Client; assert os.getuid()!=0; assert os.access("/usr/libexec/mios/tmux-mcp",os.X_OK); print("native-ready")'

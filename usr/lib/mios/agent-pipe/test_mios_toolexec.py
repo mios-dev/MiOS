@@ -7,6 +7,9 @@
 import asyncio
 import contextvars
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import mios_toolexec as T
 
@@ -121,6 +124,19 @@ ok(T._rescue_tool_calls(guard, TOOLS) == [],
 
 ok(T._rescue_tool_calls("just a normal answer, nothing to call here.", TOOLS) == [],
    "plain prose yields no rescued calls")
+
+# Execute the real parser in a bounded child: the former nested regex wedges
+# on repeated completed parameters without a function closer.
+rescue_probe = """
+import mios_toolexec as t
+bad = '<function=web_search>' + '<parameter=query>x</parameter>' * 10000
+assert t._rescue_tool_calls(bad, [{'function': {'name': 'web_search'}}]) == []
+assert t._rescue_tool_calls('<function=-><parameter=->' * 10000, [{'function': {'name': 'web_search'}}]) == []
+"""
+subprocess.run([sys.executable, "-c", rescue_probe], cwd=Path(__file__).resolve().parent, check=True, timeout=10)
+ok(True, "malformed XML rescue completes within bounded process time")
+ok(T._rescue_tool_calls('<function=web_search>unexpected text</function>', TOOLS) == [],
+   "unexpected function text is not promoted to a tool call")
 
 print("[_cap_verb_result]")
 ok(T._verb_result_cap("web_search") == 1500,

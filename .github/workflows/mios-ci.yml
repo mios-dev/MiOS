@@ -107,27 +107,19 @@ jobs:
           # shellcheck disable=SC2086
           python3 -m pip install --quiet --disable-pip-version-check $python_packages
 
-      - name: Build the native gate binaries
-        # mios-unit-gen is check_unit_projection's rendering half, so it must
-        # exist before the gate tier runs. Rationale: commit 8abb1e0f.
+      - name: Build and install the SSOT native catalog
+        shell: bash
         run: |
-          # mios-aiplane-lint is check_agent_pipe_budgets' Rust leg. Without it
-          # the check silently falls to the Python fallback, which still walks a
-          # narrow hardcoded key list -- so the enumerating version (T-1047)
-          # would never run in CI, and the register it enforces would go
-          # unchecked on every PR.
-          cd ./tools/native && cargo build -p mios-unit-gen -p mios-agent-relay -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling -p mios-toolchain-pin -p mios-ai-config -p mios-bake-plan -p mios-render-quadlets -p generate-names-registry -p xtask -p mios-task
-          # RELEASE too: check_bake_plan resolves the binary stage 85 would
-          # actually run, and stage 85 never looks at target/debug.
-          cargo build --release -p mios-bake-plan
-          # The native gate binary backs a check that fails when it is absent; miosd backs the unit tier's daemon suites.
-          cd ../../src/mios-rs && cargo build -p mios-gate -p miosd
+          set -euo pipefail
+          bash ./automation/55-native-build.sh
+          # Host fixture paths remain part of the existing daemon unit suites.
+          cargo build --locked --manifest-path ./src/mios-rs/Cargo.toml -p mios-gate -p miosd
 
       - name: Base images are the newest stable release
         # Every MiOS image shares [image].machine_os_repo; a newer stable tag fails here.
         run: |
           bash ./tools/fetch-image-facts.sh .
-          ./src/mios-rs/target/debug/mios-gate image-freshness --root .
+          mios-gate image-freshness --root .
 
       - name: Generated artifacts match the SSOT
         run: |
@@ -159,8 +151,6 @@ jobs:
 
       - name: Behavioural suite tier
         run: |
-          install -Dm0755 ./tools/native/target/debug/mios-unit-gen /usr/libexec/mios/mios-unit-gen
-          install -Dm0755 ./tools/native/target/debug/mios-agent-relay /usr/libexec/mios/mios-agent-relay
           python3.13 ./usr/libexec/mios/mios-mcp-server --install-native --source-root .
           bash ./tests/run-suites.sh unit
 
@@ -236,7 +226,9 @@ jobs:
           # runner mounts one. A hosted runner has none, so identity and model
           # resolve from the SSOT inside the build.
           # [image].base from the SSOT; the Containerfile carries no default.
-          BUILD_ARGS=(--build-arg "BASE_IMAGE=$(./usr/libexec/mios/mios-toml-get image base)")
+          BASE_IMAGE="$(./usr/libexec/mios/mios-toml-get --vendor image base)"
+          [[ -n "$BASE_IMAGE" ]] || { echo "::error::SSOT image.base is empty" >&2; exit 1; }
+          BUILD_ARGS=(--build-arg "BASE_IMAGE=$BASE_IMAGE")
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env
@@ -374,6 +366,8 @@ jobs:
   # the image builds. Publishing stays in `build`, which still needs drift-gate.
   smoke-test:
     runs-on: ubuntu-24.04
+    env:
+      MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -402,9 +396,12 @@ jobs:
       - name: Smoke build
         # The Containerfile's final layer runs bootc container lint.
         run: |
+          set -euo pipefail
+          BASE_IMAGE="$(./usr/libexec/mios/mios-toml-get --vendor image base)"
+          [[ -n "$BASE_IMAGE" ]] || { echo "::error::SSOT image.base is empty" >&2; exit 1; }
           sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add all \
               --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-              --build-arg "BASE_IMAGE=$(./usr/libexec/mios/mios-toml-get image base)" \
+              --build-arg "BASE_IMAGE=$BASE_IMAGE" \
               --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
 
       - name: Image runs and carries the MiOS components

@@ -19,6 +19,7 @@ import subprocess
 from datetime import datetime
 import argparse
 import threading
+import signal
 import xml.etree.ElementTree as ET
 from collections import deque
 
@@ -304,7 +305,7 @@ def _resolve_git_status():
         _GIT_STATUS_CACHE = "[dim]Git repo not found[/]"
         return _GIT_STATUS_CACHE
     try:
-        out = subprocess.check_output(["git", "status", "--porcelain", "-b"], cwd=d, text=True, timeout=2.0, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(["git", "--no-optional-locks", "status", "--porcelain", "-b"], cwd=d, text=True, timeout=2.0, stderr=subprocess.DEVNULL)
         lines = out.splitlines()
         branch = lines[0].replace("##", "").strip() if lines and "##" in lines[0] else (lines[0].strip() if lines else "unknown")
         staged = sum(1 for l in lines[1:] if l and l[0] not in (" ", "?"))
@@ -1543,6 +1544,20 @@ if TEXTUAL_AVAILABLE:
                 try: proc.terminate()
                 except OSError: pass
 
+def _run_monitor_app(**kwargs):
+    # Textual installs process-wide handlers in the driver constructor. Restore
+    # the caller's handlers even when run/initialization fails, before another
+    # terminal client inherits control after the Textual event loop closes.
+    names = ("SIGINT", "SIGTERM", "SIGTSTP", "SIGCONT", "SIGWINCH", "SIGTTIN", "SIGTTOU")
+    previous = {getattr(signal, name): signal.getsignal(getattr(signal, name))
+                for name in names if hasattr(signal, name)}
+    try:
+        return MiosMonitorApp(**kwargs).run()
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
 def main():
     global PIPELINE_MODE, AI_MODE, TAB_CHOICE
     parser = argparse.ArgumentParser(description="MiOS-Mon -- Unified TUI & System Monitor")
@@ -1630,8 +1645,7 @@ def main():
             except Exception:
                 request = {}
     while True:
-        app = MiosMonitorApp(ui_request=request, ui_mode=args.ui_mode, ansi_color=TRANSPARENT_TERMINAL)
-        selected = app.run()
+        selected = _run_monitor_app(ui_request=request, ui_mode=args.ui_mode, ansi_color=TRANSPARENT_TERMINAL)
         if not selected:
             break
         if IS_WINDOWS:
