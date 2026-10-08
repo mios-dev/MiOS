@@ -74,6 +74,13 @@ fn length(ctx: &DriftCtx) -> super::audit::Audit {
     let registered = super::audit::at(&doc, "refactor.oversize")?
         .as_array()
         .ok_or("Invalid SSOT refactor.oversize")?;
+    // The ceiling governs sub-modules only (operator ruling): modules under a
+    // declared sub-module package. A component's main modules (the agent-pipe
+    // root) are where features fold in, so they carry no line ceiling.
+    let submodule_roots = super::audit::strings(&doc, "refactor.submodule_roots")?;
+    if submodule_roots.is_empty() || submodule_roots.iter().any(|r| !r.ends_with('/')) {
+        return Err("SSOT refactor.submodule_roots must list package prefixes ending in '/'".into());
+    }
     let mut expected = std::collections::BTreeMap::new();
     for row in registered {
         let path = row
@@ -98,7 +105,7 @@ fn length(ctx: &DriftCtx) -> super::audit::Audit {
             .ok_or("Module outside agent-pipe")?;
         if !rel.ends_with(".py")
             || rel.ends_with("__init__.py")
-            || (rel.contains('/') && !rel.starts_with("mios_pipe/"))
+            || !submodule_roots.iter().any(|root| rel.starts_with(root.as_str()))
         {
             continue;
         }
@@ -300,7 +307,7 @@ mod tests {
         let policy = temp.path().join("usr/share/mios/mios.toml");
         std::fs::write(
             &policy,
-            "[drift.lint]\npython='python3'\n[refactor]\nmax_lines = 2\noversize = []\n",
+            "[drift.lint]\npython='python3'\n[refactor]\nmax_lines = 2\nsubmodule_roots = ['mios_pipe/']\noversize = []\n",
         )?;
         let ctx = DriftCtx::new(temp.path().into(), false);
         assert!(boundary(&ctx).is_err());
@@ -308,6 +315,12 @@ mod tests {
         let subject = base.join("mios_example.py");
         std::fs::write(&subject, "# import server\nimport serverless\n")?;
         assert!(boundary(&ctx).is_ok());
+        // A root module is the component's main module and carries no ceiling,
+        // so with no sub-module yet the ratchet has nothing to examine.
+        assert!(length(&ctx).is_err_and(|e| e.contains("no subjects")));
+        std::fs::create_dir_all(base.join("mios_pipe"))?;
+        let sub = base.join("mios_pipe/example.py");
+        std::fs::write(&sub, "a = 1\n")?;
         assert!(length(&ctx).is_ok());
         std::fs::write(
             &subject,
@@ -318,13 +331,18 @@ mod tests {
         assert!(boundary(&ctx).is_err_and(|e| e.contains("mios_example.py:1")));
         std::fs::write(&subject, "import os, server as alias\n")?;
         assert!(boundary(&ctx).is_err());
+        // Main modules absorb folded features; sub-modules hold the ceiling.
         std::fs::write(&subject, "a = 1\nb = 2\nc = 3\n")?;
-        assert!(length(&ctx).is_err_and(|e| e.contains("exceeds SSOT limit 2")));
-        std::fs::write(&policy, "[drift.lint]\npython='python3'\n[refactor]\nmax_lines = 2\noversize = [{path='mios_example.py',lines=3}]\n")?;
         assert!(length(&ctx).is_ok());
-        std::fs::write(&subject, "a = 1\n")?;
+        std::fs::write(&sub, "a = 1\nb = 2\nc = 3\n")?;
+        assert!(length(&ctx).is_err_and(|e| e.contains("exceeds SSOT limit 2")));
+        std::fs::write(&policy, "[drift.lint]\npython='python3'\n[refactor]\nmax_lines = 2\nsubmodule_roots = ['mios_pipe/']\noversize = [{path='mios_pipe/example.py',lines=3}]\n")?;
+        assert!(length(&ctx).is_ok());
+        std::fs::write(&sub, "a = 1\n")?;
         assert!(length(&ctx).is_err_and(|e| e.contains("shrinkage must lower")));
-        std::fs::remove_file(subject)?;
+        std::fs::write(&policy, "[drift.lint]\npython='python3'\n[refactor]\nmax_lines = 2\nsubmodule_roots = ['mios_pipe']\noversize = []\n")?;
+        assert!(length(&ctx).is_err_and(|e| e.contains("submodule_roots")));
+        std::fs::remove_file(sub)?;
         assert!(length(&ctx).is_err());
         Ok(())
     }
