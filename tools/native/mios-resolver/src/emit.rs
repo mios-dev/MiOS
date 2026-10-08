@@ -220,6 +220,16 @@ random_setting = "test"
 #[cfg(test)]
 mod canonical_export_tests {
     #[test]
+    fn signing_build_inputs_survive_security_suppression() {
+        let data: toml::Value = "[security.sigstore]\ncosign_version='fixture-pin'\ncosign_release_url='https://example.invalid/releases'\nprivate_setting='must-not-export'\n".parse().unwrap();
+        for exports in [super::build_exports_map(&data, 0), super::build_globals_map(&data, 0)] {
+            assert_eq!(exports["MIOS_SECURITY_SIGSTORE_COSIGN_VERSION"], "fixture-pin");
+            assert_eq!(exports["MIOS_SECURITY_SIGSTORE_COSIGN_RELEASE_URL"], "https://example.invalid/releases");
+            assert!(!exports.contains_key("MIOS_SECURITY_SIGSTORE_PRIVATE_SETTING"));
+        }
+    }
+
+    #[test]
     fn service_account_alias_cannot_replace_database_username() {
         let data: toml::Value =
             "[pgvector]\nuser='database'\n[services.pgvector]\nuser='os-account'\n"

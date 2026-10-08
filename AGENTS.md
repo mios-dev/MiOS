@@ -364,6 +364,16 @@ See [bootstrap_install.md (mios-bootstrap)](https://github.com/mios-dev/mios-boo
 
 ## 14. Persistence sanitization
 
+**MiOS names apply globally to new working artifacts.** Use a sanitized,
+function-based `mios-<purpose>` stem for worktree directories, branches,
+verification directories and helper artifacts. Follow the lowercase
+`a-z0-9-` charset in `[variants.naming]`; identify the job, not a harness,
+operator, model or timestamp. Keep ownership and run timestamps in the relay
+and ledger. Check for collisions before creation; do not silently overwrite
+an existing path. Rename owned lanes with Git worktree operations, preserve
+their commits and uncommitted contributions, and update executable references.
+Retain historical receipts and other participants' identities and worktrees.
+
 Anything persisted to `/var/lib/mios/ai/memory/` or
 `/var/lib/mios/ai/scratch/` must be vendor-neutral:
 
