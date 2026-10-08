@@ -126,6 +126,17 @@ fn a_delegating_check_is_not_a_stub() {
     assert_eq!(code, 0, "{out}");
 }
 
+/// Handing the root itself to a native generator's --check is delegation too
+/// (check_pod_quadlets, check_egress_firewall); the stat-only shape above stays a stub.
+#[test]
+fn a_check_delegating_the_root_is_not_a_stub() {
+    const ROOT_ARG: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        match crate::native_generator::command(&ctx.root, \"pod-quadlets\", true)\n            .and_then(|mut c| c.output().map_err(|e| e.to_string()))\n        {\n            Ok(o) if o.status.success() => Verdict::Pass(\"matches\".into()),\n            _ => Verdict::Fail(\"drift\".into()),\n        }\n    }";
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &[("A", "check_a", ROOT_ARG)], &[], 0);
+    let (code, out) = run(d.path());
+    assert_eq!(code, 0, "{out}");
+}
+
 #[test]
 fn an_unregistered_stub_fails() {
     let d = tempfile::tempdir().unwrap();
