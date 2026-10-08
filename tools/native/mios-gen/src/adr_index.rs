@@ -332,18 +332,12 @@ pub fn run_adr_index(root: &Path, check: bool, json_mode: bool) -> Result<(), (S
         let current = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => {
-                return Err((
-                    format!("{} is missing -- run mios-gen adr-index", OUT),
-                    1,
-                ));
+                return Err((format!("{} is missing -- run mios-gen adr-index", OUT), 1));
             }
         };
 
         if current != body {
-            return Err((
-                format!("{} is stale -- run mios-gen adr-index", OUT),
-                1,
-            ));
+            return Err((format!("{} is stale -- run mios-gen adr-index", OUT), 1));
         }
 
         let adr_viols = validate_adr_ssot_consistency(root);

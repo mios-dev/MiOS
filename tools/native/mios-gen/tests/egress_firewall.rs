@@ -133,3 +133,45 @@ mode = "off"
     assert!(stdout.contains("\"status\": \"clean\""));
     assert!(stdout.contains("\"subcommand\": \"egress-firewall\""));
 }
+
+#[test]
+fn check_detects_drift_and_missing_output_without_writing() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("usr/share/mios")).unwrap();
+    fs::write(
+        root.join("usr/share/mios/mios.toml"),
+        "[security.egress]\nmode='audit'\n",
+    )
+    .unwrap();
+    let run = |check: bool| {
+        let mut command = Command::new(bin());
+        command
+            .arg("egress-firewall")
+            .arg("--root")
+            .arg(root)
+            .env_remove("MIOS_TOML")
+            .env_remove("MIOS_EGRESS_OUT")
+            .env_remove("MIOS_AGENT_USER");
+        if check {
+            command.arg("--check");
+        }
+        command.output().unwrap()
+    };
+    let nft = root.join("usr/share/mios/security/egress.nft");
+    let missing = run(true);
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("cannot compare"));
+    assert!(!nft.exists());
+    assert!(run(false).status.success());
+    let clean = fs::read(&nft).unwrap();
+    assert!(run(true).status.success());
+    assert_eq!(fs::read(&nft).unwrap(), clean);
+    fs::write(&nft, "planted firewall drift").unwrap();
+    let drift = run(true);
+    assert!(!drift.status.success());
+    assert!(String::from_utf8_lossy(&drift.stderr).contains("is stale"));
+    assert_eq!(fs::read_to_string(&nft).unwrap(), "planted firewall drift");
+    assert!(run(false).status.success());
+    assert_eq!(fs::read(&nft).unwrap(), clean);
+}

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3813,
-  "total_metadata_entries": 3105,
-  "total_hints": 3095,
+  "total_files_scanned": 3815,
+  "total_metadata_entries": 3107,
+  "total_hints": 3097,
   "total_functions_indexed": 1462,
-  "total_related_links": 5138,
+  "total_related_links": 5141,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -10048,6 +10048,18 @@
       "has_shebang": false
     },
     {
+      "path": "tools/native/mios-gen/src/projection_evidence.rs",
+      "hint": "Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.",
+      "related": [
+        "automation/98-drift-checks.sh",
+        "tools/native/mios-gen/tests/projection_evidence.rs"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "tools/native/mios-gen/src/render_desktop.rs",
       "hint": "Renders usr/share/applications/*.desktop files from SSOT [ports] and [desktop.launchers] table.",
       "related": [
@@ -10349,6 +10361,17 @@
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/projection_evidence.rs",
+      "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
+      "related": [
+        "tools/native/mios-gen/src/projection_evidence.rs"
+      ],
+      "functions": [],
+      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },

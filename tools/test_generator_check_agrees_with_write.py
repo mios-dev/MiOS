@@ -48,12 +48,9 @@ def _projection_pairs(text=None):
         args = re.findall(r'"([^"]+)"', line)
         if len(args) < 2:
             continue
-        if args[0] == "tools/native/mios-gen/src/main.rs":
-            if native_verb is None:
-                raise AssertionError("native projection evidence has no preceding generator invocation")
-            pairs.append((("mios-gen", native_verb), args[1:]))
-        elif args[0].endswith(".py") and os.path.isfile(os.path.join(_ROOT, args[0])):
-            pairs.append(((sys.executable, args[0]), args[1:]))
+        if native_verb is None or args[0] != native_verb:
+            raise AssertionError("native projection evidence has no preceding generator invocation")
+        pairs.append((("mios-gen", native_verb), args[1:]))
     return pairs
 
 
@@ -148,7 +145,7 @@ class GeneratorCheckAgreesWithWrite(unittest.TestCase):
 
     def test_native_evidence_without_a_command_fails_instead_of_skipping(self):
         with self.assertRaisesRegex(AssertionError, "no preceding generator"):
-            _projection_pairs('check_bad() {\n_emit_projection_evidence "tools/native/mios-gen/src/main.rs" "output"\n}')
+            _projection_pairs('check_bad() {\n_emit_projection_evidence "gate-index" "output"\n}')
 
     def test_generated_artifacts_are_lf_on_every_host(self):
         # Python text mode translates newlines to the host separator, so a

@@ -1,7 +1,7 @@
 // AI-hint: Heavy regen-and-diff projection checks for miosd drift runner.
 // AI-related: tools/native/mios-gen/src/pod_quadlets.rs, tools/native/mios-gen/src/main.rs, automation/98-drift-checks.sh
 
-use super::regen::{regen_and_diff, regen_and_diff_shell};
+use super::regen::regen_and_diff_shell;
 use super::{Check, DriftCtx, Verdict};
 
 pub struct PodQuadletsCheck;
@@ -43,12 +43,20 @@ impl Check for EgressFirewallCheck {
         "Assert generated egress firewall rules match committed egress.nft"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-egress-firewall.py",
-            &["usr/share/mios/security/egress.nft"],
-            &["--check"],
-        )
+        match crate::native_generator::command(&ctx.root, "egress-firewall", true)
+            .and_then(|mut command| command.output().map_err(|e| e.to_string()))
+        {
+            Ok(out) if out.status.success() => {
+                Verdict::Pass("Native egress firewall matches SSOT".into())
+            }
+            Ok(out) => Verdict::Fail(format!(
+                "Native egress firewall check failed ({}): {} {}",
+                out.status,
+                String::from_utf8_lossy(&out.stdout).trim(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            )),
+            Err(error) => Verdict::Fail(error),
+        }
     }
 }
 
