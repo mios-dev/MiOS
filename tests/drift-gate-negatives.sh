@@ -4860,7 +4860,11 @@ s = open(p, encoding="utf-8").read()
 start = s.index("\n[laws.projection_registry]\n")
 end = s.index("\n[", start + 1)
 head, table, tail = s[:start], s[start:end], s[end:]
-table, n = re.subn(r'(?m)^exempt = \[$', 'exempt = [\n  { generator = "%s", reason = "%s" },' % (gen, reason), table, count=1)
+row = '\n  { generator = "%s", reason = "%s" },' % (gen, reason)
+# Usually empty (`exempt = []`); an itemised register is multi-line.
+table, n = re.subn(r'(?m)^exempt = \[\]$', 'exempt = [' + row + '\n]', table, count=1)
+if n == 0:
+    table, n = re.subn(r'(?m)^exempt = \[$', 'exempt = [' + row, table, count=1)
 assert n == 1, "the [laws.projection_registry].exempt list was not found -- the plant would prove nothing"
 table, n = re.subn(r'(?m)^max_exempt = ([0-9]+)$', lambda m: "max_exempt = %d" % (int(m.group(1)) + 1), table, count=1)
 assert n == 1, "[laws.projection_registry].max_exempt was not found"
@@ -4891,7 +4895,7 @@ PYEOF
     # on the MESSAGE, not the exit code: the plant is still on disk here, so a
     # mutation that silently missed would fail the check for the earlier reason
     # and the assertion would pass without having tested anything.
-    _pc_exempt ""
+    _pc_exempt "" || _pc_fail "test_projection_coverage could not itemise the plant"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a bare exemption carrying no reason"
     case "${_NEG_GATE_OUT}" in
         *"carries no \`reason\`"*) : ;;
@@ -4902,7 +4906,7 @@ PYEOF
     # The positive half of the same branch: the SAME plant, exempted WITH a
     # reason under a ceiling that admits it, must pass. Without this the
     # exemption path could be dead code that never grants anything.
-    _pc_exempt "negative-test plant"
+    _pc_exempt "negative-test plant" || _pc_fail "test_projection_coverage could not itemise the plant"
     _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"; rm -f "$planted"
 
