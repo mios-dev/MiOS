@@ -1,6 +1,6 @@
-// AI-hint: tasks.jsonl access and records -- [tasks.store], locked writes, the schema checker, the Python-identical serializer, status words.
+// AI-hint: tasks.jsonl access and records -- [tasks.store], locked writes, the schema checker, the Python-identical serializer, status words, and the index every reader resolves a task id through (opaque or typed once migrated, verbatim before).
 // AI-related: /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, tasks.jsonl, TASKS.md, /usr/share/doc/mios/adr/0028-one-canonical-task-list.md
-// AI-functions: Store::open, Store::read, Store::write_lines, Store::locked, find_root, read_lines, lock_file, write_atomic, Schema::load, Schema::canon, Schema::conforms, dumps, canonical_status, lane_word, today, is_iso_date
+// AI-functions: Store::open, Store::read, Store::write_lines, Store::locked, Store::is_purged, Store::load_schema, find_root, read_lines, lock_file, write_atomic, Schema::load, Schema::from_record, Schema::canon, Schema::conforms, Index::new, Index::find, Index::label, dumps, canonical_status, lane_word, today, is_iso_date
 
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 /// The SSOT file every lookup starts from; the repo root is the directory that holds it.
 pub const SSOT: &str = "usr/share/mios/mios.toml";
 
-/// The only keys [tasks.store] may carry (ADR-0028).
-pub const STORE_KEYS: [&str; 7] = [
+/// The only keys [tasks.store] may carry (ADR-0028). `numbered` and `purged` arrive with `mios-task migrate-ids`.
+pub const STORE_KEYS: [&str; 9] = [
     "path",
     "schema",
     "doc",
@@ -20,6 +20,8 @@ pub const STORE_KEYS: [&str; 7] = [
     "frozen",
     "migrated",
     "migrated_sha256",
+    "numbered",
+    "purged",
 ];
 
 /// One retired list whose bytes now live only in the records' provenance slices.
@@ -41,8 +43,13 @@ pub struct Store {
     pub frozen: Vec<Frozen>,
     /// How many records the migration carried; each keeps a non-null provenance.
     pub migrated: usize,
-    /// The digest of the migrated records' provenance keys, ids, aliases and slice sets (check::identity).
+    /// The digest of the migrated records' identity and slice sets (check::identity).
     pub migrated_sha256: Option<String>,
+    /// The highest task number ever issued. Present once `mios-task migrate-ids` has run: its presence is what
+    /// makes the list a migrated one (opaque ids, typed numbers, the schema file's shape).
+    pub numbered: Option<u64>,
+    /// The old id shapes the migration purged; none may appear in the tracked tree again (check --tree).
+    pub purged: Vec<String>,
 }
 
 /// One line of the canonical file: its 1-based number, its bytes, and its parse (None if not JSON).
@@ -135,6 +142,31 @@ impl Store {
             });
         }
         let migrated = st.get("migrated").and_then(|v| v.as_integer()).unwrap_or(0) as usize;
+        let numbered = match st.get("numbered") {
+            None => None,
+            Some(v) => Some(
+                v.as_integer()
+                    .filter(|n| *n >= 0)
+                    .ok_or("[tasks.store].numbered must be a non-negative integer")?
+                    as u64,
+            ),
+        };
+        let purged = match st.get("purged") {
+            None => vec![],
+            Some(v) => v
+                .as_array()
+                .ok_or("[tasks.store].purged must be a list of id shapes")?
+                .iter()
+                .map(|x| {
+                    x.as_str()
+                        .map(str::to_string)
+                        .ok_or("[tasks.store].purged entries are strings")
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        if numbered.is_some() == purged.is_empty() {
+            return Err("[tasks.store].numbered and [tasks.store].purged come together (mios-task migrate-ids writes both)".into());
+        }
         Ok(Store {
             root: root.to_path_buf(),
             path: s("path")?,
@@ -147,7 +179,25 @@ impl Store {
                 .get("migrated_sha256")
                 .and_then(|v| v.as_str())
                 .map(str::to_string),
+            numbered,
+            purged,
         })
+    }
+
+    /// True once `mios-task migrate-ids` has run on this list.
+    pub fn is_purged(&self) -> bool {
+        self.numbered.is_some()
+    }
+
+    /// The record schema this list is read with: the schema file once migrated, the frozen legacy shape before.
+    /// The file is loaded either way, so a broken schema fails before the migration too.
+    pub fn load_schema(&self) -> Result<Schema, String> {
+        let file = Schema::load(&self.schema_file())?;
+        if self.is_purged() {
+            Ok(file)
+        } else {
+            Schema::from_record(crate::ids::legacy_record_schema())
+        }
     }
 
     pub fn file(&self) -> PathBuf {
@@ -178,6 +228,56 @@ impl Store {
             s.push('\n');
         }
         write_atomic(&self.file(), &s)
+    }
+}
+
+/// Every reader resolves a task id through this: the record ids, and once migrated the typed task_<number>
+/// too. `labels` is how a record is named to people: its typed id once migrated, its verbatim id before.
+pub struct Index {
+    pub keys: HashMap<String, usize>,
+    pub labels: Vec<String>,
+    pub ids: Vec<String>,
+}
+
+impl Index {
+    pub fn new(records: &[Value], ids: Option<&crate::ids::Ids>) -> Index {
+        let mut keys = HashMap::new();
+        let mut labels = Vec::with_capacity(records.len());
+        let mut out = Vec::with_capacity(records.len());
+        for (i, r) in records.iter().enumerate() {
+            let id = r
+                .get("id")
+                .and_then(|x| x.as_str())
+                .unwrap_or("?")
+                .to_string();
+            keys.entry(id.clone()).or_insert(i);
+            let label = match (ids, r.get("number").and_then(|x| x.as_u64())) {
+                (Some(o), Some(n)) => {
+                    let t = o.typed(n);
+                    keys.entry(t.clone()).or_insert(i);
+                    t
+                }
+                _ => id.clone(),
+            };
+            labels.push(label);
+            out.push(id);
+        }
+        Index {
+            keys,
+            labels,
+            ids: out,
+        }
+    }
+
+    pub fn find(&self, key: &str) -> Option<usize> {
+        self.keys.get(key).copied()
+    }
+
+    /// The label of the record `key` names, or `key` itself when it names none.
+    pub fn label(&self, key: &str) -> String {
+        self.find(key)
+            .map(|i| self.labels[i].clone())
+            .unwrap_or_else(|| key.to_string())
     }
 }
 
@@ -257,6 +357,10 @@ impl Schema {
             "{}: no `schema` member (strict json_schema wrapper)",
             p.display()
         ))?;
+        Schema::from_record(record)
+    }
+
+    pub fn from_record(record: Value) -> Result<Schema, String> {
         let mut patterns = HashMap::new();
         collect_patterns(&record, &mut patterns)?;
         Ok(Schema { record, patterns })
@@ -322,6 +426,11 @@ impl Schema {
         if let Some(e) = node.get("enum").and_then(|e| e.as_array()) {
             if !e.contains(v) {
                 errs.push(format!("{path}: {v} is not in the enum"));
+            }
+        }
+        if let (Some(min), Some(n)) = (node.get("minimum").and_then(|m| m.as_i64()), v.as_i64()) {
+            if n < min {
+                errs.push(format!("{path}: {n} is below the minimum {min}"));
             }
         }
         if let Value::String(s) = v {

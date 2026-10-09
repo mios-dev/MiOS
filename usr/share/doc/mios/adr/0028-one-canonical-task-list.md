@@ -54,7 +54,7 @@ keeps its status dialect, and applies a `TASKS.md` overrides block (JSON lines b
 4. **Retired stores.** `TASKS.jsonl`, `.devloop/tasks.jsonl`, and the lists ADR-0026 absorbed are listed in
    `[tasks.store].retired` and must not exist; a file named like the canonical list (any case) at the root or
    one directory down is a second store. Both fail `check`.
-5. **Frozen history, losing no byte.** Every record migrated from a retired list keeps, in
+5. **Frozen history before the opaque-ID migration.** Every record migrated from a retired list keeps, in
    `provenance.sources`, the verbatim slices it owned (file, kind, offset, length, sha256, and `after`: the
    id of the record owning the slice before it). Concatenated by offset, the slices rebuild each list in
    `[tasks.store].frozen` to the recorded digest (`mios-task source <list>`), so the task gates over the old
@@ -64,7 +64,7 @@ keeps its status dialect, and applies a `TASKS.md` overrides block (JSON lines b
    migrated record's provenance key, id, aliases and slice set -- so a swap that keeps the count (a record whose
    only slices lie outside the frozen lists, such as AGY-1692, dropped and another appended), a rewritten key, a
    lost alias or a stripped slice fails `check`. A `#n` id must name the id it was renamed from in its aliases.
-6. **Former ids.** A migrated record that was renamed keeps its old id in `provenance.aliases`. Where that old
+6. **Former ids before the opaque-ID migration.** A migrated record that was renamed keeps its old id in `provenance.aliases`. Where that old
    id is also a live task (T-031, T-1104..T-1107 against T-031#2, T-1104#2..T-1107#2), `mios-task set/claim/
    release` refuse it as ambiguous unless `--exact` is passed; an id that is only a former id resolves to the
    renamed record. `check` prints a note per such id, and refuses a record born in the list that takes one.
@@ -74,6 +74,39 @@ keeps its status dialect, and applies a `TASKS.md` overrides block (JSON lines b
 7. **Scope.** MiOS reads no `-dev-loop` or `mios-micro` file. The operator's classification decisions put
    7 records in the toolkit (they stay in `-dev-loop`) and keep the rest. A MiOS record that only the toolkit
    backlog held (AGY-1692) keeps its toolkit bytes as provenance.
+
+### Opaque identity amendment (operator-directed, 2026-10-09)
+
+This amendment supersedes points 5 and 6 for a list after `mios-task migrate-ids`; those points
+continue to describe the first migration and the compatibility checks on a list not yet migrated.
+It does not authorize changing Git history or silently accepting new frozen digests.
+
+- Every record has `object = "task"`, an opaque `id` spelled `task_<ULID>` (26 Crockford characters),
+  and a unique positive integer `number`. Operators and rendered documents use `task_<number>`;
+  structured dependencies and related edges hold the opaque id. Both spellings resolve to one record.
+  The schema owns the object word. Former ids, provenance keys and aliases cease to be lookup identities.
+- The one-shot migration numbers records by creation date and existing list order within each date;
+  undated records come first. It derives opaque ids deterministically from the old identity and that
+  ordering. New tasks receive a fresh opaque id and a number greater than any already issued.
+  `[tasks.store].numbered` is the non-reissue floor; the identity digest freezes migrated numbers,
+  opaque ids and owned slices. Dropped records, swapped identities, changed slice sets, duplicate
+  numbers and numbers out of creation order fail `check`.
+- The authorized token rewrite includes frozen slice text, dependencies, overrides, documentation,
+  tracked textual files and filenames when `--rewrite-tree` is requested. It updates slice offsets,
+  lengths, hashes, predecessor labels, frozen digests and the migrated identity digest together.
+  The new frozen baseline is explicitly the token-rewritten corpus, not the original byte digest.
+  Git history retains the original bytes. Non-task lookalikes such as aircraft names and encodings
+  remain untouched; an unresolved task token requires an explicit `--map OLD=OLD2` decision.
+- Planning and rename-collision checks happen before source writes. `--dry-run` preserves source;
+  `--report` is an explicitly requested planning output and may be written during a dry run.
+  Migration inputs cannot be used as the report path. Publication stages byte/mode backups and
+  replaces individual files atomically; an ordinary write or final validation failure restores
+  touched files, renames and newly created directories. Incomplete restoration retains backups and
+  reports their location. This is recovery for reported failures, not an atomicity claim for a host crash.
+- `[tasks.store].purged` records the retired token shapes. `mios-task check --tree` rejects them in
+  tracked paths and text. An already migrated list is validated before `migrate-ids` reports a no-op.
+  Rehearse the migration in an isolated worktree, inspect its diff and run the gates before integrating
+  a repository-wide rewrite. Positive, planted-negative, idempotence and no-write controls cover the tool.
 
 ### The migration (one shot, `mios-task migrate-canonical`)
 

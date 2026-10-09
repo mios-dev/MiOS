@@ -1223,3 +1223,167 @@ fn a_carriage_return_is_refused_and_named() {
     assert!(!fs::read_to_string(&p).unwrap().contains('\r'));
     assert_eq!(run(&d, &["check"]).code, 0);
 }
+
+#[test]
+fn opaque_migration_checks_dry_run_idempotence_and_ssot_tree_composition() {
+    let d = sandbox("opaque-migration");
+    let ssot = d.join("usr/share/mios/mios.toml");
+    let mut toml = fs::read_to_string(&ssot).unwrap();
+    toml.push_str("\n# task reference: T-001\n");
+    fs::write(&ssot, toml).unwrap();
+    fs::write(d.join("T-001-note.md"), "T-001 T-031#2 F-35 UTF-8\n").unwrap();
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["add", "--", "T-001-note.md", "usr/share/mios/mios.toml"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    let files = [
+        "tasks.jsonl",
+        "TASKS.md",
+        "usr/share/mios/mios.toml",
+        "T-001-note.md",
+    ];
+    let before: Vec<_> = files.iter().map(|f| fs::read(d.join(f)).unwrap()).collect();
+    let dry = run(
+        &d,
+        &[
+            "migrate-ids",
+            "--rewrite-tree",
+            "--map",
+            "T-404=T-002",
+            "--dry-run",
+        ],
+    );
+    assert_eq!(dry.code, 0, "{}", dry.text);
+    for (f, b) in files.iter().zip(&before) {
+        assert_eq!(&fs::read(d.join(f)).unwrap(), b, "dry-run changed {f}");
+    }
+    let migrated = run(
+        &d,
+        &["migrate-ids", "--rewrite-tree", "--map", "T-404=T-002"],
+    );
+    assert_eq!(migrated.code, 0, "{}", migrated.text);
+    let check = run(&d, &["check"]);
+    assert_eq!(check.code, 0, "{}", check.text);
+    let toml = fs::read_to_string(&ssot).unwrap();
+    assert!(
+        toml.contains("numbered = ") && toml.contains("purged = ["),
+        "{toml}"
+    );
+    assert!(!toml.contains("task reference: T-001"));
+    assert!(!d.join("T-001-note.md").exists());
+    let note = fs::read_to_string(d.join("task_1-note.md")).unwrap();
+    assert!(
+        note.contains("F-35 UTF-8"),
+        "lookalikes must remain: {note}"
+    );
+    assert!(!note.contains("T-031"));
+    let after = [
+        "tasks.jsonl",
+        "TASKS.md",
+        "usr/share/mios/mios.toml",
+        "task_1-note.md",
+    ];
+    let stable: Vec<_> = after.iter().map(|f| fs::read(d.join(f)).unwrap()).collect();
+    let repeat = run(&d, &["migrate-ids", "--rewrite-tree"]);
+    assert_eq!(repeat.code, 0, "{}", repeat.text);
+    for (f, b) in after.iter().zip(&stable) {
+        assert_eq!(&fs::read(d.join(f)).unwrap(), b, "repeat changed {f}");
+    }
+    let rendered = fs::read(d.join("TASKS.md")).unwrap();
+    fs::write(d.join("TASKS.md"), b"planted render corruption\n").unwrap();
+    let refused = run(&d, &["migrate-ids"]);
+    assert_ne!(
+        refused.code, 0,
+        "an already migrated but corrupt list must not claim a clean no-op"
+    );
+    assert!(refused.text.contains("TASKS.md"), "{}", refused.text);
+    assert_eq!(
+        fs::read(d.join("TASKS.md")).unwrap(),
+        b"planted render corruption\n"
+    );
+    fs::write(d.join("TASKS.md"), rendered).unwrap();
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn opaque_migration_rename_collision_preserves_every_source() {
+    let d = sandbox("opaque-collision");
+    fs::write(d.join("T-001-note.md"), "T-001\n").unwrap();
+    fs::write(d.join("task_1-note.md"), "operator content\n").unwrap();
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["add", "--", "T-001-note.md"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    let files = [
+        "tasks.jsonl",
+        "TASKS.md",
+        "usr/share/mios/mios.toml",
+        "T-001-note.md",
+        "task_1-note.md",
+    ];
+    let before: Vec<_> = files.iter().map(|f| fs::read(d.join(f)).unwrap()).collect();
+    let result = run(
+        &d,
+        &["migrate-ids", "--rewrite-tree", "--map", "T-404=T-002"],
+    );
+    assert_ne!(result.code, 0);
+    assert!(
+        result.text.contains("destination already exists"),
+        "{}",
+        result.text
+    );
+    for (f, b) in files.iter().zip(&before) {
+        assert_eq!(&fs::read(d.join(f)).unwrap(), b, "collision changed {f}");
+    }
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn opaque_migration_refuses_a_tracked_but_missing_source_without_writes() {
+    let d = sandbox("opaque-missing-source");
+    fs::write(d.join("notes.md"), "T-001\n").unwrap();
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["add", "--", "notes.md"])
+        .current_dir(&d)
+        .status()
+        .unwrap()
+        .success());
+    fs::remove_file(d.join("notes.md")).unwrap();
+    let before = fs::read(d.join("tasks.jsonl")).unwrap();
+    let result = run(
+        &d,
+        &["migrate-ids", "--rewrite-tree", "--map", "T-404=T-002"],
+    );
+    assert_ne!(result.code, 0);
+    assert!(
+        result
+            .text
+            .contains("tracked source notes.md cannot be read"),
+        "{}",
+        result.text
+    );
+    assert_eq!(fs::read(d.join("tasks.jsonl")).unwrap(), before);
+    fs::remove_dir_all(d).unwrap();
+}

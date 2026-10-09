@@ -1,18 +1,22 @@
-// AI-hint: mios-task verbs over tasks.jsonl -- check, fmt, render, ready/next, set, claim, release, add, overrides fold, source (rebuild a frozen retired list) and the one-shot migrate-canonical.
+// AI-hint: mios-task verbs over tasks.jsonl -- check/gate, fmt, render, ready/next, set, claim, release, add (mints task_<ULID> once migrated), fold, source, and migration one-shots.
 // AI-related: tasks.jsonl, TASKS.md, /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, /usr/share/doc/mios/adr/0028-one-canonical-task-list.md
-// AI-functions: run, Args, cmd_check, cmd_fmt, cmd_render, cmd_ready, resolve, cmd_set, cmd_claim, cmd_add, cmd_fold, cmd_source, cmd_migrate
+// AI-functions: run, Args, cmd_check, cmd_fmt, cmd_render, cmd_ready, resolve, cmd_set, cmd_claim, cmd_add, mint, cmd_fold, cmd_source, cmd_migrate
 
 use crate::check::{self, State};
+use crate::ids;
 use crate::migrate::{self, Inputs};
 use crate::overrides;
-use crate::record::{self, canonical_status, dumps, find_root, today, write_atomic, Schema, Store};
+use crate::purge;
+use crate::record::{
+    self, canonical_status, dumps, find_root, today, write_atomic, Index, Schema, Store,
+};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-pub const VERBS: [&str; 12] = [
+pub const VERBS: [&str; 13] = [
     "check",
     "fmt",
     "render",
@@ -25,10 +29,14 @@ pub const VERBS: [&str; 12] = [
     "overrides",
     "source",
     "migrate-canonical",
+    "migrate-ids",
 ];
 
 pub const USAGE: &str = "usage: mios-task <verb> [--root DIR] ...
+  ID is the typed task_<number> or the opaque task_<ULID> once the list is migrated (migrate-ids), the verbatim id before.
   check [--json] [--only hygiene]      validate tasks.jsonl, its frozen history, its overrides and TASKS.md == render
+  check --tree                         fail on an old task id anywhere in the tracked tree (before the migration: on
+                                        one migrate-ids could not rewrite)
   fmt [--check]                        rewrite every line canonically (fills missing fields, legacy -> OpenAI words)
   render                               write TASKS.md from tasks.jsonl, keeping the overrides block
   ready|next [--json] [--limit N]      pending and unblocked (overrides applied); next sorts by priority
@@ -36,13 +44,18 @@ pub const USAGE: &str = "usage: mios-task <verb> [--root DIR] ...
   claim ID LANE [--exact]              compare-and-set owner; exit 2 if another lane owns ID
   release ID LANE [--exact]            (an ID that is also a former id of another task needs --exact;
                                         an ID that is only a former id resolves to the renamed task)
-  add --id ID --title T --ac TEXT... --positive CMD --negative CMD [--expect E] [--type T]
+  add --title T --ac TEXT... --positive CMD --negative CMD [--expect E] [--type T]
+      (once migrated add mints task_<ULID> and the next number; before it, --id ID is required)
       [--priority P] [--size S] [--workstream W] [--domain D] [--epic E] [--goal G]
       [--depends-on ID]... [--owner O]
   overrides fold ID                    bake ID's override values into tasks.jsonl, delete its lines
   source REPO:PATH                     print a retired list rebuilt byte for byte from the provenance slices
   migrate-canonical --store F --lane F --classification F... --out F --report F
-      [--schema F] [--lane-origin MiOS:PATH] [--dry-run]";
+      [--schema F] [--lane-origin MiOS:PATH] [--dry-run]
+  migrate-ids [--rewrite-tree] [--map OLD=OLD2]... [--report F] [--dry-run]
+                                       give every task an opaque task_<ULID> and a number, purge the old ids
+                                        from the list, its frozen history and overrides, and with --rewrite-tree
+                                        from every tracked file (ADR-0028); a migrated list is left as it is";
 
 /// Flags with values (repeatable), bare switches and positionals.
 pub struct Args {
@@ -51,7 +64,14 @@ pub struct Args {
     pub switches: HashSet<String>,
 }
 
-const SWITCHES: [&str; 4] = ["--json", "--check", "--dry-run", "--exact"];
+const SWITCHES: [&str; 6] = [
+    "--json",
+    "--check",
+    "--dry-run",
+    "--exact",
+    "--tree",
+    "--rewrite-tree",
+];
 
 impl Args {
     pub fn parse(v: &[String]) -> Result<Args, String> {
@@ -159,6 +179,7 @@ fn dispatch(verb: &str, a: &Args) -> Result<(), Fail> {
         "release" => cmd_claim(&st, a, false),
         "add" => cmd_add(&st, a),
         "source" => cmd_source(&st, a),
+        "migrate-ids" => purge::cmd(&st, a).map_err(Fail::Bad),
         "overrides" => match a.pos.first().map(String::as_str) {
             Some("fold") => cmd_fold(&st, a),
             _ => Err(Fail::Usage("overrides takes: fold ID".into())),
@@ -169,6 +190,28 @@ fn dispatch(verb: &str, a: &Args) -> Result<(), Fail> {
 
 fn cmd_check(st: &Store, a: &Args) -> Result<(), Fail> {
     let state = State::load(st)?;
+    if a.has("--tree") {
+        let problems = purge::tree(st, &state)?;
+        for p in &problems {
+            println!("{p}");
+        }
+        return if problems.is_empty() {
+            println!(
+                "tracked tree ok: {}",
+                if st.is_purged() {
+                    "no purged task id ([tasks.store].purged)"
+                } else {
+                    "migrate-ids can rewrite every old task id"
+                }
+            );
+            Ok(())
+        } else {
+            Err(Fail::Bad(format!(
+                "check --tree failed: {} old task id(s)",
+                problems.len()
+            )))
+        };
+    }
     let only = a.one("only");
     if only.is_some_and(|o| o != "hygiene") {
         return Err(Fail::Usage("--only takes: hygiene".into()));
@@ -353,8 +396,12 @@ fn write_doc(
     )
     .map(|b| b.lines)
     .map_err(|e| Fail::Bad(e.join("\n")))?;
-    let eff = overrides::apply(records, &lines);
-    write_atomic(&st.doc_file(), &overrides::render(&st.path, &eff, &inner))?;
+    let idx = Index::new(records, state.purged.then_some(&state.ids));
+    let eff = overrides::apply(records, &lines, &idx);
+    write_atomic(
+        &st.doc_file(),
+        &overrides::render(&st.path, &eff, &inner, &idx),
+    )?;
     Ok(())
 }
 
@@ -421,14 +468,21 @@ fn cmd_ready(st: &Store, a: &Args, next: bool) -> Result<(), Fail> {
     if a.has("--json") {
         let v: Vec<Value> = out
             .iter()
-            .map(|r| json!({"id": r["id"], "priority": r["priority"], "owner": r["owner"], "title": r["title"]}))
+            .map(|r| {
+                if state.purged {
+                    json!({"id": r["id"], "object": state.ids.object, "number": r["number"],
+                           "priority": r["priority"], "owner": r["owner"], "title": r["title"]})
+                } else {
+                    json!({"id": r["id"], "priority": r["priority"], "owner": r["owner"], "title": r["title"]})
+                }
+            })
             .collect();
         println!("{}", dumps(&Value::Array(v)));
     } else {
         for r in &out {
             println!(
                 "{}\t{}\t{}",
-                r["id"].as_str().unwrap_or(""),
+                state.label(r),
                 r["priority"].as_str().unwrap_or("-"),
                 r["title"].as_str().unwrap_or("")
             );
@@ -486,15 +540,18 @@ where
     write_doc(st, &recs, &state, inner)
 }
 
-fn find(recs: &[Value], id: &str) -> Result<usize, Fail> {
-    recs.iter()
-        .position(|r| r.get("id").and_then(|x| x.as_str()) == Some(id))
-        .ok_or(Fail::Bad(format!("no task {id}")))
-}
-
-/// The record an edit by `id` means. A former id (provenance.aliases) of exactly one record resolves to it; an
+/// The record an edit by `id` means. Once migrated: the typed task_<number> or the opaque task_<ULID>, nothing
+/// else. Before: the verbatim id; a former id (provenance.aliases) of exactly one record resolves to it, and an
 /// id that is a task AND a former id of another is refused unless `exact` -- never a silent retarget.
-fn resolve(recs: &[Value], id: &str, exact: bool) -> Result<usize, Fail> {
+fn resolve(state: &State, recs: &[Value], id: &str, exact: bool) -> Result<usize, Fail> {
+    if state.purged {
+        return Index::new(recs, Some(&state.ids))
+            .find(id)
+            .ok_or(Fail::Bad(format!(
+                "no task {id} -- name it {}_<number> or by its opaque id",
+                state.ids.object
+            )));
+    }
     let hit = recs
         .iter()
         .position(|r| r.get("id").and_then(|x| x.as_str()) == Some(id));
@@ -556,8 +613,10 @@ fn cmd_set(st: &Store, a: &Args) -> Result<(), Fail> {
         None => None,
     };
     let exact = a.has("--exact");
-    mutate(st, |_, recs, touched| {
-        let i = resolve(recs, &id, exact)?;
+    let mut name = id.clone();
+    mutate(st, |state, recs, touched| {
+        let i = resolve(state, recs, &id, exact)?;
+        name = Index::new(recs, state.purged.then_some(&state.ids)).labels[i].clone();
         let r = recs[i]
             .as_object_mut()
             .ok_or(Fail::Bad(format!("{id} is not an object")))?;
@@ -583,7 +642,7 @@ fn cmd_set(st: &Store, a: &Args) -> Result<(), Fail> {
         touched.insert(i);
         Ok(None)
     })?;
-    println!("{id} updated");
+    println!("{name} updated");
     Ok(())
 }
 
@@ -596,8 +655,10 @@ fn cmd_claim(st: &Store, a: &Args, claim: bool) -> Result<(), Fail> {
     }
     let mut noop = false;
     let exact = a.has("--exact");
+    let mut name = id.clone();
     mutate(st, |state, recs, touched| {
-        let i = resolve(recs, &id, exact)?;
+        let i = resolve(state, recs, &id, exact)?;
+        name = Index::new(recs, state.purged.then_some(&state.ids)).labels[i].clone();
         let eff = state.effective();
         let owner = eff.records[i]
             .get("owner")
@@ -633,11 +694,34 @@ fn cmd_claim(st: &Store, a: &Args, claim: bool) -> Result<(), Fail> {
         Ok(None)
     })?;
     match (claim, noop) {
-        (true, true) => println!("{id} already owned by {lane}"),
-        (true, false) => println!("{id} claimed by {lane}"),
-        _ => println!("{id} released by {lane}"),
+        (true, true) => println!("{name} already owned by {lane}"),
+        (true, false) => println!("{name} claimed by {lane}"),
+        _ => println!("{name} released by {lane}"),
     }
     Ok(())
+}
+
+/// A new opaque id: the ULID of `ms` (never earlier than the newest id in the list, so ids keep sorting in
+/// number order) and 80 bits hashed from the clock, the process and the record.
+fn mint(ids: &ids::Ids, recs: &[Value], title: &str, number: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let newest = recs
+        .iter()
+        .filter_map(|r| ids.ms_of(r.get("id")?.as_str()?))
+        .max();
+    let ms = match newest {
+        Some(m) if m >= now.as_millis() as u64 => m + 1,
+        _ => now.as_millis() as u64,
+    };
+    let seed = format!(
+        "{}\0{}\0{title}\0{number}",
+        now.as_nanos(),
+        std::process::id()
+    );
+    use sha2::{Digest, Sha256};
+    ids.opaque(&ids::ulid(ms, &Sha256::digest(seed.as_bytes())))
 }
 
 fn cmd_add(st: &Store, a: &Args) -> Result<(), Fail> {
@@ -647,7 +731,17 @@ fn cmd_add(st: &Store, a: &Args) -> Result<(), Fail> {
             .map(str::to_string)
             .ok_or(Fail::Usage(format!("add needs --{k}")))
     };
-    let id = need("id")?;
+    let purged = st.is_purged();
+    let given = if purged {
+        if a.one("id").is_some() {
+            return Err(Fail::Usage(
+                "--id is gone: the list is migrated, so add mints the opaque task_<ULID> and the next number itself (ADR-0028)".into(),
+            ));
+        }
+        None
+    } else {
+        Some(need("id")?)
+    };
     let title = need("title")?;
     let positive = need("positive")?;
     let negative = need("negative")?;
@@ -659,45 +753,80 @@ fn cmd_add(st: &Store, a: &Args) -> Result<(), Fail> {
         .ok_or(Fail::Usage("--status: not a status word".into()))?;
     let o = |k: &str| a.one(k).map(|s| json!(s)).unwrap_or(Value::Null);
     let day = today();
-    let rec = json!({
-        "id": id, "type": a.one("type").unwrap_or("task"), "title": title, "status": status,
-        "owner": a.one("owner").unwrap_or(""), "epic": a.one("epic").unwrap_or(""),
-        "goal": a.one("goal").unwrap_or(""), "priority": o("priority"), "size": o("size"),
-        "workstream": o("workstream"), "domain": o("domain"), "depends_on": a.all("depends-on"),
-        "related": [], "acceptance_criteria": ac,
-        "verification": {"positive_cmd": positive, "negative_control_cmd": negative,
-                         "negative_expect": o("expect"), "statements": []},
-        "verification_evidence": a.one("evidence").unwrap_or(""),
-        "details": {"what_how": null, "where": null, "why": null, "do_not": null},
-        "links": [], "notes": "", "extra": [], "created": day, "updated": day, "provenance": null,
-    });
+    let mut shown = String::new();
     mutate(st, |state, recs, _| {
+        let idx = Index::new(recs, purged.then_some(&state.ids));
+        let mut errs = Vec::new();
+        // A task named by any spelling the index knows is linked by its id.
+        let mut link = |d: &str, what: &str| -> String {
+            match idx.find(d) {
+                Some(i) => idx.ids[i].clone(),
+                None => {
+                    errs.push(format!("{what} unknown {d}"));
+                    d.to_string()
+                }
+            }
+        };
+        let deps: Vec<String> = a
+            .all("depends-on")
+            .iter()
+            .map(|d| link(d, "depends_on"))
+            .collect();
+        let epic = match a.one("epic") {
+            Some(e) if !e.is_empty() => link(e, "epic"),
+            _ => String::new(),
+        };
+        let (id, number) = match &given {
+            Some(id) => (id.clone(), None),
+            None => {
+                let high = recs
+                    .iter()
+                    .filter_map(|r| r.get("number").and_then(|x| x.as_u64()))
+                    .max()
+                    .unwrap_or(0)
+                    .max(st.numbered.unwrap_or(0));
+                (mint(&state.ids, recs, &title, high + 1), Some(high + 1))
+            }
+        };
         if recs
             .iter()
             .any(|r| r.get("id").and_then(|x| x.as_str()) == Some(&id))
         {
             return Err(Fail::Bad(format!("duplicate id {id}")));
         }
-        let mut errs = Vec::new();
+        shown = match number {
+            Some(n) => format!("{} ({id})", state.ids.typed(n)),
+            None => id.clone(),
+        };
+        let mut rec = json!({
+            "id": id, "type": a.one("type").unwrap_or("task"), "title": title, "status": status,
+            "owner": a.one("owner").unwrap_or(""), "epic": epic,
+            "goal": a.one("goal").unwrap_or(""), "priority": o("priority"), "size": o("size"),
+            "workstream": o("workstream"), "domain": o("domain"), "depends_on": deps,
+            "related": [], "acceptance_criteria": ac,
+            "verification": {"positive_cmd": positive, "negative_control_cmd": negative,
+                             "negative_expect": o("expect"), "statements": []},
+            "verification_evidence": a.one("evidence").unwrap_or(""),
+            "details": {"what_how": null, "where": null, "why": null, "do_not": null},
+            "links": [], "notes": "", "extra": [], "created": day, "updated": day, "provenance": null,
+        });
+        if let (Some(n), Some(m)) = (number, rec.as_object_mut()) {
+            m.insert("object".into(), json!(state.ids.object));
+            m.insert("number".into(), json!(n));
+        }
         state
             .schema
-            .conforms(&rec, &state.schema.record, &id, &mut errs);
-        let known: HashSet<&str> = recs.iter().filter_map(|r| r.get("id")?.as_str()).collect();
-        for d in a.all("depends-on") {
-            if !known.contains(d.as_str()) {
-                errs.push(format!("{id}: depends_on unknown {d}"));
-            }
-        }
+            .conforms(&rec, &state.schema.record, &shown, &mut errs);
         if status == "completed" && a.one("evidence").is_none_or(|e| e.trim().is_empty()) {
-            errs.push(format!("{id}: completed without verification_evidence"));
+            errs.push(format!("{shown}: completed without verification_evidence"));
         }
         if !errs.is_empty() {
             return Err(Fail::Bad(errs.join("\n")));
         }
-        recs.push(rec.clone());
+        recs.push(rec);
         Ok(None)
     })?;
-    println!("{id} added");
+    println!("{shown} added");
     Ok(())
 }
 
@@ -707,8 +836,13 @@ fn cmd_fold(st: &Store, a: &Args) -> Result<(), Fail> {
         .get(1)
         .cloned()
         .ok_or(Fail::Usage("overrides fold needs an ID".into()))?;
+    let mut name = id.clone();
     mutate(st, |state, recs, touched| {
         let block = state.block.as_ref().map_err(|e| Fail::Bad(e.join("\n")))?;
+        let i = resolve(state, recs, &id, true)?;
+        let idx = &state.idx;
+        name = idx.labels[i].clone();
+        // An override line names the task by any spelling the index knows.
         let mine: Vec<&overrides::OverrideLine> = block
             .lines
             .iter()
@@ -717,15 +851,15 @@ fn cmd_fold(st: &Store, a: &Args) -> Result<(), Fail> {
                     .as_ref()
                     .and_then(|v| v.get("id"))
                     .and_then(|x| x.as_str())
-                    == Some(id.as_str())
+                    .and_then(|k| idx.find(k))
+                    == Some(i)
             })
             .collect();
         if mine.is_empty() {
             return Err(Fail::Bad(format!("no override line names {id}")));
         }
-        let i = find(recs, &id)?;
-        let eff = overrides::apply(&state.records, &block.lines);
-        let fields = eff.overridden.get(&id).cloned().unwrap_or_default();
+        let eff = overrides::apply(&state.records, &block.lines, idx);
+        let fields = eff.overridden.get(&idx.ids[i]).cloned().unwrap_or_default();
         let r = recs[i]
             .as_object_mut()
             .ok_or(Fail::Bad(format!("{id} is not an object")))?;
@@ -735,7 +869,7 @@ fn cmd_fold(st: &Store, a: &Args) -> Result<(), Fail> {
         r.insert("updated".into(), json!(today()));
         touched.insert(i);
         let drop: HashSet<usize> = mine.iter().map(|l| l.n).collect();
-        // Keep every other byte of the block; remove only this id's lines.
+        // Keep every other byte of the block; remove only this task's lines.
         let md = state.md.clone().unwrap_or_default();
         let mut inner = String::new();
         let mut inside = false;
@@ -753,7 +887,7 @@ fn cmd_fold(st: &Store, a: &Args) -> Result<(), Fail> {
         }
         Ok(Some(inner))
     })?;
-    println!("{id}: override folded into the record and its line(s) removed");
+    println!("{name}: override folded into the record and its line(s) removed");
     Ok(())
 }
 
@@ -762,7 +896,7 @@ fn cmd_source(st: &Store, a: &Args) -> Result<(), Fail> {
         "source needs REPO:PATH, e.g. MiOS:AGY-TASKS.md".into(),
     ))?;
     let state = State::load(st)?;
-    let all = check::slices(&state.records);
+    let all = check::slices(&state.records, &state.idx);
     let sl = all.get(&file).ok_or(Fail::Bad(format!(
         "{file}: no record carries a slice of it; frozen lists: {}",
         st.frozen
@@ -793,14 +927,11 @@ fn cmd_migrate(a: &Args) -> Result<(), Fail> {
     };
     let (store_p, lane_arg, out, report) =
         (need("store")?, need("lane")?, need("out")?, need("report")?);
-    let schema_p = match a.one("schema") {
-        Some(s) => PathBuf::from(s),
-        None => {
-            let root = root_of(a)?;
-            Store::open(&root)?.schema_file()
-        }
+    // The retired store migrates to the legacy shape (verbatim ids); migrate-ids takes it from there.
+    let schema = match a.one("schema") {
+        Some(s) => Schema::load(Path::new(s))?,
+        None => Schema::from_record(ids::legacy_record_schema())?,
     };
-    let schema = Schema::load(&schema_p)?;
     let store = record::read_lines(&store_p)?
         .into_iter()
         .map(|l| {
