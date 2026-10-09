@@ -214,8 +214,8 @@ fn string_list(config: &toml::Value, key: &str) -> Result<Vec<String>, String> {
 }
 
 /// The bootc-image-builder config for one build, as TOML text. The account is
-/// [identity]; the image creates it with its groups (automation/11-user.sh),
-/// so the artifact only adds the credential. A disk format's root floor is
+/// [identity].username in [identity].groups (BIB modifies it when the image
+/// already has it, creates it when not) plus the credential. A disk's root floor is
 /// [bootc_install].root_min_gb; kernel arguments are the image's own kargs.d,
 /// which bootc installs, so none are restated here.
 pub fn render(
