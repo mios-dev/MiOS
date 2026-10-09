@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3660,
-  "total_metadata_entries": 3019,
-  "total_hints": 3009,
+  "total_files_scanned": 3661,
+  "total_metadata_entries": 3020,
+  "total_hints": 3010,
   "total_functions_indexed": 1452,
-  "total_related_links": 5068,
+  "total_related_links": 5063,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -1493,7 +1493,7 @@
     },
     {
       "path": "automation/97-ssot-lint.sh",
-      "hint": "SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line ha...",
+      "hint": "SSOT-render conformance lint: a thin adapter that runs native mios-ssot-lint over the Quadlet ${MIOS_*} placeholders; a missing binary fails closed.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
@@ -1977,10 +1977,8 @@
     },
     {
       "path": "automation/lint-shell.sh",
-      "hint": "Runner for shellcheck across automation, tools, and libexec shell scripts. Degrades open if shellcheck is absent.",
-      "related": [
-        "/usr/libexec/mios/mios-"
-      ],
+      "hint": "Thin adapter for the native mios-gate shell-lint check (ShellCheck over the SSOT [drift.lint] shell subjects); missing tools fail closed.",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -4620,6 +4618,19 @@
         "docs/design/doc-rust-static-port.md",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/shell_lint.rs",
+      "hint": "ShellCheck gate over the SSOT [drift.lint] shell subjects: repo-wide at shell_severity, files changed since the ratchet base at shell_changed_severity; a missing tool fails closed.",
+      "related": [
+        "automation/lint-shell.sh",
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/miosd/src/drift/security.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9532,18 +9543,16 @@
       "path": "tools/native/mios-gen/tests/docs.rs",
       "hint": "Two-sided integration tests for the mios-gen documentation verbs: adr-index, metal-vs-hosted, render-manpages, roadmap-index, standardize-docs and sync-wiki (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/adr_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "usr/share/doc/mios/adr/",
         "docs/design/doc-rust-static-port.md",
         "tools/native/mios-gen/src/metal_vs_hosted.rs",
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
-        "tools/native/mios-gen/src/render_manpages.rs",
+        "tools/native/mios-gen/src/render.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "tools/native/mios-gen/src/sync_wiki.rs"
+        "tools/native/mios-gen/src/docs.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -9567,10 +9576,9 @@
       "path": "tools/native/mios-gen/tests/image.rs",
       "hint": "Two-sided integration tests for the mios-gen image and supply-chain verbs: bib-configs, cargo-manifests, cosign-policy, egress-firewall and pod-quadlets (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
+        "tools/native/mios-gen/src/image.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/cargo_manifests.rs",
         "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
         "docs/design/doc-rust-static-port.md",
@@ -9585,16 +9593,13 @@
       "path": "tools/native/mios-gen/tests/ssot.rs",
       "hint": "Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs",
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/ai.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh",
         "docs/design/doc-rust-static-port.md",
-        "tools/native/mios-gen/src/pipe_boundaries.rs",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/pipeline_index.rs",
         "tools/native/mios-gen/src/main.rs",
-        "tools/native/mios-gen/src/render_globals.rs",
-        "tools/native/mios-gen/src/render_ports.rs",
+        "tools/native/mios-gen/src/render.rs",
         "tools/native/mios-gen/src/sync.rs",
         "usr/share/mios/mios.toml"
       ],
@@ -9607,11 +9612,10 @@
       "path": "tools/native/mios-gen/tests/theme.rs",
       "hint": "Two-sided integration tests for the mios-gen desktop and terminal verbs: render-fastfetch, render-desktop and render-tmux-theme with its host and runtime layers (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/fastfetch.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/src/render_desktop.rs",
+        "tools/native/mios-gen/src/render.rs",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/tmux_theme.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
         "usr/libexec/mios/mios-terminal"

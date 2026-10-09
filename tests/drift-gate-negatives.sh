@@ -7,18 +7,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# The suite mutates tracked files and is supposed to put them back. A test that
-# dies between the two leaks its fixture into the tree. Five reached the working
-# tree in one session -- an injected table in the shipped SQL schema, a root
-# password in a Ventoy firstboot script, a rewritten cockpit port, a capability
-# requirement replaced by an injected name, a port entry repeated twice -- and
-# each one surfaced as some unrelated suite failing, so the cost was paid several
-# times before anyone read the diff.
-#
-# Snapshot everything the suite can reach before running, and put back whatever a
-# test failed to restore. The target list is derived from this file's own source,
-# so a test that starts touching a new path is covered without anyone updating a
-# list.
 _NEG_SNAP="$(mktemp -d)"
 _NEG_ABSENT="${_NEG_SNAP}.absent"
 
@@ -1265,10 +1253,6 @@ test_firstboot_degrade_open() {
     log "Testing check_firstboot_degrade_open"
     local temp_fb="${ROOT}/usr/libexec/mios/mios-fake-firstboot.sh"
 
-    # The old fixture was "set -e" plus an echo and no escape token. That is
-    # not a Law 12 violation -- there is no egress to fail -- and the gate it
-    # certified only ever tested for the substring. This fixture is the real
-    # thing: an unguarded fetch reached with errexit active.
     cat << 'EOF' > "$temp_fb"
 set -euo pipefail
 curl -sfL https://example.invalid/payload.tar -o /tmp/payload.tar
@@ -2365,13 +2349,6 @@ test_var_closure() {
         die "$1"
     }
 
-    # The defect: the scan skipped every tree a consumer lives in, so no input
-    # could make this gate fail. One plant per formerly-excluded tree, because
-    # a single one would not show that the exclusion list is gone rather than
-    # merely shorter.
-    # Split so the literal never appears in this file: the names registry
-    # harvests tracked sources, and a fixture name spelled out here lands in
-    # usr/share/mios/referenced_names.txt as if something referenced it.
     local probe="MIOS""_NEVER_EMITTED_PROBE"
     local d
     for d in automation tools usr/libexec/mios; do
@@ -2453,9 +2430,6 @@ test_law_enforcers() {
     _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with a postcheck marker that appears nowhere"
     cp "$tbak" "$toml"
 
-    # The bare second enforcer in a comma list inherits its file rather than
-    # being dropped: the old reader split on comma first and skipped any piece
-    # without a colon, so Law 12's second target was never checked.
     sed -i 's/check_dag_integrity,check_firstboot_degrade_open/check_dag_integrity,check_never_defined_anywhere/' "$toml"
     _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with an undefined SECOND enforcer in a comma list"
     cp "$tbak" "$toml"
@@ -2532,10 +2506,6 @@ test_bake_plan_integrity() (
 
 test_bake_ref_parity() {
     log "Testing check_bake_ref_defaults"
-    # 55-bake-quickshell.sh was renumbered to 66-. The whole body used to sit
-    # inside `if [[ -f ]]`, so once the file moved the test skipped everything
-    # and logged "passed" -- a test that reports success precisely when its
-    # subject is gone. A missing target is now a failure.
     local script_file="${ROOT}/automation/66-bake-quickshell.sh"
     [[ -f "$script_file" ]] || die "test_bake_ref_parity: $script_file is missing -- the test would otherwise skip silently"
     if true; then
@@ -3839,18 +3809,10 @@ PY
 }
 
 _run_test() {
-    # Subshell: die() exits the test, not the suite. One CI run then reports
-    # every failure instead of the first, which is what turned a queue of
-    # latent breakages into one round trip each.
     if ( "$1" ); then :; else _FAILED+=("$1"); fi
 }
 
 _neg_gate() {
-    # REQUIRE_TOOLS is forwarded deliberately: checks that shell out to a built
-    # binary choose between "skip" and "fail" on it, so a test that cannot set
-    # it cannot exercise the failing path -- the path that matters.
-    # Output is kept, not discarded: "failed after restoration" with no reason
-    # has cost two CI round trips, and die() prints this on the way out.
     _NEG_GATE_OUT="$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
     MIOS_DRIFT_ROOT="$ROOT" \
     MIOS_DRIFT_REQUIRE_TOOLS="${MIOS_DRIFT_REQUIRE_TOOLS:-0}" \
@@ -4115,8 +4077,6 @@ test_header_comment_syntax() {
     local unit="${ROOT}/usr/lib/systemd/system/mios-agent-pipe.service"
     local bak; bak="$(mktemp)"; cp "$unit" "$bak"
 
-    # A C-style header in a systemd unit is not a comment: the line is rejected,
-    # and one such line in a WSL config failed a build twenty-nine minutes in.
     printf '/%s AI-doc: probe %s/\n' '*' '*' >> "$unit"
 
     _neg_gate check_header_comment_syntax && {
@@ -4555,10 +4515,6 @@ test_credential_literals() {
     printf 'Environment=NEGATIVE_TEST_SECRET_KEY=hunter2\n' >> "$unit"
     _neg_gate check_credential_literals && die "check_credential_literals passed despite a new baked-in credential"
     cp "$backup" "$unit"
-    # T-1035: the half a key-only register could not see. POSTGRES_PASSWORD is
-    # GRANDFATHERED, so changing its value used to read as the same entry and
-    # the gate stayed green while an operator's real password sat in a 0644
-    # file under /usr.
     local pg="${ROOT}/usr/share/containers/systemd/mios-pgvector.container"
     local pgbak; pgbak="$(mktemp)"; cp "$pg" "$pgbak"
     sed -i 's/^Environment=POSTGRES_PASSWORD=mios$/Environment=POSTGRES_PASSWORD=NOT-A-REAL-PASSWORD-negative-test/' "$pg"
@@ -4713,11 +4669,6 @@ test_blade_reconcile_schema() {
     log "Testing check_blade_reconcile_schema"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    # The previous probe flipped `enabled` from false to true, but the key has
-    # been true for some time, so the sed matched nothing and the test asserted
-    # against an unmodified tree. The check requires every merge-rule key to
-    # have a table carrying origin_node and logical_ts, so declaring a rule with
-    # no such table is the edit that loses data silently on rejoin (ADR-0017 D5).
     sed -i 's/^config_kv    = "conflict-is-error"/config_kv    = "conflict-is-error"\nbogus_class  = "union-by-hash"/' "$toml"
     _neg_gate check_blade_reconcile_schema && die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"
     cp "$bak" "$toml"; rm -f "$bak"
@@ -5124,9 +5075,6 @@ unused_key = "nothing reads this"
     local entry
     entry="$(python3 -c 'import sys,tomllib; print((tomllib.load(open(sys.argv[1],"rb"))["ssot_tables"]["unconsumed"] or [""])[0])' "$toml")"
     [[ -n "$entry" ]] || _nist_fail "[ssot_tables].unconsumed is empty -- the padding and drop arms have no subject"
-    # Padding: registering a table that HAS a consumer must fail -- the
-    # register only shrinks, and an entry that no longer reproduces is debt
-    # already paid. `blades` is read by its own fleet-safety gate.
     python3 - "$toml" "$entry" <<'PYEOF'
 import re, sys
 p, entry = sys.argv[1], sys.argv[2]
@@ -5368,11 +5316,6 @@ test_header_integrity_unreadable_corpus() {
 
 test_os_update_timer_enabled() {
     log "Testing check_os_update_timer_enabled"
-    # The old probe moved bootc-fetch-apply-updates.timer aside, but that file
-    # ships from an RPM and has never existed in this tree: it moved nothing and
-    # the check "failed" for a reason the test never created -- a broken probe
-    # and a broken check agreeing. The check now asserts the SSOT declares an
-    # updater package and a bake phase wires its timer, so break the wiring.
     local installer="${ROOT}/automation/50-uupd-installer.sh"
     [[ -f "$installer" ]] || die "50-uupd-installer.sh is absent; the probe cannot run"
     mv "$installer" "${installer}.negtest"

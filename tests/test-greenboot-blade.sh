@@ -105,9 +105,6 @@ EMPTY="$(
 [[ -z "$EMPTY" ]] || die "an empty critical set must probe nothing, got: $EMPTY"
 ok "empty critical set probes nothing"
 
-# ==============================================================================
-# Part 2: Reachability Probe & Posture Behavior (ADR-0016 D8)
-# ==============================================================================
 
 {
     sed -n '/^_tcp_up() {/,/^}/p' "$SCRIPT"

@@ -4,12 +4,6 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# --toolchain: provision the SSOT Rust toolchain system-wide and stop, so every
-# MiOS image can rebuild its native catalog. The Containerfile runs it after
-# [packages.self-build] (Fedora's rustup RPM ships rustup-init only). Installs the
-# [build.toolchain] channel and components with this machine's
-# [build.native.linux] target into [build.toolchain].rustup_home/cargo_home, then
-# proves the target's std and the linker are there; any gap fails the build.
 if [[ "${1:-}" == --toolchain ]]; then
     fail() { echo "[55-native-build] ERROR: $*" >&2; exit 1; }
     get() { MIOS_TOML_ROOT="$ROOT_DIR" python3 "$ROOT_DIR/usr/libexec/mios/mios-toml-get" --vendor "$@"; }

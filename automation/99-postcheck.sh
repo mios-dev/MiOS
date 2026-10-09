@@ -532,11 +532,6 @@ mios_log "Validate BARE-SAFE-ENV: system-sync-env"
 _sync_env="/usr/libexec/mios/system-sync-env.sh"
 [[ -x "$_sync_env" ]] || _sync_env="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/system-sync-env.sh"
 if [[ -f "$_sync_env" ]]; then
-    # stderr carried the only record of a dropped variable and was discarded
-    # here, so MIOS_AI_ENDPOINT going missing from install.env was invisible at
-    # bake while Law 5 routed every agent through it (T-1060). It is captured
-    # and echoed now -- on failure AND on success, because a declared
-    # [security.non_bare_env] skip is a thing a reader should still see.
     _env_err="$(mktemp)"
     if ! _env_render="$(bash "$_sync_env" --dry-run 2>"$_env_err")"; then
         cat "$_env_err" >&2

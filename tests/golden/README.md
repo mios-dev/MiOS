@@ -106,7 +106,7 @@ PASS: BIB artifact configs in sync with mios.toml SSOT.
 ```console
 $ mios-gen render-btop-theme --root [CWD]/nonexistent --check
 ? 1
-Error: generate-render-btop-theme: Failed to read [CWD]/nonexistent/usr/share/mios/mios.toml: [..]
+Error: generate-render-btop-theme: Missing [dotfiles.registry.btop] in layered mios.toml
 
 $ mios-gen render-btop-theme --check
 [btop-theme] btop theme matches SSOT

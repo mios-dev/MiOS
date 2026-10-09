@@ -5,15 +5,6 @@
 set -euo pipefail
 
 PYTHON="python3"
-# T-1032. Windows-only shim: where a host ships `python` but no `python3`,
-# materialise one under that name so the checks below can call it. Two rules
-# make it safe, and BOTH were missing:
-#   1. Never when a real python3 already resolves. On Linux it always does, so
-#      this whole block must no-op there.
-#   2. Never reuse a cached copy. The copy lives in TEMP and outlives
-#      interpreter upgrades; a stale one puts every check on a DIFFERENT
-#      interpreter than sync-generated.sh, just, CI and the operator's own
-#      `python3 tools/...`, and silently absorbs version-dependent failures.
 _real_py="$(command -v python 2>/dev/null || true)"
 if ! command -v python3 >/dev/null 2>&1 && [[ -f "${_real_py:-/nonexistent}" ]]; then
     _shim_dir="${TEMP:-${TMP:-/tmp}}/mios-py-bin"
@@ -604,17 +595,6 @@ check_cephfs_ssot() {
 check_converge_ssot() {
     _need_python || return 0
 
-    # Every value here used to come from ${MIOS_CONV_*:-literal}. Nothing exports
-    # MIOS_CONV_* -- not globals.sh, not run-suites.sh, not this script -- so the
-    # check validated its own hardcoded defaults on every run and never opened
-    # mios.toml at all. The defaults had already drifted from the SSOT:
-    # cold_retention_days is 90 against an asserted 30, and cold_zstd_level is
-    # 10 against an asserted 3. (The heavy-alt retirement branch went with the
-    # lane itself: the one heavy lane carries its engine as [ai].heavy_engine.)
-    #
-    # Read the SSOT. An env var may still override for testing, but the FALLBACK
-    # is now the SSOT value rather than a literal, so the check cannot silently
-    # grade a file it never read.
     local toml="${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml"
     local ssot
     ssot="$(python3 -c '
@@ -754,9 +734,6 @@ check_container_ports() {
     then
         echo "[98-drift-checks]   no manual port literals in container definitions"
     else
-        # The findings go out BEFORE _violation: it returns 1, and in
-        # single-check mode errexit ends the script there, so anything printed
-        # after it never reached the operator (or a negative test reading why).
         printf '%s\n' "$out" >&2
         _violation "manual port literal found in container Quadlets"
     fi
@@ -953,9 +930,6 @@ check_drift_projection() {
 }
 
 check_canonical_bools() {
-    # Ported to mios-gate per ADR-0021 / T-1009 unit 2; the Python twin is
-    # deleted in the same commit. Parity proved on the real tree: both sides
-    # verify 131 verbs clean.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_canonical_bools could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -1182,11 +1156,6 @@ check_lint_is_final() {
 
 # --- firstboot scripts degrade open on egress failure (Law 12) ---
 check_firstboot_degrade_open() {
-    # Was: grep the whole FILE for "|| true" (or set +e / trap / exit 0) and
-    # call that degrade-open. File-global, so one unrelated cleanup guard
-    # certified the script; all thirteen passed and the gate could not fail,
-    # while forge-firstboot.sh really did abort firstboot on an unreachable
-    # Forgejo API. The tool scopes the question to the egress calls themselves.
     _run_py_check check_firstboot_degrade_open "tools/check-runtime.py firstboot-degrade-open"
 }
 
@@ -1230,17 +1199,6 @@ check_resolver_twin_parity() {
         _violation "a resolver is absent -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
-    # The bash leg must run a DIFFERENT implementation, or this check compares
-    # mios_toml.py against itself. userenv.sh resolves in three tiers -- native
-    # mios-resolver, miosd, then the Python fallback -- and under `env -i` with
-    # no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
-    # legs and they went on agreeing. Proven by mutation: disabling
-    # resolve_cross_references in mios_toml.py left the bash leg emitting
-    # ${MIOS_PORTS_AGENT_PIPE} verbatim, and the check still passed (T-1062).
-    #
-    # Locate the native resolver and put it on the fixture's PATH so tier 1
-    # fires. Absent, the comparison is vacuous: fail where the environment
-    # declares tools mandatory, and say plainly what went unverified otherwise.
     local _nat="" _c
     # debug BEFORE release, matching check_resolver_differential_parity and what
     # CI step 3 actually builds. Preferring release picked up a binary older
@@ -1294,17 +1252,10 @@ check_resolver_twin_parity() {
 import os, sys
 sys.path.insert(0, os.environ["MIOS_ROOT_LIB"])
 import mios_toml
-# emit_exports() is the resolver Law 13 names. Reading section(load_merged())
-# instead compared the bash RESOLVER against a raw table read -- not twin
-# against twin, which is why no cross-reference could ever disagree here: this
-# leg never ran the code that resolves one.
 for k, v in sorted(mios_toml.emit_exports().items()):
     print(k + "=" + str(v))
 ' 2>/dev/null | grep -E "$sel" | sort)"
     rm -rf "$fix" 2>/dev/null || true
-    # Two empty sets compare equal, and the fixture above sets endpoint,
-    # model and embed_model, so emitting nothing means BOTH resolvers are
-    # broken -- previously reported as a pass.
     if [[ -z "$bash_out" && -z "$py_out" ]]; then
         _violation "neither resolver emitted MIOS_AI_* for the layered fixture, so twin parity is unverified"
         return
@@ -1355,19 +1306,6 @@ check_template_conformance() {
 check_kargs_projection() {
     _need_python || return 0
 
-    # This check used to `cp -r` the committed kargs.d into the "expected"
-    # directory and then render into that same copy, so 15 of the 17 files were
-    # diffed against copies of themselves and could only ever match. Its
-    # Extra/Missing branches were unreachable for the same reason, and the
-    # renderer's exit status was discarded, so a completely broken renderer
-    # still printed the PASS line.
-    #
-    # 75-kargs-render.sh is an in-place mutator, not a whole-directory
-    # generator: it manages exactly two files -- it rewrites 01-mios-vfio.toml
-    # when present, and writes or REMOVES 99-mios-kargs.toml depending on
-    # whether [kargs] declares custom arguments. The other 15 files are
-    # hand-maintained and are not projections of anything, so this check does
-    # not claim to verify them.
     local managed=("01-mios-vfio.toml" "99-mios-kargs.toml")
 
     local src="$ROOT/usr/lib/bootc/kargs.d"
@@ -1877,14 +1815,6 @@ check_render_extension_coverage() {
 }
 
 check_size_ceiling() {
-    # [legibility].max_tracked_mb is generated, so the gate that matters is not
-    # "is it big enough" -- check_legibility_ratchet asks that -- but "is the
-    # committed number still what the tree implies". Outside the band, the value
-    # is either already breached or carrying slack nobody declared.
-    # No env override here on purpose. MIOS_GATE_BIN exists and is grandfathered
-    # on the var-closure ledger; adding a second name nothing emits is exactly
-    # what that ledger's header forbids, and check_var_closure caught this one
-    # the moment it was written.
     local bin
     if ! bin="$(native_bin mios-size-ceiling)"; then
         _violation "mios-size-ceiling is not built, so check_size_ceiling could not run -- build it: cd tools/native && cargo build -p mios-size-ceiling"
@@ -1985,12 +1915,6 @@ check_ai_artifacts() {
 }
 
 check_ratchet_direction() {
-    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
-    # commit, with both paths proved equal first: 78 ceilings on each side, and
-    # the same key named with the same exit code on a planted raise. The port
-    # also carries the [drift.generated_ceilings] exemption, which a ceiling
-    # that is GENERATED rather than hand-maintained needs -- and which must be
-    # itemised with a reason, never a bare name.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_ratchet_direction could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -2004,10 +1928,6 @@ check_ratchet_direction() {
 }
 
 check_rust_categories() {
-    # T-1197 / ADR-0021: the [rust.categories] registry is the port plan -- this
-    # gate fails it the moment a category loses its owner, a crate vanishes from
-    # disk while still cataloged, a replaces= claim outlives its script, or a
-    # universe script stops being owned by exactly one porting category.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_rust_categories could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -2189,10 +2109,10 @@ check_shellcheck() {
     bash "$ROOT/automation/lint-shell.sh" || rc=$?
     if [[ $rc -eq 0 ]]; then
         echo "[98-drift-checks]   shellcheck: shell scripts conform to error-level linting"
-    elif [[ $rc -eq 2 ]]; then
-        echo "[98-drift-checks]   WARNING: shellcheck absent" >&2
+    elif [[ $rc -eq 2 && "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" != "1" ]]; then
+        echo "[98-drift-checks]   WARNING: shell-lint could not run (mios-gate or shellcheck absent)" >&2
     else
-        _violation "shellcheck linting failed with errors -- please run automation/lint-shell.sh or check logs"
+        _violation "shell-lint failed (exit $rc) -- run automation/lint-shell.sh for the findings"
     fi
 }
 
@@ -3131,10 +3051,6 @@ check_smoke_manifest() {
 }
 
 check_negative_coverage() {
-    # Ported to mios-gate per ADR-0021 / T-1009 unit 1; the Python twin is
-    # deleted in the same commit. Parity proved on the real tree: both sides
-    # flagged check_static_linkage identically before the exemption landed,
-    # and both pass after it.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_negative_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -3243,11 +3159,6 @@ check_guacamole_consistency() {
 }
 
 check_law_enforcers() {
-    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
-    # commit. The successor is strictly stronger: the old reader matched a
-    # 99-postcheck.sh target as a bare SUBSTRING, which a comment after `exit 0`
-    # satisfied for four laws, and it silently dropped both a bare second
-    # enforcer in a comma list and any unrecognised enforcer kind.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_law_enforcers could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -3510,12 +3421,6 @@ check_bash_phase_ratchet() {
 }
 
 check_signature_policy() {
-    # Law 8 for the container signature policy. usr/lib/containers/policy.json
-    # is projected from [security.sigstore] and, until T-1047's sweep, was the
-    # ONE generator in the tree with neither half of the law: no regenerate step
-    # and no drift check. Its own generator's --check compared parsed JSON, so
-    # it could not see the tracked file drifting in bytes from what the writer
-    # emits -- which it had.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_signature_policy could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -3696,12 +3601,6 @@ check_globals_generated() {
 }
 
 check_ai_metadata_fresh() {
-    # Law 8 for usr/share/mios/ai/v1/metadata.json. It is exported from every
-    # tracked file's AI-* header, but nothing regenerated it and nothing
-    # compared it, so it fell ~2,400 lines behind main and the first unrelated
-    # re-export dragged that whole backlog into a small PR. The exporter's own
-    # --check validates schema only; --check-fresh regenerates in memory and
-    # compares bytes, naming each entry that moved.
     _need_python || return 0
     local out
     if out="$(cd "$ROOT" && python3 usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --check-fresh 2>&1)"; then
@@ -3757,12 +3656,6 @@ main() {
         fi
     fi
 
-    # main() dispatches each check as a bare statement under the file's
-    # `set -euo pipefail`, and 189 checks END with _violation, which returns 1.
-    # So the first failing check aborted the whole run: of 207 dispatched
-    # checks only the first 12 ever executed, and the aggregate summary below
-    # was unreachable whenever it had anything to report. Accumulate instead;
-    # VIOLATIONS is the signal, not the exit status of the last check.
     set +e
     _RO_BEFORE="$(_tracked_tree)" || _RO_BEFORE=""
 
@@ -4087,10 +3980,6 @@ check_comment_lex_equivalence() {
 # --- the PowerShell half of the resolver twin exists; its CONTENT is check_globals_generated's job ---
 check_resolver_ps_equivalence() {
     echo "[98-drift-checks] the PowerShell half of the resolver twin exists; its content is check_globals_generated's job"
-    # This tests EXISTENCE and nothing else. It used to say "present and
-    # verified" while claiming to compare resolver logic: a globals.ps1 with a
-    # port changed to 9999 passed it rc=0, and check_globals_generated caught
-    # that same plant rc=1.
     if [[ -f "$ROOT/automation/lib/globals.ps1" ]]; then
         echo "[98-drift-checks]   globals.ps1 present (content equivalence is check_globals_generated)"
     else
@@ -4488,9 +4377,6 @@ check_credential_literals() {
     # usr/share/containers/systemd. It said "tracked source tree", which is
     # check_secret_handling's job, not this one.
     echo "[98-drift-checks] no credential literal is baked into a systemd unit or Quadlet Environment= line"
-    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
-    # commit. The register now pins path:KEY=VALUE, so a grandfathered KEY whose
-    # VALUE becomes an operator's real password is a NEW finding (T-1035).
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_credential_literals could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
@@ -4827,8 +4713,6 @@ check_legibility_ratchet() {
     echo "[98-drift-checks]   legibility floors holding"
 }
 
-# Header integrity: a tagger must never absorb line 1. See AGY-1607.
-# --- no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1 ---
 check_header_integrity() {
     echo "[98-drift-checks] no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1"
     _need_python || return 0

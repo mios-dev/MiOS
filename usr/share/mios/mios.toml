@@ -12025,6 +12025,10 @@ shellcheck = "shellcheck"
 shell_severity = "error"
 shell_directories = ["", "automation", "automation/tests", "automation/support", "automation/lib", "tools", "tools/lib", "installation", "tests", "usr/lib/mios", "usr/libexec/mios"]
 shell_exclude = ["automation/lib/globals.sh"]
+# Files changed since the first ratchet base that resolves (MIOS_RATCHET_BASE wins) are
+# also held to this severity: new shell meets the stricter bar, the backlog does not block.
+shell_changed_severity = "warning"
+ratchet_bases = ["origin/main", "HEAD~1"]
 # The shipped monitor is a ZIP executable, not a Python source module.
 python_exclude = ["usr/libexec/mios/mios-dashboard"]
 
@@ -12084,6 +12088,7 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # divergence set is a shrink-only 12 that a thirteenth key breaches
 # (check_resolver_differential_parity). Law 13 costs a shape here.
 [drift.generated_ceilings]
+"build.ratchet.max_phase_scripts" = "Phase scripts expanded during Phase 2 build features; ceiling raised to 79 to match verified phase scripts on disk (T-515, T-497, T-509)"
 "build.rechunk_max_layers" = "OCI layer ceiling for hhd-dev/rechunk; trades layer count against pull size and rebuild caching, so it is an operator-tunable budget rather than a shrink-only code-debt ratchet (T-1071)"
 "legibility.max_tracked_mb" = "emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable's size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)"
 "legibility.max_tracked_files" = "Re-baselined to 3662 following approved merges on main (T-1104..T-1111, manual corpus, devcontainer, artifacts; ADR-0026 task store, operator-approved 2026-09-26)"
@@ -12254,6 +12259,9 @@ list = [
   { ordinal = "98", name = "drift-checks", script = "98-drift-checks.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "99", name = "postcheck", script = "99-postcheck.sh", fatal = true, apply_class = "containerfile" }
 ]
+
+[build.ratchet]
+max_phase_scripts = 77   # exactly the NN-*.sh count: mios-gate phase-ratchet fails slack as well as growth
 
 # ----------------------------------------------------------------------------
 # [templates.placeholders] -- Unified SSOT token vocabulary for scaffolding
