@@ -2464,7 +2464,19 @@ surfaces = [
 # `check_projection_registry` (forward only) never asked. Single `*`, final
 # path segment only; a pattern the matcher cannot express is a hard error, not
 # a silent widening.
-generator_globs = ["tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py", "tools/native/mios-gen/src/*.rs"]
+generator_globs = [
+  "tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py",
+  "tools/native/mios-gen/src/*.rs",
+  "tools/native/mios-unit-gen/src/lib*.rs",
+  "tools/native/mios-bake-plan/src/main*.rs",
+  "tools/native/generate-names-registry/src/main*.rs",
+  "tools/native/mios-task/src/overrides*.rs",
+  "tools/native/mios-size-ceiling/src/main*.rs",
+  "tools/native/mios-toolchain-pin/src/main*.rs",
+  "tools/native/mios-ai-config/src/main*.rs",
+  "tools/native/xtask/src/main*.rs",
+  "tools/native/mios-edge-status/src/main*.rs",
+]
 
 # Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
 # then with the reason spelled out -- a bare name would make this a count.
@@ -8250,11 +8262,10 @@ vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
 [headscale]
+# Port: [ports].headscale. MagicDNS base domain and tailnet prefix: [metal.mesh]
+# headscale_domain / vnet_cidr (mios-headscale-firstboot reads them there).
 enabled = false
-port = 8085
 server_url = "http://mesh.mios.local:8085"
-base_domain = "mesh.mios.local"
-vnet_cidr = "100.64.0.0/10"
 listen_addr = "0.0.0.0:8085"
 metrics_listen_addr = "127.0.0.1:9090"
 config_path = "/etc/headscale/config.yaml"
@@ -8310,12 +8321,10 @@ core_subnet = "10.89.0.0/24"
 core_gateway = "10.89.0.1"
 
 [aliases]
+# browser: the ONE default-browser key (mios-browser, mios-open-url). The
+# freedesktop role -> app ids (web, files, terminal) are [mios-find.aliases].
 browser         = "zen"
-web             = "zen"
-default_browser = "zen"
 editor          = "code"
-terminal        = "ptyxis"
-file_manager    = "nautilus"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
@@ -8872,7 +8881,7 @@ http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
 [quadlets.scope]
-# Units tools/generate-pod-quadlets.py writes under users/ (podman's user Quadlet
+# Units mios-gen pod-quadlets writes under users/ (podman's user Quadlet
 # search path) instead of the system directory: they run rootless under each
 # login user's systemd. Everything not listed is a system unit.
 user = ["mios-sunshine"]
@@ -11976,9 +11985,7 @@ exempt = [
   # Verb backends: requires verb backend implementation mapper.
   "check_verb_backends",
   # Static linkage: requires built Linux musl ELF binaries.
-  "check_static_linkage",
-  # Comment lex equivalence: requires comment lexing equivalence parser.
-  "check_comment_lex_equivalence"
+  "check_static_linkage"
 ]
 
 # ----------------------------------------------------------------------------
@@ -12447,7 +12454,7 @@ port_clean = [
 # Itemised shrink-only register of code files retaining retired ports (T-1002 / LAW5-01).
 # Strictly limited to intentional cleanup routines (e.g. Setup-MiOSLanPortProxy.ps1) and regression test fixtures.
 # Any unlisted code file under usr/libexec/mios or usr/lib/mios containing a retired port FAILS the gate.
-max_retired_code_exemptions = 21
+max_retired_code_exemptions = 20
 retired_code_exemptions = [
   "usr/libexec/mios/Setup-MiOSLanPortProxy.ps1",
   "usr/lib/mios/agent-pipe/test_mios_a2a_client.py",
@@ -12463,7 +12470,6 @@ retired_code_exemptions = [
   "usr/lib/mios/agent-pipe/test_mios_http_caps.py",
   "usr/lib/mios/agent-pipe/test_mios_knowledge.py",
   "usr/lib/mios/agent-pipe/test_mios_kvgc.py",
-  "usr/lib/mios/agent-pipe/test_mios_lanes.py",
   "usr/lib/mios/agent-pipe/test_mios_memguard.py",
   "usr/lib/mios/agent-pipe/test_mios_pg.py",
   "usr/lib/mios/agent-pipe/test_mios_portal.py",
@@ -12801,7 +12807,7 @@ max_libexec_verbs     = 312  # verbs only; retired flight-control.sh, mios-dashb
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 81101   # T-1009 unit 2: canonical-bools strangled to mios-gate (-47).
+max_tooling_python_lines = 80483   # module-test-coverage + static-linkage census folded into mios-gate (-618).
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

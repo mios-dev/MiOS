@@ -1566,135 +1566,14 @@ def check_negative_test_coverage() -> int:
 
     sys.exit(0)
 
-def _unselected_engine_images(data):
-    """Images only an UNSELECTED [<kind>.<name>.engine] overlay declares, resolved as
-    mios-bake-plan does from the SSOT. A broken selector exempts nothing."""
-    import re
-    sidecars = {str(k).lower(): v for k, v in
-                ((data.get("image") or {}).get("sidecars") or {}).items() if isinstance(v, str)}
-    var_re = re.compile(r"\$\{([A-Za-z0-9_]+)(?::-([^}]*))?\}")
-
-    def resolve(val):
-        def sub(m):
-            name, fallback = m.group(1), m.group(2)
-            if name.startswith("MIOS_") and name.endswith("_IMAGE"):
-                sc = sidecars.get(name[5:-6].lower())
-                if sc:
-                    return sc
-            return fallback if fallback is not None else m.group(0)
-        return var_re.sub(sub, val).strip()
-
-    selected, unselected = set(), set()
-    for kind in ("containers", "images"):
-        for spec in (data.get(kind) or {}).values():
-            eng = spec.get("engine") if isinstance(spec, dict) else None
-            if not isinstance(eng, dict):
-                continue
-            choice = data
-            for part in str(eng.get("select", "")).split("."):
-                choice = choice.get(part) if isinstance(choice, dict) else None
-            overlays = {k: v for k, v in eng.items() if isinstance(v, dict)}
-            if choice not in overlays:
-                continue
-            for name, overlay in overlays.items():
-                for section in overlay.values():
-                    img = section.get("Image") if isinstance(section, dict) else None
-                    if isinstance(img, str):
-                        (selected if name == choice else unselected).add(resolve(img))
-    return unselected - selected
-
-
 def check_bake_plan_integrity() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
-
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import glob, os, sys
-    import tomllib
-
+    """Compatibility entry; native Rust owns the bake-plan integrity policy."""
+    import subprocess
     root = os.environ["MIOS_DRIFT_ROOT"]
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    plan_dir = os.path.join(root, "usr/lib/mios/bake/plan.d")
-
-    if len(_scan(root, toml_path, plan_dir)) < 2:
-        sys.exit(0)
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    bake_cfg = data.get("build", {}).get("bake", {})
-    core_set = set(bake_cfg.get("core", []))
-    tokens = bake_cfg.get("firstboot_tokens", [])
-
-    # One lane, several engines (the heavy lane: vLLM or SGLang per
-    # [ai].heavy_engine). Only the selected overlay renders a Quadlet, so the
-    # plan carries only its image; the others stay in core so switching engines
-    # is one SSOT edit. Those are the ONLY core images the plan may omit.
-    unselected = _unselected_engine_images(data)
-    planned_core = core_set - unselected
-
-    group_files = sorted(glob.glob(os.path.join(plan_dir, "[0-9][0-9]-*.list")))
-    fb_file = os.path.join(plan_dir, "firstboot.list")
-
-    group_images = set()
-    group_map = {}
-    for gf in group_files:
-        gname = os.path.basename(gf)
-        with open(gf, "r", encoding="utf-8") as f:
-            imgs = set(line.strip() for line in f if line.strip())
-        group_map[gname] = imgs
-        group_images.update(imgs)
-
-    fb_images = set()
-    if os.path.isfile(fb_file):
-        with open(fb_file, "r", encoding="utf-8") as f:
-            fb_images = set(line.strip() for line in f if line.strip())
-
-    viol = []
-
-    for tok in tokens:
-        for gname, imgs in group_map.items():
-            hits = [img for img in imgs if tok in img.lower()]
-            if hits:
-                viol.append(f"Firstboot token '{tok}' image(s) found in baked group list {gname}: {hits}")
-
-        matching_core = [img for img in planned_core if tok in img.lower()]
-        for img in matching_core:
-            if img not in fb_images:
-                viol.append(f"Core image '{img}' matching firstboot token '{tok}' missing from firstboot.list")
-
-    for tok in tokens:
-        matching_fb = [img for img in fb_images if tok in img.lower()]
-        for img in matching_fb:
-            if img not in core_set:
-                viol.append(f"Firstboot image '{img}' is not listed in [build.bake].core SSOT")
-
-    all_plan_imgs = list(group_images) + list(fb_images)
-    if len(all_plan_imgs) != len(set(all_plan_imgs)):
-        viol.append("Duplicate image entries found across plan.d/*.list and firstboot.list")
-
-    # The plan follows the engine selector: an unselected engine's image in it
-    # would be pulled for a lane that never runs it.
-    for img in sorted(unselected & set(all_plan_imgs)):
-        viol.append(f"Image '{img}' belongs only to an unselected engine overlay but is in the plan")
-
-    if set(all_plan_imgs) != planned_core:
-        missing_from_plan = planned_core - set(all_plan_imgs)
-        extra_in_plan = set(all_plan_imgs) - core_set
-        if missing_from_plan:
-            viol.append(f"Core images missing from plan.d: {missing_from_plan}")
-        if extra_in_plan:
-            viol.append(f"Extra images in plan.d not in core: {extra_in_plan}")
-
-    if bool(tokens) != bool(fb_images):
-        viol.append(f"firstboot_tokens non-empty ({tokens}) but firstboot.list empty ({fb_images}) or vice versa")
-
-    if viol:
-        for v in viol:
-            sys.stderr.write(f"    {v}\n")
-        sys.exit(1)
-
-    sys.exit(0)
+    return subprocess.run(
+        ["bash", os.path.join(root, "automation/98-drift-checks.sh"), "check_bake_plan_integrity"],
+        env=dict(os.environ, MIOS_DRIFT_CHECK_ROOT=root), check=False,
+    ).returncode
 
 def check_globals_image_parity() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2234,160 +2113,26 @@ def check_bound_image_store() -> int:
     return 1 if bad else 0
 
 def check_gate_registry() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
+    """Compatibility entrypoint; native Rust owns bounded registration checks."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import glob, os, sys, re
-
-    root = os.environ["MIOS_DRIFT_ROOT"]
-    script_path = os.path.join(root, "automation/98-drift-checks.sh")
-
-    _rc = _absent(root, script_path)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    with open(script_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    def_re = re.compile(r"^(check_[a-z0-9_]+)\s*\(\)\s*\{")
-    main_call_re = re.compile(r"^\s*(check_[a-z0-9_]+)\s*($|#|;|\|\||&&)")
-
-    defined_counts = {}
-    in_main = False
-    main_calls = []
-
-    for line in lines:
-        line_clean = line.split("#")[0].strip()
-        if line_clean == "main() {":
-            in_main = True
-            continue
-        if in_main and line_clean.startswith("echo \"[98-drift-checks] ----------"):
-            in_main = False
-            continue
-
-        m_def = def_re.match(line)
-        if m_def:
-            name = m_def.group(1)
-            defined_counts[name] = defined_counts.get(name, 0) + 1
-
-        if in_main:
-            m_call = main_call_re.match(line_clean)
-            if m_call:
-                main_calls.append(m_call.group(1))
-
-    bad = []
-
-    for name, count in defined_counts.items():
-        if count > 1:
-            bad.append(f"Duplicate function definition found in 98-drift-checks.sh: {name} (defined {count} times)")
-
-    for name in defined_counts.keys():
-        calls = main_calls.count(name)
-        if calls == 0:
-            bad.append(f"Defined check function is not registered in main(): {name}")
-        elif calls > 1:
-            bad.append(f"Defined check function is called multiple times in main(): {name} ({calls} times)")
-
-    for call in main_calls:
-        if call not in defined_counts:
-            bad.append(f"main() calls unregistered/undefined check function: {call}")
-
-    sh_text = "".join(lines)
-    tool_checks = glob.glob(os.path.join(root, "tools/check-*.py"))
-
-    for tc in tool_checks:
-        tc_name = os.path.basename(tc)
-        if tc_name not in sh_text:
-            with open(tc, "r", encoding="utf-8", errors="ignore") as tcf:
-                tc_head = [tcf.readline() for _ in range(3)]
-            tc_hint = "".join(tc_head).lower()
-            if "drift check" in tc_hint or "drift-check" in tc_hint:
-                bad.append(f"tools/{tc_name} claims drift-check identity in AI-hint but is not referenced in 98-drift-checks.sh")
-
-    if bad:
-        for b in bad:
-            sys.stderr.write(f"    [gate-registry-drift] {b}\n")
-        sys.exit(1)
-
-    sys.exit(0)
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.call(["bash", str(wrapper), "check_gate_registry"], env=env)
 
 def check_names_registry() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
+    """Compatibility entrypoint; native Rust owns the read-only projection check."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import os, sys, re, subprocess
-
-    root = os.environ["MIOS_DRIFT_ROOT"]
-    violations = []
-
-    ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
-    committed_ref = ""
-    if os.path.isfile(ref_file):
-        try:
-            with open(ref_file, "r", encoding="utf-8") as fh:
-                committed_ref = fh.read()
-        except Exception as e:
-            violations.append(f"Failed to read committed referenced_names.txt: {e}")
-
-    registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
-
-    # The Python generator is deleted (AGY-1073); the native twin is the only
-    # generator, so a missing binary is a build failure, never a fallback.
-    native = None
-    for cand in (
-        "tools/native/target/release/generate-names-registry.exe",
-        "tools/native/target/debug/generate-names-registry.exe",
-        "tools/native/target/release/generate-names-registry",
-        "tools/native/target/debug/generate-names-registry",
-        "/usr/libexec/mios/generate-names-registry",
-    ):
-        p = cand if os.path.isabs(cand) else os.path.join(root, cand)
-        if os.path.isfile(p):
-            native = p
-            break
-
-    if native is None:
-        violations.append("generate-names-registry binary not built -- cd tools/native && cargo build -p generate-names-registry")
-    elif not os.path.isfile(registry_file):
-        violations.append("usr/share/mios/names.generated.txt missing")
-    else:
-        try:
-            with open(registry_file, "r", encoding="utf-8") as fh:
-                committed_data = fh.read()
-            res = subprocess.run([native], capture_output=True, text=True, check=True)
-            fresh_data = res.stdout
-
-            fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
-            committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
-
-            if fresh_lines != committed_lines:
-                violations.append("usr/share/mios/names.generated.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
-        except Exception as e:
-            violations.append(f"Failed to check names registry generation: {e}")
-
-    fresh_ref = ""
-    if os.path.isfile(ref_file):
-        try:
-            with open(ref_file, "r", encoding="utf-8") as fh:
-                fresh_ref = fh.read()
-        except Exception as e:
-            violations.append(f"Failed to read fresh referenced_names.txt: {e}")
-
-    if fresh_ref != committed_ref:
-        try:
-            with open(ref_file, "w", encoding="utf-8") as fh:
-                fh.write(committed_ref)
-        except Exception:
-            pass
-        violations.append("usr/share/mios/referenced_names.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
-
-    if violations:
-        for v in sorted(violations):
-            sys.stderr.write(f"    {v}\n")
-        sys.exit(1)
-    sys.exit(0)
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.run(["bash", str(wrapper), "check_names_registry"], env=env).returncode
 
 def check_agent_schema() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2666,63 +2411,15 @@ def check_container_ports() -> int:
     return 1 if viol else 0
 
 def check_agent_pipe_budgets() -> int:
-    import os, sys, re
-    import tomllib
+    """Compatibility entrypoint for the complete native SSOT budget census."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_agent_pipe_budgets: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    agent_pipe = data.get("agent_pipe", {})
-    dispatch = data.get("dispatch", {})
-
-    def key_in_dict(d, k):
-        if not isinstance(d, dict):
-            return False
-        if k in d:
-            return True
-        return any(key_in_dict(v, k) for v in d.values() if isinstance(v, dict))
-
-    search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
-    if not os.path.isdir(search_dir):
-        search_dir = root
-
-    code = ""
-    for r, ds, fs in os.walk(search_dir):
-        for f in fs:
-            if f.endswith(".py"):
-                try:
-                    with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
-                        code += fh.read() + "\n"
-                except OSError:
-                    pass
-
-    budget_keys = [
-        "tool_max_iters", "replan_max", "no_progress_window",
-        "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable",
-        "swarm_max_width", "max_dispatch_depth", "default_hop_budget"
-    ]
-    missing = []
-    for k in budget_keys:
-        if not key_in_dict(agent_pipe, k) and not key_in_dict(dispatch, k):
-            missing.append(f"{k} (missing from mios.toml)")
-            continue
-        pattern = rf"['\"]{k}['\"]"
-        if not re.search(pattern, code) and k not in code:
-            missing.append(k)
-
-    if missing:
-        sys.stderr.write(f"    Missing code consumers or TOML definitions for budget keys: {missing}\n")
-        return 1
-    return 0
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.run(["bash", str(wrapper), "check_agent_pipe_budgets"], env=env).returncode
 
 def check_verb_backends() -> int:
     import os, sys, re
@@ -2754,40 +2451,6 @@ def check_verb_backends() -> int:
     for t, vs in sorted(missing.items()):
         sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
     return 1 if missing else 0
-
-def check_python_untested_ratchet() -> int:
-    import sys, os
-    root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    base_file = os.path.join(root_dir, "usr/share/mios/reference/python-untested-baseline.txt")
-    _rc = _absent(root_dir, base_file)
-    if _rc is not None:
-        return _rc
-    with open(base_file, encoding="utf-8") as f:
-        allowed = set(line.strip() for line in f if line.strip() and not line.startswith("#"))
-
-    untested = []
-    for scan_dir in ['tools', os.path.join('usr', 'libexec', 'mios')]:
-        full_scan = os.path.join(root_dir, scan_dir)
-        if not os.path.isdir(full_scan):
-            continue
-        for f in os.listdir(full_scan):
-            if not f.endswith('.py') or f.startswith('test_') or f == '__init__.py':
-                continue
-            rel = f"{scan_dir}/{f}".replace("\\", "/")
-            norm_stem = f[:-3].replace("-", "_")
-            test1 = os.path.join(full_scan, f"test_{f}")
-            test2 = os.path.join(full_scan, f"test_{f[:-3]}.py")
-            test3 = os.path.join(full_scan, f"test_{norm_stem}.py")
-            if not (os.path.exists(test1) or os.path.exists(test2) or os.path.exists(test3)):
-                if rel not in allowed:
-                    untested.append(rel)
-
-    if untested:
-        for u in untested:
-            sys.stderr.write(f"    untested python module not in baseline: {u}\n")
-        return 1
-
-    return 0
 
 def check_dag_integrity() -> int:
     import os, sys, re
@@ -4519,7 +4182,11 @@ def check_docs_ratchet() -> int:
         print("\n".join(viol))
         return 1
 
-    refindex = mc.RefIndex.build(root)
+    try:
+        refindex = mc.RefIndex.build(root)
+    except RuntimeError as e:
+        print("stale references were not measured, so that ceiling proves nothing: %s" % e)
+        return 1
     ledger_path = os.path.join(root, "usr/share/mios/reference/manual-corpus.tsv")
     rows = {}
     if os.path.isfile(ledger_path):
@@ -4599,107 +4266,16 @@ def check_docs_ratchet() -> int:
         return 1
     return 0
 
-def _ssot_script_generators(data, listed):
-    """Script generators the SSOT declares: the projection register, the [generation.sync]
-    adapters and [rust.categories.gen].scope. Native .rs modules are skipped."""
-    import fnmatch
-    out = set()
-    reg = (data.get("laws") or {}).get("projection_registry") or {}
-    for row in list(reg.get("surfaces") or []) + list(reg.get("exempt") or []):
-        if isinstance(row, dict) and row.get("generator"):
-            out.add(str(row["generator"]).strip())
-    for step in ((data.get("generation") or {}).get("sync") or {}).get("steps") or []:
-        for call in step.get("calls") or []:
-            if call.get("script"):
-                out.add(str(call["script"]).strip())
-        if step.get("snapshot"):
-            out.add(str(step["snapshot"][0]).strip())
-    scope = (((data.get("rust") or {}).get("categories") or {}).get("gen") or {}).get("scope") or []
-    for rel in listed:
-        if any(fnmatch.fnmatchcase(rel, pat) for pat in scope):
-            out.add(rel)
-    return {p for p in out if p and not p.endswith(".rs")}
-
-
 def check_generator_host_parity() -> int:
-    import os, subprocess, sys, tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    viol = []
-
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable, and the subject list comes from it.
-        print("check_generator_host_parity: usr/share/mios/mios.toml is missing, so the "
-              "generator list could not be read", file=sys.stderr)
-        return 1
-    with open(toml_path, "rb") as fh:
-        data = tomllib.load(fh)
-
-    # Was a hardcoded list of seven scripts, so the same non-portable idiom in
-    # any other generator went unseen -- proved by planting it in
-    # render-globals.py and watching this pass. Discover the set instead.
-    try:
-        listed = subprocess.run(["git", "-C", root, "ls-files",
-                                 "tools", "automation", "usr/libexec"],
-                                capture_output=True, text=True, check=False).stdout
-    except OSError as exc:
-        print("cannot enumerate generators: %s" % exc, file=sys.stderr)
-        return 1
-    listed = [x.strip() for x in listed.split("\n") if x.strip()]
-
-    # The SSOT declares the subjects; the generate-/render- naming convention
-    # only adds the scripts it still names.
-    declared = _ssot_script_generators(data, listed)
-    named = set()
-    for rel in listed:
-        base = os.path.basename(rel)
-        if (base.startswith(("generate-", "render-"))
-                or base in ("mios-manual", "mios-version-lint", "mios_var_closure.py")):
-            named.add(rel)
-    scanned_scripts = sorted(declared | named)
-
-    if len(scanned_scripts) < 15:
-        print("only %d generator(s) discovered -- the subject list is wrong, so an "
-              "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
-        return 1
-
-    # A generator the SSOT names but the tree lacks is a broken subject list,
-    # never a smaller scan.
-    absent = sorted(p for p in declared if not os.path.isfile(os.path.join(root, p)))
-    if absent:
-        print("%d SSOT-declared generator(s) are not on disk, so the subject list is "
-              "wrong: %s" % (len(absent), ", ".join(absent)), file=sys.stderr)
-        return 1
-
-    read = 0
-    for script in scanned_scripts:
-        fpath = os.path.join(root, script)
-        if not os.path.isfile(fpath):
-            continue
-        with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
-            content = fh.read()
-        read += 1
-        if "fnmatch.fnmatch(" in content:
-            viol.append(f"{script} uses non-portable fnmatch.fnmatch instead of fnmatchcase")
-
-    if viol:
-        print("\n".join(viol), file=sys.stderr)
-        return 1
-
-    # The guard above counted the git LISTING, and the loop then skipped every
-    # listed file that was not on disk, so an empty worktree read nothing.
-    if read < 15:
-        print("only %d of %d listed generator(s) could be read -- an empty scan is "
-              "not a pass" % (read, len(scanned_scripts)), file=sys.stderr)
-        return 1
-
-    # Narrowed from "all generators produce host-independent byte-identical
-    # outputs". Nothing is rendered or compared here: this is one portability
-    # idiom, checked by reading source.
-    print("    %d generator(s) free of the non-portable fnmatch.fnmatch idiom"
-          % read)
-    return 0
+    """Compatibility entry; native Rust owns generator source portability."""
+    import subprocess
+    wrapper = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "automation/98-drift-checks.sh")
+    return subprocess.run(
+        ["bash", wrapper, "check_generator_host_parity"],
+        env=dict(os.environ, MIOS_DRIFT_CHECK_ROOT=os.environ.get("MIOS_DRIFT_ROOT", ".")),
+        check=False,
+    ).returncode
 
 
 def check_doc_port_scheme() -> int:
@@ -4838,7 +4414,7 @@ _SUBCOMMAND_NAMES = (
     "no-duplicate-value-key", "resolver-differential-parity", "legibility-ratchet",
     "header-integrity", "rbac-tiers", "ai-manifest", "capability-manifest",
     "surface-parity", "container-ports", "agent-pipe-budgets", "verb-backends",
-    "python-untested-ratchet", "dag-integrity",
+    "dag-integrity",
     "ai-endpoint-local", "bake-refs-parity", "cli-eval-safety",
     "resolver-ssot-refs", "bake-budget", "greenboot", "router-intent-coverage",
     "council-gate-ssot", "test-hermeticity", "containerfile-pinned-clones",

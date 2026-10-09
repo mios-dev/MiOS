@@ -633,10 +633,10 @@ paths = ["usr/share/gpu-only"]
             .contains(&"profile:dev: usr/share/dev-only missing".to_string()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn image_equivalence_command_must_be_executable_and_symlinks_stay_in_root() {
         let fx = Fx::new();
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(

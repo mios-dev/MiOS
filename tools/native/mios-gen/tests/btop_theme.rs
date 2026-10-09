@@ -5,52 +5,55 @@
 use std::fs;
 use std::process::Command;
 
-// The registry entry and template stand in for the real ones: the renderer
-// must take both paths from [dotfiles.registry.btop], never from its own code.
-const TEMPLATE: &str = "# fixture template
-theme[main_bg]=\"@MIOS:bg@\"
-theme[main_fg]=\"@MIOS:fg@\"
-theme[cpu_box]=\"@MIOS:accent@\"
-theme[mem_box]=\"@MIOS:accent@\"
-theme[temp_start]=\"@MIOS:success@\"
-theme[cpu_start]=\"@MIOS:ansi_12_bright_blue@\"
-";
-
-fn fixture_with(target: &str) -> tempfile::TempDir {
+fn fixture() -> tempfile::TempDir {
     let temp = tempfile::tempdir().expect("temporary fixture");
     let vendor = temp.path().join("usr/share/mios");
-    fs::create_dir_all(vendor.join("theme/templates")).unwrap();
+    fs::create_dir_all(&vendor).unwrap();
     fs::write(
         vendor.join("mios.toml"),
-        format!(
-            r##"[colors]
+        r##"[colors]
 bg = "#282262"
 fg = "#E7DFD3"
 accent = "#1A407F"
+cursor = "#F35C15"
 success = "#3E7765"
+warning = "#F35C15"
+error = "#DC271B"
+muted = "#948E8E"
+subtle = "#B7C9D7"
 ansi_12_bright_blue = "#3D6BA8"
-
 [dotfiles.registry.btop]
 template = "usr/share/mios/theme/templates/btop-mios.theme.tmpl"
-target   = "{target}"
-"##
-        ),
+target = "etc/btop/themes/mios.theme"
+"##,
     )
     .unwrap();
+    let templates = vendor.join("theme/templates");
+    fs::create_dir_all(&templates).unwrap();
     fs::write(
-        vendor.join("theme/templates/btop-mios.theme.tmpl"),
-        TEMPLATE,
+        templates.join("btop-mios.theme.tmpl"),
+        include_str!("../../../../usr/share/mios/theme/templates/btop-mios.theme.tmpl"),
     )
     .unwrap();
     temp
 }
 
-fn fixture() -> tempfile::TempDir {
-    fixture_with("etc/btop/themes/mios.theme")
+fn command(binary: impl AsRef<std::ffi::OsStr>, root: &std::path::Path) -> Command {
+    let mut command = Command::new(binary);
+    command
+        .env("MIOS_VENDOR_TOML", root.join("usr/share/mios/mios.toml"))
+        .env("MIOS_HOST_TOML", root.join("etc/mios/mios.toml"))
+        .env("MIOS_USER_TOML", root.join("user.toml"));
+    for key in ["MIOS_VENDOR_TOML_D", "MIOS_HOST_TOML_D", "MIOS_USER_TOML_D"] {
+        command.env(key, root.join("absent-fragments"));
+    }
+    command
 }
 
-fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_mios-gen")
+fn bin() -> std::path::PathBuf {
+    std::env::var_os("MIOS_TEST_GEN_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_mios-gen").into())
 }
 
 struct TempCleaner {
@@ -69,7 +72,7 @@ fn test_render_btop_theme_cli_e2e() {
     let root = temp.path();
     let bin_path = bin();
 
-    assert!(Command::new(bin_path)
+    assert!(command(&bin_path, root)
         .args(["render-btop-theme", "--root"])
         .arg(root)
         .status()
@@ -77,7 +80,7 @@ fn test_render_btop_theme_cli_e2e() {
         .success());
 
     // 1. Positive control: standard check mode passes with exit code 0
-    let output = Command::new(bin_path)
+    let output = command(&bin_path, root)
         .arg("render-btop-theme")
         .arg("--root")
         .arg(root)
@@ -101,7 +104,7 @@ fn test_render_btop_theme_cli_e2e() {
     );
 
     // 2. Positive control: JSON output contains valid schema
-    let json_output = Command::new(bin_path)
+    let json_output = command(&bin_path, root)
         .arg("--format")
         .arg("json")
         .arg("render-btop-theme")
@@ -128,7 +131,7 @@ fn test_render_btop_theme_cli_e2e() {
         target: tmp_out.clone(),
     };
 
-    let render_output = Command::new(bin_path)
+    let render_output = command(&bin_path, root)
         .arg("render-btop-theme")
         .arg("--root")
         .arg(root)
@@ -159,7 +162,7 @@ fn test_render_btop_theme_cli_e2e() {
         target: corrupted_target.clone(),
     };
 
-    let fail_output = Command::new(bin_path)
+    let fail_output = command(&bin_path, root)
         .arg("render-btop-theme")
         .arg("--root")
         .arg(root)
@@ -180,7 +183,7 @@ fn test_render_btop_theme_cli_e2e() {
 fn check_rejects_valid_color_drift_without_writing() {
     let temp = fixture();
     let root = temp.path();
-    assert!(Command::new(bin())
+    assert!(command(bin(), temp.path())
         .args(["render-btop-theme", "--root"])
         .arg(root)
         .status()
@@ -194,7 +197,7 @@ fn check_rejects_valid_color_drift_without_writing() {
         "negative control must change a real theme key"
     );
     fs::write(&target, &changed).unwrap();
-    let result = Command::new(bin())
+    let result = command(bin(), temp.path())
         .args(["render-btop-theme", "--check", "--root"])
         .arg(root)
         .output()
@@ -208,7 +211,7 @@ fn check_rejects_valid_color_drift_without_writing() {
     );
     fs::write(&target, rendered.replace('\n', "\r\n")).unwrap();
     assert!(
-        Command::new(bin())
+        command(bin(), temp.path())
             .args(["render-btop-theme", "--check", "--root"])
             .arg(root)
             .status()
@@ -225,7 +228,7 @@ fn check_rejects_missing_target_without_creating_it() {
         temp.path().join("etc/btop/themes/mios.theme"),
         temp.path().join("custom.theme"),
     ] {
-        let result = Command::new(bin())
+        let result = command(bin(), temp.path())
             .args(["render-btop-theme", "--check", "--root"])
             .arg(temp.path())
             .arg("--out")
@@ -242,58 +245,108 @@ fn check_rejects_missing_target_without_creating_it() {
 }
 
 #[test]
-fn the_target_and_the_template_come_from_the_registry() {
-    let temp = fixture_with("elsewhere/mios.theme");
-    assert!(Command::new(bin())
+fn layered_palette_template_and_target_are_authoritative() {
+    let temp = fixture();
+    let root = temp.path();
+    let host = root.join("etc/mios");
+    fs::create_dir_all(&host).unwrap();
+    fs::write(host.join("mios.toml"), "[colors]\naccent = \"#010203\"\n").unwrap();
+    fs::write(root.join("user.toml"), "[colors]\naccent = \"#040506\"\n[dotfiles.registry.btop]\ntemplate = \"custom.tmpl\"\ntarget = \"custom.theme\"\n").unwrap();
+    let template = include_str!("../../../../usr/share/mios/theme/templates/btop-mios.theme.tmpl")
+        .replace("@MIOS:cursor@", "@MIOS:accent@");
+    fs::write(root.join("custom.tmpl"), template).unwrap();
+    assert!(command(bin(), root)
         .args(["render-btop-theme", "--root"])
-        .arg(temp.path())
+        .arg(root)
         .status()
         .unwrap()
         .success());
-    let rendered = fs::read_to_string(temp.path().join("elsewhere/mios.theme")).unwrap();
-    assert!(
-        rendered.contains("theme[cpu_start]=\"#3D6BA8\""),
-        "{rendered}"
-    );
-    assert!(
-        !temp.path().join("etc/btop/themes/mios.theme").exists(),
-        "a path the registry does not name must not be written"
-    );
-
-    // A template edit flows through: the committed file is stale until rendered.
-    let tmpl = temp
-        .path()
-        .join("usr/share/mios/theme/templates/btop-mios.theme.tmpl");
-    fs::write(&tmpl, TEMPLATE.replace("@MIOS:success@", "@MIOS:fg@")).unwrap();
-    let stale = Command::new(bin())
+    let target = root.join("custom.theme");
+    let rendered = fs::read_to_string(&target).unwrap();
+    assert!(rendered.contains("theme[hi_fg]=\"#040506\""));
+    assert!(rendered.contains("theme[cpu_box]=\"#040506\""));
+    assert!(!root.join("etc/btop/themes/mios.theme").exists());
+    assert!(command(bin(), root)
         .args(["render-btop-theme", "--check", "--root"])
-        .arg(temp.path())
-        .output()
-        .unwrap();
-    assert_eq!(stale.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&stale.stderr).contains("drifted from SSOT"));
+        .arg(root)
+        .status()
+        .unwrap()
+        .success());
+    fs::remove_file(root.join("user.toml")).unwrap();
+    assert!(command(bin(), root)
+        .args(["render-btop-theme", "--root"])
+        .arg(root)
+        .status()
+        .unwrap()
+        .success());
+    assert!(fs::read_to_string(root.join("etc/btop/themes/mios.theme"))
+        .unwrap()
+        .contains("theme[cpu_box]=\"#010203\""));
 }
 
 #[test]
-fn an_unknown_token_fails_instead_of_shipping_a_literal() {
+fn invalid_templates_fail_without_overwriting_the_target() {
     let temp = fixture();
-    let tmpl = temp
-        .path()
-        .join("usr/share/mios/theme/templates/btop-mios.theme.tmpl");
-    fs::write(
-        &tmpl,
-        format!(
-            "{TEMPLATE}theme[title]=\"@MIOS:no_such_color@\"
-"
-        ),
-    )
-    .unwrap();
-    let result = Command::new(bin())
+    let root = temp.path();
+    let template = root.join("usr/share/mios/theme/templates/btop-mios.theme.tmpl");
+    let original = fs::read_to_string(&template).unwrap();
+    assert!(command(bin(), root)
         .args(["render-btop-theme", "--root"])
-        .arg(temp.path())
+        .arg(root)
+        .status()
+        .unwrap()
+        .success());
+    let target = root.join("etc/btop/themes/mios.theme");
+    let expected = fs::read(&target).unwrap();
+    for (text, diagnosis) in [
+        (
+            original.replace("@MIOS:accent@", "@MIOS:absent@"),
+            "Unknown btop theme color token",
+        ),
+        (
+            original.replace("@MIOS:accent@", "@MIOS:accent"),
+            "Malformed btop theme token",
+        ),
+        (
+            format!("{original}theme[main_fg]=\"#010203\"\n"),
+            "duplicate theme key",
+        ),
+        (
+            original.replace("theme[main_bg]", "garbage"),
+            "Invalid syntax format",
+        ),
+        (
+            original.replace(
+                "theme[main_bg]=\"@MIOS:bg@\"",
+                "theme[main_bg]=\"#010203\" trailing",
+            ),
+            "Invalid syntax format",
+        ),
+    ] {
+        fs::write(&template, text).unwrap();
+        let result = command(bin(), root)
+            .args(["render-btop-theme", "--root"])
+            .arg(root)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&result.stderr).contains(diagnosis));
+        assert_eq!(fs::read(&target).unwrap(), expected);
+    }
+    fs::remove_file(&template).unwrap();
+    let result = command(bin(), root)
+        .args(["render-btop-theme", "--root"])
+        .arg(root)
         .output()
         .unwrap();
     assert_eq!(result.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&result.stderr).contains("@MIOS:no_such_color@"));
-    assert!(!temp.path().join("etc/btop/themes/mios.theme").exists());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Failed to read"));
+    assert_eq!(fs::read(&target).unwrap(), expected);
+    fs::write(template, original).unwrap();
+    assert!(command(bin(), root)
+        .args(["render-btop-theme", "--check", "--root"])
+        .arg(root)
+        .status()
+        .unwrap()
+        .success());
 }

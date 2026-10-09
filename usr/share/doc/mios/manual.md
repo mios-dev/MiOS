@@ -61,8 +61,8 @@ This manual assembles the 88-chapter documentation suite. Each chapter is an aut
   * [Embedded Inference Setup](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_embedded_inference_setup): Maps GPU context management, prompt template bindings, and model formats.
   * [Model Map and Hot Swapping](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_model_map_and_hot_swapping): Documents model map configuration file and resource optimization strategies.
 * **[Chapter 11: The Heavy GPU Lane and its Engines (vLLM or SGLang)](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md)**
-  * [One Heavy Lane, Two Engines](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md#11_one_heavy_lane_two_engines): One `mios-llm-heavy` lane whose engine, vLLM or SGLang, is the `[ai].heavy_engine` setting that renders its Quadlet.
-  * [Engine Options](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md#11_engine_options): Each engine's options in its own SSOT table, and how to choose between them.
+  * [One Heavy Lane, Two Engines](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md#11_one_heavy_lane_two_engines): Explains the shared heavy lane, port and route for either engine.
+  * [Engine Options](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md#11_engine_options): Describes how the layered configuration selects vLLM or SGLang.
   * [VRAM Allocation and Scheduling](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md#11_vram_allocation_and_scheduling): Covers pre-allocation thresholds and dynamic offloading policies.
 * **[Chapter 12: Unified Memory and pgvector Schema](manual/ch12-unified-memory-and-pgvector-schema.md)**
   * [PostgreSQL Integration](manual/ch12-unified-memory-and-pgvector-schema.md#12_postgresql_integration): Details pgvector database container setup, connection pools, and permissions.

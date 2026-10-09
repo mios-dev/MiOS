@@ -274,6 +274,26 @@ _CLIENT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_CLIENT_ROOT / "usr/lib/mios"))
 import mios_oscontrol_client as client
 
+_LIVE_CONNECT = None
+
+
+def setUpModule():
+    """Hermeticity guard: every executor call is mocked, so refuse a real
+    connection -- a dropped mock fails here instead of reaching a live executor."""
+    global _LIVE_CONNECT
+    import socket
+
+    def _refuse(self, address, *args, **kwargs):
+        raise AssertionError(f"hermetic suite attempted a live connection to {address!r}")
+
+    _LIVE_CONNECT = patch.multiple(socket.socket, connect=_refuse, connect_ex=_refuse)
+    _LIVE_CONNECT.start()
+
+
+def tearDownModule():
+    if _LIVE_CONNECT is not None:
+        _LIVE_CONNECT.stop()
+
 
 class ClientContracts(unittest.TestCase):
     @classmethod

@@ -2911,3 +2911,89 @@ Resolve the anchor stopword screen from SSOT: MIOS_SEARCH_ANCHOR_STOPWORDS, the
     the override is reachable) -> that table -> empty (degrade-open). Lowercased.
 
 <!-- mios-src:1c3a403a2d2f from usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py:163-165 -->
+### Interruptible chunked decode (WS-A12). Enforces unified...
+
+Interruptible chunked decode (WS-A12). Enforces unified lock order
+    _GLOBAL_PRIORITY_GATE -> endpoint semaphore -> lane semaphore.
+    Across preemption, releases lane + endpoint semaphores before yielding the
+    priority gate, ensuring no dispatch holds an endpoint permit while waiting
+    on the gate (T-1190). Returns the full assistant text. Degrade-open: ANY failure
+    falls back to one completion of the whole budget; the partial is never lost.
+
+<!-- mios-src:caa0c2491dc4 from usr/lib/mios/agent-pipe/mios_pipe/routing/agent_call.py:984-989 -->
+
+### Ordered lane ids for a route. The heavy lane is one lane...
+
+Ordered lane ids for a route. The heavy lane is one lane whatever engine
+    [ai].heavy_engine runs on it, so the value only steers the ROUTE: "light"
+    skips the heavy lane, a comma list is an explicit order, and anything else
+    (an engine name such as "vllm"/"sglang", or empty) puts the heavy lane first.
+    Inside a comma list an engine name -- any id that is not an available lane --
+    means the heavy lane. "light" is always the terminal floor.
+
+<!-- mios-src:e6bdb1072ec4 from usr/lib/mios/agent-pipe/mios_pipe/routing/lanes.py:25-30 -->
+
+### (url, model) for the client-tools loop -- delegated to the...
+
+(url, model) for the client-tools loop -- delegated to the WS-1 unified lane
+    resolver: the heavy lane when reachable, else the always-on light lane (with
+    per-lane cooldown so a dead lane fails over, never 404s). Degrade-open: any resolver error falls back to the legacy heavy/light
+    probe so the agentic surface never hard-fails.
+
+<!-- mios-src:d029438c1e1c from usr/lib/mios/agent-pipe/mios_pipe/routing/lanes_resolver.py:111-114 -->
+
+### Minimum candidate entities a section must carry before its...
+
+Minimum candidate entities a section must carry before its grounding is
+    judged; below this the signal is too thin to trust -> degrade-open. SSOT:
+    [verity].antifab_min_entities -> MIOS_VERITY_ANTIFAB_MIN_ENTITIES (live).
+
+<!-- mios-src:9d94ccc00719 from usr/lib/mios/agent-pipe/mios_pipe/routing/native_loop.py:54-56 -->
+
+### Stretch password-derived keys once per worker; explicit...
+
+Stretch password-derived keys once per worker; explicit secrets stay stable.
+
+    A fixed, versioned domain separator preserves restart/multiworker agreement
+    without storing another secret. Changing the password or work factor revokes
+    derived sessions. Upgrade from the old single-hash key requires a new login.
+
+<!-- mios-src:bffebc2d19b0 from usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:100-105 -->
+
+### Context window for the client-tools lane (env...
+
+Context window for the client-tools lane (env MIOS_AGENT_PIPE_TOOL_CTX).
+    An unparsable or non-positive value falls back to the default instead of
+    raising out of the degrade path.
+
+<!-- mios-src:8b06b1414786 from usr/lib/mios/agent-pipe/mios_pipe/routing/vision_context.py:22-24 -->
+
+### Restore an OpenAI-valid sequence after messages were...
+
+Restore an OpenAI-valid sequence after messages were dropped.
+
+    * every assistant tool_call keeps a matching tool result (unanswered calls
+      are removed from the assistant message);
+    * every tool result answers a tool_call of the nearest preceding assistant
+      turn (orphans are dropped);
+    * the first non-system turn is a user turn;
+    * consecutive plain user/assistant turns are merged so roles alternate.
+
+<!-- mios-src:8e13e59da0d0 from usr/lib/mios/agent-pipe/mios_pipe/routing/vision_context.py:40-48 -->
+
+### Principled multi-tier request pruning before backend...
+
+Principled multi-tier request pruning before backend dispatch so the
+    payload fits the backend context instead of failing with HTTP 400.
+
+    Tiers (each runs only while still over budget):
+      1. tool_choice 'none' -> drop tools and tool_choice.
+      2. Elide stale tool results (placeholder keeps tool_call pairing).
+      3. Compact middle turns via plan_compaction, then repair the sequence.
+      4. Budget tool definitions: compact schemas, then keep tools in caller
+         order (forced tool always kept) within half the budget.
+      5. Truncate each oversized message (content-part aware).
+      6. Iteratively truncate the largest message.
+    Finally repair the sequence and clamp max_tokens to what actually fits.
+
+<!-- mios-src:296e360d4944 from usr/lib/mios/agent-pipe/mios_pipe/routing/vision_context.py:216-228 -->
