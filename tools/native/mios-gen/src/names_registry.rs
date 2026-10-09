@@ -130,9 +130,6 @@ fn render_referenced_vars(root: &Path) -> Result<String, String> {
 
     for rel in tracked(root)? {
         let path = root.join(&rel);
-        if !path.is_file() {
-            continue;
-        }
         if emitter_suffixes.iter().any(|s| rel.ends_with(s)) {
             continue;
         }
@@ -143,9 +140,8 @@ fn render_referenced_vars(root: &Path) -> Result<String, String> {
         if !matches_consumer_glob(fname) {
             continue;
         }
-        let Ok(content) = fs::read_to_string(&path) else {
-            continue;
-        };
+        let content = fs::read_to_string(&path)
+            .map_err(|error| format!("cannot read tracked consumer {rel}: {error}"))?;
         for line in content.lines() {
             for m in var_re.find_iter(line) {
                 let v = m.as_str().trim_end_matches('_');
@@ -163,7 +159,12 @@ fn render_referenced_vars(root: &Path) -> Result<String, String> {
     // The file also carries names that are not MIOS_*; a rewrite that forgets
     // them drops 19 rows the registry is the only record of.
     let ref_file = root.join("usr/share/mios/referenced_names.txt");
-    if let Ok(existing) = fs::read_to_string(&ref_file) {
+    let existing = match fs::read_to_string(&ref_file) {
+        Ok(existing) => Some(existing),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("cannot read {}: {error}", ref_file.display())),
+    };
+    if let Some(existing) = existing {
         for line in existing.lines() {
             let s = line.trim();
             if !s.is_empty() && !s.starts_with("MIOS_") {
@@ -306,7 +307,7 @@ fn order_of(order: &std::collections::HashMap<String, usize>, path: &str) -> usi
     }
 }
 
-pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn project(root: &Path) -> Result<(String, String), Box<dyn std::error::Error>> {
     let toml_path = root.join("usr/share/mios/mios.toml");
     if !toml_path.exists() {
         return Err(format!("mios.toml not found at {}", toml_path.display()).into());
@@ -323,17 +324,42 @@ pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     walk_value(&data, "", &mut all_pairs);
     all_pairs.sort_by_key(|(path, _)| order_of(&order, path));
 
-    let names_file = root.join("usr/share/mios/names.generated.txt");
     // Census and parse failures must preserve BOTH existing projections.
     let referenced_content = render_referenced_vars(root)?;
-    if let Some(parent) = names_file.parent() {
-        fs::create_dir_all(parent)?;
-    }
 
     let mut names_content = String::new();
     for (path, env_name) in &all_pairs {
         names_content.push_str(&format!("{}  {}\n", path, env_name));
-        println!("{}  {}", path, env_name);
+    }
+    Ok((names_content, referenced_content))
+}
+
+/// Compare both projections in memory without writing or repairing either file.
+pub fn check(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let (names, references) = project(root)?;
+    let mut stale = Vec::new();
+    for (relative, expected) in [
+        ("usr/share/mios/names.generated.txt", names),
+        ("usr/share/mios/referenced_names.txt", references),
+    ] {
+        let actual = fs::read(root.join(relative))
+            .map_err(|error| format!("cannot read {relative}: {error}"))?;
+        if actual != expected.as_bytes() {
+            stale.push(relative);
+        }
+    }
+    if !stale.is_empty() {
+        return Err(format!("stale names-registry projection: {}", stale.join(", ")).into());
+    }
+    println!("Names-registry projections verified read-only against SSOT and tracked consumers");
+    Ok(())
+}
+
+pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let (names_content, referenced_content) = project(root)?;
+    let names_file = root.join("usr/share/mios/names.generated.txt");
+    if let Some(parent) = names_file.parent() {
+        fs::create_dir_all(parent)?;
     }
     write_registry_pair(
         &names_file,
@@ -341,12 +367,119 @@ pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
         &root.join("usr/share/mios/referenced_names.txt"),
         &referenced_content,
     )?;
+    print!("{names_content}");
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixture() -> tempfile::TempDir {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("usr/share/mios");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("mios.toml"), "[ports]\nhttp=80\n").unwrap();
+        fs::write(directory.join("referenced_names.txt"), "EXTERNAL_NAME\n").unwrap();
+        fs::write(root.path().join("consumer.sh"), "echo ${MIOS_PORTS_HTTP}\n").unwrap();
+        for args in [vec!["init", "--quiet"], vec!["add", "."]] {
+            assert!(std::process::Command::new("git")
+                .arg("-C")
+                .arg(root.path())
+                .args(args)
+                .status()
+                .unwrap()
+                .success());
+        }
+        run(root.path()).unwrap();
+        assert_eq!(
+            fs::read_to_string(directory.join("names.generated.txt")).unwrap(),
+            "ports.http  MIOS_PORTS_HTTP\n"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.join("referenced_names.txt")).unwrap(),
+            "EXTERNAL_NAME\nMIOS_PORTS_HTTP\n"
+        );
+        root
+    }
+
+    #[test]
+    fn check_rejects_each_stale_projection_without_repairing_it() {
+        let root = fixture();
+        let names = root.path().join("usr/share/mios/names.generated.txt");
+        let references = root.path().join("usr/share/mios/referenced_names.txt");
+        let original_names = fs::read(&names).unwrap();
+        let original_references = fs::read(&references).unwrap();
+        check(root.path()).unwrap();
+        for (path, label) in [
+            (&names, "names.generated.txt"),
+            (&references, "referenced_names.txt"),
+        ] {
+            let mut planted = fs::read(path).unwrap();
+            planted.extend_from_slice(b"MIOS_READONLY_PROBE\n");
+            fs::write(path, &planted).unwrap();
+            assert!(check(root.path()).unwrap_err().to_string().contains(label));
+            assert_eq!(fs::read(path).unwrap(), planted);
+            fs::write(&names, &original_names).unwrap();
+            fs::write(&references, &original_references).unwrap();
+            check(root.path()).unwrap();
+        }
+    }
+
+    #[test]
+    fn check_requires_complete_readable_inputs_and_both_outputs() {
+        let root = fixture();
+        let consumer = root.path().join("consumer.sh");
+        let names = root.path().join("usr/share/mios/names.generated.txt");
+        let references = root.path().join("usr/share/mios/referenced_names.txt");
+        let original_names = fs::read(&names).unwrap();
+        let original_references = fs::read(&references).unwrap();
+        fs::remove_file(&consumer).unwrap();
+        assert!(check(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("consumer.sh"));
+        fs::write(&consumer, b"invalid\xff").unwrap();
+        assert!(check(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("consumer.sh"));
+        fs::write(&consumer, "echo ${MIOS_PORTS_HTTP}\n").unwrap();
+        fs::remove_file(&references).unwrap();
+        assert!(check(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("referenced_names.txt"));
+        assert!(!references.exists());
+        assert_eq!(fs::read(&names).unwrap(), original_names);
+        fs::write(&references, original_references).unwrap();
+        check(root.path()).unwrap();
+    }
+
+    #[test]
+    fn changed_consumer_and_unavailable_git_census_never_rewrite_outputs() {
+        let root = fixture();
+        let names = root.path().join("usr/share/mios/names.generated.txt");
+        let references = root.path().join("usr/share/mios/referenced_names.txt");
+        let before_names = fs::read(&names).unwrap();
+        let before_references = fs::read(&references).unwrap();
+        fs::write(
+            root.path().join("consumer.sh"),
+            "echo ${MIOS_NEW_CONSUMER}\n",
+        )
+        .unwrap();
+        assert!(check(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("referenced_names.txt"));
+        fs::rename(root.path().join(".git"), root.path().join("git.saved")).unwrap();
+        assert!(check(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("git ls-files failed"));
+        assert_eq!(fs::read(names).unwrap(), before_names);
+        assert_eq!(fs::read(references).unwrap(), before_references);
+    }
 
     #[test]
     fn invalid_census_and_colliding_names_preserve_both_projections() {

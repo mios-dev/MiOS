@@ -247,28 +247,65 @@ _names_gen_run() {
     "$b"
 }
 
+_test_names_registry_readonly() (
+    local gate="$1" fixture bin candidate output artifact before_names before_refs
+    fixture="$(mktemp -d)"
+    trap 'rm -rf "$fixture"' EXIT
+    trap 'exit 130' INT TERM
+    bin=""
+    for candidate in "${MIOS_NATIVE_BIN_DIR:-}/mios-gen" \
+        "$ROOT/tools/native/target/release/mios-gen" \
+        "$ROOT/tools/native/target/debug/mios-gen" /usr/bin/mios-gen /usr/libexec/mios/mios-gen; do
+        [[ -x "$candidate" ]] && { bin="$candidate"; break; }
+    done
+    [[ -n "$bin" ]] || die "$gate requires native mios-gen"
+    mkdir -p "$fixture/usr/share/mios"
+    printf '[ports]\nhttp=80\n' > "$fixture/usr/share/mios/mios.toml"
+    printf 'EXTERNAL_NAME\n' > "$fixture/usr/share/mios/referenced_names.txt"
+    printf 'echo ${%s}\n' "$(printf 'MIOS_%s' PORTS_HTTP)" > "$fixture/consumer.sh"
+    git -C "$fixture" init --quiet
+    git -C "$fixture" add .
+    "$bin" names-registry --root "$fixture" >/dev/null
+    _names_fixture_gate() {
+        MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$ROOT/automation/98-drift-checks.sh" "$gate"
+    }
+    _names_fixture_gate >/dev/null || die "$gate failed its clean baseline"
+    cp "$fixture/usr/share/mios/names.generated.txt" "$fixture/names.saved"
+    cp "$fixture/usr/share/mios/referenced_names.txt" "$fixture/refs.saved"
+    for artifact in names.generated.txt referenced_names.txt; do
+        printf '%s\n' "$(printf 'MIOS_%s' READONLY_PROBE)" >> "$fixture/usr/share/mios/$artifact"
+        before_names="$(sha256sum "$fixture/usr/share/mios/names.generated.txt")"
+        before_refs="$(sha256sum "$fixture/usr/share/mios/referenced_names.txt")"
+        if output="$(_names_fixture_gate 2>&1)"; then
+            die "$gate passed with stale $artifact"
+        fi
+        [[ "$output" == *"stale names-registry projection:"*"$artifact"* ]] \
+            || die "$gate rejected the wrong defect: $output"
+        [[ "$(sha256sum "$fixture/usr/share/mios/names.generated.txt")" == "$before_names" \
+            && "$(sha256sum "$fixture/usr/share/mios/referenced_names.txt")" == "$before_refs" ]] \
+            || die "$gate changed registry bytes while checking"
+        cp "$fixture/names.saved" "$fixture/usr/share/mios/names.generated.txt"
+        cp "$fixture/refs.saved" "$fixture/usr/share/mios/referenced_names.txt"
+        _names_fixture_gate >/dev/null || die "$gate failed after restoration"
+    done
+    rm "$fixture/consumer.sh"
+    if output="$(_names_fixture_gate 2>&1)"; then
+        die "$gate passed with an absent tracked consumer"
+    fi
+    [[ "$output" == *"cannot read tracked consumer consumer.sh"* ]] \
+        || die "$gate rejected the wrong missing input: $output"
+    cmp -s "$fixture/names.saved" "$fixture/usr/share/mios/names.generated.txt" \
+        && cmp -s "$fixture/refs.saved" "$fixture/usr/share/mios/referenced_names.txt" \
+        || die "$gate changed projections after a census failure"
+    printf 'echo ${%s}\n' "$(printf 'MIOS_%s' PORTS_HTTP)" > "$fixture/consumer.sh"
+    _names_fixture_gate >/dev/null || die "$gate failed after consumer restoration"
+)
+
 test_names_registry() {
     log "Testing check_names_registry"
-    local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
-    [[ -f "$reg_file" ]] || _names_gen_run >/dev/null 2>&1 || true
-    local bak_file="${reg_file}.bak"
-    cp "$reg_file" "$bak_file" 2>/dev/null || true
-
-    echo "Fake_drip.key MIOS_FAKE_TEST_VARIABLE_DRIP" >> "$reg_file"
-
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
-        [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-        _names_gen_run >/dev/null 2>&1 || true
-        die "Check_names_registry passed despite stale names.generated.txt"
-    fi
-
-    [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-    _names_gen_run >/dev/null 2>&1 || true
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
-        || die "Check_names_registry failed after restoration"
-    log "Check_names_registry negative test passed"
+    _test_names_registry_readonly check_names_registry
+    log "check_names_registry read-only negative tests passed"
 }
-
 # Both readers answered a refusing git with a filesystem walk that skips every
 # directory named build/, so two tracked files left the corpus in silence.
 test_dead_git_corpus() {
@@ -4446,53 +4483,9 @@ test_credential_literals() {
 
 test_names_registry_equivalence() {
     log "Testing check_names_registry_equivalence"
-    local src="${ROOT}/tools/native/generate-names-registry/src/main.rs"
-    local bin="${ROOT}/tools/native/target/release/generate-names-registry"
-    [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/generate-names-registry"
-    if [[ ! -x "$bin" ]] || ! command -v cargo >/dev/null 2>&1; then
-        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-            die "check_names_registry_equivalence negative test needs the built twin and cargo"
-        fi
-        log "check_names_registry_equivalence negative test skipped (twin or cargo absent)"
-        return 0
-    fi
-    local backup; backup="$(mktemp)"; cp "$src" "$backup"
-    local names="${ROOT}/usr/share/mios/names.generated.txt"
-    local refs="${ROOT}/usr/share/mios/referenced_names.txt"
-    local keep; keep="$(mktemp -d)"; cp "$names" "$keep/names"; cp "$refs" "$keep/refs"
-    # The rebuild CREATES this binary when nothing had built it, and the restore rebuild cannot un-create it.
-    local _nre_bin="${ROOT}/tools/native/target/debug/generate-names-registry" _nre_had=0; [[ -f "$_nre_bin" ]] && _nre_had=1 || :
-    _nre_restore() {
-        cp "$backup" "$src" 2>/dev/null || true
-        cp "$keep/names" "$names" 2>/dev/null || true; cp "$keep/refs" "$refs" 2>/dev/null || true
-        (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1) || true
-        [[ "$_nre_had" = 1 ]] || rm -f "$_nre_bin"; rm -rf "$backup" "$keep"
-    }
-    trap _nre_restore EXIT; trap '_nre_restore; exit 130' INT TERM   # no die path runs on a signal (SKILL 6)
-
-    # Re-introduce one measured divergence: the Python leg excludes the two
-    # generated globals files because they DEFINE the namespace. Scanning them
-    # makes the registry cite itself, which is 2273 of the 2340 extra names.
-    sed -i '/^        "automation\/lib\/globals.sh",$/d; /^        "automation\/lib\/globals.ps1",$/d' "$src"
-    if ! (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1); then
-        _nre_restore; die "check_names_registry_equivalence negative test could not build the mutated twin"
-    fi
-    _neg_gate check_names_registry_equivalence && { _nre_restore; die "check_names_registry_equivalence passed with divergent twins"; }
-    case "$_NEG_GATE_OUT" in
-        *referenced_names.txt*) ;;
-        *) _nre_restore; die "check_names_registry_equivalence failed for the wrong reason: $_NEG_GATE_OUT" ;;
-    esac
-    # The gate must also leave the artefacts as it found them: it runs a
-    # generator that writes in place, so a leak here is a corrupted registry.
-    if ! cmp -s "$keep/refs" "$refs"; then
-        _nre_restore; die "check_names_registry_equivalence left referenced_names.txt rewritten by the twin"
-    fi
-
-    _nre_restore; trap - EXIT INT TERM
-    _neg_gate check_names_registry_equivalence || die "check_names_registry_equivalence failed after restoration: $_NEG_GATE_OUT"
-    log "check_names_registry_equivalence negative test passed"
+    _test_names_registry_readonly check_names_registry_equivalence
+    log "check_names_registry_equivalence read-only negative tests passed"
 }
-
 test_protected_refs() {
     log "Testing check_protected_refs"
     local unit="${ROOT}/usr/lib/systemd/system/mios-agents.service"

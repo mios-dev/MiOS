@@ -2192,81 +2192,15 @@ def check_gate_registry() -> int:
     sys.exit(0)
 
 def check_names_registry() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
+    """Compatibility entrypoint; native Rust owns the read-only projection check."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import os, sys, re, subprocess
-
-    root = os.environ["MIOS_DRIFT_ROOT"]
-    violations = []
-
-    ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
-    committed_ref = ""
-    if os.path.isfile(ref_file):
-        try:
-            with open(ref_file, "r", encoding="utf-8") as fh:
-                committed_ref = fh.read()
-        except Exception as e:
-            violations.append(f"Failed to read committed referenced_names.txt: {e}")
-
-    registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
-
-    # The Python generator is deleted (AGY-1073); the native twin is the only
-    # generator, so a missing binary is a build failure, never a fallback.
-    native = None
-    for cand in (
-        "tools/native/target/release/generate-names-registry.exe",
-        "tools/native/target/debug/generate-names-registry.exe",
-        "tools/native/target/release/generate-names-registry",
-        "tools/native/target/debug/generate-names-registry",
-        "/usr/libexec/mios/generate-names-registry",
-    ):
-        p = cand if os.path.isabs(cand) else os.path.join(root, cand)
-        if os.path.isfile(p):
-            native = p
-            break
-
-    if native is None:
-        violations.append("generate-names-registry binary not built -- cd tools/native && cargo build -p generate-names-registry")
-    elif not os.path.isfile(registry_file):
-        violations.append("usr/share/mios/names.generated.txt missing")
-    else:
-        try:
-            with open(registry_file, "r", encoding="utf-8") as fh:
-                committed_data = fh.read()
-            res = subprocess.run([native], capture_output=True, text=True, check=True)
-            fresh_data = res.stdout
-
-            fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
-            committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
-
-            if fresh_lines != committed_lines:
-                violations.append("usr/share/mios/names.generated.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
-        except Exception as e:
-            violations.append(f"Failed to check names registry generation: {e}")
-
-    fresh_ref = ""
-    if os.path.isfile(ref_file):
-        try:
-            with open(ref_file, "r", encoding="utf-8") as fh:
-                fresh_ref = fh.read()
-        except Exception as e:
-            violations.append(f"Failed to read fresh referenced_names.txt: {e}")
-
-    if fresh_ref != committed_ref:
-        try:
-            with open(ref_file, "w", encoding="utf-8") as fh:
-                fh.write(committed_ref)
-        except Exception:
-            pass
-        violations.append("usr/share/mios/referenced_names.txt is stale. Regenerate: cargo build -p generate-names-registry, then tools/sync-generated.sh step 9.")
-
-    if violations:
-        for v in sorted(violations):
-            sys.stderr.write(f"    {v}\n")
-        sys.exit(1)
-    sys.exit(0)
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.run(["bash", str(wrapper), "check_names_registry"], env=env).returncode
 
 def check_agent_schema() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
