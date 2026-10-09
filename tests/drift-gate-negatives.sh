@@ -986,17 +986,13 @@ test_rechunk_budget() {
     log "Check_rechunk_budget negative test passed"
 }
 
-test_bake_core_reconcile() {
+test_bake_core_reconcile() (
     log "Testing test_bake_core_reconcile"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local bak_file="${toml_file}.bcrbak"
+    local bak_file; bak_file="$(mktemp)"
     cp "$toml_file" "$bak_file"
-
-    # `core_image` is not a key in mios.toml and never has been, so this sed
-    # was a no-op: the test mutated nothing, --check correctly passed, and the
-    # test then reported the checker as broken. The real structure is the
-    # [build.bake].core LIST, and the reconcile being tested is that every core
-    # image is referenced by some Quadlet.
+    trap 'cp "$bak_file" "$toml_file"; rm -f "$bak_file"' EXIT
+    _neg_gate check_bake_plan || die "check_bake_plan failed before core reconcile controls"
     python3 - "$toml_file" <<'PYEOF'
 import re, sys
 p = sys.argv[1]
@@ -1008,18 +1004,13 @@ if n != 1:
 with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(t)
 PYEOF
-    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "test_bake_core_reconcile: generate-bake-plan.py --check passed despite missing core image reconcile"
-    fi
-
-    cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "test_bake_core_reconcile: generate-bake-plan.py --check failed after core image reconcile restoration"
+    _neg_gate check_bake_plan && die "check_bake_plan accepted an unreferenced core image"
+    [[ "$_NEG_GATE_OUT" == *"Core image 'docker.io/library/unreferenced-image-xyz999:latest' is not referenced by any Quadlet"* ]] \
+        || die "check_bake_plan failed without naming the unreferenced core image"
+    cp "$bak_file" "$toml_file"
+    _neg_gate check_bake_plan || die "check_bake_plan failed after core reconcile restoration"
     log "Test_bake_core_reconcile negative test passed"
-}
+)
 
 test_nested_podman_retry() {
     log "Testing check_nested_podman_caps"
@@ -1125,17 +1116,7 @@ EOF
     grep -qF "fake-missing-user.container: implicitly/explicitly root (User=) but NOT in [security.privileged_quadlets].root" <<<"$out_mu" \
         || die "Check_quadlet_privilege failed the missing-User= plant without naming it"
 
-    # The generator refuses the same shape before it is ever written.
-    python3 -c '
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("podgen", sys.argv[1] + "/tools/generate-pod-quadlets.py")
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-try:
-    m.render_nested_quadlet("zz-planted", {"Container": {"Image": "alpine"}}, "container")
-except m.UnauthorizedPrivilegeError as exc:
-    print(exc); sys.exit(0 if "'"'"'zz-planted'"'"' declares no User=" in str(exc) else 1)
-sys.exit(1)
-' "$ROOT" >/dev/null || die "generate-pod-quadlets passed despite missing User="
+    _neg_pod_projection_controls privilege
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 \
         || die "Check_quadlet_privilege failed after restoration"
     log "Test_quadlet_privilege negative test passed"
@@ -1908,6 +1889,68 @@ test_verb_templates() {
     log "Test_verb_templates negative test passed"
 }
 
+_neg_pod_projection_controls() (
+    local mode="$1" gen fixture source output
+    gen="$(native_bin mios-gen)" || die "mios-gen is required for native Quadlet controls"
+    fixture="$(mktemp -d)"
+    trap 'rm -rf "$fixture"' EXIT
+    mkdir -p "$fixture/usr/share/mios" "$fixture/empty"
+    source="$fixture/usr/share/mios/mios.toml"
+    export MIOS_VENDOR_TOML="$source" MIOS_VENDOR_TOML_D="$fixture/empty"
+    export MIOS_HOST_TOML="$fixture/absent" MIOS_HOST_TOML_D="$fixture/empty"
+    export MIOS_USER_TOML="$fixture/absent" MIOS_USER_TOML_D="$fixture/empty"
+    export MIOS_POD_OUT="$fixture/units"
+    cat > "$source" <<'TOML'
+[build.bake]
+additional_image_store = "/usr/lib/bootc/storage"
+firstboot_tokens = ["floating"]
+[containers.zz-planted.Container]
+Image = "example/core"
+User = "825"
+Group = "825"
+GlobalArgs = ["--log-level=debug"]
+TOML
+    cp "$source" "$fixture/original"
+    _pod_render() { "$gen" pod-quadlets --root "$fixture"; }
+    _pod_reject() {
+        if output="$(_pod_render 2>&1)"; then
+            die "mios-gen pod-quadlets accepted $1"
+        fi
+        [[ "$output" == *"$2"* ]] || die "mios-gen failed $1 without its expected diagnosis: $output"
+        cp "$fixture/original" "$source"
+    }
+    _pod_render || die "mios-gen failed on the unmutated Quadlet fixture"
+    grep -Fq -- '--log-level=debug' "$MIOS_POD_OUT/zz-planted.container" || die "generator dropped unrelated GlobalArgs"
+    grep -Fq -- '--storage-opt=additionalimagestore=/usr/lib/bootc/storage' "$MIOS_POD_OUT/zz-planted.container" || die "generator omitted the bound image store"
+    cp "$MIOS_POD_OUT/zz-planted.container" "$fixture/rendered"
+    _pod_render || die "mios-gen failed on a repeated projection"
+    cmp -s "$fixture/rendered" "$MIOS_POD_OUT/zz-planted.container" || die "Quadlet projection is not idempotent"
+    case "$mode" in
+        privilege)
+            sed -i '/^User =/d; /^Group =/d' "$source"
+            _pod_reject 'missing User=/Group=' "Container 'zz-planted' declares no User=/Group="
+            ;;
+        bound-store)
+            sed -i 's|GlobalArgs = .*|GlobalArgs = ["--storage-opt=additionalimagestore=/other"]|' "$source"
+            _pod_reject 'conflicting store' 'conflicting'
+            sed -i 's|GlobalArgs = .*|GlobalArgs = ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage", "--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]|' "$source"
+            _pod_reject 'duplicate store' 'conflicting'
+            sed -i 's|GlobalArgs = .*|GlobalArgs = false|' "$source"
+            _pod_reject 'malformed GlobalArgs' 'GlobalArgs must'
+            sed -i 's|Image = .*|Image = "example/floating"|; s|GlobalArgs = .*|GlobalArgs = ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]|' "$source"
+            _pod_reject 'firstboot image store' 'firstboot image'
+            sed -i 's|additional_image_store = .*|additional_image_store = false|' "$source"
+            _pod_reject 'non-string store' 'additional_image_store must be an absolute path'
+            sed -i 's|firstboot_tokens = .*|firstboot_tokens = false|' "$source"
+            _pod_reject 'non-array firstboot tokens' 'firstboot_tokens must be a string array'
+            ;;
+        *) die "Unknown native Quadlet control: $mode" ;;
+    esac
+    _pod_render || die "mios-gen failed after Quadlet fixture restoration"
+    cmp -s "$fixture/rendered" "$MIOS_POD_OUT/zz-planted.container" || die "restored Quadlet differs from the positive control"
+    log "Native Quadlet $mode controls passed with idempotence and restoration"
+)
+
 test_bound_image_store() {
     log "Testing check_bound_image_store"
     _neg_gate check_bound_image_store || die "check_bound_image_store failed on the unmutated tree"
@@ -1917,12 +1960,12 @@ spec = importlib.util.spec_from_file_location('bound_store_controls', sys.argv[1
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 loader = unittest.TestLoader()
-suite = unittest.TestSuite(loader.loadTestsFromTestCase(cls) for cls in (
-    module.TestBoundImageStore, module.TestBoundStoreProjection))
+suite = loader.loadTestsFromTestCase(module.TestBoundImageStore)
 assert suite.countTestCases() >= 9, 'bound-image controls are missing'
 result = unittest.TextTestRunner(verbosity=2).run(suite)
 raise SystemExit(not result.wasSuccessful() or bool(result.skipped))
 PYEOF
+    _neg_pod_projection_controls bound-store
     _neg_gate check_bound_image_store || die "check_bound_image_store failed after isolated controls"
     log "check_bound_image_store scoped store and binding controls passed"
 }
@@ -2016,30 +2059,23 @@ test_pipe_extraction_parity() {
     log "Test_pipe_extraction_parity negative test passed"
 }
 
-test_bake_plan() {
+test_bake_plan() (
     log "Testing check_bake_plan"
-    # The extra group is the catch-all: its numeric prefix shifts whenever the
-    # bake sharding gains a group, so resolve it by glob instead of hardcoding.
     local plan_file
     plan_file="$(find "${ROOT}/usr/lib/mios/bake/plan.d" -maxdepth 1 -name '[0-9][0-9]-extra.list' -print -quit 2>/dev/null)"
-    if [ -n "$plan_file" ] && [ -f "$plan_file" ]; then
-        local bak_file="${plan_file}.bak"
-        cp "$plan_file" "$bak_file"
-        echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
-            cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-            MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-            die "Check_bake_plan passed despite stale/invalid bake plan"
-        fi
-
-        cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
-            || die "Check_bake_plan failed after restoration"
-    fi
+    [[ -n "$plan_file" && -f "$plan_file" ]] || die "No extra bake plan exists for the stale-plan control"
+    local bak_file; bak_file="$(mktemp)"
+    cp "$plan_file" "$bak_file"
+    trap 'cp "$bak_file" "$plan_file"; rm -f "$bak_file"' EXIT
+    _neg_gate check_bake_plan || die "check_bake_plan failed before stale-plan controls"
+    echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
+    _neg_gate check_bake_plan && die "check_bake_plan accepted a stale bake plan"
+    [[ "$_NEG_GATE_OUT" == *"STALE"* && "$_NEG_GATE_OUT" == *"$(basename "$plan_file")"* ]] \
+        || die "check_bake_plan failed without naming the stale plan"
+    cp "$bak_file" "$plan_file"
+    _neg_gate check_bake_plan || die "check_bake_plan failed after stale-plan restoration"
     log "Test_bake_plan negative test passed"
-}
+)
 
 test_bake_ref_defaults() {
     log "Testing check_bake_ref_defaults"

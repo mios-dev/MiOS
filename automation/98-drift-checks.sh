@@ -2174,10 +2174,17 @@ check_bake_plan() {
     # certified binary was one the bake can never run; debug is dropped because
     # that tree is where the two sides diverge (T-1057).
     local bin="" c
-    for c in /usr/libexec/mios/mios-bake-plan \
-             "$ROOT/tools/native/target/release/mios-bake-plan"; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        bin="$(native_bin mios-bake-plan)" || {
+            _violation "mios-bake-plan is missing from MIOS_NATIVE_BIN_DIR=$MIOS_NATIVE_BIN_DIR"
+            return
+        }
+    else
+        for c in /usr/libexec/mios/mios-bake-plan \
+                 "$ROOT/tools/native/target/release/mios-bake-plan"; do
+            [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+        done
+    fi
     if [[ -z "$bin" ]] && command -v cargo >/dev/null 2>&1; then
         cargo build --release --manifest-path "$ROOT/tools/native/Cargo.toml" -p mios-bake-plan >/dev/null 2>&1 || true
         [[ -x "$ROOT/tools/native/target/release/mios-bake-plan" ]] && bin="$ROOT/tools/native/target/release/mios-bake-plan"
@@ -2187,7 +2194,8 @@ check_bake_plan() {
         _violation "mios-bake-plan is not built for release, so check_bake_plan could not certify what stage 85 runs -- build it: cd tools/native && cargo build --release -p mios-bake-plan"
         return
     fi
-    if (cd "$ROOT" && "$bin" --check); then
+    if (cd "$ROOT" && MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
+            MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" "$bin" --check); then
         echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
         _violation "bake-plan lists are STALE vs mios.toml -- regenerate with tools/native/target/release/mios-bake-plan"
