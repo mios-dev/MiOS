@@ -707,11 +707,18 @@ class TestAgentProjection(unittest.TestCase):
             codex.parent.mkdir()
             codex.write_text('model_provider = "openai"\nbase_url = ' + json.dumps(endpoint)
                              + '\n\n[mcp_servers.user-server]\ncommand = "user-command"\n')
-            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+            # Clients reach the agent-pipe front door, which advertises the
+            # gateway model (MIOS_AI_GATEWAY_MODEL, default ai.agent_model);
+            # the inference backend's MIOS_AI_MODEL must never be projected.
+            models = {"MIOS_AI_ENDPOINT": endpoint, "MIOS_AI_GATEWAY_MODEL": "projection-model",
+                      "MIOS_AI_MODEL": "DEVLOOP-PLANTED-BACKEND-MODEL"}
+            with patch.dict(os.environ, models):
                 relay._project_agent_clients(home)
                 first = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
                 relay._project_agent_clients(home)
             self.assertEqual(first, {path: path.read_bytes() for path in first})
+            for content in first.values():
+                self.assertNotIn(b"DEVLOOP-PLANTED-BACKEND-MODEL", content)
             oc = json.loads(opencode.read_text())
             self.assertNotIn("providers", oc)
             self.assertEqual(oc["provider"]["local"]["options"]["baseURL"], endpoint)
@@ -720,12 +727,13 @@ class TestAgentProjection(unittest.TestCase):
             self.assertIn("user-server", oc["mcp"])
             cc = tomllib.loads(codex.read_text())
             self.assertEqual(cc["model_provider"], "mios")
+            self.assertEqual(cc["model"], "projection-model")
             self.assertEqual(cc["model_providers"]["mios"]["base_url"], endpoint)
             self.assertEqual(cc["model_providers"]["mios"]["wire_api"], "responses")
             self.assertIn("user-server", cc["mcp_servers"])
             codex.write_text('model_provider = "user-provider"\nmodel = "user-model"\n')
             opencode.write_text(json.dumps({"model": "user-provider/user-model"}))
-            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+            with patch.dict(os.environ, models):
                 relay._project_agent_clients(home)
             self.assertEqual(tomllib.loads(codex.read_text())["model_provider"], "user-provider")
             self.assertEqual(json.loads(opencode.read_text())["model"], "user-provider/user-model")
