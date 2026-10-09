@@ -16,11 +16,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1684 |
+| pending | 1682 |
 | in_progress | 50 |
-| completed | 1824 |
+| completed | 1823 |
 | incomplete | 21 |
-| cancelled | 16 |
+| cancelled | 19 |
 | total | 3595 |
 
 0 record(s) carry at least one override.
@@ -2611,7 +2611,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-396` Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned -- completed · P1 · size M · depends_on AGY-1993
 - `T-400` Hardware watchdog timer integration (/dev/watchdog) in mios-node -- completed · P2 · size S · depends_on AGY-1997
 - `T-523` Signed Proxy WoL with SecureON payload and peer wake daemon -- completed · P1 · size S · depends_on AGY-2120
-- `T-524` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- completed · P1 · size M · depends_on AGY-2121
+- `T-524` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- pending · P1 · size M · depends_on AGY-2121
 - `T-529` Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser -- completed · P1 · size M · depends_on AGY-2126
 - `T-530` Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon -- completed · P1 · size M · depends_on AGY-2127
 - `T-563` In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder -- completed · P1 · size M · depends_on AGY-2160
@@ -3180,7 +3180,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1477` Add cosign signing to the Forgejo publisher so both forges sign every pushed tag -- pending · P1 · size M
 - `AGY-1478` Collapse the two divergent LUKS SSOT tables onto [security.luks] and make the recovery keyslot unconditional -- pending · P1 · size M
 - `AGY-1479` Pin CI cosign to v2.x legacy-attachment format so bootc/rpm-ostree policy can discover the signatures -- pending · P1 · size S
-- `AGY-1480` Generate a real sigstoreSigned policy.json from [security.sigstore] instead of insecureAcceptEverything -- pending · P1 · size M
+- `AGY-1480` Generate a real sigstoreSigned policy.json from [security.sigstore] instead of insecureAcceptEverything -- cancelled · P1 · size M
 - `AGY-1481` Attach the Syft SBOM to the published digest as a signed cosign attestation on both forges -- pending · P2 · size M
 - `AGY-1482` Emit signed SLSA build provenance for the published image, recording which forge built the digest -- pending · P2 · size L
 - `AGY-1483` Make the image build reproducible via a git-derived SOURCE_DATE_EPOCH and timestamp rewrite -- pending · P2 · size M
@@ -3346,7 +3346,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1002` LAW5-01: retired lane ports are hardcoded across the code surface and no gate covers code -- completed · P1 · size M
 - `T-1022` SECRED-01: check_secret_handling measured the wrong property -- completed · P1 · size S
 - `T-1035` QUADSEC-01: secrets at 0644 and a build-env var that writes User=0 -- in_progress · P0 · size M
-- `T-1036` COSIGN-01: signature verification is off and cannot be turned on -- pending · P1 · size M
+- `T-1036` COSIGN-01: signature verification is off and cannot be turned on -- cancelled · P1 · size M
 - `T-1050` LAW11KEYS-01: the secret-bearing key list is three hardcoded names, and a projected OTP is not one of them -- completed · P1 · size M · depends_on T-1022
 - `T-1053` IPANAME-01: zero-touch FreeIPA enrollment reads two variable names nothing emits -- completed · P1 · size S · depends_on T-1052
 - `AGY-192` Harden redact.py: add the high-value credential patterns and recurse structured payloads -- completed · P1 · size M · depends_on AGY-8, AGY-32
@@ -3456,7 +3456,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2561` Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite -- pending · P2 · size S · depends_on AGY-2560
 - `AGY-2580` Consult the policy arbiter by default instead of shipping it unreachable -- pending · P1 · size S
 - `T-1139` Grant ReadWritePaths to state-writing hardened units (mios-agents, mios-cron-director) -- in_progress · owner claude-code · P1 · size S
-- `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- cancelled · P1 · size S
 - `T-1229` M0.5: close the four pre-publish items before the merge that publishes :latest (WS-SEC | P0 | M) -- pending · P0 · size M
 - `T-1243` Q4 (brief P0-1): key-based cosign by digest on both publishers; /etc/containers/policy.json enforces sigstoreSigned for ghcr.io/mios-dev (WS-SEC | P0 | M) -- pending · P0 · size M · depends_on AGY-1477, AGY-1479
 - `T-1268` Q6 (brief P1-14): bare-metal install defaults to LUKS2 with TPM2 and a generated recovery key; FIDO2 optional; one encryption table (WS-SEC | P1 | M) -- pending · P1 · size M · depends_on AGY-1478
