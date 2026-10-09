@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1612 |
-| in_progress | 47 |
+| pending | 1620 |
+| in_progress | 50 |
 | completed | 1824 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3520 |
+| total | 3531 |
 
 0 record(s) carry at least one override.
 
@@ -765,6 +765,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2364` Automated out-of-tree module compilation, MOK signature verification, and cache test suite -- pending · P2 · size S · depends_on AGY-2363
 - `T-1128` Complete self-hosting and development package dependency closure -- completed · P1 · size M
 - `T-1200` Build-time consumers read the layered resolver, including host-tier pre-build edits (WS-BUILD | P1 | M) -- pending · P1 · size M · depends_on T-1192
+- `T-1237` M5: an installed MiOS rebuilds its own OCI image from its own SSOT through bootc container lint (WS-BUILD | P1 | L) -- pending · P1 · size L
 
 ## WS-C0
 
@@ -855,6 +856,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1168` Package every MiOS image as Linux FHS, OCI/bootc and AI-standard artifacts, with docs laid out to match -- in_progress · owner claude-code · P1 · size L
 - `T-1169` One canonical tasks.jsonl at the repo root; TASKS.md is rendered documentation plus operator overrides -- in_progress · owner claude-code · P0 · size L
 - `T-1183` Size measurements refuse a mid-merge index instead of counting conflicted paths once per stage -- completed · owner claude-code · P1 · size S
+- `T-1232` PR #61 lands: drift-gate and smoke-test green, bootstrap #26 first, merged only on the operator's final go (WS-CI | P0 | M) -- in_progress · owner claude · P0 · size M · depends_on T-1228, T-1229, T-1013
 
 ## WS-CI-PARITY
 
@@ -873,6 +875,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-459` Audit every MIOS_K3S_VERSION consumer after the k3s float so one tag resolves everywhere -- completed · P3 · size S · depends_on AGY-372
 - `AGY-460` Feed vendored VERSIONS.txt into MiOS-SBOM.csv so vendored assets appear in the SBOM -- completed · P3 · size S · depends_on AGY-377, AGY-438
 - `AGY-475` Force every `just` artifact recipe to emit into the SSOT output dir (`build/`) -- completed · P3 · size S
+- `T-1238` M6 T1: six low-blast-radius shallow-tree moves, with a tree-shape ratchet (WS-CLEAN | P2 | M) -- pending · P2 · size M
 
 ## WS-CLI
 
@@ -922,6 +925,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1196` The shared SSOT crate owns the typed model, validate and tiered writes; `mios-gen schema` emits the schema (WS-CONFIG | P1 | M) -- pending · P1 · size M · depends_on T-1192
 - `T-1195` The configurator never parses TOML in the browser (WS-CONFIG | P0 | M) -- pending · P0 · size M · depends_on T-1196
 - `T-1206` Schema-generated configurator (WS-CONFIG | P2 | M) -- pending · P2 · size M · depends_on T-1195, T-1196
+- `T-1230` M4: mios.html is the setup interface, edited through key-level patches into each key's tier (WS-CONFIG | P1 | L) -- pending · P1 · size L
 
 ## WS-CONSOLIDATE
 
@@ -1277,6 +1281,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1137` Verify service image references and pull prerequisites against SSOT policy -- in_progress · owner claude-code · P0 · size M
 - `T-1141` Order and report firstboot seeders when their dependencies are unavailable -- in_progress · owner claude-dazzling-lovelace · P2 · size M
 - `T-1184` Every Quadlet bind of MiOS-owned state exists at boot: declare radosgw's data dir, gate all /var/lib/mios and /srv binds -- completed · owner claude-code · P1 · size S
+- `T-1231` Q9: build and test every MiOS image locally -- OCI, ISO, qcow2, VHDX, raw, WSL, cloud and MiOS-Xbox (WS-DEPLOY | P1 | L) -- pending · P1 · size L
+
+### Epic T-1231
+
+- `T-1233` Q9 VHDX / P0-9 phase A: native Hyper-V artifact build from [deploy.formats.vhdx], SSOT credentials, boot test, local delivery (WS-DEPLOY | P0 | M) -- in_progress · owner claude · P0 · size M
 
 ## WS-DEPRED
 
@@ -1593,6 +1602,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1222` Four blind drift gates made able to fail; six stale negatives assert the current contract (WS-DRIFT | P1 | M) -- completed · P1 · size M
 - `T-1223` The drift gate is read-only; dead-lane and read-only negatives; one phase ceiling (WS-DRIFT | P1 | S) -- completed · P1 · size S
 - `T-1224` Law 8 gates describe the native tree: projection registry, coverage and host parity name the mios-gen modules (WS-DRIFT | P1 | M) -- completed · P1 · size M
+- `T-1228` Legibility ratchet green on PR #61 without raising a ceiling: tracked files and shell lines (WS-DRIFT | P0 | M) -- in_progress · owner claude · P0 · size M
 
 ## WS-DRIFTRUST
 
@@ -2125,6 +2135,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1136` Re-establish the podman machine after the .wslconfig wsl --shutdown, before smoke/API use -- in_progress · owner lane-b · P0 · size M
 - `T-1142` Fix forceArgs splat collapse and winget error classification in install-host-tools.ps1 -- in_progress · owner claude-code · P1 · size S
 - `T-1143` Run dnf transactions inside the systemd namespace (or SYSTEMD_OFFLINE=1) so scriptlets stop failing ENOTCONN -- pending · P2 · size M
+- `T-1234` M1: the literal `irm <Get-MiOS.ps1 URL> | iex` runs install, build and runtime with no manual step (WS-INSTALL | P1 | L) -- pending · P1 · size L
 
 ## WS-LANG
 
@@ -2201,6 +2212,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1199` One config server (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1198
 - `T-1207` Verb dispatcher projected; miosd render verbs moved into `mios-gen` (WS-LANG | P2 | M) -- pending · P2 · size M · depends_on T-1197
 - `T-1212` Amend ADR-0021: five function binaries, install/build/task folded in, miosd a thin exec shim (WS-LANG | P1 | S) -- pending · P1 · size S · depends_on T-1197
+- `T-1235` Q19 / M2: MiOS-MODULES -- one Rust workspace, crates as applet libraries, a few domain binaries dispatching on argv[0] (WS-LANG | P1 | L) -- pending · P1 · size L · depends_on T-1007, T-1197
+- `T-1236` M3: every script on a product path is a registered thin shim or AI-plane binding, in a shrink-only SSOT register (WS-LANG | P1 | M) -- pending · P1 · size M
 
 ## WS-LANG,WS-DEBT
 
@@ -3392,6 +3405,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2580` Consult the policy arbiter by default instead of shipping it unreachable -- pending · P1 · size S
 - `T-1139` Grant ReadWritePaths to state-writing hardened units (mios-agents, mios-cron-director) -- in_progress · owner claude-code · P1 · size S
 - `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1229` M0.5: close the four pre-publish items before the merge that publishes :latest (WS-SEC | P0 | M) -- pending · P0 · size M
 
 ## WS-SEC2
 
