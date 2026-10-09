@@ -296,6 +296,14 @@ def test_client_tools_deduplication_and_suppression() -> None:
 
 def test_context_budget_pruning_overflow() -> None:
     import mios_tokenize
+    from mios_pipe.routing import vision_context
+
+    # The pruner lives in vision_context; mios_vision re-exports it because the
+    # client-tools responders resolve it there. Every check below reaches it
+    # through that re-export, so pin that it is the very same code.
+    for name in ("_ELIDED_IMAGE", "_DEFAULT_TOOL_CTX", "_tool_ctx", "_prune_request_to_context_budget"):
+        assert getattr(mios_vision, name) is getattr(vision_context, name), \
+            f"mios_vision.{name} is not vision_context.{name}"
 
     # Build a 44,723+ token request
     # Under heuristic tokenizer (4 chars/token), ~180,000 chars is ~45,000 tokens

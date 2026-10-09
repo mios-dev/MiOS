@@ -428,11 +428,127 @@ def main() -> int:
 
 
 # ==============================================================================
-# Consolidated from test_mios_db.py (T-1092)
+# mios_pipe.db -- the legacy /sql transport server.py still routes reads and
+# updates through. T-1092 folded test_mios_db.py in here as a placeholder that
+# could not fail; these are the checks it never had. The HTTP client and the
+# Postgres handle are injected, so nothing here leaves the process.
 # ==============================================================================
-# AI-hint: Placeholder test for mios_db.py.
-def test_stub():
-    pass
+import time
+import unittest
+
+from mios_pipe import db as _db
+
+
+class _FakeReply:
+    def __init__(self, status, payload):
+        self.status_code = status
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _FakeTransport:
+    def __init__(self, outcome):
+        self.outcome = outcome   # a _FakeReply, or an exception to raise
+        self.calls = []
+
+    async def post(self, url, *, content, headers, timeout):
+        self.calls.append({"url": url, "content": content, "headers": headers, "timeout": timeout})
+        if isinstance(self.outcome, BaseException):
+            raise self.outcome
+        return self.outcome
+
+
+class _FakePg:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = []
+
+    async def execute(self, sql, params, fetch):
+        self.calls.append((sql, params, fetch))
+        return self.rows if fetch else None
+
+
+class TestDbTransport(unittest.TestCase):
+    _STATE = ("_PG_PRIMARY", "_mios_pg", "DB_NS", "DB_DB", "DB_URL", "_DB_AUTH",
+              "_db_down_until", "client")
+
+    def setUp(self):
+        self._saved = {k: getattr(_db, k) for k in self._STATE}
+        _db.configure(pg_primary=False, db_ns="ns1", db_db="db1",
+                      db_url="http://db.invalid:1", db_auth="Basic abc")
+        _db._db_down_until = 0.0
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            setattr(_db, k, v)
+
+    def _wire(self, outcome):
+        transport = _FakeTransport(outcome)
+        _db.client = lambda: transport
+        return transport
+
+    def test_post_frames_the_statement_for_the_configured_namespace(self):
+        transport = self._wire(_FakeReply(200, [{"result": [1]}]))
+        self.assertEqual(asyncio.run(_db.post("SELECT 1", timeout=2.5)), [{"result": [1]}])
+        call = transport.calls[0]
+        self.assertEqual(call["url"], "http://db.invalid:1/sql")
+        self.assertEqual(call["content"], b"USE NS ns1 DB db1; SELECT 1")
+        self.assertEqual(call["headers"]["Authorization"], "Basic abc")
+        self.assertEqual(call["timeout"], 2.5)
+
+    def test_an_empty_statement_never_reaches_the_transport(self):
+        transport = self._wire(AssertionError("transport reached"))
+        for sql in ("", "   ", None):
+            self.assertIsNone(asyncio.run(_db.post(sql)), repr(sql))
+        self.assertEqual(transport.calls, [])
+
+    def test_postgres_primary_refuses_legacy_writes(self):
+        transport = self._wire(AssertionError("transport reached"))
+        _db.configure(pg_primary=True)
+        for sql in ("CREATE x", "  update y", "Delete z", "INSERT w", "relate a->b->c"):
+            self.assertIsNone(asyncio.run(_db.post(sql)), sql)
+        self.assertEqual(transport.calls, [])
+        reads = self._wire(_FakeReply(200, []))
+        asyncio.run(_db.post("SELECT 1"))
+        self.assertEqual(len(reads.calls), 1, "a read was refused along with the writes")
+
+    def test_a_failure_opens_a_down_window_that_short_circuits(self):
+        for outcome in (_FakeReply(503, None), OSError("connection refused")):
+            _db._db_down_until = 0.0
+            transport = self._wire(outcome)
+            started = time.time()
+            self.assertIsNone(asyncio.run(_db.post("SELECT 1")))
+            self.assertGreaterEqual(_db._db_down_until, started + 29, repr(outcome))
+            self.assertIsNone(asyncio.run(_db.post("SELECT 1")))
+            self.assertEqual(len(transport.calls), 1,
+                             "a request inside the down window reached the transport")
+
+    def test_read_and_update_route_to_postgres_when_primary(self):
+        pg = _FakePg([{"id": 1}])
+        transport = self._wire(AssertionError("legacy transport reached"))
+        _db.configure(pg_primary=True, mios_pg=pg)
+        got = asyncio.run(_db.read("SELECT * FROM t", pg_sql="SELECT * FROM t WHERE id=%(id)s",
+                                   pg_params={"id": 1}))
+        self.assertEqual(got, [{"result": [{"id": 1}]}])
+        asyncio.run(_db.update("UPDATE t", pg_sql="UPDATE t SET a=1"))
+        self.assertEqual(pg.calls, [("SELECT * FROM t WHERE id=%(id)s", {"id": 1}, True),
+                                    ("UPDATE t SET a=1", {}, False)])
+        pg.rows = None
+        self.assertEqual(asyncio.run(_db.read("x", pg_sql="SELECT 1")), [{"result": []}])
+        self.assertEqual(transport.calls, [])
+
+    def test_read_and_update_fall_back_to_the_transport_without_pg_sql(self):
+        transport = self._wire(_FakeReply(200, [{"result": []}]))
+        self.assertEqual(asyncio.run(_db.read("SELECT 1")), [{"result": []}])
+        asyncio.run(_db.update("UPDATE t SET a=1"))
+        self.assertEqual([c["content"] for c in transport.calls],
+                         [b"USE NS ns1 DB db1; SELECT 1", b"USE NS ns1 DB db1; UPDATE t SET a=1"])
+        _db.configure(pg_primary=True, mios_pg=_FakePg([]))
+        asyncio.run(_db.update("UPDATE t SET a=2"))
+        self.assertEqual(len(transport.calls), 2, "a legacy write ran under postgres primary")
+
 
 def _run_case(tc):
     _saved = dict(os.environ)
@@ -443,7 +559,8 @@ def _run_case(tc):
     finally:
         os.environ.clear(); os.environ.update(_saved)
 
-def _run_extra_db(): return 0
+def _run_extra_db():
+    return _run_case(TestDbTransport)
 
 
 
@@ -464,7 +581,11 @@ except ImportError:
     psycopg = None
 import mios_db_config
 
-def setUpModule():
+def _require_seeded_pgvector():
+    """The live-DB guard for the integration class alone. It was a module-level
+    setUpModule, and T-1092 folded three suites into this one module, so with
+    no live pgvector it skipped the hermetic TestDbTransport and TestDbWrite
+    too: CI ran 0 of their tests and reported OK (skipped=1)."""
     if psycopg is None:
         raise unittest.SkipTest("no live pgvector -- integration test")
     port = os.environ.get("MIOS_PORTS_PGVECTOR", "8600")
@@ -479,6 +600,10 @@ def setUpModule():
         raise unittest.SkipTest("no live pgvector -- integration test")
 
 class TestMiosDbConfig(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        _require_seeded_pgvector()
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
