@@ -4217,6 +4217,23 @@ UNIT
     log "check_unit_dependency_closure negative test passed"
 }
 
+test_comment_lex_equivalence() {
+    log "Testing check_comment_lex_equivalence"
+    local bindir; bindir="$(mktemp -d)"
+    # A native lexer that reports no comment at all must never pass as equivalent.
+    printf '#!/bin/sh\necho "[]"\n' > "$bindir/mios-comment-lex"
+    chmod +x "$bindir/mios-comment-lex"
+    MIOS_NATIVE_BIN_DIR="$bindir" _neg_gate check_comment_lex_equivalence \
+        && { rm -rf "$bindir"; die "check_comment_lex_equivalence passed with a native lexer that drops every block"; }
+    rm -f "$bindir/mios-comment-lex"
+    MIOS_NATIVE_BIN_DIR="$bindir" MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_comment_lex_equivalence \
+        && { rm -rf "$bindir"; die "check_comment_lex_equivalence passed with no native lexer under MIOS_DRIFT_REQUIRE_TOOLS=1"; }
+    rm -rf "$bindir"
+    _neg_gate check_comment_lex_equivalence \
+        || die "check_comment_lex_equivalence failed on the unmodified tree: ${_NEG_GATE_OUT}"
+    log "check_comment_lex_equivalence negative test passed"
+}
+
 # Counts, not exit codes: narrative and stale-refs are both above a ceiling of
 # 0, so an exit-code arm passes whether or not the plant was seen.
 _docs_counts() {
@@ -4252,10 +4269,12 @@ EOF
     [[ "${planted%%:*}" -gt "${base%%:*}" ]] \
         || die "check_docs_ratchet did not count the planted narrative block (narrative ${base%%:*} -> ${planted%%:*})"
 
+    # The resolver is mios-gate doc-refs-headers: an AI header naming a missing path.
     local stale_probe="${ROOT}/automation/mios-negtest-stale-ref.sh"
     cat > "$stale_probe" <<'EOF'
 #!/usr/bin/env bash
-# AI-hint: Broken reference to non_existent_unit_file_xyz_99.service
+# AI-hint: Probe whose header names a file that does not exist.
+# AI-related: automation/mios-negtest-missing-target-xyz-99.sh
 true
 EOF
     git -C "$ROOT" add -N -- "$stale_probe" >/dev/null 2>&1
@@ -5608,6 +5627,7 @@ _run_test test_leaked_fixtures
     _run_test test_ps_irm_iex_entry
     _run_test test_secret_handling
     _run_test test_wsl_distro_resolution
+    _run_test test_comment_lex_equivalence
     _run_test test_docs_ratchet
     _run_test test_header_integrity
     _run_test test_header_integrity_unreadable_corpus

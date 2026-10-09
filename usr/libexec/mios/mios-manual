@@ -1016,7 +1016,11 @@ def cmd_check_functions(args) -> int:
 def cmd_audit(args) -> int:
     root = args.root
     policy = _policy(root)
-    refindex = mc.RefIndex.build(root) if args.stale else None
+    try:
+        refindex = mc.RefIndex.build(root) if args.stale else None
+    except RuntimeError as e:
+        print(f"audit --stale: {e}", file=sys.stderr)
+        return 1
     by_class = collections.Counter()
     by_reason = collections.Counter()
     words = collections.Counter()
