@@ -75,10 +75,16 @@ def check_resolver_differential_parity() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     _toml_data = tomllib.load(open(os.path.join(root, "usr/share/mios/mios.toml"), "rb"))
     resolver_bin = None
+    catalog = os.environ.get("MIOS_NATIVE_BIN_DIR")
+    if catalog:
+        resolver_bin = os.path.join(catalog, "mios-resolver" + (".exe" if sys.platform == "win32" else ""))
+        if not os.path.isfile(resolver_bin) or not os.access(resolver_bin, os.X_OK):
+            print(f"    configured resolver is missing or not executable: {resolver_bin}", file=sys.stderr)
+            sys.exit(1)
 
-    for cand in [os.path.join(root, "tools/native/target", p, "mios-resolver" + x)
+    for cand in ([] if catalog else [os.path.join(root, "tools/native/target", p, "mios-resolver" + x)
                  for p in ("debug", "release") for x in ("", ".exe")] + [
-                 "/usr/libexec/mios/mios-resolver", "/usr/bin/mios-resolver"]:
+                 "/usr/libexec/mios/mios-resolver", "/usr/bin/mios-resolver"]):
         if os.path.isfile(cand):
             resolver_bin = cand
             break

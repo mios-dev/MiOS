@@ -261,6 +261,22 @@ def tup_data(drift, max_drift=None, units=(tup_A, tup_B), aliases=None, table=Tr
 def tup_only(viols, needle):
     return [v for v in viols if needle in v]
 
+class tup_TestConfiguredCatalog(unittest.TestCase):
+    def test_configured_generator_precedes_local_or_installed_tools(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as catalog:
+            name = "mios-unit-gen" + (".exe" if sys.platform == "win32" else "")
+            path = os.path.join(catalog, name)
+            with open(path, "w") as f:
+                f.write("verification tool")
+            os.chmod(path, 0o755)
+            with patch.dict(os.environ, {"MIOS_NATIVE_BIN_DIR": catalog}):
+                self.assertEqual(path, tup_mod.up_binary_path("/nonexistent/root"))
+                os.remove(path)
+                with self.assertRaisesRegex(RuntimeError, "configured unit generator is missing"):
+                    tup_mod.up_binary_path("/nonexistent/root")
+
+
 class tup_TestHygiene(unittest.TestCase):
     def test_a_clean_register_is_silent(self):
         self.assertEqual(tup_mod.up_hygiene(tup_data([tup_A], 1), tup__ROOT), [])

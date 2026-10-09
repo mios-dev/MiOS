@@ -27,6 +27,32 @@ def _load():
 
 MOD = _load()
 
+class TestConfiguredResolver(unittest.TestCase):
+    def test_missing_catalog_binary_refuses_installed_fallback(self):
+        with tempfile.TemporaryDirectory() as catalog:
+            env = dict(os.environ, MIOS_NATIVE_BIN_DIR=catalog, MIOS_DRIFT_ROOT=_ROOT)
+            r = subprocess.run([sys.executable, _MOD_PATH, "resolver-differential-parity"],
+                               env=env, capture_output=True, text=True)
+            self.assertEqual(1, r.returncode, r.stdout + r.stderr)
+            self.assertIn("configured resolver is missing", r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_unexecutable_catalog_binary_refuses_installed_fallback(self):
+        with tempfile.TemporaryDirectory() as catalog:
+            name = "mios-resolver" + (".exe" if sys.platform == "win32" else "")
+            path = os.path.join(catalog, name)
+            with open(path, "w") as f:
+                f.write("invalid executable\n")
+            os.chmod(path, 0o755)
+            env = dict(os.environ, MIOS_NATIVE_BIN_DIR=catalog, MIOS_DRIFT_ROOT=_ROOT)
+            r = subprocess.run([sys.executable, _MOD_PATH, "resolver-differential-parity"],
+                               env=env, capture_output=True, text=True)
+            self.assertEqual(1, r.returncode, r.stdout + r.stderr)
+            self.assertIn("execution failed", r.stderr)
+            self.assertIn(path, r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+
 class TestExtractedChecks(unittest.TestCase):
     def test_the_module_imports(self):
         """A heredoc could not be imported at all; that was the defect."""

@@ -353,6 +353,12 @@ def up_hygiene(data: dict, root: str) -> list:
     return viol
 
 def up__built(root: str):
+    catalog = os.environ.get("MIOS_NATIVE_BIN_DIR")
+    if catalog:
+        p = os.path.join(catalog, "mios-unit-gen" + (".exe" if sys.platform == "win32" else ""))
+        if not os.path.isfile(p) or not os.access(p, os.X_OK):
+            raise RuntimeError("configured unit generator is missing or not executable: %s" % p)
+        return p
     rels = ("target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe", "target/release/mios-unit-gen", "target/debug/mios-unit-gen") if sys.platform == "win32" else ("target/release/mios-unit-gen", "target/debug/mios-unit-gen", "target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe")
     for rel in rels:
         p = os.path.join(root, "tools/native", rel)
@@ -405,7 +411,11 @@ def up_main() -> int:
 
     viol = up_hygiene(data, root)
 
-    binary = up_binary_path(root)
+    try:
+        binary = up_binary_path(root)
+    except RuntimeError as exc:
+        print("check_unit_projection: %s" % exc, file=sys.stderr)
+        return 1
     if binary:
         ok, out = up_run_binary(binary, root)
         if not ok:
