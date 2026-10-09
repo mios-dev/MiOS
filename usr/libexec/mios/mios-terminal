@@ -24,7 +24,6 @@ mapfile -t _mios_terminal_config <<< "$_policy"
 _mios_action="${_mios_terminal_config[6]}"
 
 export TMUX_TMPDIR="${_mios_terminal_config[8]}"
-/usr/bin/miosd terminal-runtime-check --root / >/dev/null
 
 # One observation window per session, even when multiple SSH clients enter at once.
 _mios_observer_window() (
@@ -75,6 +74,7 @@ if [[ -n "${TMUX:-}" ]]; then
     fi
     exec tmux new-window
 fi
+/usr/bin/miosd terminal-runtime-check --root / >/dev/null  # guards the SSOT namespace below; $TMUX clients keep theirs
 _mios_runtime="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/mios-terminal"
 # A new desktop/SSH session uses the deployed root. Existing tmux invocations
 # keep their pane's project directory; Windows entry passes its explicit cwd.

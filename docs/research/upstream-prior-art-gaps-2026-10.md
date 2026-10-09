@@ -169,35 +169,48 @@ These three were verified and fixed in commits `8a2fc64e` and `f8701d7e`, then r
   - Hand out only a short-lived headscale pre-auth key and a k3s join token.
 - **Effort:** S to disable, M to replace.
 
-### P0-8: The hosted agent sandboxes cannot hold the MiOS image
-- **Upstream:**
-  - Claude Code cloud: Ubuntu 24.04 VM, ~4 vCPU, 16 GB RAM, **30 GB disk**. The setup script is cached only if it finishes in ~5 minutes; the base image is fixed (code.claude.com/docs/en/cloud-environments).
-  - Codex cloud: 8 GiB disk on Plus, **32 GiB** on Pro, Business and Enterprise (learn.chatgpt.com/codex). The script flow is now labelled "Legacy".
-  - Claude Code **self-hosted environments** (public beta) run your own runner image built around the `claude` binary.
-- **MiOS:**
-  - The image is ~23 GB compressed and ~49 GB unpacked.
-  - `bootstrap.sh:132-141` dies below `[deployment.cloud].min_free_gb = 80`.
-  - `claude_code()` leaves a plain session. `codex install` fails closed.
-  - The cloud overlay changes runtime config, not image size.
-- **Do:**
-  - Add per-target disk budgets (`[deployment.cloud.targets.<id>].disk_gb`) and a gate that refuses to advertise a target whose budget is below the unpacked image.
-  - For hosted sandboxes, publish a slim `mios-dev` variant (`[variants.entries.mios-dev]` already exists): no bound images, models, flatpaks or desktop, under 30 GB.
-  - For the **full** image, ship a Claude self-hosted runner as a Quadlet on MiOS-DEV or Metal, built FROM `[image].ref` plus `claude`.
-- **Effort:** M–L.
-- **Bearing on the standing goal:** "Claude Code and Codex cloud become MiOS containers" is not achievable with the full image on hosted runners. It needs the slim variant or self-hosting.
+### P0-8: Cloud images exceed the hosted-sandbox disk, and baked sidecars, not weights or apps, are the cause
+- **Operator design:** cloud images carry no AI model weights and no desktop flatpaks or apps; the `[deployment.cloud.overlay]` switches off firstboot model pulls and runtime desktop installs. Every MiOS image is otherwise equivalent.
+- **Measured** on `ghcr.io/mios-dev/mios:latest` (49 GB unpacked, built 6 weeks before this run):
 
-### P0-9: "bootc switch → MiOS-DEV IS MiOS" cannot happen on the WSL podman machine
-- **Upstream:** Podman 6.0.2 docs: `podman machine os apply` rebases with `bootc switch` on Mac, Linux and Hyper-V (Fedora CoreOS). WSL machines "cannot be updated with this command" because they run a custom Fedora image.
+  | Path | Size | Content |
+  |---|---|---|
+  | `/usr/lib/containers/storage` | 26 GB | Baked sidecar/app container images; `MIOS_BAKE_BOUND_IMAGES=1` on the publishing build only. |
+  | `/usr/share/mios/llamacpp` | 5.8 GB | Light-lane GGUF weights, including `granite-4.1-8b.gguf` (5.0 GB). That conflicts with the design for the cloud images. |
+  | `/usr/lib64/rocm` | 2.4 GB | ROCm. |
+  | flatpak | 28 KB | No flatpaks, as designed. |
+
+- **Upstream:**
+  - Claude Code cloud: about 4 vCPU, 16 GB RAM, **30 GB disk**, and setup cached only within ~5 minutes (code.claude.com/docs/en/cloud-environments).
+  - Codex cloud: 8 GiB disk on Plus, **32 GiB** on Pro, Business and Enterprise.
+  - Codespaces' large machines fit the image as it is.
 - **MiOS:**
-  - `build-mios.ps1:5181`, `:2476` and `:3073` claim full parity after `bootc switch`.
-  - The machine is created on the default WSL provider (`:2116-2125`).
-  - The SSOT has no provider key.
+  - `bootstrap.sh` pulls the same `[image].ref`.
+  - `[deployment.cloud].min_free_gb = 80`.
 - **Do:**
-  - Add `[bootstrap.dev_vm].provider = "wsl"|"hyperv"`.
-  - On Hyper-V: layer the ~10 machine-os files into MiOS, then `podman machine os apply containers-storage:localhost/mios:latest --restart`.
-  - Keep the WSL MiOS distro for GPU-PV and WSLg (P1-17).
-  - Correct the parity claim.
-- **Effort:** M.
+  - Make the light-lane weights a firstboot or `Mount=type=image` model artifact (P1-24), so no published image carries weights in `/usr`.
+  - Move the 26 GB of sidecars to logically bound images pulled on use (P0-3). That shrinks every image equally (OCI, Hyper-V, ISO, cloud), so they stay equivalent.
+  - Derive `min_free_gb` from the measured image instead of the hand-set 80.
+- **Effort:** shared with P0-3 and P1-24.
+
+### P0-9: MiOS ships as a Hyper-V image, but nothing builds it, and MiOS-DEV cannot be MiOS on WSL
+- **Operator design:** MiOS ships as a Hyper-V image (VHDX) too, alongside OCI, ISO, qcow2 and WSL.
+- **MiOS:** the target is declared but not delivered.
+  - Declared in `[deployment].target_vhd = true`, `[deploy.formats.vhdx]`, the Justfile `vhdx` recipe (bootc-image-builder `vpc`, then `qemu-img convert` to VHDX), and the variant artifact lists.
+  - GPU-PV (dxgkrnl) is covered in `automation/20-hardware.sh`, and the `gpu-pv-detect` unit detects it.
+  - No CI job builds the VHDX, on either publisher.
+  - `config/artifacts/vhdx.toml` carries `REPLACEME` credentials and a 150 GiB root floor, while `[bootc_install].root_min_gb` is 80.
+  - The dev VM is created on the default WSL provider (`build-mios.ps1:2116-2125`), so `build-mios.ps1:5181`'s "bootc switch → MiOS-DEV IS MiOS" cannot happen: Podman 6.0.2 says WSL machines "cannot be updated" with `machine os apply`.
+- **Upstream:**
+  - Podman machine on Hyper-V runs Fedora CoreOS and supports `podman machine os apply` (`bootc switch`). Podman 6 adds `podman system hyperv-prep` for non-elevated management.
+  - bootc-image-builder emits `vhd`, converted to VHDX for Generation 2 VMs. Linux Secure Boot needs the "Microsoft UEFI Certificate Authority" template.
+  - GitHub release assets are limited to 2 GiB per file and GHCR to 10 GB per layer, so a full-size VHDX cannot be a single release asset.
+- **Do:**
+  - Add a native `mios-build artifact vhdx` driven by `[deploy.formats.vhdx]`. Identity comes from `[identity]` or the install answer file, never recipe placeholders. The root floor comes from `[bootc_install]`, and the VM shape (Gen 2, Secure Boot template, vCPU and RAM, dynamic VHDX) from SSOT.
+  - Build and boot-test the VHDX in CI (P1-1). Deliver it by building locally from the published OCI digest in MiOS-DEV, not as a single release asset.
+  - Add `[bootstrap.dev_vm].provider = "wsl"|"hyperv"`. On Hyper-V, MiOS-DEV is a MiOS VM, with real `bootc` upgrade and rollback, and GPU-PV through dxgkrnl. The WSL distro stays for WSLg.
+  - Correct the parity claim in `build-mios.ps1`.
+- **Effort:** M–L.
 
 ## 3. P1: high leverage
 
@@ -333,8 +346,8 @@ These three were verified and fixed in commits `8a2fc64e` and `f8701d7e`, then r
    - P1-3 CI shape.
 3. **Make the image fit:**
    - P0-3 one bound-image mechanism.
-   - P2-1 profiles and variants.
-   - P0-8 slim `mios-dev` for hosted sandboxes.
+   - P1-24 weights out of `/usr`.
+   - P2-1 profiles.
    - P1-7 rechunk.
 4. **Configurator (GOALS M4):**
    - P0-6, then P0-5, P1-21, P1-22 and P1-23, in that order. Key-level patches through toml_edit are the foundation the rest builds on.
@@ -342,6 +355,7 @@ These three were verified and fixed in commits `8a2fc64e` and `f8701d7e`, then r
    - P1-8 workspace merge and argv[0] applets.
    - P1-11 mutation testing on the gate crates.
 6. **Hosts:**
-   - P0-9 and P1-17 to P1-20 (WSL, Codespaces, DSC v3).
+   - P0-9 Hyper-V image and MiOS-DEV on Hyper-V.
+   - P1-17 to P1-20 (WSL, Codespaces, DSC v3).
 7. **Fleet and metal:**
    - P1-12 to P1-14, then P2-4 and P2-5.

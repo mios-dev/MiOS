@@ -1,7 +1,6 @@
-//! AI-hint: Rust native implementation of roadmap-index (ADR-0021, Law 14)
-//! Validates workstreams in ROADMAP.md and regenerates TOC, Workstream Index, Status Rollup, and Metrics table.
-//! AI-doc: usr/share/doc/mios/manual/tools.md
-//! AI-related: usr/share/mios/mios.toml, ROADMAP.md, tools/roadmap-index.py
+// AI-hint: Rust native implementation of roadmap-index (ADR-0021, Law 14): validates the workstreams in ROADMAP.md and regenerates its TOC, Workstream Index, Status Rollup and Metrics table.
+// AI-doc: usr/share/doc/mios/manual/tools.md
+// AI-related: usr/share/mios/mios.toml, ROADMAP.md, tools/native/mios-gen/tests/roadmap_index.rs
 
 use regex::Regex;
 use std::collections::{HashMap, HashSet};

@@ -496,6 +496,16 @@ def evaluate_dgpu_vram_isolation(compute_apps: List[dict]) -> bool:
     return True
 
 
+def setUpModule():
+    """The suite talks to an in-process gateway on 127.0.0.1; a sandbox that
+    refuses loopback sockets skips it instead of failing it."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+    except OSError as exc:
+        raise unittest.SkipTest(f"loopback sockets unavailable: {exc}") from exc
+
+
 # ============================================================================
 # TIER 1: Feature Coverage (F1..F13, >=5 tests each = 65 tests)
 # ============================================================================

@@ -1,5 +1,5 @@
 # Ordinal	Check Function	Description
-1	check_gate_registry	gate registry integrity verified
+1	check_gate_registry	gate definitions are registered exactly once inside main()
 2	check_dead_lane	no retired :11434 lane in active config
 3	check_retired_models	no retired model-id in consumer config
 4	check_structured	every [nodes.local-*] localhost lane is served; ai/v1 manifests parse + refs resolve
@@ -10,7 +10,7 @@
 9	check_ai_manifest	ai/v1 verb-catalog manifest in sync with mios.toml SSOT
 10	check_package_registry	package registry dormant
 11	check_cli_sql_safety	libexec CLIs SQL-safe
-12	check_module_test_coverage	every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test
+12	check_module_test_coverage	every agent-pipe module is named by a unit test; tools/ and libexec python within the sibling-test ratchet
 13	check_raw_toml_readers	no raw MIOS_TOML readers in agent-pipe
 14	check_capability_manifest	ai/v1 capability manifest in sync with mios.toml SSOT
 15	check_surface_parity	server.py public surface matches the committed golden
@@ -25,7 +25,7 @@
 24	check_hummingbird	Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled
 25	check_container_ports	no manual port literals in container definitions
 26	check_bootstrap_sync	bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT
-27	check_agent_pipe_budgets	every [agent_pipe]/[dispatch] key enumerated from SSOT; unconsumed ones itemised in the register
+27	check_agent_pipe_budgets	every SSOT budget key has a consumer or an itemised shrink-only exemption
 28	check_no_bare_port_literals	no bare port literals remain in execution paths
 29	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
 30	check_edge_generators	every imperative edge-to-edge generator regenerates the surface the image installs byte-identical
@@ -73,8 +73,8 @@
 72	check_ai_artifacts	AI artifacts (ADR-0027): SFT/DPO datasets, weight headers, OCI closure with digests
 73	check_render_quadlets	render quadlets
 74	check_render_extension_coverage	render extension coverage
-75	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
-76	check_bake_plan_integrity	bake-plan integrity gate verified clean
+75	check_bake_plan	bake-plan lists match mios.toml build.bake SSOT
+76	check_bake_plan_integrity	bake-plan groups match active Quadlets and required SSOT image assignments
 77	check_bake_ref_defaults	all baker scripts have non-empty defaults matching SSOT bake_refs
 78	check_roadmap_index	roadmap index in sync with frontmatter metadata
 79	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe and os.system-free
@@ -146,7 +146,7 @@
 145	check_comment_landing	every pruned comment still lands in a doc
 146	check_credential_literals	no credential literal is baked into a systemd unit or Quadlet Environment= line (Law 11)
 147	check_protected_refs	every ref the Quadlet renderer leaves unbaked is actually supplied at runtime
-148	check_names_registry_equivalence	the names-registry generator built from this checkout reproduces both committed artefacts byte for byte
+148	check_names_registry_equivalence	both name-registry artifacts match the canonical read-only native projection
 149	check_redact_coverage	log sanitizer redacts all sensitive fields listed in security schema
 150	check_task_schema	AGY-TASKS task descriptions conform strictly to task schema contract
 151	check_daemon_governor	daemon governor runtime limits and cgroup constraints are valid

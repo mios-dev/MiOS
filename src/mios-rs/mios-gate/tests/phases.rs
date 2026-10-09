@@ -199,7 +199,7 @@ fn a_missing_ssot_or_automation_dir_cannot_run() {
     assert_eq!(code, 2);
 }
 
-/// phase-ratchet: `scripts` on disk against `[build.ratchet].max_phase_scripts`.
+/// phase-ratchet: `scripts` on disk against `[legibility].max_automation_phases`.
 fn ratchet(dir: &Path, scripts: &[&str], ceiling: Option<i64>) -> (i32, String) {
     fs::create_dir_all(dir.join("automation")).unwrap();
     fs::create_dir_all(dir.join("usr/share/mios")).unwrap();
@@ -207,7 +207,7 @@ fn ratchet(dir: &Path, scripts: &[&str], ceiling: Option<i64>) -> (i32, String) 
         fs::write(dir.join("automation").join(s), "true\n").unwrap();
     }
     let body = ceiling.map_or("[other]\nk = 1\n".into(), |c| {
-        format!("[build.ratchet]\nmax_phase_scripts = {c}\n")
+        format!("[legibility]\nmax_automation_phases = {c}\n")
     });
     fs::write(dir.join("usr/share/mios/mios.toml"), body).unwrap();
     let out = Command::new(bin())

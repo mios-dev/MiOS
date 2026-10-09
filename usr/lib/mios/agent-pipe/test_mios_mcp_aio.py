@@ -179,6 +179,25 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             finally:
                 await other.close()
 
+    async def test_coerced_utf8_locale_reaches_the_upstream_slot_registry(self):
+        # tmux picks a UTF-8 client from LC_ALL, LC_CTYPE or LANG. Python's
+        # C-locale coercion exports only LC_CTYPE; without it upstream's tab-
+        # separated registry scan reads "_" and every isolated slot vanishes.
+        with patch.dict(os.environ, {"LC_CTYPE": "C.UTF-8"}):
+            for key in ("LANG", "LC_ALL"):
+                os.environ.pop(key, None)
+            other = relay._TmuxBridge(CONFIG)
+            try:
+                await other.start()
+                opened = await other.call("mios_tmux_write_to_display", {"text": "LOCALE-REGISTRY", "slot": 5})
+                self.assertFalse(opened.is_error, opened)
+                self.assertIn(5, [row["slot"] for row in payload(await other.call("mios_tmux_list_slots", {}))])
+                captured = await other.call("mios_tmux_capture_pane", {"slot": 5})
+                self.assertFalse(captured.is_error, captured)
+                self.assertIn("LOCALE-REGISTRY", captured.content[0].text)
+            finally:
+                await other.close()
+
     async def test_parallel_slots_are_independent(self):
         results = await asyncio.gather(self.execute("sleep 1; printf SLOT1", slot=1),
                                        self.execute("printf SLOT2", slot=2))
@@ -595,8 +614,9 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                 other = relay._TmuxBridge(CONFIG)
                 try:
                     await other.start()
+                    # The pattern matches printed output only, never the echoed command line.
                     busy = await other.call("mios_tmux_start_and_watch", {
-                        "slot": 1, "command": "printf 'DEVLOOP-PLANTED-BUSY\\n'; sleep 30",
+                        "slot": 1, "command": "printf 'DEVLOOP-PLANTED-%s\\n' BUSY; sleep 30",
                         "pattern": "DEVLOOP-PLANTED-BUSY", "timeout": 5})
                     self.assertFalse(busy.model_dump(by_alias=True).get("isError"), busy)
                     with self.assertRaisesRegex(ValueError, "busy"):
@@ -687,11 +707,18 @@ class TestAgentProjection(unittest.TestCase):
             codex.parent.mkdir()
             codex.write_text('model_provider = "openai"\nbase_url = ' + json.dumps(endpoint)
                              + '\n\n[mcp_servers.user-server]\ncommand = "user-command"\n')
-            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+            # Clients reach the agent-pipe front door, which advertises the
+            # gateway model (MIOS_AI_GATEWAY_MODEL, default ai.agent_model);
+            # the inference backend's MIOS_AI_MODEL must never be projected.
+            models = {"MIOS_AI_ENDPOINT": endpoint, "MIOS_AI_GATEWAY_MODEL": "projection-model",
+                      "MIOS_AI_MODEL": "DEVLOOP-PLANTED-BACKEND-MODEL"}
+            with patch.dict(os.environ, models):
                 relay._project_agent_clients(home)
                 first = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
                 relay._project_agent_clients(home)
             self.assertEqual(first, {path: path.read_bytes() for path in first})
+            for content in first.values():
+                self.assertNotIn(b"DEVLOOP-PLANTED-BACKEND-MODEL", content)
             oc = json.loads(opencode.read_text())
             self.assertNotIn("providers", oc)
             self.assertEqual(oc["provider"]["local"]["options"]["baseURL"], endpoint)
@@ -700,12 +727,13 @@ class TestAgentProjection(unittest.TestCase):
             self.assertIn("user-server", oc["mcp"])
             cc = tomllib.loads(codex.read_text())
             self.assertEqual(cc["model_provider"], "mios")
+            self.assertEqual(cc["model"], "projection-model")
             self.assertEqual(cc["model_providers"]["mios"]["base_url"], endpoint)
             self.assertEqual(cc["model_providers"]["mios"]["wire_api"], "responses")
             self.assertIn("user-server", cc["mcp_servers"])
             codex.write_text('model_provider = "user-provider"\nmodel = "user-model"\n')
             opencode.write_text(json.dumps({"model": "user-provider/user-model"}))
-            with patch.dict(os.environ, MIOS_AI_ENDPOINT=endpoint, MIOS_AI_MODEL="projection-model"):
+            with patch.dict(os.environ, models):
                 relay._project_agent_clients(home)
             self.assertEqual(tomllib.loads(codex.read_text())["model_provider"], "user-provider")
             self.assertEqual(json.loads(opencode.read_text())["model"], "user-provider/user-model")
@@ -919,19 +947,24 @@ class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
             cells = {r[0]: list(map(int, r[1:])) for r in rows}
             self.assertEqual(len(rows), 2 if expected != "desktop" else 5)
             if expected != "desktop":
-                active = receipt['active']
+                active, observer = receipt['active'], receipt["observer"]
+                # One SSOT split for the Linux workspace and the Windows host
+                # profile ([terminal.monitor] split_*): portrait stacks the
+                # monitor ABOVE the head; compact landscape puts the head on
+                # the LEFT and the monitor on the right.
                 if expected == 'portrait':
+                    self.assertEqual(cells[observer][0:2], [0, 0])
                     self.assertEqual(cells[active][0], 0)
-                    self.assertEqual(cells[active][1], 0)
-                    self.assertEqual(cells[receipt["observer"]][0], 0)
-                    self.assertGreater(cells[receipt["observer"]][1], cells[active][3])
+                    self.assertGreater(cells[active][1], cells[observer][3])
+                    self.assertEqual(cells[observer][3] > cells[active][3],
+                                     CONFIG["workspace"]["portrait_observer_percent"] > 50)
                     self.assertGreaterEqual(cells[active][3], min(CONFIG["workspace"]["minimum_head_rows"], height - 4))
                 else:
-                    self.assertEqual(cells[receipt["observer"]][0], 0)
-                    self.assertEqual(cells[receipt["observer"]][1], 0)
-                    self.assertEqual(cells[active][1], 0)
-                    self.assertGreater(cells[active][0], cells[receipt["observer"]][2])
+                    self.assertEqual(cells[active][0:2], [0, 0])
+                    self.assertEqual(cells[observer][1], 0)
+                    self.assertGreater(cells[observer][0], cells[active][2])
                     self.assertEqual(cells[active][3], height)
+                    self.assertEqual(cells[observer][3], height)
                 hidden = await bridge.call('mios_tmux_execute_command', {'slot': 2, 'command': 'printf COMPACT-SLOT-RECEIPT'})
                 self.assertFalse(hidden.is_error, hidden)
                 self.assertEqual(payload(hidden)['exitCode'], 0)

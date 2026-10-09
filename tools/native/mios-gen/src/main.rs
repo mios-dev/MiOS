@@ -87,7 +87,7 @@ enum Commands {
     NamesRegistry {
         #[arg(long)]
         root: Option<PathBuf>,
-        /// Compare both artefacts with what would be written; write nothing
+        /// Verify both committed projections without changing either artifact.
         #[arg(long)]
         check: bool,
     },
@@ -799,13 +799,12 @@ fn main() -> ExitCode {
         }
         Commands::NamesRegistry { root, check } => {
             let root = resolve_root(root);
-            if check {
-                return match mios_gen::names_registry::check_cli(&root, "mios-gen names-registry") {
-                    true => ExitCode::SUCCESS,
-                    false => ExitCode::FAILURE,
-                };
-            }
-            return match mios_gen::names_registry::run(&root) {
+            let result = if check {
+                mios_gen::names_registry::check(&root)
+            } else {
+                mios_gen::names_registry::run(&root)
+            };
+            return match result {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
                     eprintln!("[mios-gen names-registry] {error}");

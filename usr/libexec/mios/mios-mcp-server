@@ -713,7 +713,9 @@ class _TmuxBridge:
                 [projector, "render-tmux-theme", "--runtime", self.directory.name],
                 check=True, capture_output=True, text=True, timeout=60)
             # No inherited API keys, shell startup hooks, TMUX or paste buffers.
-            self.env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL") if k in os.environ}
+            # Keep every locale tmux consults: a non-UTF-8 client turns -F tabs
+            # into "_", and upstream's slot registry scan then finds no panes.
+            self.env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "LC_CTYPE") if k in os.environ}
             self.env.update({"HOME": self.directory.name, "TMUX_TMPDIR": self.socket_dir.name,
                              "NO_COLOR": "1", "TERM": "dumb", "HISTFILE": os.devnull,
                              "MIOS_THEME_PROJECTED": "1",

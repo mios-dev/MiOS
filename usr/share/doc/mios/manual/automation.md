@@ -925,3 +925,101 @@ and echoed now -- on failure AND on success, because a declared
 [security.non_bare_env] skip is a thing a reader should still see.
 
 <!-- mios-src:8bbbe72c2e67 from automation/99-postcheck.sh:519-523 -->
+### toolchain
+
+--toolchain: provision the SSOT Rust toolchain system-wide and stop, so every
+MiOS image can rebuild its native catalog. The Containerfile runs it after
+[packages.self-build] (Fedora's rustup RPM ships rustup-init only). Installs the
+[build.toolchain] channel and components with this machine's
+[build.native.linux] target into [build.toolchain].rustup_home/cargo_home, then
+proves the target's std and the linker are there; any gap fails the build.
+
+<!-- mios-src:b09c7374cc50 from automation/55-native-build.sh:7-12 -->
+
+### Every value here used to come from ${MIOS_CONV_*:-literal}....
+
+Every value here used to come from ${MIOS_CONV_*:-literal}. Nothing exports
+MIOS_CONV_* -- not globals.sh, not run-suites.sh, not this script -- so the
+check validated its own hardcoded defaults on every run and never opened
+mios.toml at all. The defaults had already drifted from the SSOT:
+cold_retention_days is 90 against an asserted 30, and cold_zstd_level is
+10 against an asserted 3. (The heavy-alt retirement branch went with the
+lane itself: the one heavy lane carries its engine as [ai].heavy_engine.)
+
+Read the SSOT. An env var may still override for testing, but the FALLBACK
+is now the SSOT value rather than a literal, so the check cannot silently
+grade a file it never read.
+
+<!-- mios-src:73cbc909c116 from automation/98-drift-checks.sh:634-644 -->
+
+### The findings go out BEFORE _violation
+
+The findings go out BEFORE _violation: it returns 1, and in
+single-check mode errexit ends the script there, so anything printed
+after it never reached the operator (or a negative test reading why).
+
+<!-- mios-src:bd8a7c2a418f from automation/98-drift-checks.sh:784-786 -->
+
+### Ported to mios-gate per ADR-0021 / T-1009 unit 2; the...
+
+Ported to mios-gate per ADR-0021 / T-1009 unit 2; the Python twin is
+deleted in the same commit. Parity proved on the real tree: both sides
+verify 131 verbs clean.
+
+<!-- mios-src:94b1e0f1d814 from automation/98-drift-checks.sh:1023-1025 -->
+
+### The bash leg must run a DIFFERENT implementation, or this...
+
+The bash leg must run a DIFFERENT implementation, or this check compares
+mios_toml.py against itself. userenv.sh resolves in three tiers -- native
+mios-resolver, miosd, then the Python fallback -- and under `env -i` with
+no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
+legs and they went on agreeing. Proven by mutation: disabling
+resolve_cross_references in mios_toml.py left the bash leg emitting
+${MIOS_PORTS_AGENT_PIPE} verbatim, and the check still passed (T-1062).
+
+Locate the native resolver and put it on the fixture's PATH so tier 1
+fires. Absent, the comparison is vacuous: fail where the environment
+declares tools mandatory, and say plainly what went unverified otherwise.
+
+<!-- mios-src:d4ade8ef15b7 from automation/98-drift-checks.sh:1300-1310 -->
+
+### T-1197 / ADR-0021
+
+T-1197 / ADR-0021: the [rust.categories] registry is the port plan -- this
+gate fails it the moment a category loses its owner, a crate vanishes from
+disk while still cataloged, a replaces= claim outlives its script, or a
+universe script stops being owned by exactly one porting category.
+
+<!-- mios-src:a119d7969c11 from automation/98-drift-checks.sh:2097-2100 -->
+
+### Ported to mios-gate per ADR-0021 / T-1009 unit 1; the...
+
+Ported to mios-gate per ADR-0021 / T-1009 unit 1; the Python twin is
+deleted in the same commit. Parity proved on the real tree: both sides
+flagged check_static_linkage identically before the exemption landed,
+and both pass after it.
+
+<!-- mios-src:1b2def083b62 from automation/98-drift-checks.sh:3252-3255 -->
+
+### Law 8 for usr/share/mios/ai/v1/metadata.json. It is...
+
+Law 8 for usr/share/mios/ai/v1/metadata.json. It is exported from every
+tracked file's AI-* header, but nothing regenerated it and nothing
+compared it, so it fell ~2,400 lines behind main and the first unrelated
+re-export dragged that whole backlog into a small PR. The exporter's own
+--check validates schema only; --check-fresh regenerates in memory and
+compares bytes, naming each entry that moved.
+
+<!-- mios-src:e4da726b6ea7 from automation/98-drift-checks.sh:3870-3875 -->
+
+### The warning-level pass is a ratchet
+
+The warning-level pass is a ratchet: it lints what changed since a base.
+CI exports MIOS_RATCHET_BASE (the PR base, fetched beside a depth-1 checkout
+that has neither origin/main nor HEAD~1), so it wins; origin/main, then
+HEAD~1, serve a full clone. An explicit base that does not resolve is a
+misconfiguration, not a reason to lint nothing. Paths are repo-relative, so
+the pass runs from ROOT; a worktree's .git is a file, hence -e.
+
+<!-- mios-src:52cdadb2df41 from automation/lint-shell.sh:72-77 -->

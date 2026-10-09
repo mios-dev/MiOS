@@ -39,11 +39,9 @@ fn phase_scripts(dir: &Path) -> Option<BTreeSet<String>> {
     )
 }
 
-/// `[build.ratchet].max_phase_scripts`: the phase-script count only comes down.
-/// The bash check it replaces defaulted an absent key to 71 and failed only
-/// ABOVE the ceiling, so a ceiling raised to 79 over 77 scripts let two new
-/// phases in unseen -- its negative test planted one and stayed green. Slack is
-/// a finding here, as in phase-registry and drift-stubs.
+/// The phase-script count must equal `[legibility].max_automation_phases`:
+/// above it is growth, below it is slack the next phase hides in, and an
+/// absent ceiling cannot run (the bash check defaulted it to 71).
 pub fn ratchet(root: &Path) -> Report {
     let report = |ok: bool, cnr: Option<String>, summary: String, findings: Vec<String>| Report {
         check: "phase-ratchet".to_string(),
@@ -56,14 +54,13 @@ pub fn ratchet(root: &Path) -> Report {
         .ok()
         .and_then(|t| t.parse::<toml::Value>().ok())
         .and_then(|v| {
-            v.get("build")?
-                .get("ratchet")?
-                .get("max_phase_scripts")?
+            v.get("legibility")?
+                .get("max_automation_phases")?
                 .as_integer()
         });
     let Some(ceiling) = ceiling else {
         let why =
-            "mios.toml [build.ratchet].max_phase_scripts is absent, unreadable or not a count";
+            "mios.toml [legibility].max_automation_phases is absent, unreadable or not a count";
         return report(false, Some(why.into()), String::new(), Vec::new());
     };
     let measured = match phase_scripts(&root.join("automation")) {
@@ -76,12 +73,12 @@ pub fn ratchet(root: &Path) -> Report {
     let mut findings = Vec::new();
     if measured > ceiling {
         findings.push(format!(
-            "{measured} phase script(s) exceed [build.ratchet].max_phase_scripts = {ceiling} -- \
+            "{measured} phase script(s) exceed [legibility].max_automation_phases = {ceiling} -- \
              fold a phase instead of raising the ceiling"
         ));
     } else if measured < ceiling {
         findings.push(format!(
-            "[build.ratchet].max_phase_scripts is {ceiling} but only {measured} phase script(s) \
+            "[legibility].max_automation_phases is {ceiling} but only {measured} phase script(s) \
              exist -- lower the ceiling to {measured}"
         ));
     }
