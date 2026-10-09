@@ -461,34 +461,48 @@ EOF
 test_render_extension_coverage() {
     log "Testing check_render_extension_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
+    local probe="${ROOT}/usr/lib/systemd/system/mios-negtest-render.socket"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    _rec_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _rec_fail; die "$1"; }
-
-    # Reproduce T-1040 exactly: drop `socket` and the shipped
-    # mios-cockpit-link.socket must be named.
-    python3 - "$toml" <<'EOF'
-import sys
-p = sys.argv[1]
-t = open(p, encoding="utf-8").read()
-old = '  "toml", "json", "conf", "service", "socket",\n'
-assert t.count(old) == 1, "extension list shape changed; fixture is stale"
-open(p, "w", encoding="utf-8").write(t.replace(old, '  "toml", "json", "conf", "service",\n'))
+    _rec_fail() { cp "$bak" "$toml"; rm -f "$bak" "$probe"; unset -f _rec_fail _rec_drop; die "$1"; }
+    _rec_drop() {  # $1 = an extension to take off [build.quadlet_render].extensions
+        python3 - "$toml" "$1" <<'EOF' || _rec_fail "extension list shape changed; fixture is stale"
+import re, sys
+p, ext = sys.argv[1], sys.argv[2]
+t = open(p, encoding="utf-8", newline="").read()
+m = re.search(r"^extensions = \[\n(?:.*\n)*?\]\n", t, re.M)
+assert m and f'"{ext}"' in m.group(0)
+blk = re.sub(r'\s*"%s",' % re.escape(ext), "", m.group(0), count=1)
+open(p, "w", encoding="utf-8", newline="").write(t[:m.start()] + blk + t[m.end():])
 EOF
+    }
+
+    # T-1040: `.socket` was off the renderer's list, so mios-cockpit-link.socket
+    # shipped its port placeholder verbatim. mios-unit-gen now resolves that port
+    # at projection (4c38b100): no shipped .socket carries a placeholder, and
+    # dropping `socket` alone landed nowhere. Plant the T-1040 shape and show the
+    # list decides: covered with `socket`, named without it.
+    printf '[Socket]\nListenStream=0.0.0.0:${MIOS_%s}\n' PORTS_COCKPIT_LINK > "$probe"
+    _neg_gate check_render_extension_coverage || _rec_fail "check_render_extension_coverage refused a .socket placeholder while .socket is declared: ${_NEG_GATE_OUT}"
+    _rec_drop socket
     _neg_gate check_render_extension_coverage && _rec_fail "check_render_extension_coverage passed with .socket removed from the renderer's scope"
-    case "${_NEG_GATE_OUT}" in
-        *mios-cockpit-link.socket*) : ;;
-        *) _rec_fail "check_render_extension_coverage failed for the wrong reason: ${_NEG_GATE_OUT}" ;;
-    esac
+    [[ "${_NEG_GATE_OUT}" == *mios-negtest-render.socket* ]] || _rec_fail "check_render_extension_coverage failed for the wrong reason: ${_NEG_GATE_OUT}"
+    cp "$bak" "$toml"; rm -f "$probe"
+
+    # No probe: shipped units still carry placeholders, so dropping `service`
+    # must name one of them.
+    _rec_drop service
+    _neg_gate check_render_extension_coverage && _rec_fail "check_render_extension_coverage passed with .service removed from the renderer's scope"
+    [[ "${_NEG_GATE_OUT}" == *"usr/lib/systemd/system/"*".service carries a"* ]] || _rec_fail "dropping .service named no shipped unit: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"
 
     # An empty scope is cannot-run, not a flood of findings.
     python3 - "$toml" <<'EOF'
 import re, sys
 p = sys.argv[1]
-t = open(p, encoding="utf-8").read()
+t = open(p, encoding="utf-8", newline="").read()
 t2 = re.sub(r"extensions = \[\n(?:.*\n)*?\]\n", "extensions = []\n", t, count=1)
 assert t2 != t, "extension list not found; fixture is stale"
-open(p, "w", encoding="utf-8").write(t2)
+open(p, "w", encoding="utf-8", newline="").write(t2)
 EOF
     _neg_gate check_render_extension_coverage && _rec_fail "check_render_extension_coverage passed with an empty extension list"
     case "${_NEG_GATE_OUT}" in
@@ -497,7 +511,7 @@ EOF
     esac
     cp "$bak" "$toml"
 
-    rm -f "$bak"; unset -f _rec_fail
+    rm -f "$bak"; unset -f _rec_fail _rec_drop
     _neg_gate check_render_extension_coverage || die "check_render_extension_coverage failed after restoration: ${_NEG_GATE_OUT}"
     log "check_render_extension_coverage negative test passed"
 }
@@ -1125,17 +1139,14 @@ EOF
     grep -qF "fake-missing-user.container: implicitly/explicitly root (User=) but NOT in [security.privileged_quadlets].root" <<<"$out_mu" \
         || die "Check_quadlet_privilege failed the missing-User= plant without naming it"
 
-    # The generator refuses the same shape before it is ever written.
-    python3 -c '
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("podgen", sys.argv[1] + "/tools/generate-pod-quadlets.py")
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-try:
-    m.render_nested_quadlet("zz-planted", {"Container": {"Image": "alpine"}}, "container")
-except m.UnauthorizedPrivilegeError as exc:
-    print(exc); sys.exit(0 if "'"'"'zz-planted'"'"' declares no User=" in str(exc) else 1)
-sys.exit(1)
-' "$ROOT" >/dev/null || die "generate-pod-quadlets passed despite missing User="
+    # The generator refuses the same shape before it is ever written. It is the
+    # native mios-gen pod-quadlets now; the retired Python module is gone.
+    local toml="${ROOT}/usr/share/mios/mios.toml" tbak; tbak="$(mktemp)"; cp "$toml" "$tbak"
+    printf '\n[containers.zz-planted.Container]\nImage = "docker.io/library/alpine:latest"\n' >> "$toml"
+    _neg_gate check_pod_quadlets && { cp "$tbak" "$toml"; rm -f "$tbak"; die "generate-pod-quadlets passed despite missing User="; }
+    cp "$tbak" "$toml"; rm -f "$tbak"
+    [[ "$_NEG_GATE_OUT" == *"'zz-planted' declares no User="* ]] \
+        || die "mios-gen pod-quadlets failed the missing-User= plant without naming it: $_NEG_GATE_OUT"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 \
         || die "Check_quadlet_privilege failed after restoration"
     log "Test_quadlet_privilege negative test passed"
@@ -4493,10 +4504,10 @@ test_protected_refs() {
     # renderer still protects it -- and now nothing on the host provides it.
     # That is the shipped state T-1064 found: systemd expands the absent name to
     # "" and Lane B runs with --model ''.
-    sed -i '/MIOS_FRONTIER_LANE_B_MODEL=\${MIOS_FRONTIER_LANE_B_MODEL:-}/d' "$unit"
-    if ! grep -q 'MIOS_FRONTIER_LANE_B_MODEL}' "$unit"; then
+    sed -i '/^Environment="\{0,1\}MIOS_FRONTIER_LANE_B_MODEL=/d' "$unit"   # any value: a literal since 491c36a2
+    if cmp -s "$backup" "$unit" || ! grep -q 'MIOS_FRONTIER_LANE_B_MODEL}' "$unit"; then
         cp "$backup" "$unit"; rm -f "$backup"
-        die "check_protected_refs negative test planted nothing -- the ExecStart reference is gone, so the control proves nothing"
+        die "check_protected_refs negative test planted nothing -- no supply line matched, or the ExecStart reference is gone"
     fi
     _neg_gate check_protected_refs && { cp "$backup" "$unit"; rm -f "$backup"; die "check_protected_refs passed with a protected ref that nothing supplies"; }
     case "$_NEG_GATE_OUT" in
@@ -4692,25 +4703,37 @@ test_drift_stubs() {
     local sbak; sbak="$(mktemp)"; cp "$src" "$sbak"
     _ds_fail() {
         cp "$bak" "$toml"; cp "$sbak" "$src"; rm -f "$bak" "$sbak"
-        unset -f _ds_fail
+        unset -f _ds_fail _ds_plant
         die "$1"
     }
-    # The defect itself: a run() that takes _ctx and still claims a Pass.
-    sed -i 's/Verdict::Skip("NOT IMPLEMENTED: Bake plan"/Verdict::Pass("Bake plan check passed"/' "$src"
+    # Every Check is implemented (15332e0a): the plant replaces check_bake_plan's
+    # real run() body, and refuses to run if that body cannot be found.
+    local real='super::audit::native(ctx, "mios-bake-plan", &["--check"])'
+    _ds_plant() {
+        local t; t="$(cat "$sbak"; printf X)"; t="${t%X}"
+        [[ "$t" == *"$real"* ]] || _ds_fail "check_bake_plan's run() changed shape; the plant would land nowhere"
+        printf '%s' "${t/"$real"/$1}" > "$src"
+    }
+    # The defect itself: a run() that consults nothing and still claims a Pass.
+    _ds_plant 'Verdict::Pass("Bake plan check passed".into())'
     _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with a stub claiming Verdict::Pass"
-    cp "$sbak" "$src"
-    # A stub that is not on the register.
-    sed -i '/^  "check_bake_plan",$/d' "$toml"
+    [[ "$_NEG_GATE_OUT" == *"check_bake_plan: run() never consults"* ]] || _ds_fail "check_drift_stubs failed without naming the planted Pass"
+    # A stub that is not on the register, and a raised ceiling must not absorb it.
+    _ds_plant 'Verdict::Skip("NOT IMPLEMENTED: Bake plan".into())'
     _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with an unregistered stub"
-    # Raising the ceiling must not absorb it.
+    [[ "$_NEG_GATE_OUT" == *"check_bake_plan: an unimplemented check that is not on"* ]] || _ds_fail "check_drift_stubs failed without naming the unregistered stub"
     sed -i 's/^max_unimplemented = [0-9]*$/max_unimplemented = 999/' "$toml"
     _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with a stub hidden under a raised ceiling"
-    cp "$bak" "$toml"
+    # Registering it at an exact ceiling is the sanctioned escape -- and the only one.
+    sed -i 's/^max_unimplemented = [0-9]*$/max_unimplemented = 1/; /^max_unimplemented = 1$/{n;s/^checks = \[\]$/checks = ["check_bake_plan"]/}' "$toml"
+    grep -qx 'checks = \["check_bake_plan"\]' "$toml" || _ds_fail "the register plant did not land in [drift.unimplemented]"
+    _neg_gate check_drift_stubs || _ds_fail "check_drift_stubs refused a registered stub at an exact ceiling: $_NEG_GATE_OUT"
+    cp "$sbak" "$src"; cp "$bak" "$toml"
     # Deleting the ceiling must read as unbounded debt, not as no debt.
     sed -i '/^max_unimplemented = [0-9]*$/d' "$toml"
     _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with [drift.unimplemented].max_unimplemented absent"
     cp "$bak" "$toml"; rm -f "$bak" "$sbak"
-    unset -f _ds_fail
+    unset -f _ds_fail _ds_plant
     _neg_gate check_drift_stubs || die "check_drift_stubs failed after restoration"
     log "check_drift_stubs negative test passed"
 }
@@ -5068,7 +5091,8 @@ test_bootstrap_sync() {
     printf '\nDRIFT PROBE\n' >> "$f"
     _neg_gate check_bootstrap_sync && { cp "$bak" "$f"; die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"; }
     cp "$bak" "$f"
-    [[ "$_NEG_GATE_OUT" == *"installation/UNIFY.md: differs"* ]] \
+    # The native port (484040ed) names each drifted surface path, not "<file>: differs".
+    [[ "$_NEG_GATE_OUT" == *"drifted from mios.git: "*"/installation/UNIFY.md"* ]] \
         || die "check_bootstrap_sync failed without naming installation/UNIFY.md: ${_NEG_GATE_OUT}"
     # A mirrored TABLE value: [colors] had no parsed compare but the retired
     # ports-drift check, whose scalars this leg now covers.
@@ -5076,8 +5100,8 @@ test_bootstrap_sync() {
     grep -q '^bg *= "#010203"' "$t" || { cp "$tbak" "$t"; die "the [colors].bg plant did not land in ${t}"; }
     _neg_gate check_bootstrap_sync && { cp "$tbak" "$t"; die "check_bootstrap_sync passed despite [colors].bg drifting in bootstrap"; }
     cp "$tbak" "$t"
-    [[ "$_NEG_GATE_OUT" == *"[colors].bg:"* ]] \
-        || die "check_bootstrap_sync failed without naming [colors].bg: ${_NEG_GATE_OUT}"
+    [[ "$_NEG_GATE_OUT" == *"drifted from mios.git: "*"/mios.toml"* ]] \
+        || die "check_bootstrap_sync failed without naming the bootstrap mios.toml: ${_NEG_GATE_OUT}"
     rm -f "$bak" "$tbak"
     _neg_gate check_bootstrap_sync || die "check_bootstrap_sync failed after restoration: ${_NEG_GATE_OUT}"
     log "check_bootstrap_sync negative test passed"
@@ -5086,37 +5110,50 @@ test_bootstrap_sync() {
 test_legibility_ratchet() {
     log "Testing check_legibility_ratchet"
     local probe="${ROOT}/automation/mios-negtest-bulk.sh"
-    # Adding shell lines must fail: bash is glue only, and the floors only fall.
-    { echo '#!/usr/bin/env bash'; for i in $(seq 1 3000); do echo "true  # filler $i"; done; } > "$probe"
-    git -C "$ROOT" add -f -- "$probe" >/dev/null 2>&1
-    if _neg_gate check_legibility_ratchet; then
-        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
-        die "check_legibility_ratchet passed despite 3000 new shell lines"
-    fi
-    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
-
-    # The Python arm, both ways. A tooling file must still bite; a sibling unit
-    # test must NOT, or this ratchet pulls against check_module_test_coverage
-    # and the cheapest way to stay green is to not write the test (T-1044).
     local pytool="${ROOT}/tools/mios-negtest-bulk.py"
-    { for i in $(seq 1 600); do echo "# filler $i"; done; } > "$pytool"
-    git -C "$ROOT" add -f -- "$pytool" >/dev/null 2>&1
-    if _neg_gate check_legibility_ratchet; then
-        git -C "$ROOT" rm -q --cached --force -- "$pytool" >/dev/null 2>&1; rm -f "$pytool"
-        die "check_legibility_ratchet passed despite 600 new tooling-python lines"
-    fi
-    git -C "$ROOT" rm -q --cached --force -- "$pytool" >/dev/null 2>&1; rm -f "$pytool"
-
     local pytest_probe="${ROOT}/tools/test-mios-negtest-bulk.py"
-    { for i in $(seq 1 600); do echo "# filler $i"; done; } > "$pytest_probe"
-    git -C "$ROOT" add -f -- "$pytest_probe" >/dev/null 2>&1
-    if ! _neg_gate check_legibility_ratchet; then
-        git -C "$ROOT" rm -q --cached --force -- "$pytest_probe" >/dev/null 2>&1; rm -f "$pytest_probe"
-        die "check_legibility_ratchet counted a sibling unit test as tooling: $_NEG_GATE_OUT"
-    fi
-    git -C "$ROOT" rm -q --cached --force -- "$pytest_probe" >/dev/null 2>&1; rm -f "$pytest_probe"
+    # Each leg reads ITS metric from the gate's own table. The overall verdict
+    # also carries every other floor and the probe's own tracked file, so on a
+    # tree already over the shell floor the plants looked caught and the
+    # sibling-test leg looked miscounted when nothing had counted it.
+    _lr_metric() { sed -n "s/.*[] ]$1=\([0-9]*\)\/\([0-9]*\).*/\1 \2/p" <<<"$_NEG_GATE_OUT" | head -1; }
+    _lr_plant() { local i; for i in $(seq 1 "$2"); do echo "# filler $i"; done > "$1"; git -C "$ROOT" add -f -- "$1" >/dev/null 2>&1; }
+    _lr_unplant() { git -C "$ROOT" rm -q --cached --force -- "$@" >/dev/null 2>&1; rm -f "$@"; }
+    _lr_fail() { _lr_unplant "$probe" "$pytool" "$pytest_probe"; unset -f _lr_metric _lr_plant _lr_unplant _lr_fail; die "$1"; }
 
-    _neg_gate check_legibility_ratchet || die "check_legibility_ratchet failed after restoration"
+    _neg_gate check_legibility_ratchet || :
+    local sh0 shcap py0 pycap got n
+    read -r sh0 shcap < <(_lr_metric shell_lines)
+    read -r py0 pycap < <(_lr_metric tooling_python_lines)
+    [[ -n "$sh0" && -n "$py0" ]] || _lr_fail "check_legibility_ratchet printed no measurement table: $_NEG_GATE_OUT"
+
+    # Shell lines must bite: bash is glue only, and the floors only fall. Sized
+    # to cross the floor by one line whatever the slack.
+    n=$(( shcap - sh0 + 1 )); (( n > 0 )) || n=1
+    _lr_plant "$probe" "$n"
+    _neg_gate check_legibility_ratchet && _lr_fail "check_legibility_ratchet passed despite $n new shell lines over the floor"
+    read -r got _ < <(_lr_metric shell_lines)
+    [[ "$got" == "$(( sh0 + n ))" && "$_NEG_GATE_OUT" == *"shell_lines = $got, over the floor"* ]] \
+        || _lr_fail "check_legibility_ratchet did not count and refuse $n planted shell lines: $_NEG_GATE_OUT"
+    _lr_unplant "$probe"
+
+    # The Python arm, both ways. A tooling file must bite; a sibling unit test
+    # must NOT count, or this ratchet pulls against check_module_test_coverage
+    # and the cheapest way to stay green is to not write the test (T-1044).
+    n=$(( pycap - py0 + 1 )); (( n > 0 )) || n=1
+    _lr_plant "$pytool" "$n"
+    _neg_gate check_legibility_ratchet && _lr_fail "check_legibility_ratchet passed despite $n new tooling-python lines over the floor"
+    read -r got _ < <(_lr_metric tooling_python_lines)
+    [[ "$got" == "$(( py0 + n ))" && "$_NEG_GATE_OUT" == *"tooling_python_lines = $got, over the floor"* ]] \
+        || _lr_fail "check_legibility_ratchet did not count and refuse $n planted tooling-python lines: $_NEG_GATE_OUT"
+    _lr_unplant "$pytool"
+    _lr_plant "$pytest_probe" 600
+    _neg_gate check_legibility_ratchet || :
+    read -r got _ < <(_lr_metric tooling_python_lines)
+    [[ "$got" == "$py0" ]] || _lr_fail "check_legibility_ratchet counted a sibling unit test as tooling ($py0 -> ${got:-none}): $_NEG_GATE_OUT"
+    _lr_unplant "$pytest_probe"; unset -f _lr_metric _lr_plant _lr_unplant _lr_fail
+
+    _neg_gate check_legibility_ratchet || die "check_legibility_ratchet failed after restoration: $_NEG_GATE_OUT"
     log "check_legibility_ratchet negative test passed"
 }
 
