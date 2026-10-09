@@ -4479,62 +4479,15 @@ def check_docs_ratchet() -> int:
     return 0
 
 def check_generator_host_parity() -> int:
-    import os, subprocess, sys
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    viol = []
-
-    # Was a hardcoded list of seven scripts, so the same non-portable idiom in
-    # any other generator went unseen -- proved by planting it in
-    # render-globals.py and watching this pass. Discover the set instead.
-    try:
-        listed = subprocess.run(["git", "-C", root, "ls-files",
-                                 "tools", "automation", "usr/libexec"],
-                                capture_output=True, text=True, check=False).stdout
-    except OSError as exc:
-        print("cannot enumerate generators: %s" % exc, file=sys.stderr)
-        return 1
-
-    scanned_scripts = []
-    for rel in [x.strip() for x in listed.split("\n") if x.strip()]:
-        base = os.path.basename(rel)
-        if (base.startswith(("generate-", "render-"))
-                or base in ("mios-manual", "mios-version-lint", "mios_var_closure.py")):
-            scanned_scripts.append(rel)
-
-    if len(scanned_scripts) < 15:
-        print("only %d generator(s) discovered -- the subject list is wrong, so an "
-              "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
-        return 1
-
-    read = 0
-    for script in scanned_scripts:
-        fpath = os.path.join(root, script)
-        if not os.path.isfile(fpath):
-            continue
-        with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
-            content = fh.read()
-        read += 1
-        if "fnmatch.fnmatch(" in content:
-            viol.append(f"{script} uses non-portable fnmatch.fnmatch instead of fnmatchcase")
-
-    if viol:
-        print("\n".join(viol), file=sys.stderr)
-        return 1
-
-    # The guard above counted the git LISTING, and the loop then skipped every
-    # listed file that was not on disk, so an empty worktree read nothing.
-    if read < 15:
-        print("only %d of %d listed generator(s) could be read -- an empty scan is "
-              "not a pass" % (read, len(scanned_scripts)), file=sys.stderr)
-        return 1
-
-    # Narrowed from "all generators produce host-independent byte-identical
-    # outputs". Nothing is rendered or compared here: this is one portability
-    # idiom, checked by reading source.
-    print("    %d generator(s) free of the non-portable fnmatch.fnmatch idiom"
-          % read)
-    return 0
+    """Compatibility entry; native Rust owns generator source portability."""
+    import subprocess
+    wrapper = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "automation/98-drift-checks.sh")
+    return subprocess.run(
+        ["bash", wrapper, "check_generator_host_parity"],
+        env=dict(os.environ, MIOS_DRIFT_CHECK_ROOT=os.environ.get("MIOS_DRIFT_ROOT", ".")),
+        check=False,
+    ).returncode
 
 
 def check_doc_port_scheme() -> int:

@@ -4327,45 +4327,51 @@ test_docs_ratchet_monotone() {
     log "check_docs_ratchet_monotone negative test passed (HEAD + durable floor)"
 }
 
-test_generator_host_parity() {
+test_generator_host_parity() (
     log "Testing check_generator_host_parity"
-    # names-registry.py is deleted (AGY-1073); the probe plants the idiom in
-    # any discovered generator instead of sed-replacing an idiom the victim
-    # may not carry.
     local script
-    script="$(find "${ROOT}/tools" -maxdepth 1 -name "generate-*.py" 2>/dev/null | sort | head -1)"
-    [[ -n "$script" && -f "$script" ]] || { log "No generator python script found to test"; return 0; }
+    script="$(find "${ROOT}/tools" -type f -name "generate-*.py" 2>/dev/null | sort | head -1)"
+    [[ -n "$script" && -f "$script" ]] || die "No legacy generator exists for the portability control"
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
+    trap 'cp "$backup" "$script"; rm -f "$backup"' EXIT
+    _neg_gate check_generator_host_parity || die "Generator portability failed before the idiom control"
     printf '\nimport fnmatch\nfnmatch.fnmatch("x", "x")\n' >> "$script"
     _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage"
-    cp "$backup" "$script"; rm -f "$backup"
+    [[ "$_NEG_GATE_OUT" == *"${script#"${ROOT}/"}"* && "$_NEG_GATE_OUT" == *"uses non-portable"* ]] \
+        || die "Generator portability failed without naming the planted idiom"
+    cp "$backup" "$script"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"
     log "check_generator_host_parity negative test passed"
-}
+)
 
 # The >=20 guard counts what git LISTED, not what was read, so a corpus that is
 # listed but absent scanned nothing and printed the success line anyway.
-test_generator_host_parity_unreadable_corpus() {
+test_generator_host_parity_unreadable_corpus() (
     log "Testing check_generator_host_parity against a listed-but-absent corpus"
     local tmp_dir i
     tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' EXIT
     mkdir -p "${tmp_dir}/tools"
     git -C "$tmp_dir" init -q
     for ((i = 1; i <= 25; i++)); do
         : > "${tmp_dir}/tools/generate-probe-${i}.py"
         git -C "$tmp_dir" add -- "tools/generate-probe-${i}.py"
     done
+    mkdir -p "$tmp_dir/usr/share/mios"
+    printf '[laws.projection_registry]\nsurfaces = [{ generator = "tools/generate-probe-1.py" }]\n' > "$tmp_dir/usr/share/mios/mios.toml"
+    local out
+    out="$(MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" generator-host-parity 2>&1)" \
+        || die "Listed generator corpus failed before removing its subjects: $out"
     rm -f "${tmp_dir}"/tools/generate-probe-*.py
-    if MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
-        generator-host-parity >/dev/null 2>&1; then
-        rm -rf "$tmp_dir"
+    if out="$(MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" generator-host-parity 2>&1)"; then
         die "check_generator_host_parity passed with 25 generators listed and none readable"
     fi
-    rm -rf "$tmp_dir"
+    [[ "$out" == *"cannot read generator tools/generate-probe-"* ]] \
+        || die "Listed generator corpus failed without naming an unreadable subject: $out"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after cleanup"
     log "check_generator_host_parity unreadable-corpus negative test passed"
-}
+)
 
 test_manual_generated() {
     log "Testing check_manual_generated"

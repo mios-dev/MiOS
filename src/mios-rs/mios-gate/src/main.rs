@@ -10,6 +10,7 @@ mod canonical_bools;
 mod credentials;
 mod dispatch;
 mod doc_refs;
+mod host_parity;
 mod image_equivalence;
 mod image_freshness;
 mod inert_tables;
@@ -96,7 +97,7 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
                      \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH]\n\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
-                             doc-refs-resolve, drift-stubs, image-equivalence, image-freshness,\n\
+                             doc-refs-resolve, drift-stubs, generator-host-parity, image-equivalence, image-freshness,\n\
                              negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
@@ -205,6 +206,7 @@ fn main() -> ExitCode {
         "credential-literals" => credentials::check(&root),
         "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),
+        "generator-host-parity" => host_parity::check(&root),
         "image-equivalence" => image_equivalence::check(&image_equivalence::Options {
             root: root.clone(),
             ssot: ssot.map(std::path::PathBuf::from),

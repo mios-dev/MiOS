@@ -5057,7 +5057,9 @@ check_generator_host_parity() {
     # Nothing is rendered or compared here: it reads generator sources for one
     # portability idiom. The old wording promised byte-identical output.
     echo "[98-drift-checks] generators avoid the non-portable fnmatch.fnmatch idiom"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity 2>&1)" || {
+    local bin; bin="$(_gate_bin)" || {
+        _violation "check_generator_host_parity requires native mios-gate"; return; }
+    local out; out="$("$bin" generator-host-parity --root "$ROOT" 2>&1)" || {
         _violations_from "check_generator_host_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
