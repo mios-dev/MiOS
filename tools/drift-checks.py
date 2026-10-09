@@ -1567,84 +1567,13 @@ def check_negative_test_coverage() -> int:
     sys.exit(0)
 
 def check_bake_plan_integrity() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
-
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import glob, os, sys
-    import tomllib
-
+    """Compatibility entry; native Rust owns the bake-plan integrity policy."""
+    import subprocess
     root = os.environ["MIOS_DRIFT_ROOT"]
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    plan_dir = os.path.join(root, "usr/lib/mios/bake/plan.d")
-
-    if len(_scan(root, toml_path, plan_dir)) < 2:
-        sys.exit(0)
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    bake_cfg = data.get("build", {}).get("bake", {})
-    core_set = set(bake_cfg.get("core", []))
-    tokens = bake_cfg.get("firstboot_tokens", [])
-
-    group_files = sorted(glob.glob(os.path.join(plan_dir, "[0-9][0-9]-*.list")))
-    fb_file = os.path.join(plan_dir, "firstboot.list")
-
-    group_images = set()
-    group_map = {}
-    for gf in group_files:
-        gname = os.path.basename(gf)
-        with open(gf, "r", encoding="utf-8") as f:
-            imgs = set(line.strip() for line in f if line.strip())
-        group_map[gname] = imgs
-        group_images.update(imgs)
-
-    fb_images = set()
-    if os.path.isfile(fb_file):
-        with open(fb_file, "r", encoding="utf-8") as f:
-            fb_images = set(line.strip() for line in f if line.strip())
-
-    viol = []
-
-    for tok in tokens:
-        for gname, imgs in group_map.items():
-            hits = [img for img in imgs if tok in img.lower()]
-            if hits:
-                viol.append(f"Firstboot token '{tok}' image(s) found in baked group list {gname}: {hits}")
-
-        matching_core = [img for img in core_set if tok in img.lower()]
-        for img in matching_core:
-            if img not in fb_images:
-                viol.append(f"Core image '{img}' matching firstboot token '{tok}' missing from firstboot.list")
-
-    for tok in tokens:
-        matching_fb = [img for img in fb_images if tok in img.lower()]
-        for img in matching_fb:
-            if img not in core_set:
-                viol.append(f"Firstboot image '{img}' is not listed in [build.bake].core SSOT")
-
-    all_plan_imgs = list(group_images) + list(fb_images)
-    if len(all_plan_imgs) != len(set(all_plan_imgs)):
-        viol.append("Duplicate image entries found across plan.d/*.list and firstboot.list")
-
-    if set(all_plan_imgs) != core_set:
-        missing_from_plan = core_set - set(all_plan_imgs)
-        extra_in_plan = set(all_plan_imgs) - core_set
-        if missing_from_plan:
-            viol.append(f"Core images missing from plan.d: {missing_from_plan}")
-        if extra_in_plan:
-            viol.append(f"Extra images in plan.d not in core: {extra_in_plan}")
-
-    if bool(tokens) != bool(fb_images):
-        viol.append(f"firstboot_tokens non-empty ({tokens}) but firstboot.list empty ({fb_images}) or vice versa")
-
-    if viol:
-        for v in viol:
-            sys.stderr.write(f"    {v}\n")
-        sys.exit(1)
-
-    sys.exit(0)
+    return subprocess.run(
+        ["bash", os.path.join(root, "automation/98-drift-checks.sh"), "check_bake_plan_integrity"],
+        env=dict(os.environ, MIOS_DRIFT_CHECK_ROOT=root), check=False,
+    ).returncode
 
 def check_globals_image_parity() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.

@@ -2169,7 +2169,8 @@ check_static_linkage() {
     fi
 }
 
-check_bake_plan() {
+_run_bake_plan_check() {
+    local mode="$1" out
     # Stage 85's candidates, in stage 85's order. CI builds debug only, so the
     # certified binary was one the bake can never run; debug is dropped because
     # that tree is where the two sides diverge (T-1057).
@@ -2194,22 +2195,26 @@ check_bake_plan() {
         _violation "mios-bake-plan is not built for release, so check_bake_plan could not certify what stage 85 runs -- build it: cd tools/native && cargo build --release -p mios-bake-plan"
         return
     fi
-    if (cd "$ROOT" && MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
-            MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" "$bin" --check); then
+    if out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
+            MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" "$bin" --check "$mode" 2>&1)"; then
+        if [[ "$mode" == --check-integrity && "$out" != *"Bake-plan integrity verified against active Quadlets and SSOT"* ]]; then
+            _violation "mios-bake-plan does not support the required native integrity check"
+            return
+        fi
+        [[ -z "$out" ]] || printf '%s\n' "$out"
         echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
+        printf '%s\n' "$out" >&2
         _violation "bake-plan lists are STALE vs mios.toml -- regenerate with tools/native/target/release/mios-bake-plan"
     fi
 }
 
+check_bake_plan() {
+    _run_bake_plan_check --check
+}
+
 check_bake_plan_integrity() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py bake-plan-integrity
-    then
-        echo "[98-drift-checks]   bake-plan integrity gate verified clean"
-    else
-        _violation "bake-plan integrity gate check failed"
-    fi
+    _run_bake_plan_check --check-integrity
 }
 
 check_bake_ref_defaults() {

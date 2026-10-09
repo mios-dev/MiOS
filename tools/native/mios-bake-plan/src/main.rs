@@ -141,13 +141,95 @@ fn classify(img: &str, groups: &[String], group_members: &BTreeMap<String, Vec<S
         .unwrap_or_else(|| "extra".to_string())
 }
 
+fn verify_plan_integrity(
+    out_dir: &Path,
+    groups: &[String],
+    group_lists: &BTreeMap<String, Vec<String>>,
+    firstboot_images: &[String],
+    firstboot_tokens: &[String],
+) -> Result<(), String> {
+    if groups.is_empty() || group_lists.values().all(Vec::is_empty) && firstboot_images.is_empty() {
+        return Err("Cannot certify an empty bake-plan inventory".to_string());
+    }
+    let mut expected: BTreeMap<String, BTreeSet<String>> = groups
+        .iter()
+        .enumerate()
+        .map(|(idx, group)| {
+            (
+                format!("{:02}-{group}.list", idx + 1),
+                group_lists
+                    .get(group)
+                    .into_iter()
+                    .flatten()
+                    .cloned()
+                    .collect(),
+            )
+        })
+        .collect();
+    expected.insert(
+        "firstboot.list".to_string(),
+        firstboot_images.iter().cloned().collect(),
+    );
+    let entries = fs::read_dir(out_dir)
+        .map_err(|e| format!("Cannot read bake-plan directory {}: {e}", out_dir.display()))?;
+    for entry in entries {
+        let path = entry
+            .map_err(|e| format!("Cannot enumerate bake plan: {e}"))?
+            .path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "list")
+        {
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            if !expected.contains_key(name.as_ref()) {
+                return Err(format!("Unexpected bake-plan list: {}", path.display()));
+            }
+        }
+    }
+    let mut seen = BTreeMap::new();
+    for (name, expected_images) in &expected {
+        let path = out_dir.join(name);
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("Cannot read bake-plan list {}: {e}", path.display()))?;
+        let mut actual = BTreeSet::new();
+        for image in content
+            .lines()
+            .map(str::trim)
+            .filter(|image| !image.is_empty())
+        {
+            if let Some(previous) = seen.insert(image.to_string(), name.clone()) {
+                return Err(format!(
+                    "Duplicate image '{image}' in {previous} and {name}"
+                ));
+            }
+            if name != "firstboot.list" {
+                for token in firstboot_tokens.iter().filter(|token| !token.is_empty()) {
+                    if image.to_lowercase().contains(&token.to_lowercase()) {
+                        return Err(format!("Firstboot token '{token}' image '{image}' found in baked group list {name}"));
+                    }
+                }
+            }
+            actual.insert(image.to_string());
+        }
+        if actual != *expected_images {
+            let missing: Vec<_> = expected_images.difference(&actual).collect();
+            let extra: Vec<_> = actual.difference(expected_images).collect();
+            return Err(format!(
+                "Bake-plan inventory mismatch in {name}: missing {missing:?}, extra {extra:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let root = get_root();
     if let Some(code) = latest::dispatch(&args, &root) {
         process::exit(code);
     }
-    let check = args.iter().any(|a| a == "--check");
+    let integrity = args.iter().any(|a| a == "--check-integrity");
+    let check = integrity || args.iter().any(|a| a == "--check");
 
     let toml_path = env::var("MIOS_TOML")
         .map(PathBuf::from)
@@ -484,6 +566,25 @@ fn main() {
         process::exit(2);
     }
 
+    if check {
+        if let Err(error) = verify_plan_integrity(
+            &out_dir,
+            &groups,
+            &group_lists,
+            &firstboot_images,
+            &firstboot_tokens,
+        ) {
+            eprintln!("[bake-plan-gen] INTEGRITY ERROR: {error}");
+            process::exit(1);
+        }
+        if integrity {
+            println!(
+                "[bake-plan-gen] Bake-plan integrity verified against active Quadlets and SSOT"
+            );
+            return;
+        }
+    }
+
     if !check {
         let _ = fs::create_dir_all(&out_dir);
         if let Ok(entries) = fs::read_dir(&out_dir) {
@@ -625,6 +726,139 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct PlanFixture {
+        dir: PathBuf,
+        groups: Vec<String>,
+        lists: BTreeMap<String, Vec<String>>,
+        firstboot: Vec<String>,
+    }
+
+    impl Drop for PlanFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    impl PlanFixture {
+        fn new() -> Self {
+            let dir = env::temp_dir().join(format!(
+                "mios-bake-integrity-{}-{}",
+                process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            fs::create_dir(&dir).unwrap();
+            let fixture = Self {
+                dir,
+                groups: vec!["core".into(), "extra".into()],
+                lists: BTreeMap::from([
+                    ("core".into(), vec!["docker.io/example/base:1".into()]),
+                    ("extra".into(), Vec::new()),
+                ]),
+                firstboot: vec!["docker.io/example/floating:1".into()],
+            };
+            fs::write(
+                fixture.dir.join("01-core.list"),
+                "docker.io/example/base:1\n",
+            )
+            .unwrap();
+            fs::write(fixture.dir.join("02-extra.list"), "").unwrap();
+            fs::write(
+                fixture.dir.join("firstboot.list"),
+                "docker.io/example/floating:1\n",
+            )
+            .unwrap();
+            fixture
+        }
+
+        fn check(&self) -> Result<(), String> {
+            verify_plan_integrity(
+                &self.dir,
+                &self.groups,
+                &self.lists,
+                &self.firstboot,
+                &["floating".into()],
+            )
+        }
+
+        fn reject_content(&self, name: &str, content: &[u8], diagnosis: &str) {
+            let path = self.dir.join(name);
+            let original = fs::read(&path).unwrap();
+            fs::write(&path, content).unwrap();
+            let error = self.check().unwrap_err();
+            assert!(error.contains(diagnosis), "{error}");
+            assert_eq!(
+                fs::read(&path).unwrap(),
+                content,
+                "verification must not repair its subject"
+            );
+            fs::write(path, original).unwrap();
+            assert!(self.check().is_ok());
+        }
+    }
+
+    #[test]
+    fn integrity_rejects_duplicate_misrouted_and_unknown_images_without_writes() {
+        let fixture = PlanFixture::new();
+        assert!(fixture.check().is_ok());
+        fixture.reject_content(
+            "01-core.list",
+            b"docker.io/example/base:1\ndocker.io/example/base:1\n",
+            "Duplicate image",
+        );
+        fixture.reject_content(
+            "firstboot.list",
+            b"docker.io/example/base:1\n",
+            "Duplicate image",
+        );
+        fixture.reject_content(
+            "02-extra.list",
+            b"docker.io/example/floating:1\n",
+            "Firstboot token",
+        );
+        fixture.reject_content(
+            "01-core.list",
+            b"docker.io/example/unknown:1\n",
+            "inventory mismatch",
+        );
+        fixture.reject_content("firstboot.list", b"", "inventory mismatch");
+        fixture.reject_content("01-core.list", &[0xff], "Cannot read bake-plan list");
+    }
+
+    #[test]
+    fn integrity_requires_every_declared_list_and_rejects_empty_census() {
+        let fixture = PlanFixture::new();
+        for name in ["01-core.list", "02-extra.list", "firstboot.list"] {
+            let path = fixture.dir.join(name);
+            let original = fs::read(&path).unwrap();
+            fs::remove_file(&path).unwrap();
+            let error = fixture.check().unwrap_err();
+            assert!(
+                error.contains("Cannot read bake-plan list") && error.contains(name),
+                "{error}"
+            );
+            assert!(!path.exists());
+            fs::write(path, original).unwrap();
+            assert!(fixture.check().is_ok());
+        }
+        let extra = fixture.dir.join("99-unknown.list");
+        fs::write(&extra, "").unwrap();
+        assert!(fixture
+            .check()
+            .unwrap_err()
+            .contains("Unexpected bake-plan list"));
+        assert_eq!(fs::read(&extra).unwrap(), b"");
+        fs::remove_file(extra).unwrap();
+        assert!(fixture.check().is_ok());
+        assert!(
+            verify_plan_integrity(&fixture.dir, &fixture.groups, &BTreeMap::new(), &[], &[])
+                .unwrap_err()
+                .contains("empty bake-plan inventory")
+        );
+    }
 
     #[test]
     fn user_quadlets_participate_at_the_declared_discovery_depth() {

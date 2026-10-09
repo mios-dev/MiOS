@@ -2390,28 +2390,24 @@ test_projection_registry() {
     log "Test_projection_registry negative test passed"
 }
 
-test_bake_plan_integrity() {
+test_bake_plan_integrity() (
     log "Testing check_bake_plan_integrity"
-    # Resolve the extra catch-all list by glob -- its numeric prefix shifts
-    # whenever the bake sharding gains a group (03- became 04- with 'heavy').
-    local list_file
+    local list_file firstboot_image bak
     list_file="$(find "${ROOT}/usr/lib/mios/bake/plan.d" -maxdepth 1 -name '[0-9][0-9]-extra.list' -print -quit 2>/dev/null)"
-    [ -n "$list_file" ] && [ -f "$list_file" ] || die "No [0-9][0-9]-extra.list found in plan.d -- bake plan not generated?"
-    local orig_val
-    orig_val="$(cat "$list_file")"
-
-    echo "docker.io/vllm/vllm-openai:latest" >> "$list_file"
-
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1; then
-        echo "$orig_val" > "$list_file"
-        die "Check_bake_plan_integrity passed despite firstboot token in baked group list"
-    fi
-
-    echo "$orig_val" > "$list_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1 \
-        || die "Check_bake_plan_integrity failed after restoration"
+    [[ -n "$list_file" && -f "$list_file" ]] || die "No extra bake plan exists for the integrity control"
+    firstboot_image="$(sed -n '/[^[:space:]]/{p;q;}' "${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list")"
+    [[ -n "$firstboot_image" ]] || die "No firstboot image exists for the integrity control"
+    bak="$(mktemp)"; cp "$list_file" "$bak"
+    trap 'cp "$bak" "$list_file"; rm -f "$bak"' EXIT
+    _neg_gate check_bake_plan_integrity || die "Bake integrity failed before the firstboot control"
+    printf '%s\n' "$firstboot_image" >> "$list_file"
+    _neg_gate check_bake_plan_integrity && die "Bake integrity accepted a firstboot image in a baked group"
+    [[ "$_NEG_GATE_OUT" == *"Firstboot token"* && "$_NEG_GATE_OUT" == *"$firstboot_image"* ]] \
+        || die "Bake integrity failed without naming the firstboot violation"
+    cp "$bak" "$list_file"
+    _neg_gate check_bake_plan_integrity || die "Bake integrity failed after exact restoration"
     log "Test_bake_plan_integrity negative test passed"
-}
+)
 
 test_bake_ref_parity() {
     log "Testing check_bake_ref_defaults"
