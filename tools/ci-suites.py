@@ -384,11 +384,11 @@ def devcontainer_check(root: str) -> list:
         return [f"{DEV_CONTAINERFILE} is missing"]
     viol = devcontainer_violations(Path(path).read_text(encoding="utf-8"), ref)
     images = (data.get("build") or {}).get("images") or {}
-    os_tag = (images.get("os") or {}).get("tag_key")
     dev_arg = ((images.get("devcontainer") or {}).get("build_args") or {}).get("MIOS_IMAGE_REF")
-    if not os_tag or dev_arg != os_tag:
-        viol.append(f"[build.images.devcontainer].build_args.MIOS_IMAGE_REF {dev_arg!r} is not the os"
-                    f" target's tag_key {os_tag!r}: a local dev build would not layer on the image it built")
+    if dev_arg != "build.images.os" or not (images.get("os") or {}).get("tag_key"):
+        viol.append(f"[build.images.devcontainer].build_args.MIOS_IMAGE_REF {dev_arg!r} does not name the"
+                    f" os target (build.images.os, which carries its tag): a local dev build would not"
+                    f" layer on the image it built")
     return viol
 
 

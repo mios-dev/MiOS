@@ -734,7 +734,7 @@ fn workspace_layout(
     }
     let layout = if let Some(observer) = observer {
         if w * 100 >= h * workspace_number(config, "portrait_ratio_percent", 50, 400)? {
-            let head_pct = workspace_number(config, "desktop_head_percent", 20, 70).unwrap_or(38);
+            let head_pct = workspace_number(config, "head_percent", 20, 70)?;
             let head_w = (w * head_pct / 100).clamp(3, w.saturating_sub(24).max(3));
             let observer_w = w - head_w - 1;
             rect.branch(
@@ -755,8 +755,8 @@ fn workspace_layout(
                 .checked_sub(minimum + 1)
                 .filter(|n| *n >= 3)
                 .ok_or("portrait terminal is too short")?;
-            let observer_pct =
-                workspace_number(config, "portrait_observer_percent", 10, 80).unwrap_or(62);
+            // One split: the monitor takes whatever the head does not.
+            let observer_pct = 100 - workspace_number(config, "head_percent", 20, 70)?;
             let observer_h = (h * observer_pct / 100).clamp(3, maximum);
             let head_h = h - observer_h - 1;
             rect.branch(
@@ -777,8 +777,7 @@ fn workspace_layout(
             )
         }
     } else {
-        let left =
-            (w * workspace_number(config, "desktop_head_percent", 20, 70)? / 100).clamp(3, w - 4);
+        let left = (w * workspace_number(config, "head_percent", 20, 70)? / 100).clamp(3, w - 4);
         rect.branch(
             true,
             &[

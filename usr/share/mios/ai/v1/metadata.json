@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3841,
-  "total_metadata_entries": 3148,
-  "total_hints": 3138,
+  "total_files_scanned": 3840,
+  "total_metadata_entries": 3147,
+  "total_hints": 3137,
   "total_functions_indexed": 1469,
-  "total_related_links": 5223,
+  "total_related_links": 5221,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -36063,18 +36063,6 @@
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
-    },
-    {
-      "path": "usr/share/mios/templates/cargo-manifest",
-      "hint": "Cargo manifest for {{name}} crate.",
-      "related": [
-        "tools/native/Cargo.toml",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
     },
     {
       "path": "usr/share/mios/templates/drift-check",

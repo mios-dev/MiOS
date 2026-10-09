@@ -19,6 +19,21 @@ fn string_at<'a>(config: &'a toml::Value, key: &str) -> Result<&'a str, String> 
         .ok_or_else(|| format!("SSOT {key} must be a nonempty string"))
 }
 
+/// A build argument names the SSOT key it carries. Naming another image TARGET
+/// (`build.images.<target>`) carries that target's tag: a dependent image
+/// layers on the image this run builds, declared as the dependency it is
+/// rather than as a second copy of the target's `tag_key`.
+fn build_arg_at<'a>(config: &'a toml::Value, key: &str) -> Result<&'a str, String> {
+    let node = key.split('.').try_fold(config, |node, part| node.get(part));
+    match node
+        .and_then(|n| n.get("tag_key"))
+        .and_then(toml::Value::as_str)
+    {
+        Some(tag_key) if node.is_some_and(toml::Value::is_table) => string_at(config, tag_key),
+        _ => string_at(config, key),
+    }
+}
+
 pub fn image_plan(
     root: &Path,
     config: &toml::Value,
@@ -104,7 +119,7 @@ pub fn image_plan(
                     .ok_or("image build argument must reference an SSOT key")?;
                 args.extend([
                     "--build-arg".into(),
-                    format!("{arg}={}", string_at(config, key)?),
+                    format!("{arg}={}", build_arg_at(config, key)?),
                 ]);
             }
         }
@@ -240,6 +255,33 @@ mod tests {
         .unwrap();
         assert_eq!(ran, ["os", "os:runtime", "os:artifacts"]);
         assert!(plan[2].args.contains(&"native-runtime-check".into()));
+    }
+    #[test]
+    fn a_build_arg_naming_a_target_carries_that_targets_tag() {
+        let (dir, mut config) = fixture();
+        std::fs::write(dir.path().join("Dev"), "FROM x\n").unwrap();
+        let images = config["build"]["images"].as_table_mut().unwrap();
+        images.insert(
+            "order".into(),
+            toml::Value::try_from(["os", "dev"]).unwrap(),
+        );
+        images.insert(
+            "dev".into(),
+            toml::from_str::<toml::Value>(
+                "containerfile=\"Dev\"\ntag_key=\"image.local_tag\"\nbuild_args={REF=\"build.images.os\"}",
+            )
+            .unwrap(),
+        );
+        let plan = image_plan(dir.path(), &config, "dev").unwrap();
+        assert!(plan[0]
+            .args
+            .contains(&"REF=localhost/operator-edited:latest".into()));
+        // Retargeting the os image's tag moves the dependent build with it.
+        config["build"]["images"]["os"]["tag_key"] = toml::Value::String("image.base".into());
+        let plan = image_plan(dir.path(), &config, "dev").unwrap();
+        assert!(plan[0]
+            .args
+            .contains(&"REF=registry.example/operator-base:custom".into()));
     }
     #[test]
     fn missing_dependencies_fail_and_prevent_later_targets() {

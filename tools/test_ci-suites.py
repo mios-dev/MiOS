@@ -310,7 +310,7 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
 
     def test_local_build_must_layer_on_the_os_tag(self):
         src = Path(_ROOT, "usr/share/mios/mios.toml").read_text(encoding="utf-8")
-        line = 'build_args = { MIOS_IMAGE_REF = "image.local_tag" }'
+        line = 'build_args = { MIOS_IMAGE_REF = "build.images.os" }'
         self.assertEqual(1, src.count(line))
         with tempfile.TemporaryDirectory() as d:
             for rel in ("usr/share/mios", ".devcontainer"):
@@ -319,8 +319,10 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
             toml = os.path.join(d, "usr/share/mios/mios.toml")
             Path(toml).write_text(src, encoding="utf-8")
             self.assertEqual([], MOD.devcontainer_check(d))
-            Path(toml).write_text(src.replace(line, 'build_args = { MIOS_IMAGE_REF = "image.ref" }'), encoding="utf-8")
-            self.assertTrue(any("would not layer on the image it built" in e for e in MOD.devcontainer_check(d)))
+            # A registry ref, or a copy of the os tag_key instead of the os target.
+            for wrong in ("image.ref", "image.local_tag"):
+                Path(toml).write_text(src.replace(line, 'build_args = { MIOS_IMAGE_REF = "%s" }' % wrong), encoding="utf-8")
+                self.assertTrue(any("would not layer on the image it built" in e for e in MOD.devcontainer_check(d)), wrong)
 
     def test_check_reports_a_planted_devcontainer_install(self):
         """End to end through cmd_check: the gate the CI job runs goes red."""

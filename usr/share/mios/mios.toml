@@ -1904,10 +1904,12 @@ build_args = { BASE_IMAGE = "image.base" }
 
 # The dev container is the OS image plus container wiring: it layers on the
 # image this run has just built, never on a registry copy of an older one.
+# A build argument naming a target carries that target's tag, so the os
+# target's tag_key is declared once and followed here.
 [build.images.devcontainer]
 containerfile = ".devcontainer/Containerfile"
 tag_key = "image.dev_local_tag"
-build_args = { MIOS_IMAGE_REF = "image.local_tag" }
+build_args = { MIOS_IMAGE_REF = "build.images.os" }
 
 # Native executable roles are distinct; libraries remain shared workspace code.
 # Category membership and installation are consumed by miosd native-targets.
@@ -3253,7 +3255,7 @@ offload_cpu          = false
 lane_tool_cap        = "igpu:12,mobile:12"
 default_tool_cap     = 16
 no_tool_choice_hints = "8540,11436"          # host:port substrings whose llama.cpp rejects tool_choice=required
-parallel_tools_hints = "8520"                    # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
+parallel_tools_hints = "llm_heavy"               # [ports] keys (or host:port substrings) whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 kv_paging_enable  = true     # master switch; only ACTS on llama.cpp /slots endpoints
 kv_paging_hints   = "8540,11436"  # host:port substrings that speak llama.cpp /slots (default the iGPU lane)
@@ -3751,12 +3753,13 @@ enabled = true
 tui_python = "python3"         # shared Fedora Textual/Rich packages
 head_agent = ""                # empty opens the client chooser; NAME bypasses it
 worker_panes = 4
-desktop_head_percent = 38           # Golden ratio: head 38.2% on LEFT, monitor 61.8% on RIGHT
+# Golden ratio: the head's share (38.2%) of EVERY head/monitor split -- this
+# workspace and the Windows Terminal monitor ([terminal.monitor]). The monitor
+# takes the rest: on the RIGHT in landscape, on TOP in portrait.
+head_percent = 38
 desktop_min_columns = 100
 desktop_min_rows = 32
 portrait_ratio_percent = 200
-portrait_observer_percent = 62        # Golden ratio: monitor 61.8% on TOP, head 38.2% on BOTTOM
-mobile_observer_percent = 62          # Golden ratio: mobile portrait monitor 61.8% on TOP
 minimum_head_rows = 16
 worker_min_columns = 12
 workers_window_name = "MiOS AI Workers"
@@ -8504,10 +8507,6 @@ window_name         = "MiOS-Monitor"
 title               = "MiOS Build Monitor"
 cols                = 80
 rows                = 20      # 80x20 is the native SSOT size globally
-split_landscape_head    = 38  # Golden ratio: head 38.2% on LEFT
-split_landscape_monitor = 62  # Golden ratio: monitor 61.8% on RIGHT
-split_portrait_monitor  = 62  # Golden ratio: monitor 61.8% on TOP
-split_portrait_head     = 38  # Golden ratio: head 38.2% on BOTTOM
 worker_split_percent    = 50  # fullscreen right-side worker grid
 
 [terminal.reading]
@@ -8847,7 +8846,9 @@ require_admin       = true       # auto-elevation handles this; check is informa
 # BUILD-host readiness: the above gate an install, these gate `just build`.
 [preflight.build]
 required_tools    = ["podman", "git", "just"]
-required_files    = ["Containerfile"]
+# Beyond each [build.images.<target>].containerfile, which the probe reads from
+# there: list only files the build needs that no image target declares.
+required_files    = []
 min_disk_free_gb  = 20           # working space for one image build, not the install
 
 # ----------------------------------------------------------------------------
@@ -11542,7 +11543,7 @@ emit = "file"
 match = "^tools/native/[\\w-]+/Cargo\\.toml$"
 comment = "hash"
 required_header = true
-required_markers = ["[package]", "name ="]
+required_markers = ["[package]", "name =", "version.workspace = true"]
 generated = false
 scaffold = true
 dest_dir = "tools/native"
@@ -11722,18 +11723,6 @@ scaffold = true
 dest_dir = "usr/share/containers/systemd"
 name_prefix = "mios-"
 name_suffix = ".volume"
-emit = "file"
-
-[templates.cargo-manifest]
-match = "^tools/native/[\\w-]+/Cargo\\.toml$"
-comment = "hash"
-required_header = true
-required_markers = ["[package]", "name =", "version.workspace = true"]
-generated = false
-scaffold = true
-dest_dir = "tools/native"
-name_prefix = ""
-name_suffix = "/Cargo.toml"
 emit = "file"
 
 # mios-dotfiles-render templates: JSON/CSS/INI bodies cannot all carry a hash
@@ -13400,8 +13389,13 @@ max_untested_crates = 0
 # Maps script domains and existing crates to destination static binaries,
 # lifecycle roles, install directories, and responsible owners (T-1197).
 # Ownership gate: mios-gate rust-categories.
+# Owner lanes and install roles are declared once each, in [rust.categories.owners]
+# and [rust.categories.roles], as lists of categories (every category in exactly
+# one of each). A role names its [build.native.categories.<role>] table, which
+# owns the install directory. A destination binary's own crate is implied by
+# binary=; crates= lists only the other crates folded into it.
 # Script layer: scope= globs claim the scripts a category owns for porting;
-# exempt categories (binary = "exempt") carry their reason in description=;
+# exempt categories (role exempt, no binary) carry their reason in description=;
 # universe= fixes the script roots the gate must account for, and max_unowned
 # is the shrink-only ceiling for scripts no category claims yet (T-1197).
 # A replaces= entry is ported-and-deleted evidence: the named script must be
@@ -13418,11 +13412,25 @@ universe = [
   "usr/share/mios/windows/", "installation/", "tests/", ".",
 ]
 
+[rust.categories.owners]
+port-lane = ["gate", "gen"]
+native-tier = [
+  "resolver", "serve", "probe", "install", "build", "task", "node", "apps",
+  "wallpaperd", "daemon_meta",
+]
+agent-plane = ["ai-plane"]
+build-lane = ["automation-glue"]
+qa-lane = ["tests"]
+
+[rust.categories.roles]
+cli = ["gate", "gen", "resolver", "probe", "install", "build", "task", "daemon_meta"]
+services = ["serve"]
+daemons = ["node", "wallpaperd"]
+apps = ["apps"]
+exempt = ["ai-plane", "automation-glue", "tests"]
+
 [rust.categories.gate]
 binary = "mios-gate"
-owner = "port-lane"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Standing policy gates, CI verifiers, and drift checkers"
 replaces = []
 scope = [
@@ -13432,15 +13440,12 @@ scope = [
   "usr/lib/mios/mios_comments.py",
 ]
 crates = [
-  "mios-gate", "mios-aiplane-lint", "mios-comment-lex", "mios-drift-runner",
-  "mios-hardcode-lint", "mios-size-ceiling", "mios-ssot-lint", "mios-version-check",
+  "mios-aiplane-lint", "mios-comment-lex", "mios-drift-runner", "mios-hardcode-lint",
+  "mios-size-ceiling", "mios-ssot-lint", "mios-version-check",
 ]
 
 [rust.categories.gen]
 binary = "mios-gen"
-owner = "port-lane"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Configuration generators, Quadlet renderers, and document projectors"
 replaces = [
   "tools/generate-names-registry.py",
@@ -13474,30 +13479,22 @@ scope = [
   "usr/libexec/mios/ux/editor_config_gen.py", "usr/libexec/mios/ux/wm_config_gen.py",
 ]
 crates = [
-  "generate-names-registry", "mios-gen", "mios-render-quadlets", "mios-unit-gen",
+  "generate-names-registry", "mios-render-quadlets", "mios-unit-gen",
   "mios-template-compile", "mios-template-conform",
 ]
 
 [rust.categories.resolver]
 binary = "mios-resolver"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Authoritative layered SSOT configuration reader and emitter"
 replaces = []
 scope = [
   "usr/lib/mios/mios_toml.py", "tools/lib/userenv.sh", "tools/read-ssot-key.py",
   "tools/refresh-env.py",
 ]
-crates = [
-  "mios-resolver", "mios-toml-get", "mios-ai-config", "mios-ssot-walk", "mios-config",
-]
+crates = ["mios-toml-get", "mios-ai-config", "mios-ssot-walk", "mios-config"]
 
 [rust.categories.serve]
 binary = "mios-serve"
-owner = "native-tier"
-install_dir = "/usr/libexec/mios"
-role = "services"
 description = "System daemons, MCP runner, and background workers"
 replaces = []
 scope = [
@@ -13519,9 +13516,6 @@ crates = ["mios-agent-relay", "mios-service-core"]
 
 [rust.categories.probe]
 binary = "mios-probe"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Host readiness, hardware capabilities, and preflight probing"
 replaces = []
 scope = [
@@ -13530,13 +13524,10 @@ scope = [
   "tools/system-profiler.sh", "tools/run-all-profilers.sh",
   "tools/profile-compare.sh", "tools/fetch-image-facts.sh",
 ]
-crates = ["mios-probe", "mios-edge-status"]
+crates = ["mios-edge-status"]
 
 [rust.categories.install]
 binary = "mios-install"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Bare-metal deployment, bootstrap engine, and OS installer"
 replaces = []
 scope = [
@@ -13548,13 +13539,9 @@ scope = [
   "usr/share/mios/windows/mios-ai-node.ps1",
   "tools/install.sh",
 ]
-crates = ["mios-install"]
 
 [rust.categories.build]
 binary = "mios-build"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Native compilation, phase registry validation, and artifact packaging"
 replaces = []
 scope = [
@@ -13572,59 +13559,36 @@ scope = [
   "usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1",
   "usr/share/mios/windows/mios-wsl-keepalive.ps1",
 ]
-crates = ["mios-build", "mios-bake-plan", "mios-toolchain-pin", "xtask"]
+crates = ["mios-bake-plan", "mios-toolchain-pin", "xtask"]
 
 [rust.categories.task]
 binary = "mios-task"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "Dev-loop task ledger and queue management (tasks.jsonl)"
 replaces = []
-crates = ["mios-task"]
 
 [rust.categories.node]
 binary = "mios-node"
-owner = "native-tier"
-install_dir = "/usr/libexec/mios"
-role = "daemons"
 description = "MiOS edge mesh VPN coordinator and node daemon"
 replaces = []
-crates = ["mios-node"]
 
 [rust.categories.apps]
 binary = "mios-launch"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "apps"
 description = "Windows native terminal launcher and desktop client"
 replaces = []
-crates = ["mios-launch", "mios-browser"]
+crates = ["mios-browser"]
 
 [rust.categories.wallpaperd]
 binary = "mios-wallpaperd"
-owner = "native-tier"
-install_dir = "/usr/libexec/mios"
-role = "daemons"
 description = "Dynamic live wallpaper daemon and directX GPU supervisor"
 replaces = []
-crates = ["mios-wallpaperd"]
 
 [rust.categories.daemon_meta]
 binary = "miosd"
-owner = "native-tier"
-install_dir = "/usr/bin"
-role = "cli"
 description = "System management meta-CLI and execution dispatcher"
 replaces = []
-crates = ["miosd"]
 
 # -- Exempt script domains (ADR-0011 language-per-domain; NOT porting targets) --
 [rust.categories.ai-plane]
-binary = "exempt"
-owner = "agent-plane"
-install_dir = ""
-role = "exempt"
 description = "Python AI plane exempt per [legibility].python_ai_plane_prefixes: agent-pipe, agents, gateway-agent, OWUI pipes, hermes support tooling"
 replaces = []
 crates = []
@@ -13635,20 +13599,12 @@ scope = [
 ]
 
 [rust.categories.automation-glue]
-binary = "exempt"
-owner = "build-lane"
-install_dir = ""
-role = "exempt"
 description = "Bash thin glue per ADR-0011: the automation NN-* boundary steps stay bash; a porting category scope overrides this claim where a stage converts"
 replaces = []
 crates = []
 scope = ["automation/**/*.sh"]
 
 [rust.categories.tests]
-binary = "exempt"
-owner = "qa-lane"
-install_dir = ""
-role = "exempt"
 description = "Test suites port only with the surface they guard; tools/test_*.py are the python gates' own unit tests"
 replaces = []
 crates = []

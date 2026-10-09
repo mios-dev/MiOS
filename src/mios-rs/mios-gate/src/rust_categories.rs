@@ -12,7 +12,29 @@ const SSOT: &str = "usr/share/mios/mios.toml";
 const EXEMPT: &str = "exempt";
 /// [rust.categories] keys that configure the gate itself; every other key is
 /// a category table.
-const META_KEYS: [&str; 4] = ["doc", "binaries", "max_unowned", "universe"];
+const META_KEYS: [&str; 6] = [
+    "doc",
+    "binaries",
+    "max_unowned",
+    "universe",
+    "owners",
+    "roles",
+];
+/// Keys a category table must not carry, each with the one place it is declared.
+const RESTATED_KEYS: [(&str, &str); 3] = [
+    (
+        "owner",
+        "[rust.categories.owners] lists every category under its lane",
+    ),
+    (
+        "role",
+        "[rust.categories.roles] lists every category under its role",
+    ),
+    (
+        "install_dir",
+        "its role's [build.native.categories.<role>].install_dir is the one declaration",
+    ),
+];
 /// How many unowned examples to list before truncating to the summary.
 const MAX_EXAMPLES: usize = 20;
 
@@ -82,6 +104,40 @@ fn tracked_files(root: &Path) -> Result<Vec<String>, String> {
         .map(|l| l.trim().replace('\\', "/"))
         .filter(|l| !l.is_empty())
         .collect())
+}
+
+/// `[rust.categories.<key>]` (`label = [category, ...]`) read as
+/// `category -> [label, ...]`, so a category under no label or several is
+/// visible to the caller.
+fn memberships(
+    categories: &toml::Table,
+    key: &str,
+    findings: &mut Vec<String>,
+) -> BTreeMap<String, Vec<String>> {
+    let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let Some(table) = categories.get(key).and_then(|v| v.as_table()) else {
+        findings.push(format!(
+            "[rust.categories.{key}] is missing -- each category's entry is declared there, once per label"
+        ));
+        return out;
+    };
+    for (label, list) in table {
+        let Some(list) = list.as_array() else {
+            findings.push(format!(
+                "[rust.categories.{key}].{label} is not a list of categories"
+            ));
+            continue;
+        };
+        for cat in list {
+            match cat.as_str() {
+                Some(c) => out.entry(c.to_string()).or_default().push(label.clone()),
+                None => findings.push(format!(
+                    "[rust.categories.{key}].{label} holds a non-string entry"
+                )),
+            }
+        }
+    }
+    out
 }
 
 struct Category {
@@ -163,6 +219,26 @@ pub fn check(root: &Path) -> Report {
     }
 
     // --- 1. audit each category table ---------------------------------------
+    // Owner and role labels are declared ONCE each, as lists of categories:
+    // repeating `owner = "native-tier"` in ten tables stated one label ten
+    // times, and a typo in one of them passed every presence check.
+    let owners = memberships(categories, "owners", &mut findings);
+    let roles = memberships(categories, "roles", &mut findings);
+    for (key, listed) in [("owners", &owners), ("roles", &roles)] {
+        for cat in listed.keys() {
+            if META_KEYS.contains(&cat.as_str())
+                || !categories.get(cat).is_some_and(toml::Value::is_table)
+            {
+                findings.push(format!(
+                    "[rust.categories.{key}] lists '{cat}', which is no [rust.categories] category"
+                ));
+            }
+        }
+    }
+    let native_roles = ssot_val
+        .get("build")
+        .and_then(|b| b.get("native"))
+        .and_then(|n| n.get("categories"));
     let mut cats: BTreeMap<String, Category> = BTreeMap::new();
     let mut replaces_claims: usize = 0;
     for (cat_name, cat_val) in categories {
@@ -174,77 +250,129 @@ pub fn check(root: &Path) -> Report {
             continue;
         };
 
-        // Owner check
-        match table.get("owner").and_then(|o| o.as_str()) {
-            Some(owner) if !owner.trim().is_empty() => {}
-            _ => findings.push(format!("category '{cat_name}' has no owner specified")),
+        // A per-category copy of a fact declared elsewhere is a second
+        // declaration that can disagree with the first.
+        for (key, owner) in RESTATED_KEYS {
+            if table.contains_key(key) {
+                findings.push(format!(
+                    "category '{cat_name}' declares {key} inline -- {owner}"
+                ));
+            }
         }
+        match owners.get(cat_name).map(Vec::as_slice) {
+            Some([_]) => {}
+            Some(many) if many.len() > 1 => findings.push(format!(
+                "category '{cat_name}' is listed under {} owners ({}) -- one category, one owner",
+                many.len(),
+                many.join(", ")
+            )),
+            _ => findings.push(format!(
+                "category '{cat_name}' has no owner -- list it under one [rust.categories.owners] lane"
+            )),
+        }
+        let role = match roles.get(cat_name).map(Vec::as_slice) {
+            Some([role]) => Some(role.as_str()),
+            Some(many) if many.len() > 1 => {
+                findings.push(format!(
+                    "category '{cat_name}' is listed under {} roles ({}) -- one category, one role",
+                    many.len(),
+                    many.join(", ")
+                ));
+                None
+            }
+            _ => {
+                findings.push(format!(
+                    "category '{cat_name}' has no role specified -- list it under one [rust.categories.roles] role"
+                ));
+                None
+            }
+        };
+        let is_exempt = role == Some(EXEMPT);
 
-        // Binary check: non-empty, and inside the allowed set unless exempt.
+        // Binary: an exemption has none and must say why; a porting category
+        // targets a binary inside the allowed set.
         let binary = table.get("binary").and_then(|b| b.as_str()).unwrap_or("");
-        match binary {
-            b if b.trim().is_empty() => {
-                findings.push(format!("category '{cat_name}' has no destination binary"));
+        if is_exempt {
+            if table.contains_key("binary") {
+                findings.push(format!(
+                    "category '{cat_name}' is exempt but names a binary -- an exemption has no destination"
+                ));
             }
-            EXEMPT => {
-                let reason = table
-                    .get("description")
-                    .and_then(|d| d.as_str())
-                    .unwrap_or("");
-                if reason.trim().is_empty() {
-                    findings.push(format!(
-                        "category '{cat_name}' is exempt but carries no description -- an exemption without its reason cannot be reviewed"
-                    ));
-                }
+            let reason = table
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("");
+            if reason.trim().is_empty() {
+                findings.push(format!(
+                    "category '{cat_name}' is exempt but carries no description -- an exemption without its reason cannot be reviewed"
+                ));
             }
-            b => {
-                if !binaries.is_empty() && !binaries.contains(b) {
-                    findings.push(format!(
-                        "category '{cat_name}' targets binary '{b}', which [rust.categories].binaries does not list"
-                    ));
-                }
-            }
-        }
-        let is_exempt = binary == EXEMPT;
-
-        // Shape checks an exemption does not need: install_dir, role, crates.
-        if !is_exempt {
-            match table.get("install_dir").and_then(|d| d.as_str()) {
-                Some(dir) if !dir.trim().is_empty() => {}
-                _ => findings.push(format!("category '{cat_name}' has no install_dir")),
-            }
-            match table.get("role").and_then(|r| r.as_str()) {
-                Some(role) if !role.trim().is_empty() => {}
-                _ => findings.push(format!("category '{cat_name}' has no role specified")),
-            }
+        } else if binary.trim().is_empty() {
+            findings.push(format!("category '{cat_name}' has no destination binary"));
+        } else if !binaries.is_empty() && !binaries.contains(binary) {
+            findings.push(format!(
+                "category '{cat_name}' targets binary '{binary}', which [rust.categories].binaries does not list"
+            ));
         }
 
-        // Crates check: a listed crate must exist in one of the two workspaces.
-        if let Some(crate_list) = table.get("crates").and_then(|c| c.as_array()) {
-            if crate_list.is_empty() && !is_exempt {
-                findings.push(format!("category '{cat_name}' defines no crates"));
+        // The role names the build table that owns the install directory.
+        if let (false, Some(role)) = (is_exempt, role) {
+            let dir = native_roles
+                .and_then(|r| r.get(role))
+                .and_then(|t| t.get("install_dir"))
+                .and_then(|d| d.as_str())
+                .unwrap_or("");
+            if dir.trim().is_empty() {
+                findings.push(format!(
+                    "category '{cat_name}' has role '{role}', but [build.native.categories.{role}] declares no install_dir -- the role is where its binary installs"
+                ));
             }
-            for cr in crate_list {
-                let Some(crate_name) = cr.as_str() else {
-                    findings.push(format!(
-                        "category '{cat_name}' contains non-string crate entry"
-                    ));
-                    continue;
-                };
-                cataloged_crates.insert(crate_name.to_string());
+        }
 
-                let in_native = root
-                    .join("tools/native")
-                    .join(crate_name)
-                    .join("Cargo.toml");
-                let in_src = root.join("src/mios-rs").join(crate_name).join("Cargo.toml");
-                if !in_native.is_file() && !in_src.is_file() {
-                    findings.push(format!(
-                        "category '{cat_name}' references crate '{crate_name}', but no Cargo.toml found in tools/native/ or src/mios-rs/"
-                    ));
-                }
+        // Crates: the destination binary's own crate is implied by `binary`;
+        // `crates` lists only the others whose code folds into it.
+        let crate_exists = |name: &str| {
+            root.join("tools/native")
+                .join(name)
+                .join("Cargo.toml")
+                .is_file()
+                || root
+                    .join("src/mios-rs")
+                    .join(name)
+                    .join("Cargo.toml")
+                    .is_file()
+        };
+        let mut owned_crates = 0usize;
+        if !is_exempt && !binary.trim().is_empty() && crate_exists(binary) {
+            cataloged_crates.insert(binary.to_string());
+            owned_crates += 1;
+        }
+        for cr in table
+            .get("crates")
+            .and_then(|c| c.as_array())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+        {
+            let Some(crate_name) = cr.as_str() else {
+                findings.push(format!(
+                    "category '{cat_name}' contains non-string crate entry"
+                ));
+                continue;
+            };
+            if crate_name == binary {
+                findings.push(format!(
+                    "category '{cat_name}' lists its own destination crate '{crate_name}' -- binary already says so"
+                ));
             }
-        } else if !is_exempt {
+            cataloged_crates.insert(crate_name.to_string());
+            owned_crates += 1;
+            if !crate_exists(crate_name) {
+                findings.push(format!(
+                    "category '{cat_name}' references crate '{crate_name}', but no Cargo.toml found in tools/native/ or src/mios-rs/"
+                ));
+            }
+        }
+        if owned_crates == 0 && !is_exempt {
             findings.push(format!("category '{cat_name}' defines no crates"));
         }
 
@@ -466,11 +594,11 @@ mod tests {
     }
 
     fn registry(kind: &str) -> String {
-        let base = "[rust.categories]\nbinaries = [\"mios-serve\"]\nmax_unowned = 0\nuniverse = [\"usr/libexec/mios/\", \"usr/lib/mios/\", \".\"]\n[rust.categories.serve]\nowner = \"port-lane\"\nbinary = \"mios-serve\"\ninstall_dir = \"/usr/libexec/mios\"\nrole = \"services\"\ncrates = [\"mios-serve\"]\nscope = [\"usr/libexec/mios/db/*.py\"]\n[rust.categories.ai-plane]\nowner = \"agent-plane\"\nbinary = \"exempt\"\ndescription = \"python AI plane\"\nscope = [\"usr/lib/mios/agent-pipe/**\"]\n";
+        let base = "[rust.categories]\nbinaries = [\"mios-serve\"]\nmax_unowned = 0\nuniverse = [\"usr/libexec/mios/\", \"usr/lib/mios/\", \".\"]\n[rust.categories.owners]\nport-lane = [\"serve\"]\nagent-plane = [\"ai-plane\"]\n[rust.categories.roles]\nservices = [\"serve\"]\nexempt = [\"ai-plane\"]\n[rust.categories.serve]\nbinary = \"mios-serve\"\nscope = [\"usr/libexec/mios/db/*.py\"]\n[rust.categories.ai-plane]\ndescription = \"python AI plane\"\nscope = [\"usr/lib/mios/agent-pipe/**\"]\n[build.native.categories.services]\ninstall_dir = \"/usr/libexec/mios\"\n";
         match kind {
-            "missing_owner" => base.replace("owner = \"port-lane\"\n", ""),
+            "missing_owner" => base.replace("port-lane = [\"serve\"]\n", ""),
             "bad_binary" => {
-                base.replace("binary = \"mios-serve\"\ninstall", "binary = \"mios-nonsense\"\ninstall")
+                base.replace("binary = \"mios-serve\"\nscope", "binary = \"mios-nonsense\"\nscope")
             }
             "dead_glob" => base.replace(
                 "scope = [\"usr/libexec/mios/db/*.py\"]",
@@ -483,8 +611,13 @@ mod tests {
             ),
             "overlap" => base.replace(
                 "[rust.categories.ai-plane]",
-                "[rust.categories.second]\nowner = \"port-lane\"\nbinary = \"mios-serve\"\ninstall_dir = \"/usr/bin\"\nrole = \"cli\"\ncrates = []\nscope = [\"usr/libexec/mios/db/*.py\"]\n\n[rust.categories.ai-plane]",
+                "[rust.categories.second]\nbinary = \"mios-serve\"\nscope = [\"usr/libexec/mios/db/*.py\"]\n\n[rust.categories.ai-plane]",
             ),
+            "restated" => base.replace(
+                "binary = \"mios-serve\"\nscope",
+                "binary = \"mios-serve\"\nrole = \"services\"\ncrates = [\"mios-serve\"]\nscope",
+            ),
+            "two_owners" => base.replace("agent-plane = [\"ai-plane\"]", "agent-plane = [\"ai-plane\", \"serve\"]"),
             "missing_registry" => "meta = 1\n".to_string(),
             _ => base.to_string(),
         }
@@ -525,6 +658,36 @@ mod tests {
             r.findings
                 .iter()
                 .any(|f| f.contains("'serve' has no owner")),
+            "findings: {:#?}",
+            r.findings
+        );
+    }
+
+    #[test]
+    fn a_fact_restated_in_a_category_fails() {
+        // The role list and the binary already say both of these.
+        let r = check(&fixture("restated"));
+        assert!(!r.ok);
+        for needle in [
+            "'serve' declares role inline",
+            "lists its own destination crate 'mios-serve'",
+        ] {
+            assert!(
+                r.findings.iter().any(|f| f.contains(needle)),
+                "{needle}: {:#?}",
+                r.findings
+            );
+        }
+    }
+
+    #[test]
+    fn a_category_under_two_owners_fails() {
+        let r = check(&fixture("two_owners"));
+        assert!(!r.ok);
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.contains("'serve' is listed under 2 owners")),
             "findings: {:#?}",
             r.findings
         );
