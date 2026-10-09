@@ -43,6 +43,11 @@ passes on the real tree or system) and a negative control (a planted defect make
 - **M0, current:** recover Codex thread 01a116b2 (unified build console, native dashboard, Windows
   tmux profile, native drift checks) and push PR #61 with drift-gate green (0 MISSING) and the
   CodeQL highs fixed. Merge to main once CI is green and the operator confirms.
+- **M0.5, before the merge that publishes `:latest`** (from `docs/research/upstream-prior-art-gaps-2026-10.md`):
+  - P0-2: move the source-tree gates (phases 97/98, `miosd drift-check`) out of the Containerfile bake; the bake keeps image-content assertions only.
+  - P1-4: stop baking the known password `mios` into `/etc/shadow`; inject credentials at install.
+  - P0-7: condition off the simulated attestation server.
+  - P0-4: lock down `miosd config-server` (same-origin, Host allowlist, per-launch token, no secrets on GET).
 - **M1:** run the literal Windows `irm | iex` bootstrap through to a full SSOT-derived install and build (SC-6).
 - **M2:** MiOS-MODULES consolidation plan. Map the ~40 binaries into domain modules, extending
   `miosd`'s multi-call pattern, and set the SSOT binary-count ceiling. The operator's rule
@@ -65,13 +70,30 @@ passes on the real tree or system) and a negative control (a planted defect make
   Operator rule (2026-10-08): mios.html is THE setup interface, and no operator should have to
   hand-edit or check other files. It must use progressive disclosure: essentials up front, with
   excess toggles and settings behind an **Admin settings / Extras** sub-menu for power users, so
-  the default view is not overwhelming. Recommended design: the TOML script-island in mios.html as authority with
+  the default view is not overwhelming. 
+  **Research correction (2026-10-08, brief §2 P0-5/P0-6, §3 P1-21/P1-22):**
+  - The page lives in immutable `/usr`, so it cannot be the authority.
+  - The page keeps a JSON view and POSTs key-level patches `[{path, op: set|unset, value}]`. `mios-resolve set` applies them with toml_edit 0.25 into the tier each key declares (`x-mios-tier`). Host-tier writes go over a `SO_PEERCRED` socket. The same Rust core is inlined as wasm32 for `file://`.
+  - The browser-side TOML parser corrupts 150 non-empty values today, so a no-op save must change zero keys.
+  - Build the Admin settings / Extras panel from per-key `x-mios-ui.level` (essential | advanced | internal) and group metadata, not from hand-placed markup. Home Assistant is removing its single global Advanced switch in favour of per-group sections.
+  - Secrets render as write-only fields stored through systemd-creds.
+
+  Superseded draft design: the TOML script-island in mios.html as authority with
   `data-key` form bindings, `toml_edit` for comment-preserving writes into the host or user layer
   (`/etc/mios/mios.toml`; never `/usr`), write-tmp + fsync + rename + dir-fsync, SSE or
   peer-credential UDS back to the page, and section-scoped last-write-wins on conflict. Per SC-2, build
   it as a `miosd` subcommand (one MiOS-MODULE), not a new `mios-syncd` binary. mios.html already
   POSTs `/portal/config` when embedded and falls back to File System Access or download.
 - **M5:** self-build on installed MiOS (SC-7).
+- **Cloud/dev hosts (brief P0-8, P0-9):**
+  - The hosted sandboxes cannot hold the full image (~49 GB unpacked):
+    - Claude Code cloud has 30 GB of disk.
+    - Codex cloud has 8 GiB (Plus) or 32 GiB (Pro/Business/Enterprise).
+  - "These environments are MiOS containers" therefore needs either:
+    - a slim `mios-dev` variant (no bound images, models, flatpaks or desktop; under 30 GB), or
+    - a Claude Code self-hosted runner Quadlet built FROM `[image].ref` on MiOS-DEV or Metal.
+  - Codespaces (128 GB) can take the full image.
+  - "bootc switch → MiOS-DEV IS MiOS" is impossible on the WSL podman-machine provider; it needs `[bootstrap.dev_vm].provider = "hyperv"` and `podman machine os apply`.
 - **M6:** shallow-tree collapse (SC-9), in batches, after PR #61 is green. Each batch rewrites every
   consumer (code, units, CI, Containerfile, docs and links), re-runs `mios-gen sync` and the full gate,
   and drops no feature. Reference counts below were measured on 2026-10-08 and exclude generated
