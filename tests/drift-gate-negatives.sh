@@ -5488,6 +5488,14 @@ test_dotfiles_projection() {
 
     _neg_gate check_dotfiles_projection || { _dp_restore; die "check_dotfiles_projection is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
 
+    # (0) The theme leg: a hand edit to a registered surface goes red naming the
+    # surface. btop is the one two renderers write, so it is the one to plant in.
+    local theme="${ROOT}/etc/btop/themes/mios.theme" bak_th; bak_th="$(mktemp)"; cp "$theme" "$bak_th"
+    printf '\n# devloop planted mutation\ntheme[title]="#000001"\n' >> "$theme"
+    _neg_gate check_dotfiles_projection && { cp "$bak_th" "$theme"; rm -f "$bak_th"; _dp_restore; die "check_dotfiles_projection passed with a hand-edited btop theme"; }
+    cp "$bak_th" "$theme"; rm -f "$bak_th"
+    grep -q "btop: etc/btop/themes/mios.theme drifted" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the btop surface: ${_NEG_GATE_OUT}"; }
+
     # (1) A desktop-only key back on an API-applied surface must go red naming
     # the file AND the key (ADR-0024).
     python3 - "$surface" <<'PY'
