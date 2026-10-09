@@ -4866,13 +4866,23 @@ test_build_tool_dispatch() {
     # from the register, which is a violation on its own.
     sed -i 's/^max_unreachable = [0-9]*$/max_unreachable = 999/' "$toml"
     _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed with a plant hidden under a raised ceiling"
-    cp "$bak" "$toml"; rm -f "$planted"
-    # The half that proves the check RESOLVES rather than counting strings:
-    # giving the binary a PATH location makes every miosd gate reachable, so
-    # the register must read as stale rather than silently staying green.
+    cp "$bak" "$toml"
+    # The half that proves the check RESOLVES rather than counting strings: the
+    # plant, REGISTERED, is accepted; giving its binary a PATH location makes it
+    # reachable, so the register must read as stale rather than staying green.
+    # (T-1018 emptied the shipped register, so the plant supplies the entry.)
+    python3 - "$toml" "${planted#"${ROOT}"/}" <<'PYEOF'
+import re, sys
+p, rel = sys.argv[1:3]
+s = open(p).read()
+m = re.search(r'(\[build\.tool_dispatch\][^\[]*?max_unreachable = )(\d+)(\nunreachable = \[)', s, re.S)
+assert m, "the [build.tool_dispatch] register was not found -- the mutation would prove nothing"
+open(p, "w").write(s[:m.start()] + m.group(1) + str(int(m.group(2)) + 1) + m.group(3) + '"%s", ' % rel + s[m.end():])
+PYEOF
+    _neg_gate check_build_tool_dispatch || _btd_fail "check_build_tool_dispatch rejected a registered unreachable gate: $_NEG_GATE_OUT"
     mkdir -p "${ROOT}/usr/bin"; : > "${ROOT}/usr/bin/miosd"
     _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed while its register described gates that had become reachable"
-    rm -f "${ROOT}/usr/bin/miosd"
+    rm -f "${ROOT}/usr/bin/miosd" "$planted"; cp "$bak" "$toml"
     # Deleting the register must read as unbounded debt, not as no debt.
     python3 - "$toml" <<'PYEOF'
 import re, sys
