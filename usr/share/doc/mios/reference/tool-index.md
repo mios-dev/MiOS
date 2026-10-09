@@ -38,7 +38,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-agents-firstboot.sh` | Build-if-missing bootstrap for the mios-agents A2O super-container image |
 | `usr/libexec/mios/mios-ai-capabilities-gen` | WS-2/WS-10 generator CLI -- regenerates (or --check verifies) the UNIFIED RBAC capability manifest ai/v1/capabilities.generated.json from the live mios.toml [verbs.*] + [recipes.*] SSOT, via the pure... |
 | `usr/libexec/mios/mios-ai-clear` | Executes a Day-0 global reset of the MiOS AI stack by purging all transient runtime states, Hermes cron jobs, OWUI data, and pgvector agent caches while preserving core identities and configurations. |
-| `usr/libexec/mios/mios-ai-firstboot` | Provisioning script that installs the hermes-agent Python venv and extracts llama.cpp GGUF models to enable AI services, creating a sentinel file to gate network-less boot retries. |
+| `usr/libexec/mios/mios-ai-firstboot` | Provisioning script that installs the hermes-agent Python venv and fetches llama.cpp GGUF models, vLLM weights and firstboot-tier images (unless [ai].firstboot_pulls is false), creating a sentinel... |
 | `usr/libexec/mios/mios-ai-hint-coverage` | AI-hint coverage fitness-function -- reuses the mios-ai-tag taggability |
 | `usr/libexec/mios/mios-ai-manifest-gen` | WS-A1 anti-drift generator CLI -- regenerates (or --check verifies) the ai/v1 verb-catalog manifest projection (ai/v1/tools.generated.json) from the live mios.toml [verbs.*] SSOT, via the pure... |
 | `usr/libexec/mios/mios-ai-metadata.py` | Extracts, aggregates, and validates native MiOS AI header metadata (hint, related, functions, doc) across all tracked source files and units into strict OpenAI-compatible schemas. |
@@ -321,7 +321,7 @@ is generated, its generator is here.
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
 | `tools/sync-bootstrap.py` | Compatibility CLI for native mios-gen bootstrap-sync; no Python mirror or silent fallback. |
 | `tools/sync-dotfiles.py` | Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects [dotfiles.devcontainer] and [workspace]... |
-| `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
+| `tools/test_audit_version_literals.py` | Black-box controls for the native version gate replacing the retired Python scanner. |
 | `tools/test_check-docs.py` | Sibling unit tests for tools/check-docs.py -- one suite per subcommand, each owning its counters and returning its own verdict. |
 | `tools/test_check-runtime.py` | Sibling unit tests for tools/check-runtime.py -- one suite per subcommand; the unittest suites run under one discovery pass, the script-style suites return their own verdict. |
 | `tools/test_check-ssot.py` | Sibling unit tests for tools/check-ssot.py -- one suite per subcommand. Class names are prefixed because five TestCase names collide across the merged sources. |
@@ -505,6 +505,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py` | Agent/node REGISTRY builders extracted verbatim from server.py (refactor R3/mios_agentreg wave). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/applet_webresearch.py` | Web-research SSE applet -- app-ifies the "Discovery / resolution" verb cluster (web_search/web_extract/crawl) as an HTML-over-S... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py` | The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_... |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/chat_history.py` | Chat CONVERSATION HISTORY -- the gateway session-replay store (Postgres gateway_sessions), the stale tool-result TTL drop and the evicted-turn summarizer, split out of chat.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py` | Layer-1 micro-LLM CLASSIFIER cluster, extracted verbatim from server.py |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py` | MiOS system and orchestration module providing constrained conductor capabilities. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/consensus.py` | Pure consensus math for multi-judge Definition-of-Done verdicts. |
@@ -526,6 +527,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/owui.py` | Adapter for Open WebUI requests that identifies and strips OWUI-specific RAG/task templates to isolate the raw user query from downstream processing in the agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/planner.py` | Planner / DAG-decomposition layer extracted verbatim from server.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py` | WEB PORTAL helper logic + PWA asset builders + the swarm-roster probe, extracted VERBATIM from server.py (refactor R10 wave). |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/portal_assets.py` | Portal STATIC ASSETS -- the SVG/PNG icons, PWA web manifest, service worker, sign-in page and the iOS embed test page, split out of portal.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py` | Portal terminal edge CSS from mios.toml [theme.edge] plus the patched ttyd -I page baked from [ttyd].version; pure, imports only mios_toml |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/provider_translate.py` | Pure cross-provider wire-format adapter extracted from server.py (refactor WS R2 leaf wave). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/pty.py` | Pure PTY-session protocol for the persistent shell substrate (SHELL-01). |
@@ -549,6 +551,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/turn.py` | PER-TURN message-prep + agent-selection helpers extracted VERBATIM from AI-related: ./server.py, ./mios_config.py, ./test_mios_turn.py AI-fun... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` | VERB/RECIPE CATALOG loader + 3-projection SSOT source, extracted verbatim from server.py (refactor R2 leaf wave). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py` | VISION + CLIENT-TOOLS responders extracted VERBATIM from server.py (refactor R9 wave). |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/vision_context.py` | Client-tools CONTEXT BUDGET -- tiered pruning that fits a caller's messages + tools[] into the tool backend's window (stale results, compaction, schema budget, truncation), split out of vision.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py` | WEB-RESEARCH enrichment subsystem extracted verbatim from server.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/__init__.py` | scheduler manager package |
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py` | Global priority-gate seam extracted from server.py; lane/endpoint semaphores and _admit live in mios_pipe/vram_scheduler.py. |
@@ -796,7 +799,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_translate.py` | Pure Python translation engine for loop.v1 events, Responses items, and cross-harness frame normalization. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 442 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 445 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

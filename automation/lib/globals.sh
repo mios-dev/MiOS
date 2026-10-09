@@ -145,9 +145,9 @@ _mios_input MIOS_SERVICES_ADGUARD_USER MIOS_ADGUARD_USER || { return 1 2>/dev/nu
 : "${MIOS_AGENTS_AI_LOCAL_MODEL:=qwen2.5-3b-instruct-4bit}"
 : "${MIOS_AGENTS_AI_LOCAL_ROLE:=mobile}"
 : "${MIOS_AGENTS_AI_LOCAL_STRENGTHS:=mobile_local_model,on_device,offline_edge}"
-_mios_input MIOS_PORTS_SGLANG MIOS_PORT_SGLANG MIOS_SGLANG_PORT || { return 1 2>/dev/null || exit 1; }
-: "${MIOS_PORTS_SGLANG:=8530}"
-[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
+_mios_input MIOS_PORTS_LLM_HEAVY MIOS_PORT_LLM_HEAVY MIOS_LLM_HEAVY_PORT || { return 1 2>/dev/null || exit 1; }
+: "${MIOS_PORTS_LLM_HEAVY:=8520}"
+[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_HEAVY:-}"'/v1'
 : "${MIOS_AGENTS_HERMES_CPU_MODEL:=mios-heavy}"
 : "${MIOS_AGENTS_HERMES_DEFAULT:=false}"
 _mios_input MIOS_PORTS_HERMES MIOS_PORT_HERMES MIOS_HERMES_PORT || { return 1 2>/dev/null || exit 1; }
@@ -162,7 +162,7 @@ _mios_input MIOS_AGENTS_HERMES_ENDPOINT MIOS_HERMES_WORKER_ENDPOINT || { return 
 : "${MIOS_AGENTS_HERMES_ROLE:=general}"
 : "${MIOS_AGENTS_HERMES_STRENGTHS:=kanban,web_search,skill_invocation,multi_step_reasoning,tool_use}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_DEFAULT:=false}"
-[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
+[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_HEAVY:-}"'/v1'
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FAILOVER_AGENTS:=hermes}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FANOUT:=true}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_HEALTH_GATE:=true}"
@@ -308,7 +308,7 @@ _mios_input MIOS_PATHS_AI_SYSTEM_PROMPT MIOS_AI_SYSTEM_PROMPT || { return 1 2>/d
 [ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_PATHS_AI_SYSTEM_PROMPT:-}"
 : "${MIOS_AI_TAG_HINT_MAX_CHARS:=260}"
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
-: "${MIOS_AI_TAG_MAX_UNTAGGED:=155}"
+: "${MIOS_AI_TAG_MAX_UNTAGGED:=1}"
 : "${MIOS_AI_TAG_TEACHER_MODEL:=granite4.1:3b}"
 : "${MIOS_AI_TAG_TEACHER_PORT_KEY:=llm_light}"
 : "${MIOS_ALIASES_BROWSER:=zen}"
@@ -448,7 +448,6 @@ _mios_input MIOS_AUTH_SSH_KEY_ACTION MIOS_SSH_KEY_ACTION || { return 1 2>/dev/nu
 : "${MIOS_BLADE_COLLAPSE_FAIL_CHECKS:=3}"
 : "${MIOS_BLADE_COLLAPSE_RECOVER_DWELL_S:=120}"
 : "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_HEAVY:=mios-llm-light}"
-: "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_HEAVY_ALT:=mios-llm-light}"
 : "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_WORKER_:=mios-llm-light}"
 : "${MIOS_BLADE_DISCOVERY_HEALTH_PATH:=/v1/models}"
 : "${MIOS_BLADE_DISCOVERY_HEALTH_TIMEOUT_S:=3}"
@@ -533,7 +532,6 @@ _mios_input MIOS_PATHS_BLADE_ENV MIOS_BLADE_ENV || { return 1 2>/dev/null || exi
 : "${MIOS_BLADE_REQUIRES_MIOS_K3S:=controller,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_K3S_MASTER:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY:=gpu-serving,service-plane}"
-: "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY_ALT:=gpu-serving,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_LIGHT:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_WORKER_:=gpu-serving,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LOG_ARCHIVER:=service-plane}"
@@ -629,7 +627,7 @@ _mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || {
 : "${MIOS_BUILD_AI_RAM_FLOOR_GB:=12}"
 : "${MIOS_BUILD_ARTIFACTS_OUTPUT_DIR:=build}"
 : "${MIOS_BUILD_BAKE_ADDITIONAL_IMAGE_STORE:=/usr/lib/bootc/storage}"
-: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-piper:latest,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:latest,codeberg.org/forgejo/forgejo:latest,docker.io/adguard/adguardhome:latest,docker.io/headscale/headscale:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lizardbyte/sunshine:latest-ubuntu-26.10,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:latest,docker.io/rancher/k3s:latest,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/ggml-org/whisper.cpp:main,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/mios-dev/mios-node:latest,ghcr.io/mios-dev/mios-micro:latest,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:latest,quay.io/poseidon/matchbox:latest}"
+: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-piper:latest,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:latest,codeberg.org/forgejo/forgejo:latest,docker.io/adguard/adguardhome:latest,docker.io/headscale/headscale:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lizardbyte/sunshine:latest-ubuntu-26.10,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:pg18,docker.io/rancher/k3s:latest,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/ggml-org/whisper.cpp:main,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/mios-dev/mios-node:latest,ghcr.io/mios-dev/mios-micro:latest,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:latest,quay.io/poseidon/matchbox:latest}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_CRAWL4AI:=Webtools heavy crawl runtime deferred from Day-0 bake}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_FIRECRAWL:=Webtools heavy crawl runtime deferred from Day-0 bake}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_JUSTIFICATIONS_SGLANG:=Heavy GPU inference image (~20GB)}"
@@ -648,6 +646,7 @@ _mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || {
 : "${MIOS_BUILD_CURL_TRIGGER_FALLBACK:=true}"
 [ -n "${MIOS_BUILD_FLOAT_GIT_SHAPES+x}" ] || MIOS_BUILD_FLOAT_GIT_SHAPES='^v?\d+(\.\d+)*$,^[A-Z]\d+(\.\d+)*$'
 [ -n "${MIOS_BUILD_FLOAT_IMAGE_SHAPES+x}" ] || MIOS_BUILD_FLOAT_IMAGE_SHAPES='^\d+$,^v\d+$,^pg\d+$,^\d+\.\d+$,^v?\d+\.\d+\.\d+$'
+: "${MIOS_BUILD_IMAGES_DEVCONTAINER_BUILD_ARGS_MIOS_IMAGE_REF:=image.local_tag}"
 : "${MIOS_BUILD_IMAGES_DEVCONTAINER_CONTAINERFILE:=.devcontainer/Containerfile}"
 : "${MIOS_BUILD_IMAGES_DEVCONTAINER_TAG_KEY:=image.dev_local_tag}"
 : "${MIOS_BUILD_IMAGES_ENGINE:=podman}"
@@ -696,8 +695,10 @@ _mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || {
 : "${MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=79}"
 _mios_input MIOS_BUILD_RECHUNK_MAX_LAYERS MIOS_RECHUNK_MAX_LAYERS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_BUILD_RECHUNK_MAX_LAYERS:=67}"
+: "${MIOS_BUILD_TOOLCHAIN_CARGO_HOME:=/usr/lib/mios/cargo}"
 : "${MIOS_BUILD_TOOLCHAIN_CHANNEL:=stable}"
 : "${MIOS_BUILD_TOOLCHAIN_COMPONENTS:=clippy,rustfmt}"
+: "${MIOS_BUILD_TOOLCHAIN_RUSTUP_HOME:=/usr/lib/mios/rustup}"
 : "${MIOS_BUILD_TOOL_DISPATCH_MAX_UNREACHABLE:=0}"
 _mios_input MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE MIOS_CEPHFS_AUTOMOUNT_ENABLE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE:=true}"
@@ -945,14 +946,10 @@ _mios_input MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE MIOS_CONV_IMAGE_RECHUNK_ENABLE ||
 : "${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:=false}"
 _mios_input MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION:=1}"
-_mios_input MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE || { return 1 2>/dev/null || exit 1; }
-: "${MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE:=single}"
 _mios_input MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:=0}"
 _mios_input MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:=1}"
-_mios_input MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT || { return 1 2>/dev/null || exit 1; }
-: "${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:=false}"
 _mios_input MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:=false}"
 _mios_input MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR || { return 1 2>/dev/null || exit 1; }
@@ -978,10 +975,8 @@ _mios_input MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE MIOS_CONV_MEMORY_SQLITE_VEC_E
 [ -n "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE+x}" ] || MIOS_CONV_IMAGE_MCP_POOL_ENABLE="${MIOS_CONVERGE_IMAGE_MCP_POOL_ENABLE:-}"
 [ -n "${MIOS_CONV_IMAGE_RECHUNK_ENABLE+x}" ] || MIOS_CONV_IMAGE_RECHUNK_ENABLE="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-}"
 [ -n "${MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION+x}" ] || MIOS_CONV_IMAGE_RECHUNK_FORMAT_VERSION="${MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION:-}"
-[ -n "${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE+x}" ] || MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE="${MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE:-}"
 [ -n "${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS+x}" ] || MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS="${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-}"
 [ -n "${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS+x}" ] || MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS="${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:-}"
-[ -n "${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT+x}" ] || MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT="${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:-}"
 [ -n "${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA+x}" ] || MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA="${MIOS_CONVERGE_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:-}"
 [ -n "${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR+x}" ] || MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR="${MIOS_CONVERGE_INFERENCE_VLLM_LORA_ADAPTERS_DIR:-}"
 [ -n "${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE+x}" ] || MIOS_CONV_MEMORY_COLD_EVICT_ENABLE="${MIOS_CONVERGE_MEMORY_COLD_EVICT_ENABLE:-}"
@@ -1118,6 +1113,23 @@ _mios_input MIOS_LOCALE_TIMEZONE MIOS_TIMEZONE MIOS_DEFAULT_TIMEZONE || { return
 _mios_input MIOS_IDENTITY_USERNAME MIOS_USER MIOS_DEFAULT_USER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_IDENTITY_USERNAME:=user}"
 [ -n "${MIOS_DEFAULT_USER+x}" ] || MIOS_DEFAULT_USER="${MIOS_IDENTITY_USERNAME:-}"
+: "${MIOS_DEPLOYMENT_CLOUD_BUILDER:=1}"
+: "${MIOS_DEPLOYMENT_CLOUD_BUILD_FREE_GB:=50}"
+: "${MIOS_DEPLOYMENT_CLOUD_DROPIN:=/etc/mios/mios.d/50-cloud.toml}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_BOOT_DISK_GB:=250}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_BOOT_DISK_TYPE:=pd-balanced}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_CONTAINER:=mios}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_IMAGE_FAMILY:=ubuntu-2404-lts-amd64}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_IMAGE_PROJECT:=ubuntu-os-cloud}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_INSTANCE:=mios}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_MACHINE_TYPE:=n2-standard-8}"
+: "${MIOS_DEPLOYMENT_CLOUD_GCE_ZONE:=us-central1-a}"
+: "${MIOS_DEPLOYMENT_CLOUD_MIN_FREE_GB:=80}"
+: "${MIOS_DEPLOYMENT_CLOUD_OVERLAY_AI_FIRSTBOOT_PULLS:=false}"
+: "${MIOS_DEPLOYMENT_CLOUD_OVERLAY_BLADE_TYPE:=headless}"
+: "${MIOS_DEPLOYMENT_CLOUD_OVERLAY_DESKTOP_RUNTIME_INSTALLS:=false}"
+: "${MIOS_DEPLOYMENT_CLOUD_SETUP_BUDGET_S:=240}"
+: "${MIOS_DEPLOYMENT_CLOUD_SOURCE_REF:=main}"
 : "${MIOS_DEPLOYMENT_TARGET_AMI:=false}"
 : "${MIOS_DEPLOYMENT_TARGET_ANACONDA_ISO:=true}"
 : "${MIOS_DEPLOYMENT_TARGET_GCE:=false}"
@@ -1268,6 +1280,7 @@ _mios_input MIOS_DESKTOP_FLATPAKS MIOS_FLATPAKS || { return 1 2>/dev/null || exi
 : "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_KEYWORDS:=mios;searxng;search;metasearch;privacy;}"
 : "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_PORT_KEY:=searxng}"
 : "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_TITLE:=MiOS Search (SearXNG)}"
+: "${MIOS_DESKTOP_RUNTIME_INSTALLS:=true}"
 : "${MIOS_DESKTOP_SESSION:=gnome}"
 : "${MIOS_DESKTOP_START_MENU_COCKPIT_LABEL:=Cockpit}"
 : "${MIOS_DESKTOP_START_MENU_COCKPIT_PORT_KEY:=cockpit}"
@@ -1309,7 +1322,7 @@ _mios_input MIOS_DESKTOP_FLATPAKS MIOS_FLATPAKS || { return 1 2>/dev/null || exi
 : "${MIOS_DISPATCH_BATCH_ENABLE:=false}"
 : "${MIOS_DISPATCH_BATCH_INTERVAL_S:=0.05}"
 : "${MIOS_DISPATCH_BATCH_MAX_SIZE:=8}"
-: "${MIOS_DISPATCH_BATCH_NATIVE_HINTS:=8530,8520,8500}"
+: "${MIOS_DISPATCH_BATCH_NATIVE_HINTS:=8520,8500}"
 : "${MIOS_DISPATCH_COUNCIL_DEFAULT:=true}"
 : "${MIOS_DISPATCH_COUNCIL_MAX:=4}"
 : "${MIOS_DISPATCH_CUA_ENABLE:=false}"
@@ -1365,7 +1378,7 @@ _mios_input MIOS_DESKTOP_FLATPAKS MIOS_FLATPAKS || { return 1 2>/dev/null || exi
 : "${MIOS_DISPATCH_NODES_RESEARCH_ONLY:=false}"
 : "${MIOS_DISPATCH_NO_TOOL_CHOICE_HINTS:=8540,11436}"
 : "${MIOS_DISPATCH_OFFLOAD_CPU:=false}"
-: "${MIOS_DISPATCH_PARALLEL_TOOLS_HINTS:=8520,8530}"
+: "${MIOS_DISPATCH_PARALLEL_TOOLS_HINTS:=8520}"
 : "${MIOS_DISPATCH_PRIORITY_QUEUE_ENABLE:=true}"
 : "${MIOS_DISPATCH_PRIORITY_STARVATION_MS:=4000}"
 : "${MIOS_DISPATCH_REPUTATION_FLUSH_S:=300.0}"
@@ -1699,7 +1712,7 @@ _mios_input MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS MIOS_FIRECRAWL_WORKERS || {
 _mios_input MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE MIOS_FIREWALLD_ZONE || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE:=drop}"
 [ -n "${MIOS_FIREWALLD_ZONE+x}" ] || MIOS_FIREWALLD_ZONE="${MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE:-}"
-: "${MIOS_FIREWALL_OPEN_PORTS:=forge_http,open_webui,code_server,hermes,searxng,cockpit,hermes_dashboard,llm_light,pgvector,cockpit_link,adguard_ui,ssh,forge_ssh,vllm,sglang,cpu_node}"
+: "${MIOS_FIREWALL_OPEN_PORTS:=forge_http,open_webui,code_server,hermes,searxng,cockpit,hermes_dashboard,llm_light,pgvector,cockpit_link,adguard_ui,ssh,forge_ssh,llm_heavy,cpu_node}"
 _mios_input MIOS_PATHS_VAR_DIR MIOS_VAR_DIR || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PATHS_VAR_DIR:=/var/lib/mios}"
 [ -n "${MIOS_VAR_DIR+x}" ] || MIOS_VAR_DIR="${MIOS_PATHS_VAR_DIR:-}"
@@ -1850,7 +1863,9 @@ _mios_input MIOS_SERVICES_HERMES_USER MIOS_HERMES_USER || { return 1 2>/dev/null
 : "${MIOS_IDENTITY_NAME:=mios}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_IMAGE_IMAGE:=quay.io/centos-bootc/bootc-image-builder:latest}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_SERVICE_TIMEOUTSTARTSEC:=3600}"
-[ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE='${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}'
+: "${MIOS_IMAGES_MIOS_LLM_HEAVY_ENGINE_SELECT:=ai.heavy_engine}"
+[ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_ENGINE_SGLANG_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_ENGINE_SGLANG_IMAGE_IMAGE='${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}'
+[ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_ENGINE_VLLM_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_ENGINE_VLLM_IMAGE_IMAGE='${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}'
 : "${MIOS_IMAGES_MIOS_LLM_HEAVY_SERVICE_TIMEOUTSTARTSEC:=3600}"
 : "${MIOS_IMAGES_MIOS_MICRO_IMAGE_IMAGE:=ghcr.io/mios-dev/mios-micro:latest}"
 : "${MIOS_IMAGES_MIOS_MICRO_SERVICE_TIMEOUTSTARTSEC:=3600}"
@@ -1970,6 +1985,7 @@ _mios_input MIOS_SERVICES_LLAMACPP_UID MIOS_LLAMACPP_UID || { return 1 2>/dev/nu
 _mios_input MIOS_SERVICES_LLAMACPP_USER MIOS_LLAMACPP_USER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_SERVICES_LLAMACPP_USER:=mios-llamacpp}"
 [ -n "${MIOS_LLAMACPP_USER+x}" ] || MIOS_LLAMACPP_USER="${MIOS_SERVICES_LLAMACPP_USER:-}"
+[ -n "${MIOS_LLM_HEAVY_PORT+x}" ] || MIOS_LLM_HEAVY_PORT="${MIOS_PORTS_LLM_HEAVY:-}"
 _mios_input MIOS_PORTS_LLM_IGPU MIOS_PORT_LLM_IGPU MIOS_LLM_IGPU_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_LLM_IGPU:=8540}"
 [ -n "${MIOS_LLM_IGPU_PORT+x}" ] || MIOS_LLM_IGPU_PORT="${MIOS_PORTS_LLM_IGPU:-}"
@@ -2132,6 +2148,11 @@ _mios_input MIOS_NETWORK_QUADLET_SUBNET MIOS_QUADLET_SUBNET || { return 1 2>/dev
 : "${MIOS_NODES_LOCAL_CPU_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_CPU_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_CPU_MODEL:=mios-agent-cpu}"
+: "${MIOS_NODES_LOCAL_HEAVY_API:=openai}"
+[ -n "${MIOS_NODES_LOCAL_HEAVY_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_HEAVY_ENDPOINT='http://localhost:'"${MIOS_PORTS_LLM_HEAVY:-}"'/v1'
+: "${MIOS_NODES_LOCAL_HEAVY_HEALTH_GATE:=true}"
+: "${MIOS_NODES_LOCAL_HEAVY_LANE:=gpu}"
+: "${MIOS_NODES_LOCAL_HEAVY_MODEL:=mios-heavy}"
 : "${MIOS_NODES_LOCAL_IGPU_API:=llamacpp}"
 [ -n "${MIOS_NODES_LOCAL_IGPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_IGPU_ENDPOINT='http://127.0.0.1:'"${MIOS_PORTS_LLM_IGPU:-}"'/v1'
 : "${MIOS_NODES_LOCAL_IGPU_HEALTH_GATE:=true}"
@@ -2143,18 +2164,6 @@ _mios_input MIOS_NETWORK_QUADLET_SUBNET MIOS_QUADLET_SUBNET || { return 1 2>/dev
 : "${MIOS_NODES_LOCAL_LLAMASWAP_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_MODEL:=mios-agent-cpu}"
-: "${MIOS_NODES_LOCAL_SGLANG_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORTS_SGLANG:-}"'/v1'
-: "${MIOS_NODES_LOCAL_SGLANG_HEALTH_GATE:=true}"
-: "${MIOS_NODES_LOCAL_SGLANG_LANE:=gpu}"
-: "${MIOS_NODES_LOCAL_SGLANG_MODEL:=mios-heavy}"
-: "${MIOS_NODES_LOCAL_VLLM_API:=openai}"
-_mios_input MIOS_PORTS_VLLM MIOS_PORT_VLLM MIOS_VLLM_PORT || { return 1 2>/dev/null || exit 1; }
-: "${MIOS_PORTS_VLLM:=8520}"
-[ -n "${MIOS_NODES_LOCAL_VLLM_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_VLLM_ENDPOINT='http://localhost:'"${MIOS_PORTS_VLLM:-}"'/v1'
-: "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
-: "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
-: "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
 [ -n "${MIOS_NODE_PORT+x}" ] || MIOS_NODE_PORT="${MIOS_PORTS_NODE:-}"
 : "${MIOS_OBSERVABILITY_CHANNELS_CONTENT:=content}"
 : "${MIOS_OBSERVABILITY_CHANNELS_PLAN:=reasoning}"
@@ -2351,7 +2360,7 @@ _mios_input MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER MIOS_PG_HNSW_SCAN_MEM_MULTIPL
 : "${MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER:=1}"
 _mios_input MIOS_PGVECTOR_HOST MIOS_PG_HOST || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_HOST:=127.0.0.1}"
-: "${MIOS_PGVECTOR_IMAGE:=docker.io/pgvector/pgvector:latest}"
+: "${MIOS_PGVECTOR_IMAGE:=docker.io/pgvector/pgvector:pg18}"
 _mios_input MIOS_PORTS_PGVECTOR_INTERNAL MIOS_PORT_PGVECTOR_INTERNAL MIOS_PGVECTOR_INTERNAL_PORT || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PORTS_PGVECTOR_INTERNAL:=5432}"
 [ -n "${MIOS_PGVECTOR_INTERNAL_PORT+x}" ] || MIOS_PGVECTOR_INTERNAL_PORT="${MIOS_PORTS_PGVECTOR_INTERNAL:-}"
@@ -2387,7 +2396,7 @@ _mios_input MIOS_SERVICES_PGVECTOR_UID MIOS_PGVECTOR_UID || { return 1 2>/dev/nu
 [ -n "${MIOS_PGVECTOR_UID+x}" ] || MIOS_PGVECTOR_UID="${MIOS_SERVICES_PGVECTOR_UID:-}"
 _mios_input MIOS_PGVECTOR_USER MIOS_PG_USER || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_PGVECTOR_USER:=mios}"
-: "${MIOS_PGVECTOR_VERSION:=latest}"
+: "${MIOS_PGVECTOR_VERSION:=pg18}"
 [ -n "${MIOS_PG_BACKFILL_BATCH+x}" ] || MIOS_PG_BACKFILL_BATCH="${MIOS_PGVECTOR_BACKFILL_BATCH:-}"
 [ -n "${MIOS_PG_BACKUP_DIR+x}" ] || MIOS_PG_BACKUP_DIR="${MIOS_PGVECTOR_BACKUP_DIR:-}"
 [ -n "${MIOS_PG_BACKUP_ENABLE+x}" ] || MIOS_PG_BACKUP_ENABLE="${MIOS_PGVECTOR_BACKUP_ENABLE:-}"
@@ -2469,7 +2478,7 @@ _mios_input MIOS_SERVICES_PIPER_VOICE MIOS_PIPER_VOICE || { return 1 2>/dev/null
 : "${MIOS_PODS_MIOS_AI_AFTER:=network-online.target}"
 [ -n "${MIOS_PODS_MIOS_AI_DESCRIPTION+x}" ] || MIOS_PODS_MIOS_AI_DESCRIPTION=''"'"'MiOS'"'"' AI pod (inference, heavy, data, ui)'
 : "${MIOS_PODS_MIOS_AI_DOC:=Consolidated AI pod.}"
-: "${MIOS_PODS_MIOS_AI_MEMBERS:=mios-llm-light,mios-cpu-node,mios-llm-worker@,mios-llm-heavy,mios-llm-heavy-alt,mios-pgvector,mios-open-webui,mios-piper,mios-whisper}"
+: "${MIOS_PODS_MIOS_AI_MEMBERS:=mios-llm-light,mios-cpu-node,mios-llm-worker@,mios-llm-heavy,mios-pgvector,mios-open-webui,mios-piper,mios-whisper}"
 : "${MIOS_PODS_MIOS_AI_NETWORK:=host}"
 : "${MIOS_PODS_MIOS_AI_WANTED_BY:=multi-user.target,default.target}"
 : "${MIOS_PODS_MIOS_AI_WANTS:=network-online.target}"
@@ -2542,8 +2551,8 @@ _mios_input MIOS_POLISH_TIMEOUT_SECONDS MIOS_POLISH_TIMEOUT_S || { return 1 2>/d
 : "${MIOS_PORTS_CATEGORIES_FORGE_MEMBERS:=forge_http,forge_ssh}"
 : "${MIOS_PORTS_CATEGORIES_FORGE_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_INFERENCE_BASE:=8500}"
-: "${MIOS_PORTS_CATEGORIES_INFERENCE_DOC:=Model-serving lanes. Ordered cheapest-to-heaviest: always-on llama.cpp, CPU lane, then the GATED dGPU lanes.}"
-: "${MIOS_PORTS_CATEGORIES_INFERENCE_MEMBERS:=llm_light,cpu_node,vllm,sglang,llm_igpu,rpc_igpu}"
+: "${MIOS_PORTS_CATEGORIES_INFERENCE_DOC:=Model-serving lanes. Ordered cheapest-to-heaviest: always-on llama.cpp, CPU lane, then the GATED dGPU lane. The empty slot (8530) is the retired second heavy lane, folded into llm_heavy as an engine choice; it stays empty so the iGPU lanes keep their ports.}"
+: "${MIOS_PORTS_CATEGORIES_INFERENCE_MEMBERS:=llm_light,cpu_node,llm_heavy,,llm_igpu,rpc_igpu}"
 : "${MIOS_PORTS_CATEGORIES_INFERENCE_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_NODE_BASE:=8640}"
 : "${MIOS_PORTS_CATEGORIES_NODE_DOC:=Edge node, legacy AI endpoint, and field live chat ports.}"
@@ -2621,6 +2630,7 @@ _mios_input MIOS_PORTS_WHISPER MIOS_PORT_WHISPER MIOS_WHISPER_PORT || { return 1
 [ -n "${MIOS_PORT_HERMES+x}" ] || MIOS_PORT_HERMES="${MIOS_PORTS_HERMES:-}"
 [ -n "${MIOS_PORT_HERMES_DASHBOARD+x}" ] || MIOS_PORT_HERMES_DASHBOARD="${MIOS_PORTS_HERMES_DASHBOARD:-}"
 [ -n "${MIOS_PORT_K3S_API+x}" ] || MIOS_PORT_K3S_API="${MIOS_PORTS_K3S_API:-}"
+[ -n "${MIOS_PORT_LLM_HEAVY+x}" ] || MIOS_PORT_LLM_HEAVY="${MIOS_PORTS_LLM_HEAVY:-}"
 [ -n "${MIOS_PORT_LLM_IGPU+x}" ] || MIOS_PORT_LLM_IGPU="${MIOS_PORTS_LLM_IGPU:-}"
 [ -n "${MIOS_PORT_LLM_LIGHT+x}" ] || MIOS_PORT_LLM_LIGHT="${MIOS_PORTS_LLM_LIGHT:-}"
 [ -n "${MIOS_PORT_MCP+x}" ] || MIOS_PORT_MCP="${MIOS_PORTS_MCP:-}"
@@ -2642,13 +2652,11 @@ _mios_input MIOS_PORTS_WHISPER MIOS_PORT_WHISPER MIOS_WHISPER_PORT || { return 1
 [ -n "${MIOS_PORT_RPC_IGPU+x}" ] || MIOS_PORT_RPC_IGPU="${MIOS_PORTS_RPC_IGPU:-}"
 [ -n "${MIOS_PORT_SEARXNG+x}" ] || MIOS_PORT_SEARXNG="${MIOS_PORTS_SEARXNG:-}"
 [ -n "${MIOS_PORT_SEARXNG_INTERNAL+x}" ] || MIOS_PORT_SEARXNG_INTERNAL="${MIOS_PORTS_SEARXNG_INTERNAL:-}"
-[ -n "${MIOS_PORT_SGLANG+x}" ] || MIOS_PORT_SGLANG="${MIOS_PORTS_SGLANG:-}"
 [ -n "${MIOS_PORT_SSH+x}" ] || MIOS_PORT_SSH="${MIOS_PORTS_SSH:-}"
 [ -n "${MIOS_PORT_STACK_ID+x}" ] || MIOS_PORT_STACK_ID="${MIOS_PORTS_STACK_ID:-}"
 [ -n "${MIOS_PORT_TTYD_BASH+x}" ] || MIOS_PORT_TTYD_BASH="${MIOS_PORTS_TTYD_BASH:-}"
 [ -n "${MIOS_PORT_TTYD_POWERSHELL+x}" ] || MIOS_PORT_TTYD_POWERSHELL="${MIOS_PORTS_TTYD_POWERSHELL:-}"
 [ -n "${MIOS_PORT_UNBOUND+x}" ] || MIOS_PORT_UNBOUND="${MIOS_PORTS_UNBOUND:-}"
-[ -n "${MIOS_PORT_VLLM+x}" ] || MIOS_PORT_VLLM="${MIOS_PORTS_VLLM:-}"
 [ -n "${MIOS_PORT_WHISPER+x}" ] || MIOS_PORT_WHISPER="${MIOS_PORTS_WHISPER:-}"
 : "${MIOS_POSTGRES_IMAGE:=docker.io/library/postgres:latest}"
 : "${MIOS_POSTGRES_VERSION:=latest}"
@@ -2684,13 +2692,9 @@ _mios_input MIOS_ROUTING_PREFILTER_CONVERSATIONAL_BYPASS_MODE MIOS_PREFILTER_CON
 : "${MIOS_PROFILES_CORE_PHASES:=system-files-overlay,materialize-build-ctx,repos,locale-theme,user,hostname,subuid-alloc,generate-quadlets,render-quadlets,render-ports,services,mios-dropin-fanout,tools,finalize,cleanup,ssot-lint,drift-checks,postcheck}"
 : "${MIOS_PROFILES_CORE_SUMMARY:=the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs}"
 : "${MIOS_PROFILES_DEFAULT:=full}"
-: "${MIOS_PROFILES_DEV_EXTENDS:=core}"
-: "${MIOS_PROFILES_DEV_PACKAGE_SECTIONS:=devcontainer}"
-: "${MIOS_PROFILES_DEV_SUMMARY:=core plus the development userspace}"
-: "${MIOS_PROFILES_DEV_TARGETS:=wsl2,devcontainer,cloud,codespace}"
 : "${MIOS_PROFILES_FULL_ALL:=true}"
 : "${MIOS_PROFILES_FULL_SUMMARY:=every enabled section and every registered phase}"
-: "${MIOS_PROFILES_FULL_TARGETS:=oci,wsl2}"
+: "${MIOS_PROFILES_FULL_TARGETS:=oci,wsl2,devcontainer,cloud,codespace}"
 [ -n "${MIOS_PROFILE_TOML_HOST+x}" ] || MIOS_PROFILE_TOML_HOST="${MIOS_PATHS_PROFILE_TOML_HOST:-}"
 [ -n "${MIOS_PROFILE_TOML_VENDOR+x}" ] || MIOS_PROFILE_TOML_VENDOR="${MIOS_PATHS_PROFILE_TOML_VENDOR:-}"
 : "${MIOS_PSI_CLEAR_MARGIN_PCT:=10.0}"
@@ -2723,7 +2727,8 @@ _mios_input MIOS_WSL2_DEV_VM_QUADLET_NETWORK_MODE MIOS_QUADLET_DEV_NETWORK_MODE 
 [ -n "${MIOS_RECHUNK_MAX_LAYERS+x}" ] || MIOS_RECHUNK_MAX_LAYERS="${MIOS_BUILD_RECHUNK_MAX_LAYERS:-}"
 [ -n "${MIOS_REDIS_PORT+x}" ] || MIOS_REDIS_PORT="${MIOS_PORTS_REDIS:-}"
 : "${MIOS_REFACTOR_MAX_LINES:=800}"
-[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{ lines = 1375, path = "mios_pipe/federation/a2a.py" },{ lines = 688, path = "mios_pipe/federation/http_caps.py" },{ lines = 871, path = "mios_pipe/memory/knowledge.py" },{ lines = 1093, path = "mios_pipe/routing/agent_call.py" },{ lines = 1674, path = "mios_pipe/routing/chat.py" },{ lines = 1127, path = "mios_pipe/routing/dag_exec.py" },{ lines = 1143, path = "mios_pipe/routing/native_loop.py" },{ lines = 1582, path = "mios_pipe/routing/portal.py" },{ lines = 1071, path = "mios_pipe/routing/refine.py" },{ lines = 992, path = "mios_pipe/routing/swarm.py" },{ lines = 909, path = "mios_pipe/routing/web_research.py" },{ lines = 971, path = "mios_audio_tts.py" },{ lines = 812, path = "mios_dispatch.py" },{ lines = 891, path = "mios_mesh_distributor.py" },{ lines = 899, path = "mios_ocr_mask.py" },{ lines = 1202, path = "mios_vision_redact.py" },{ lines = 4743, path = "server.py" },{ lines = 1013, path = "mios_pipe/routing/vision.py" },{ lines = 1027, path = "test_mios_mcp_aio.py" }'
+[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{ lines = 1375, path = "mios_pipe/federation/a2a.py" },{ lines = 688, path = "mios_pipe/federation/http_caps.py" },{ lines = 871, path = "mios_pipe/memory/knowledge.py" },{ lines = 1093, path = "mios_pipe/routing/agent_call.py" },{ lines = 1611, path = "mios_pipe/routing/chat.py" },{ lines = 1127, path = "mios_pipe/routing/dag_exec.py" },{ lines = 1143, path = "mios_pipe/routing/native_loop.py" },{ lines = 1422, path = "mios_pipe/routing/portal.py" },{ lines = 1071, path = "mios_pipe/routing/refine.py" },{ lines = 992, path = "mios_pipe/routing/swarm.py" },{ lines = 909, path = "mios_pipe/routing/web_research.py" }'
+: "${MIOS_REFACTOR_SUBMODULE_ROOTS:=mios_pipe/}"
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
 : "${MIOS_REFINE_CHAT_CHARS:=40}"
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
@@ -2774,7 +2779,7 @@ _mios_input MIOS_ROUTING_REMEMBER_TRIGGER_PHRASES MIOS_REMEMBER_TRIGGER_PHRASES 
 : "${MIOS_REPOS_FEDORA_UPDATES_SKIP_IF_UNAVAILABLE:=true}"
 : "${MIOS_REPOS_FEDORA_UPDATES_TIMEOUT:=10}"
 : "${MIOS_REPO_URL:=https://github.com/mios-dev/MiOS.git}"
-: "${MIOS_RESOLVER_MAX_KEY_DIVERGENCE:=983}"
+: "${MIOS_RESOLVER_MAX_KEY_DIVERGENCE:=0}"
 : "${MIOS_RESOLVER_MAX_VALUE_DIVERGENCE:=0}"
 [ -n "${MIOS_ROLE+x}" ] || MIOS_ROLE='the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)'
 _mios_input MIOS_ROUTING_ROUTER_ENABLE MIOS_ROUTER_ENABLE || { return 1 2>/dev/null || exit 1; }
@@ -2972,8 +2977,8 @@ _mios_input MIOS_SERVICES_WHISPER_USER MIOS_WHISPER_USER || { return 1 2>/dev/nu
 : "${MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE:=true}"
 : "${MIOS_SGLANG_IMAGE:=docker.io/lmsysorg/sglang:latest}"
 : "${MIOS_SGLANG_KV_CACHE_DTYPE:=fp8_e5m2}"
+: "${MIOS_SGLANG_LOAD_FORMAT:=auto}"
 : "${MIOS_SGLANG_MEM_FRACTION:=0.85}"
-[ -n "${MIOS_SGLANG_PORT+x}" ] || MIOS_SGLANG_PORT="${MIOS_PORTS_SGLANG:-}"
 : "${MIOS_SGLANG_SERVED_NAME:=mios-heavy}"
 : "${MIOS_SGLANG_TOOL_PARSER:=qwen25}"
 : "${MIOS_SGLANG_VERSION:=latest}"
@@ -3401,7 +3406,7 @@ _mios_input MIOS_UKI_VERITY_UKI_BUILD MIOS_UKI_VERITY_BUILD || { return 1 2>/dev
 : "${MIOS_UNIT_PROJECTION_DRIFT:=hermes-worker-firstboot.service,hermes-worker.path,hermes-worker.service,mios-account-sync.service,mios-additionalimagestores-perms.path,mios-adguard-firstboot.service,mios-agent-pipe.service,mios-agents.service,mios-ai-firstboot.service,mios-ai-firstboot.timer,mios-aios-refresh.timer,mios-bound-images-firstboot.service,mios-ceph-bootstrap.service,mios-daemon.service,mios-dashboard-issue.timer,mios-desktop.target,mios-embed-backfill.service,mios-embed-backfill.timer,mios-finetune-serve.service,mios-firewall-ports.service,mios-firstboot.target,mios-forge-firstboot.service,mios-forgejo-runner-firstboot.service,mios-gpu-amd.service,mios-gpu-detect.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-nvidia.service.d/10-cycle-fix.conf,mios-gpu-pv-detect.service,mios-gpu-status.service,mios-ha-node.target,mios-headless.target,mios-hermes-browser-worker.service,mios-hermes-browser.service,mios-hermes-firstboot.service,mios-hybrid.target,mios-k3s-master.target,mios-k3s-worker.target,mios-libexec-perms.path,mios-mcp.service,mios-models-firstboot.service,mios-opencode-gateway.service,mios-pgvector-backup.service,mios-pgvector-backup.timer,mios-podman-gc.service,mios-policy-arbiter.service,mios-shell-session-gc.service,mios-skills-miner.timer,mios-suggestion-refresh.timer,mios-swarm-pack-firstboot.service,mios-sys-env-refresh.timer,mios-userdb-render.service,mios-webtools-firstboot.service,mios-wsl-firstboot.service,mios-wsl-flatpak-export-sync.path}"
 : "${MIOS_UNIT_PROJECTION_MAX_DRIFT:=55}"
 : "${MIOS_URLS_BOOTSTRAP_REPO:=https://github.com/mios-dev/mios-bootstrap.git}"
-: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,pgvector_internal,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,piper,prefilter,pxe_hub_api,radosgw,rdp,redis,searxng_internal,sglang,ssh,ttyd_bash,ttyd_powershell,vllm,whisper}"
+: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_heavy,llm_light,node,pgvector,pgvector_internal,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,headscale,hermes_dashboard,llm_igpu,rpc_igpu,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,piper,prefilter,pxe_hub_api,radosgw,rdp,redis,searxng_internal,ssh,ttyd_bash,ttyd_powershell,whisper}"
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
 [ -n "${MIOS_USER+x}" ] || MIOS_USER="${MIOS_IDENTITY_USERNAME:-}"
 : "${MIOS_USER_FULLNAME:=MiOS Operator}"
@@ -3489,8 +3494,8 @@ _mios_input MIOS_VERSIONS_FEDORA MIOS_VERSION_FEDORA || { return 1 2>/dev/null |
 : "${MIOS_VLLM_GPU_UTIL:=0.85}"
 : "${MIOS_VLLM_IMAGE:=docker.io/vllm/vllm-openai:latest}"
 : "${MIOS_VLLM_KV_CACHE_DTYPE:=fp8}"
+: "${MIOS_VLLM_LOAD_FORMAT:=auto}"
 : "${MIOS_VLLM_MAX_MODEL_LEN:=262144}"
-[ -n "${MIOS_VLLM_PORT+x}" ] || MIOS_VLLM_PORT="${MIOS_PORTS_VLLM:-}"
 : "${MIOS_VLLM_PREFIX_CACHING:=true}"
 : "${MIOS_VLLM_SERVED_NAME:=mios-heavy}"
 : "${MIOS_VLLM_TOOL_CALL_PARSER:=hermes}"

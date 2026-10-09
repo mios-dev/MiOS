@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3835,
-  "total_metadata_entries": 3142,
-  "total_hints": 3132,
-  "total_functions_indexed": 1458,
-  "total_related_links": 5190,
+  "total_files_scanned": 3840,
+  "total_metadata_entries": 3147,
+  "total_hints": 3137,
+  "total_functions_indexed": 1469,
+  "total_related_links": 5223,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -73,24 +73,43 @@
     },
     {
       "path": ".devcontainer/cloud-shell/bootstrap.sh",
-      "hint": "Installs a launcher for, and starts, the portable MiOS Dev Container from supported cloud shells (Google Cloud Shell, Oracle Cloud Shell).",
-      "related": [],
-      "functions": [],
+      "hint": "The one MiOS cloud-environment script: runs the devcontainer ([image].ref plus wiring) under podman or docker for Claude Code cloud, Codex cloud and Cloud Shell, creates a GCE VM, preflights disk, pulls in the background and applies the [deployment.cloud] overlay.",
+      "related": [
+        ".devcontainer/Containerfile",
+        ".devcontainer/devcontainer.json",
+        ".devcontainer/artifact-builder/devcontainer.json",
+        ".devcontainer/cloud-shell/claude-code-cloud.sh",
+        ".devcontainer/cloud-shell/codex-cloud.sh",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [
+        "main",
+        "preflight",
+        "pull_image",
+        "status",
+        "up",
+        "enter",
+        "overlay",
+        "gce_up",
+        "claude_code",
+        "codex"
+      ],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
     {
       "path": ".devcontainer/cloud-shell/claude-code-cloud.sh",
-      "hint": "Claude Code cloud environment Setup script for MiOS: builds the MiOS dev image (the Codespaces .devcontainer) under podman from main, installs mios-dev and the dev-loop plugin, always exits 0.",
+      "hint": "Claude Code cloud environment Setup script for MiOS: provisions the host (dev-loop plugin, agy), then bootstrap.sh claude-code pulls the MiOS image in the background and installs mios-dev; always exits 0.",
       "related": [
-        "/usr/share/mios/templates/bash",
+        ".devcontainer/cloud-shell/bootstrap.sh",
         ".devcontainer/Containerfile",
         ".devcontainer/devcontainer.json",
         ".devcontainer/cloud-shell/README.md"
       ],
       "functions": [
-        "main"
+        "main",
+        "mios_checkout"
       ],
       "doc": null,
       "comment_style": "hash",
@@ -98,20 +117,16 @@
     },
     {
       "path": ".devcontainer/cloud-shell/codex-cloud.sh",
-      "hint": "Codex Cloud installation and startup using the canonical Fedora MiOS devcontainer, its lifecycle, SSOT dependencies and an unprivileged mios-dev command wrapper. Incomplete provisioning fails closed.",
+      "hint": "Codex Cloud entry point for MiOS: finds or clones the MiOS checkout and runs bootstrap.sh codex (install, start, check), which runs the MiOS image as the devcontainer with an unprivileged mios-dev wrapper. Fails closed.",
       "related": [
+        ".devcontainer/cloud-shell/bootstrap.sh",
         "README.md",
         ".devcontainer/devcontainer.json",
         ".devcontainer/Containerfile",
         "usr/share/mios/mios.toml"
       ],
       "functions": [
-        "main",
-        "install_host",
-        "find_source",
-        "write_wrapper",
-        "start",
-        "check"
+        "mios_checkout"
       ],
       "doc": null,
       "comment_style": "hash",
@@ -1205,10 +1220,11 @@
     },
     {
       "path": "automation/55-native-build.sh",
-      "hint": "Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build.",
+      "hint": "Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build. --toolchain provisions the image's own SSOT Rust toolchain instead.",
       "related": [
         "src/mios-rs/mios-build/src/native_build.rs",
-        "usr/share/mios/mios.toml"
+        "usr/share/mios/mios.toml",
+        "Containerfile"
       ],
       "functions": [],
       "doc": null,
@@ -1247,7 +1263,7 @@
     },
     {
       "path": "automation/59-tools.sh",
-      "hint": "Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless.",
+      "hint": "Sets executable permissions for the core mios- CLI tools, bakes the pinned native code-server with its verified workbench patches, and installs auxiliary scripts like mios-toggle-headless.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
@@ -1934,7 +1950,7 @@
     },
     {
       "path": "automation/lint-powershell.sh",
-      "hint": "Runner for PowerShell AST parser check across tracked *.ps1 files. Degrades open if pwsh/powershell is absent.",
+      "hint": "Thin adapter for the static mios-gate PowerShell check; missing tools fail closed.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -1943,7 +1959,7 @@
     },
     {
       "path": "automation/lint-ps-analyzer.sh",
-      "hint": "Runner for PSScriptAnalyzer static analysis; -Recurse covers *.ps1, *.psm1 and *.psd1 under the repo root. Degrades open if PSScriptAnalyzer is absent.",
+      "hint": "Thin adapter for the static mios-gate PowerShell check; missing tools fail closed.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -4552,6 +4568,18 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/powershell.rs",
+      "hint": "Compiler-backed PowerShell gates fail closed on unreadable sources and unavailable tools.",
+      "related": [
+        "automation/lint-powershell.sh",
+        "automation/lint-ps-analyzer.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/profiles.rs",
       "hint": "Asserts mios.toml [profiles] (ADR-0025) is closed: every profile resolves without a cycle, names only registered phases and real [packages] sections, contains the one floor = true profile, and every profile's targets is a list of image kinds.",
       "related": [
@@ -5392,8 +5420,8 @@
       "path": "src/mios-rs/miosd/src/drift/boot.rs",
       "hint": "Boot-integrity and firstboot degrade-open checks for miosd drift runner.",
       "related": [
-        "usr/libexec/mios/*firstboot*",
-        "automation/firstboot/*.sh",
+        "usr/libexec/mios",
+        "automation/firstboot",
         "automation/78-greenboot.sh",
         "etc/greenboot"
       ],
@@ -5407,8 +5435,7 @@
       "hint": "Convergence and cross-subsystem consistency checks for miosd drift runner.",
       "related": [
         "usr/share/mios/mios.toml",
-        "usr/lib/systemd/system-preset",
-        "usr/share/containers/systemd/mios-llm-heavy-alt.container",
+        "tools/native/mios-gen/src/pod_quadlets.rs",
         "usr/lib/mios/agent-pipe/test_mios_router_parity.py",
         "usr/lib/mios/agent-pipe/tests/router_corpus.json"
       ],
@@ -5472,7 +5499,9 @@
       "hint": "Laws and filesystem layout enforcement checks for miosd drift runner.",
       "related": [
         "automation/98-drift-checks.sh",
-        "usr/share/mios/mios.toml"
+        "usr/share/mios/mios.toml",
+        "automation/lib/mios_var_closure.py",
+        "usr/share/mios/reference/var-closure-baseline.tsv"
       ],
       "functions": [],
       "doc": null,
@@ -7014,11 +7043,35 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-cloud-overlay.py",
+      "hint": "Two-sided tests for the cloud/container overlay: bootstrap.sh renders [deployment.cloud.overlay] as a host drop-in, the layered resolver merges it, and the first-boot model pullers and the runtime flatpak installer then do nothing; without it they pull and install as before.",
+      "related": [
+        ".devcontainer/cloud-shell/bootstrap.sh",
+        "usr/share/mios/mios.toml",
+        "usr/libexec/mios/mios-ai-firstboot",
+        "usr/libexec/mios/mios-models-firstboot",
+        "usr/libexec/mios/mios-bound-images-firstboot",
+        "usr/libexec/mios-flatpak-install"
+      ],
+      "functions": [
+        "TestOverlayRender",
+        "TestFirstbootPulls",
+        "TestFlatpakInstall",
+        "TestCloudScripts"
+      ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-code-server-bake.py",
-      "hint": "Hermetic two-sided tests for the code-server workbench bake (mios-vscode-custom-css patch/verify), the dev-image wiring that runs it, and the mios-agents image and builders that bake it.",
+      "hint": "Hermetic two-sided tests for the code-server workbench bake (mios-vscode-custom-css patch/verify), the OS-pipeline phases that bake it and the toolchain, the dev container that is the MiOS image, and the mios-agents image and builders.",
       "related": [
         "/usr/libexec/mios/mios-vscode-custom-css",
         "/.devcontainer/Containerfile",
+        "/automation/59-tools.sh",
+        "/automation/55-native-build.sh",
+        "/tools/ci-suites.py",
         "/.devcontainer/setup-devcontainer.sh",
         "/.devcontainer/boot-mios-systems.sh",
         "/usr/share/mios/agents/Containerfile",
@@ -7029,6 +7082,7 @@
         "TestCodeServerBake",
         "TestDevcontainerLifecycle",
         "TestDevImageWiring",
+        "TestOsImageProvides",
         "TestAgentsContainerfile",
         "TestBuilders"
       ],
@@ -9120,7 +9174,8 @@
       "related": [
         "tools/native/mios-wallpaperd/src/main.rs",
         "usr/share/mios/branding/living-wallpaper.html",
-        "build-mios.ps1"
+        "build-mios.ps1",
+        "src/mios-rs/mios-build/src/verification.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9893,6 +9948,18 @@
       "path": "tools/native/generate-names-registry/src/main.rs",
       "hint": "Installed compatibility command; the names projection belongs to mios-gen.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/generate-names-registry/tests/cli.rs",
+      "hint": "Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.",
+      "related": [
+        "tools/native/generate-names-registry/src/main.rs",
+        "tools/native/mios-gen/src/names_registry.rs"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -11995,8 +12062,10 @@
     },
     {
       "path": "tools/test_audit_version_literals.py",
-      "hint": "Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap...",
-      "related": [],
+      "hint": "Black-box controls for the native version gate replacing the retired Python scanner.",
+      "related": [
+        "src/mios-rs/mios-gate/src/version_literals.rs"
+      ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
@@ -14603,6 +14672,19 @@
       "has_shebang": false
     },
     {
+      "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/chat_history.py",
+      "hint": "Chat CONVERSATION HISTORY -- the gateway session-replay store (Postgres gateway_sessions), the stale tool-result TTL drop and the evicted-turn summarizer, split out of chat.py.",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py",
+        "usr/lib/mios/agent-pipe/test_mios_compact.py",
+        "usr/lib/mios/gateway-agent/session.py"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/routing.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py",
       "hint": "Layer-1 micro-LLM CLASSIFIER cluster, extracted verbatim from server.py",
       "related": [
@@ -14806,6 +14888,19 @@
       "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py",
       "hint": "WEB PORTAL helper logic + PWA asset builders + the swarm-roster probe, extracted VERBATIM from server.py (refactor R10 wave).",
       "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/routing.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_assets.py",
+      "hint": "Portal STATIC ASSETS -- the SVG/PNG icons, PWA web manifest, service worker, sign-in page and the iOS embed test page, split out of portal.py.",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py",
+        "usr/lib/mios/agent-pipe/test_mios_portal.py",
+        "usr/share/mios/portal"
+      ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/routing.md",
       "comment_style": "hash",
@@ -15037,6 +15132,20 @@
       "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py",
       "hint": "VISION + CLIENT-TOOLS responders extracted VERBATIM from server.py (refactor R9 wave).",
       "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/routing.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/mios_pipe/routing/vision_context.py",
+      "hint": "Client-tools CONTEXT BUDGET -- tiered pruning that fits a caller's messages + tools[] into the tool backend's window (stale results, compaction, schema budget, truncation), split out of vision.py.",
+      "related": [
+        "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py",
+        "usr/lib/mios/agent-pipe/mios_pipe/context/compact.py",
+        "usr/lib/mios/agent-pipe/test_mios_vision.py",
+        "tests/test_adversarial_gateway_stress.py"
+      ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/routing.md",
       "comment_style": "hash",
@@ -15850,7 +15959,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/test_lora_endpoints.py",
-      "hint": "Standalone assert-script unit test for LoRA list/load endpoints (CONV-06).",
+      "hint": "Standalone assert-script unit test for LoRA list/load endpoints (CONV-06): enabled only when [ai].heavy_engine = vllm.",
       "related": [
         "./server.py"
       ],
@@ -17805,7 +17914,7 @@
     },
     {
       "path": "usr/lib/ostree/prepare-root.conf",
-      "hint": "ostree prepare-root: composefs with fs-verity and the root mount policy for the bootc image.",
+      "hint": "ostree prepare-root (composefs mode, root/etc mount policy); generated from mios.toml [security].composefs_mode by automation/77-composefs-verity.sh.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -22862,7 +22971,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-ai-firstboot",
-      "hint": "Provisioning script that installs the hermes-agent Python venv and extracts llama.cpp GGUF models to enable AI services, creating a sentinel file to gate network-less boot retries.",
+      "hint": "Provisioning script that installs the hermes-agent Python venv and fetches llama.cpp GGUF models, vLLM weights and firstboot-tier images (unless [ai].firstboot_pulls is false), creating a sentinel file to gate retries.",
       "related": [
         "/usr/share/mios/llamacpp/mios-llm-light.yaml",
         "/usr/lib/mios/agents/.venv",
@@ -24263,7 +24372,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-gpu-passthrough",
-      "hint": "Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map the GPU vendors declared in mios.toml [gpu.cdi] onto background AI service Quadlets (mios-llm-light, vLLM heavy lanes) based on detected hardware; holds no vendor literal of its own.",
+      "hint": "Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map the GPU vendors declared in mios.toml [gpu.cdi] onto background AI service Quadlets (mios-llm-light, the vLLM/SGLang heavy lane) based on detected hardware; holds no vendor literal of its own.",
       "related": [
         "/usr/libexec/mios/mios-gpu-passthrough",
         "/usr/libexec/mios/mios-toml-get",
@@ -28898,7 +29007,7 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-ai.pod",
-      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai] in mios.toml. Members (9): mios-llm-light, mios-cpu-node, mios-llm-worker@, mios-llm-heavy, mios-llm-heavy-alt, mios-pgvector, mios-open-webui, mios-piper, mios-whisper.",
+      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai] in mios.toml. Members (8): mios-llm-light, mios-cpu-node, mios-llm-worker@, mios-llm-heavy, mios-pgvector, mios-open-webui, mios-piper, mios-whisper.",
       "related": [
         "usr/share/mios/mios.toml",
         "tools/generate-pod-quadlets.py",
@@ -28906,7 +29015,6 @@
         "mios-cpu-node.container",
         "mios-llm-worker@.container",
         "mios-llm-heavy.container",
-        "mios-llm-heavy-alt.container",
         "mios-pgvector.container",
         "mios-open-webui.container",
         "mios-piper.container",
@@ -28992,15 +29100,6 @@
     {
       "path": "usr/share/containers/systemd/mios-k3s.container",
       "hint": "MiOS mios-k3s container. (WS-7 pods-as-SSOT).",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/containers/systemd/mios-llm-heavy-alt.container",
-      "hint": "MiOS mios-llm-heavy-alt container. (WS-7 pods-as-SSOT).",
       "related": [],
       "functions": [],
       "doc": null,
@@ -31454,7 +31553,7 @@
     },
     {
       "path": "usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md",
-      "hint": "Chapter 11: Heavy GPU Lanes and SGLang/vLLM. Defines how SGLang is conditionally run depending on VRAM and workloads. Explains multi-model scaling and distributed worker configurations. Covers pre-allocation thresholds and dynamic offloading policies.",
+      "hint": "Chapter 11: The Heavy GPU Lane and its Engines (vLLM or SGLang). One heavy dGPU lane, mios-llm-heavy, whose SSOT spec carries the engine choice ([ai].heavy_engine) and renders the matching Quadlet. Documents both engines' options, the one port/node/route, and VRAM gating, LoRA and the CPU fallback.",
       "related": [],
       "functions": [],
       "doc": null,

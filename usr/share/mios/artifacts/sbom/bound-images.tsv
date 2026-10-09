@@ -16,7 +16,7 @@ ghcr.io/mios-dev/mios-micro:latest	local	extra	1.5
 ghcr.io/mios-dev/mios-node:latest	local	extra	1.0
 ghcr.io/open-webui/open-webui:main	local	heavy	1.0
 docker.io/jaegertracing/all-in-one:latest	local	extra	1.0
-docker.io/pgvector/pgvector:latest	local	extra	1.0
+docker.io/pgvector/pgvector:pg18	local	extra	1.0
 quay.io/poseidon/matchbox:latest	local	extra	1.0
 docker.io/searxng/searxng:latest	local	extra	1.0
 docker.io/valkey/valkey:latest	local	extra	1.0
