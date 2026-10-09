@@ -85,15 +85,16 @@ passes on the real tree or system) and a negative control (a planted defect make
   it as a `miosd` subcommand (one MiOS-MODULE), not a new `mios-syncd` binary. mios.html already
   POSTs `/portal/config` when embedded and falls back to File System Access or download.
 - **M5:** self-build on installed MiOS (SC-7).
-- **Cloud/dev hosts (brief P0-8, P0-9):**
-  - The hosted sandboxes cannot hold the full image (~49 GB unpacked):
-    - Claude Code cloud has 30 GB of disk.
-    - Codex cloud has 8 GiB (Plus) or 32 GiB (Pro/Business/Enterprise).
-  - "These environments are MiOS containers" therefore needs either:
-    - a slim `mios-dev` variant (no bound images, models, flatpaks or desktop; under 30 GB), or
-    - a Claude Code self-hosted runner Quadlet built FROM `[image].ref` on MiOS-DEV or Metal.
-  - Codespaces (128 GB) can take the full image.
-  - "bootc switch → MiOS-DEV IS MiOS" is impossible on the WSL podman-machine provider; it needs `[bootstrap.dev_vm].provider = "hyperv"` and `podman machine os apply`.
+- **Cloud/dev hosts and the Hyper-V image (brief P0-8, P0-9):**
+  - Cloud images carry no AI weights and no desktop apps; that is the operator's design. Otherwise every image is equivalent.
+  - The published image (49 GB unpacked) carries 26 GB of baked sidecar images and 5.8 GB of light GGUFs. Two moves shrink every image equally and fit the 30–32 GB hosted sandboxes:
+    - sidecars become logically bound images, pulled on use (P0-3);
+    - weights move out of `/usr` (P1-24).
+  - MiOS ships as a **Hyper-V image** (VHDX) too:
+    - Build it with native `mios-build artifact vhdx` from `[deploy.formats.vhdx]`. Identity comes from SSOT, not placeholders.
+    - CI builds and boot-tests it.
+    - It is delivered by a local build from the published digest (release assets are capped at 2 GiB).
+  - `[bootstrap.dev_vm].provider = "hyperv"` makes MiOS-DEV a MiOS VM with real `bootc` upgrade and rollback. GPU-PV comes through dxgkrnl. The WSL provider cannot `bootc switch`.
 - **M6:** shallow-tree collapse (SC-9), in batches, after PR #61 is green. Each batch rewrites every
   consumer (code, units, CI, Containerfile, docs and links), re-runs `mios-gen sync` and the full gate,
   and drops no feature. Reference counts below were measured on 2026-10-08 and exclude generated
