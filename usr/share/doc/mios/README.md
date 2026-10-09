@@ -232,9 +232,10 @@ decision is always a new record, never a rewrite of the old one.
 | `usr/share/doc/mios/adr/0026-global-task-store.md` | ADR-0026 makes one strict-schema JSONL file the canonical record of every MiOS task (T-, AGY-, MON-, F-, M-, CODE-, G- ids), merged losslessly from every task list with verbatim provenance; the pure... |
 | `usr/share/doc/mios/adr/0027-dual-tier-oci-ai-artifacts.md` | Dual-tier OCI AI artifact architecture: standard OCI ModelCars for resident inference lanes via Podman Quadlet image mounts and composefs; CNCF KitOps ModelKits for development, training corpora,... |
 | `usr/share/doc/mios/adr/0028-one-canonical-task-list.md` | ADR-0028 makes tasks.jsonl at the repo root the only canonical MiOS task list, edited directly; TASKS.md is its rendered documentation plus an operator-overrides block every task tool applies; the... |
+| `usr/share/doc/mios/adr/0029-agent-succession-and-interop.md` | ADR-0029 adds a coordinator lease (agent.lease, Kubernetes Lease semantics) beside the relay's presence lease, so a standby harness can detect the holder's credit exhaustion from its transcript and... |
 | `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
 
-<!-- derived from the AI-hint headers of 29 file(s) matching usr/share/doc/mios/adr/*.md -->
+<!-- derived from the AI-hint headers of 30 file(s) matching usr/share/doc/mios/adr/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
 
 ## manual

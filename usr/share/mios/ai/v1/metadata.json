@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3661,
-  "total_metadata_entries": 3020,
-  "total_hints": 3010,
+  "total_files_scanned": 3662,
+  "total_metadata_entries": 3021,
+  "total_hints": 3011,
   "total_functions_indexed": 1452,
-  "total_related_links": 5083,
+  "total_related_links": 5091,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -28401,6 +28401,24 @@
         "/usr/lib/mios/schemas/task-record.schema.json",
         "tools/native/mios-task",
         "automation/98-drift-checks.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/doc/mios/adr/0029-agent-succession-and-interop.md",
+      "hint": "ADR-0029 adds a coordinator lease (agent.lease, Kubernetes Lease semantics) beside the relay's presence lease, so a standby harness can detect the holder's credit exhaustion from its transcript and take over; maps the relay, translation layer and tmux spawning onto A2A v1.0, MCP 2026-07-28 tasks, OpenAI handoffs/Responses, OpenTelemetry GenAI and AGENTS.md.",
+      "related": [
+        "/usr/share/doc/mios/adr/README.md",
+        ".agents/COORDINATION.md",
+        "/usr/share/doc/mios/mcp-tmux.md",
+        "tools/native/mios-agent-relay",
+        "/usr/libexec/mios/mios-mcp-server",
+        "/usr/lib/mios/mios_translate.py",
+        "/usr/share/mios/mios.toml [mcp.agents]",
+        "[agent_cli]"
       ],
       "functions": [],
       "doc": null,
