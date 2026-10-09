@@ -81,6 +81,17 @@ fn is_name(s: &str) -> bool {
     s.starts_with("MIOS_") && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 
+/// The `MIOS_*` name a value consists of, when the WHOLE value is one
+/// `${NAME}` or `${NAME:-default}` -- a reference that carries NAME's value
+/// whenever NAME is set. Anything around or after it makes it a composition.
+pub fn sole_reference(text: &str) -> Option<&str> {
+    if !text.starts_with("${") || matching_brace(text.as_bytes(), 0)? != text.len() - 1 {
+        return None;
+    }
+    let (name, _) = split_default(&text[2..text.len() - 1]);
+    is_name(name).then_some(name)
+}
+
 /// What a pass is allowed to touch.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -184,6 +195,19 @@ mod tests {
 
     const KB: &str =
         "base_url = \"${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORTS_AGENT_PIPE:-8700}/v1}\"";
+
+    #[test]
+    fn sole_reference_is_only_a_whole_value_reference() {
+        assert_eq!(sole_reference("${MIOS_A}"), Some("MIOS_A"));
+        assert_eq!(sole_reference("${MIOS_A:-x:${MIOS_B}}"), Some("MIOS_A"));
+        // A composition, a trailing literal, two references or a foreign name
+        // is not one declaration's value.
+        assert_eq!(sole_reference("http://${MIOS_A}/v1"), None);
+        assert_eq!(sole_reference("${MIOS_A}x"), None);
+        assert_eq!(sole_reference("${MIOS_A}${MIOS_B}"), None);
+        assert_eq!(sole_reference("${HOME}"), None);
+        assert_eq!(sole_reference("${MIOS_A"), None);
+    }
 
     /// The bash renderer produced FOUR different answers for this one line
     /// depending only on which variables were exported, one of which was

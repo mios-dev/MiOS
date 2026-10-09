@@ -259,20 +259,27 @@ pub fn render_monitor(
         "focusFullscreen" => args.extend(["--fullscreen".into(), "--focus".into()]),
         _ => return Err("Invalid SSOT theme.launch_mode".into()),
     }
-    let percent = |key: &str| -> Result<u64, String> {
-        config["terminal"]["monitor"][key]
+    let percent = |table: &Value, path: &str, key: &str| -> Result<u64, String> {
+        table[key]
             .as_u64()
             .filter(|v| *v > 0 && *v < 100)
-            .ok_or_else(|| format!("Invalid SSOT terminal.monitor.{key}"))
+            .ok_or_else(|| format!("Invalid SSOT {path}.{key}"))
     };
-    let landscape_head = percent("split_landscape_head")?;
-    let landscape_monitor = percent("split_landscape_monitor")?;
-    let portrait_head = percent("split_portrait_head")?;
-    let portrait_monitor = percent("split_portrait_monitor")?;
-    let worker_split = (percent("worker_split_percent")? as f64 / 100.0).to_string();
-    if landscape_head + landscape_monitor != 100 || portrait_head + portrait_monitor != 100 {
-        return Err("SSOT monitor split percentages must sum to 100".into());
-    }
+    // ONE head share for every head/monitor split, shared with the Linux tmux
+    // workspace; the monitor always takes the rest, in both orientations.
+    let portrait_head = percent(
+        &config["mcp"]["tmux"]["workspace"],
+        "mcp.tmux.workspace",
+        "head_percent",
+    )?;
+    let landscape_monitor = 100 - portrait_head;
+    let worker_split = (percent(
+        &config["terminal"]["monitor"],
+        "terminal.monitor",
+        "worker_split_percent",
+    )? as f64
+        / 100.0)
+        .to_string();
     let profile = text(config, "/theme/terminal/profile_name")?;
     let scheme = text(config, "/theme/terminal/scheme_name")?;
     let title = text(config, "/terminal/monitor/title")?;
@@ -352,9 +359,9 @@ mod tests {
         json!({"terminal":{"default_action":"ai","start_directory":"/","socket_root":"/tmp","scrollback_rows":9000,
             "windows":{"backend":"native-tmux","socket_name":"host","session_name":"MiOS-WIN","shell":"cmd.exe"},
             "monitor":{"windows_backend":"windows-terminal","window_name":"monitor","title":"Build","cols":80,"rows":20,
-                "split_landscape_head":38,"split_landscape_monitor":62,"split_portrait_monitor":62,"split_portrait_head":38,"worker_split_percent":50}},
+                "worker_split_percent":50}},
             "keybindings":{"mouse":true,"socket_name":"guest","terminal_session":"MiOS","actions":[{"id":"agents","command":"mios agents --watch","label":"Agents"},{"id":"ai","command":"mios ai","label":"AI"}]},
-            "mcp":{"agents":{"observation":{"window_name":"MiOS Agents"}}},
+            "mcp":{"agents":{"observation":{"window_name":"MiOS Agents"}},"tmux":{"workspace":{"head_percent":38}}},
             "theme":{"launch_mode":"focus","terminal":{"profile_name":"MiOS-WIN","scheme_name":"MiOS"}}})
     }
     #[test]
@@ -401,7 +408,7 @@ mod tests {
         config["keybindings"]["socket_name"] = json!("bad\nname");
         assert!(terminal_config(&config, "", true).is_err());
         let mut config = fixture();
-        config["terminal"]["monitor"]["split_landscape_head"] = json!(99);
+        config["mcp"]["tmux"]["workspace"]["head_percent"] = json!(100);
         assert!(render_monitor(&config, "python.exe", "monitor.py", "cmd.exe", false).is_err());
         assert!(render_monitor(
             &fixture(),

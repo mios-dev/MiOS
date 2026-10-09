@@ -214,19 +214,19 @@ EOF
 # AGY-1073: the Python generator is deleted; every site runs the native twin.
 _names_gen_bin() {
     local c
-    for c in "${ROOT}/tools/native/target/release/generate-names-registry" \
-             "${ROOT}/tools/native/target/debug/generate-names-registry" \
-             "${ROOT}/tools/native/target/release/generate-names-registry.exe" \
-             "${ROOT}/tools/native/target/debug/generate-names-registry.exe" \
-             /usr/libexec/mios/generate-names-registry; do
+    for c in "${MIOS_NATIVE_BIN_DIR:-}/mios-gen" \
+             "${ROOT}/tools/native/target/release/mios-gen" \
+             "${ROOT}/tools/native/target/debug/mios-gen" \
+             "${ROOT}/tools/native/target/release/mios-gen.exe" \
+             "${ROOT}/tools/native/target/debug/mios-gen.exe" /usr/bin/mios-gen; do
         [[ -x "$c" ]] && { printf '%s' "$c"; return 0; }
     done
     return 1
 }
 
-_names_gen_run() {  # --check: compare in memory, never rewrite the tree under test
+_names_gen_run() {  # Compare in memory with the same canonical generator as the gate.
     local b; b="$(_names_gen_bin)" || return 1
-    MIOS_DRIFT_ROOT="$ROOT" "$b" --check
+    "$b" names-registry --root "$ROOT" --check
 }
 
 _test_names_registry_readonly() (
@@ -340,7 +340,8 @@ test_dead_git_corpus() {
             ;;
     esac
     local shim reg before after VLBIN=""
-    for VLBIN in "${ROOT}/src/mios-rs/target/release/mios-gate.exe" \
+    for VLBIN in "${MIOS_NATIVE_BIN_DIR:-}/mios-gate" \
+                 "${ROOT}/src/mios-rs/target/release/mios-gate.exe" \
                  "${ROOT}/src/mios-rs/target/debug/mios-gate.exe" \
                  "${ROOT}/src/mios-rs/target/release/mios-gate" \
                  "${ROOT}/src/mios-rs/target/debug/mios-gate" \
@@ -3434,48 +3435,27 @@ test_resolved_env_lossless() {
 }
 
 test_no_duplicate_value_key() {
-    # Was a rubber stamp: it ran the gate and died only if the gate FAILED.
-    # Both cases below are SSOT-side, not a broken tool.
+    # Every case mutates the SSOT, never the tool: a new group, T-998's one exit, a joiner.
     log "Testing check_no_duplicate_value_key"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local ledger="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml" ledger="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
+    local aliases="${ROOT}/usr/share/mios/reference/value-aliases.tsv" bak_file="${ROOT}/usr/share/mios/mios.toml.bak" dup_value exit_rc=0
     [[ -f "$toml_file" && -f "$ledger" ]] || { log "Test_no_duplicate_value_key skipped (SSOT or ledger absent)"; return 0; }
-
-    _neg_gate check_no_duplicate_value_key \
-        || die "check_no_duplicate_value_key failed on the unmutated tree: ${_NEG_GATE_OUT}"
-
-    local bak_file="${toml_file}.bak"
-    cp "$toml_file" "$bak_file"
-
-    # Case 1 -- a brand-new group: two SSOT keys given one novel value. The
-    # group count rises above the ratchet ceiling AND the value is unlisted.
+    _neg_gate check_no_duplicate_value_key || die "check_no_duplicate_value_key failed on the unmutated tree: ${_NEG_GATE_OUT}"
+    cp "$toml_file" "$bak_file"; cp "$aliases" "${aliases}.bak"
+    # Case 1 -- a brand-new group: two SSOT keys given one novel value.
     printf '\n[negtest_value_dup]\nalpha = "ZZNEGDUPVALUE4271"\nbeta = "ZZNEGDUPVALUE4271"\n' >> "$toml_file"
-    if _neg_gate check_no_duplicate_value_key; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        die "check_no_duplicate_value_key passed despite two SSOT keys resolving to one unlisted value"
-    fi
-    cp "$bak_file" "$toml_file"
-
-    # Case 2 -- the harder one: a single new key joining a value group the
-    # ledger ALREADY tolerates. The group count is unchanged, so only the
-    # per-group key-set comparison can catch it. The value is read out of the
-    # ledger itself so the test never hardcodes an SSOT fact.
-    local dup_value
+    _neg_gate check_no_duplicate_value_key && { mv -f "$bak_file" "$toml_file"; mv -f "${aliases}.bak" "$aliases"; die "check_no_duplicate_value_key passed despite two SSOT keys resolving to one unlisted value"; }
+    # Case 2 -- T-998's one exit: the same plant passes once value-aliases.tsv classifies it keep-distinct.
+    printf 'MIOS_NEGTEST_VALUE_DUP_ALPHA\tMIOS_NEGTEST_VALUE_DUP_BETA\tkeep-distinct\t# two planted settings that agree by accident\n' >> "$aliases"
+    _neg_gate check_no_duplicate_value_key || exit_rc=$?; cp "$bak_file" "$toml_file"; mv -f "${aliases}.bak" "$aliases"
+    (( exit_rc == 0 )) || { mv -f "$bak_file" "$toml_file"; die "check_no_duplicate_value_key rejected a keep-distinct coincidence: ${_NEG_GATE_OUT}"; }
+    # Case 3 -- one new key joining a group the ledger tolerates: the count holds, only the per-group comparison sees it.
     dup_value="$(awk -F'\t' 'substr($0,1,1) != "#" && NF == 3 && $1 ~ /^[A-Za-z0-9._-]+$/ { print $1; exit }' "$ledger")"
-    if [[ -n "$dup_value" ]]; then
-        printf '\n[negtest_value_grow]\njoiner = "%s"\n' "$dup_value" >> "$toml_file"
-        if _neg_gate check_no_duplicate_value_key; then
-            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-            die "check_no_duplicate_value_key passed despite a new SSOT key joining the already-listed value group '${dup_value}'"
-        fi
-        cp "$bak_file" "$toml_file"
-    else
-        die "value-dup-baseline.tsv yielded no usable group value -- the ledger the gate ratchets against is empty or malformed"
-    fi
-
-    rm -f "$bak_file"
-    _neg_gate check_no_duplicate_value_key \
-        || die "check_no_duplicate_value_key failed after restoration: ${_NEG_GATE_OUT}"
+    [[ -n "$dup_value" ]] || { mv -f "$bak_file" "$toml_file"; die "value-dup-baseline.tsv yielded no usable group value -- the ledger the gate ratchets against is empty or malformed"; }
+    printf '\n[negtest_value_grow]\njoiner = "%s"\n' "$dup_value" >> "$toml_file"
+    _neg_gate check_no_duplicate_value_key && { mv -f "$bak_file" "$toml_file"; die "check_no_duplicate_value_key passed despite a new SSOT key joining the already-listed value group '${dup_value}'"; }
+    mv -f "$bak_file" "$toml_file"
+    _neg_gate check_no_duplicate_value_key || die "check_no_duplicate_value_key failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_no_duplicate_value_key negative test passed"
 }
 
@@ -3509,9 +3489,14 @@ test_value_aliases() {
     local backup; backup="$(mktemp)"
     cp "$f" "$backup"
     printf 'MIOS_A2A_COUNCIL\tMIOS_A2A_DISCOVER_PORT\tderive\n' >> "$f"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 && die "Check_value_aliases passed despite a derive-pair with divergent values"
+    _neg_gate check_value_aliases && { cp "$backup" "$f"; die "Check_value_aliases passed despite a derive-pair with divergent values"; }
+    # T-998: keep-distinct needs two declarations and a reason; an alias or a bare pair fails.
+    local row; for row in 'MIOS_PORTS_RADOSGW\tMIOS_RADOSGW_PORT\tkeep-distinct\t# one port, mislabelled a coincidence' \
+        'MIOS_SCHED_URGENCY_HIGH\tMIOS_SSOT_TABLES_MAX_UNCONSUMED\tkeep-distinct'; do cp "$backup" "$f"; printf "${row}\n" >> "$f"
+        _neg_gate check_value_aliases && { cp "$backup" "$f"; rm -f "$backup"; die "Check_value_aliases accepted an unjustified keep-distinct row: ${row}"; }
+    done
     cp "$backup" "$f"; rm -f "$backup"
-    _neg_gate check_value_aliases || die "Check_value_aliases failed after restoration"
+    _neg_gate check_value_aliases || die "Check_value_aliases failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_value_aliases negative test passed"
 }
 
@@ -3530,12 +3515,12 @@ test_bash_phase_ratchet() {
 
     # Slack is the hole the probe above fell through (a ceiling of 79 over 77
     # scripts), and an absent ceiling is not a default.
-    sed -i 's/^max_automation_phases = \([0-9]*\)/max_automation_phases = 9\1/' "$toml"
-    cmp -s "$bak" "$toml" && _bpr_fail "the slack plant landed nowhere -- [legibility].max_automation_phases moved"
+    sed -i 's/^max_phase_scripts = \([0-9]*\)/max_phase_scripts = 9\1/' "$toml"
+    cmp -s "$bak" "$toml" && _bpr_fail "the slack plant landed nowhere -- [build.ratchet].max_phase_scripts moved"
     _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed with a ceiling above the phase-script count"
     cp "$bak" "$toml"
-    sed -i '/^max_automation_phases = /d' "$toml"
-    _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed with [legibility].max_automation_phases absent"
+    sed -i '/^max_phase_scripts = /d' "$toml"
+    _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed with [build.ratchet].max_phase_scripts absent"
 
     cp "$bak" "$toml"; rm -f "$bak"; unset -f _bpr_fail
     _neg_gate check_bash_phase_ratchet || die "Check_bash_phase_ratchet failed after restoration: $_NEG_GATE_OUT"
@@ -5917,15 +5902,7 @@ _run_test test_leaked_fixtures
 
 test_rust_categories() {
     log "Testing check_rust_categories"
-    local VLBIN=""
-    for c in "${ROOT}/src/mios-rs/target/release/mios-gate" \
-             "${ROOT}/src/mios-rs/target/debug/mios-gate" \
-             "${ROOT}/src/mios-rs/target/release/mios-gate.exe" \
-             "${ROOT}/src/mios-rs/target/debug/mios-gate.exe" \
-             /usr/libexec/mios/mios-gate ""; do
-        [[ -n "$c" && -x "$c" ]] && { VLBIN="$c"; break; }
-    done
-    [[ -n "$VLBIN" ]] || die "mios-gate is not built, so test_rust_categories has no subject"
+    _neg_gate check_rust_categories || die "rust-categories is red before the probe: $_NEG_GATE_OUT"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local backup; backup="$(mktemp)"
     cp -p "$toml" "$backup"
@@ -5936,14 +5913,14 @@ test_rust_categories() {
     probe_owner="$(printf 'ow%sner = ""' 'o')"
     probe_table="$(printf '[rust.categories.probe-%s]' "$(date +%s)")"
     printf '\n%s\n%s\n' "$probe_table" "$probe_owner" >> "$toml"
-    if "$VLBIN" rust-categories --root "$ROOT" >/dev/null 2>&1; then
+    if _neg_gate check_rust_categories; then
         cp -p "$backup" "$toml"; rm -f "$backup"
         die "rust-categories reported clean with a planted owner-less category"
     fi
     cp -p "$backup" "$toml"
     rm -f "$backup"
-    "$VLBIN" rust-categories --root "$ROOT" >/dev/null 2>&1 \
-        || die "rust-categories failed on the clean tree after the probe was removed"
+    _neg_gate check_rust_categories \
+        || die "rust-categories failed after restoration: $_NEG_GATE_OUT"
     log "check_rust_categories negative test passed"
 }
 

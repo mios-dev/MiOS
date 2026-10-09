@@ -8,21 +8,68 @@ use crate::aliases::get_aliases;
 use crate::walk::{process_val, walk};
 
 pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
-    build_exports(merged, stack_offset, false)
+    build_exports(merged, stack_offset, false, None)
+}
+
+/// Emitted name -> the SSOT key path whose value it carries, traced with the
+/// emitters' own precedence; a name whose value is computed has no entry.
+pub fn export_sources(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
+    let mut sources = BTreeMap::new();
+    let exports = build_exports(merged, stack_offset, false, Some(&mut sources));
+    // A derived port carries the category value it was copied from verbatim.
+    let origins = crate::ports::port_origins(merged);
+    for source in sources.values_mut() {
+        if let Some(origin) = origins.get(source.as_str()) {
+            *source = origin.clone();
+        }
+    }
+    // A value that is exactly one `${MIOS_X}` reference carries MIOS_X's value
+    // whenever MIOS_X is set, so it is MIOS_X's declaration, not a second one.
+    // An unset reference falls back to its default and stays its own.
+    let traced = sources.clone();
+    for (name, source) in sources.iter_mut() {
+        let mut current = name.clone();
+        for _ in 0..crate::expand::MAX_DEPTH {
+            let Some(target) = exports
+                .get(&current)
+                .and_then(|v| crate::expand::sole_reference(v))
+                .filter(|t| exports.get(*t).is_some_and(|v| !v.is_empty()))
+            else {
+                break;
+            };
+            current = target.to_string();
+        }
+        if &current != name {
+            if let Some(origin) = traced.get(&current) {
+                *source = origin.clone();
+            }
+        }
+    }
+    sources
 }
 
 /// Globals use the same naming/value engine. Only their historical projection
 /// scope differs: comments, env overrides and the dead Guacamole aliases.
 pub fn build_globals_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
-    let mut exports = build_exports(merged, stack_offset, true);
+    let mut exports = build_exports(merged, stack_offset, true, None);
     exports.remove("MIOS_PORT_GUACAMOLE");
     exports.remove("MIOS_GUACAMOLE_PORT");
     exports
 }
 
-fn build_exports(merged: &Value, stack_offset: i64, globals: bool) -> BTreeMap<String, String> {
+fn build_exports(
+    merged: &Value,
+    stack_offset: i64,
+    globals: bool,
+    mut sources: Option<&mut BTreeMap<String, String>>,
+) -> BTreeMap<String, String> {
     let mut exports = BTreeMap::new();
     let mut legacy = BTreeMap::new();
+    // An alias two declarations write has no single source: which one lands
+    // follows table iteration order, which the toml crate's preserve_order
+    // feature flips between builds of this same code. None keeps it
+    // untraceable everywhere rather than traced differently per build.
+    let mut legacy_source: BTreeMap<String, Option<String>> = BTreeMap::new();
     let all_pairs = walk(merged);
 
     // Any character that is not [A-Za-z0-9_] becomes `_`, matching
@@ -61,6 +108,9 @@ fn build_exports(merged: &Value, stack_offset: i64, globals: bool) -> BTreeMap<S
         if is_mostly_dead_section(sec_name) && !is_emit_keep_var(&canonical) {
             // Suppressed canonical key
         } else {
+            if let Some(sources) = sources.as_deref_mut() {
+                sources.insert(canonical.clone(), path.clone());
+            }
             exports.insert(canonical, val_processed.clone());
         }
 
@@ -85,13 +135,28 @@ fn build_exports(merged: &Value, stack_offset: i64, globals: bool) -> BTreeMap<S
             } else {
                 val_processed.clone()
             };
+            legacy_source
+                .entry(leg.clone())
+                .and_modify(|seen| {
+                    if seen.as_deref() != Some(path.as_str()) {
+                        *seen = None;
+                    }
+                })
+                .or_insert_with(|| Some(path.clone()));
             legacy.insert(leg, v);
         }
     }
     // Canonical keys retain their own typed value even when another key once
     // used the same spelling as a compatibility alias (database vs OS account).
     for (name, value) in legacy {
-        exports.entry(name).or_insert(value);
+        if let std::collections::btree_map::Entry::Vacant(slot) = exports.entry(name) {
+            if let Some(sources) = sources.as_deref_mut() {
+                if let Some(Some(path)) = legacy_source.get(slot.key()) {
+                    sources.insert(slot.key().clone(), path.clone());
+                }
+            }
+            slot.insert(value);
+        }
     }
 
     // MIOS_COLOR_<name> for every palette entry ([colors] over the palette
@@ -116,6 +181,9 @@ fn build_exports(merged: &Value, stack_offset: i64, globals: bool) -> BTreeMap<S
         for (k, v) in env_table {
             let val = process_val(&format!("env.{k}"), v, stack_offset);
             if !val.is_empty() {
+                if let Some(sources) = sources.as_deref_mut() {
+                    sources.insert(sanitize(k), format!("env.{k}"));
+                }
                 exports.insert(sanitize(k), val);
             }
         }
@@ -198,6 +266,87 @@ thing = "docker.io/library/thing"
             e.get("MIOS_THING_VERSION").map(String::as_str),
             Some("latest")
         );
+    }
+
+    #[test]
+    fn sources_trace_every_spelling_to_its_declaration() {
+        let val: Value = toml::from_str(
+            r#"
+[converge]
+memory_dir = "/var/lib/x"
+
+[ports]
+radosgw = 8470
+pgvector_internal = 1
+agent_pipe = 1
+llm_heavy = 1
+
+[ports.categories.data]
+base = 8600
+stride = 10
+members = ["pgvector"]
+pinned = { pgvector_internal = 5432 }
+
+[ports.categories.agent]
+base = 8700
+stride = 10
+members = ["agent_pipe", "llm_heavy"]
+
+[image.sidecars]
+sglang = "docker.io/lmsysorg/sglang:latest"
+
+[images.heavy.Image]
+Image = "${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}"
+
+[dispatch]
+hint = "http://${MIOS_PORTS_LLM_HEAVY}/v1"
+
+[pgvector]
+user = "database"
+
+[services.pgvector]
+user = "os-account"
+
+[env]
+MIOS_OVERRIDDEN = "x"
+
+[other]
+overridden = "y"
+"#,
+        )
+        .unwrap();
+        let mut merged = val;
+        crate::ports::derive_ports(&mut merged);
+        let s = export_sources(&merged, 0);
+        // One declaration, three spellings.
+        assert_eq!(s["MIOS_CONVERGE_MEMORY_DIR"], "converge.memory_dir");
+        assert_eq!(s["MIOS_CONV_MEMORY_DIR"], "converge.memory_dir");
+        assert_eq!(s["MIOS_PORTS_RADOSGW"], "ports.radosgw");
+        assert_eq!(s["MIOS_RADOSGW_PORT"], "ports.radosgw");
+        // A pinned or offset-0 port IS its category key.
+        assert_eq!(
+            s["MIOS_PORT_PGVECTOR_INTERNAL"],
+            "ports.categories.data.pinned.pgvector_internal"
+        );
+        assert_eq!(s["MIOS_PORTS_AGENT_PIPE"], "ports.categories.agent.base");
+        // A computed member keeps its own declaration.
+        assert_eq!(s["MIOS_PORTS_LLM_HEAVY"], "ports.llm_heavy");
+        // A whole-value reference is the referenced declaration...
+        assert_eq!(s["MIOS_IMAGES_HEAVY_IMAGE_IMAGE"], "image.sidecars.sglang");
+        // ...a composition is its own.
+        assert_eq!(s["MIOS_DISPATCH_HINT"], "dispatch.hint");
+        // A canonical key keeps its value against another key's alias.
+        assert_eq!(s["MIOS_PGVECTOR_USER"], "pgvector.user");
+        assert_eq!(s["MIOS_SERVICES_PGVECTOR_USER"], "services.pgvector.user");
+        // [env] wins, and says so.
+        assert_eq!(s["MIOS_OVERRIDDEN"], "env.MIOS_OVERRIDDEN");
+        // Two declarations writing one alias: no single source, in any build.
+        let two: Value =
+            toml::from_str("[urls]\nbootstrap_repo = \"u\"\n[bootstrap]\nbootstrap_repo = \"u\"\n")
+                .unwrap();
+        let s = export_sources(&two, 0);
+        assert!(!s.contains_key("MIOS_BOOTSTRAP_REPO_URL"), "{s:?}");
+        assert_eq!(s["MIOS_URLS_BOOTSTRAP_REPO"], "urls.bootstrap_repo");
     }
 
     #[test]

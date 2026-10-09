@@ -123,10 +123,40 @@ mod probes {
             }),
         }
 
-        let Some(files) = b.get("required_files").and_then(|v| v.as_array()) else {
-            return cannot_run("[preflight.build].required_files is missing".to_string());
+        // Every image target's Containerfile is required by the build that reads
+        // it, and [build.images.<target>].containerfile is where it is declared:
+        // listing it again under required_files was a second declaration that
+        // would keep probing the old name after a rename. required_files names only
+        // what the build needs beyond its targets.
+        let images = cfg.get("build").and_then(|b| b.get("images"));
+        let Some(order) = images
+            .and_then(|i| i.get("order"))
+            .and_then(|v| v.as_array())
+        else {
+            return cannot_run("[build.images].order is missing".to_string());
         };
-        for f in files.iter().filter_map(|v| v.as_str()) {
+        let mut files: Vec<String> = Vec::new();
+        for target in order.iter().filter_map(|v| v.as_str()) {
+            match images
+                .and_then(|i| i.get(target))
+                .and_then(|t| t.get("containerfile"))
+                .and_then(|v| v.as_str())
+            {
+                Some(f) => files.push(f.to_string()),
+                None => {
+                    return cannot_run(format!("[build.images.{target}].containerfile is missing"))
+                }
+            }
+        }
+        files.extend(
+            b.get("required_files")
+                .and_then(|v| v.as_array())
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(str::to_string),
+        );
+        for f in &files {
             let (verdict, msg) = if root.join(f).is_file() {
                 (Verdict::Ok, format!("{f} present"))
             } else {

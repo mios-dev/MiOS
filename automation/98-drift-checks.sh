@@ -3325,7 +3325,7 @@ check_no_duplicate_value_key() {
     [[ -f "$snap_tool" ]] || { _violation "check_no_duplicate_value_key: resolver usr/libexec/mios/mios-env-snapshot is absent -- the gate has no environment to inspect"; return; }
     [[ -f "$baseline" || "$bump" == "1" ]] || { _violation "check_no_duplicate_value_key: ratchet ledger usr/share/mios/reference/value-dup-baseline.tsv is absent -- regenerate with MIOS_VALUE_DUP_BASELINE_BUMP=1"; return; }
     if MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" \
-       MIOS_VALUE_DUP_BASELINE_BUMP="$bump" \
+       MIOS_RESOLVER_BIN="$(native_bin mios-resolver)" MIOS_VALUE_DUP_BASELINE_BUMP="$bump" \
        python3 tools/drift-checks.py no-duplicate-value-key "$snap_tool" "$baseline"; then
         echo "[98-drift-checks]   value-duplication within the recorded ratchet ceiling"
     else
@@ -3394,7 +3394,8 @@ check_value_aliases() {
         _violation "value-alias snapshot or reference TSV absent -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
-    if MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" python3 tools/drift-checks.py value-aliases "$snap" "$tsv"
+    if MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" \
+       MIOS_RESOLVER_BIN="$(native_bin mios-resolver)" python3 tools/drift-checks.py value-aliases "$snap" "$tsv"
     then
         echo "[98-drift-checks]   value-alias consistency verified"
     else
@@ -3424,7 +3425,7 @@ check_bash_phase_ratchet() {
     echo "[98-drift-checks]   bash phase script count ratchet check"
     local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_bash_phase_ratchet could not run"; return; }
     "$bin" phase-ratchet --root "$ROOT" || \
-        _violation "the automation/NN-*.sh count is not exactly [legibility].max_automation_phases -- fold a phase, or lower the ceiling to the count"
+        _violation "the automation/NN-*.sh count is not exactly [build.ratchet].max_phase_scripts -- fold a phase, or lower the ceiling to the count"
 }
 
 check_signature_policy() {

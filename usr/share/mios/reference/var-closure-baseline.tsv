@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 426
+#!ceiling 423
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:663
@@ -300,7 +300,6 @@ MIOS_POLICIES	automation/38-selinux.sh:45
 MIOS_PORT	tools/drift-checks.py:2377
 MIOS_PORT_GUACAMOLE_WEB	usr/libexec/mios/Setup-MiOSLanPortProxy.ps1:38
 MIOS_PORT_HERMES_WORKER	usr/share/mios/k3s/generated/mios-ai.yaml:195
-MIOS_RATCHET_BASE	CI-supplied verified comparison commit; automation/lint-shell.sh
 MIOS_PORT_OWUI	usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:671
 MIOS_PRINCIPAL_BIND_MODE	usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py:450
 MIOS_PRIORITY_QUEUE	usr/lib/mios/agent-pipe/server.py:543
@@ -385,8 +384,6 @@ MIOS_SOURCES_REGISTRY_CAP	usr/lib/mios/agent-pipe/server.py:1948
 MIOS_SSE_KEEPALIVE_S	usr/lib/mios/agent-pipe/sse_streamer.py:79
 MIOS_SSE_MODEL	usr/lib/mios/agent-pipe/sse_streamer.py:76
 MIOS_SSE_PUSH_TIMEOUT_S	usr/lib/mios/agent-pipe/sse_streamer.py:77
-MIOS_SSOT_LINT_ROOT	automation/97-ssot-lint.sh:13
-MIOS_SSOT_LINT_SOFT	automation/97-ssot-lint.sh:19
 MIOS_STABLE_PREFIX_HINT	usr/lib/mios/agent-pipe/server.py:1845
 MIOS_STABLE_PREFIX_TAIL	usr/lib/mios/agent-pipe/server.py:1843
 MIOS_STABLE_TOOL_PREFIX	usr/lib/mios/agent-pipe/server.py:1840

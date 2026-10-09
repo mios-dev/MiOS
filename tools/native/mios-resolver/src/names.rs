@@ -44,6 +44,10 @@ pub struct NameRegistry {
     pub convention: &'static str,
     pub entries: Vec<NameEntry>,
     pub ambiguous_aliases: BTreeMap<String, Vec<String>>,
+    /// Emitted name -> the SSOT key path whose value it carries (see
+    /// `emit::export_sources`). Two names with one source are one declaration
+    /// under two spellings; a name absent here is its own declaration.
+    pub sources: BTreeMap<String, String>,
 }
 
 impl NameRegistry {
@@ -71,7 +75,8 @@ impl NameRegistry {
 /// Metadata only: never serialize values, credentials, or process environment.
 /// Distinct keys that collapse lexically are an error before any output writes.
 pub fn registry(merged: &Value) -> Result<NameRegistry, String> {
-    let exports = crate::emit::build_exports_map(merged, crate::stack_offset_of(merged));
+    let offset = crate::stack_offset_of(merged);
+    let exports = crate::emit::build_exports_map(merged, offset);
     let mut canonical_owners = BTreeMap::new();
     let mut alias_owners: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut alias_names = BTreeSet::new();
@@ -120,6 +125,7 @@ pub fn registry(merged: &Value) -> Result<NameRegistry, String> {
         convention: "section.key -> MIOS_SECTION_KEY",
         entries,
         ambiguous_aliases,
+        sources: crate::emit::export_sources(merged, offset),
     })
 }
 

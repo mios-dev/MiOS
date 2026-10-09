@@ -5832,3 +5832,24 @@ search path) instead of the system directory: they run rootless under each
 login user's systemd. Everything not listed is a system unit.
 
 <!-- mios-src:72159aff486f from usr/share/mios/mios.toml:8876-8878 -->
+### [rust.categories] -- ADR-0021 Function-Named Binary & Crate...
+
+----------------------------------------------------------------------------
+[rust.categories] -- ADR-0021 Function-Named Binary & Crate SSOT Registry
+----------------------------------------------------------------------------
+Maps script domains and existing crates to destination static binaries,
+lifecycle roles, install directories, and responsible owners (T-1197).
+Ownership gate: mios-gate rust-categories.
+Owner lanes and install roles are declared once each, in [rust.categories.owners]
+and [rust.categories.roles], as lists of categories (every category in exactly
+one of each). A role names its [build.native.categories.<role>] table, which
+owns the install directory. A destination binary's own crate is implied by
+binary=; crates= lists only the other crates folded into it.
+Script layer: scope= globs claim the scripts a category owns for porting;
+exempt categories (role exempt, no binary) carry their reason in description=;
+universe= fixes the script roots the gate must account for, and max_unowned
+is the shrink-only ceiling for scripts no category claims yet (T-1197).
+A replaces= entry is ported-and-deleted evidence: the named script must be
+absent from the tree in the same commit that proves parity (ADR-0021).
+
+<!-- mios-src:868f1040f1ad from usr/share/mios/mios.toml:13459-13475 -->
