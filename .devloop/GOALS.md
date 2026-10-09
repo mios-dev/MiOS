@@ -124,6 +124,119 @@ passes on the real tree or system) and a negative control (a planted defect make
     - harness layouts (`.github/`, `.forgejo/workflows`, `.agents/plugins`, `.claude/commands`)
     - toolchain conventions: the Android/Gradle app (`tools/mios-portal-app`, the depth-9 branch) keeps
       Gradle's `src/main/java/<package>` layout unless it moves to its own repository.
+- **M7: MiOS-Field hypervisor and blade architecture.**
+  - **Sources:**
+    - design: `docs/design/mios-field-hypervisor.md`;
+    - the one master page: the MiOS Topology Atlas, https://claude.ai/artifact/3NcyFYkcsskVpfp4KurUoA;
+    - tasks: the M7 epic in `tasks.jsonl`.
+  - **Model (operator, 2026-10-09):**
+    - L0 is the hardware.
+    - L1 is SystemRescue running from RAM: the admin plane. Its interface is the MiOS-tmux / mios
+      monitor TUI. Remote admins reach it by IP-KVM over the separate `wg-ipkvm` mesh.
+    - L2 holds sibling VMs on L1:
+      - one or more MiOS VMs, counted by hardware pressure; one of them is the users' graphical seat
+        `mios`, with Looking Glass, kvmfr and Sunshine on the seat GPU;
+      - `mios-xbox`, with the dGPU over one VFIO hop, plus its own WSL2 MiOS.
+    - L3 is Quadlets.
+      - Every MiOS image is full and equivalent, so any L2 can host any Quadlet.
+      - There is exactly one live instance per Quadlet across the fleet. The other copies are paused
+        standbys that take over on failure.
+      - SSOT-listed core services may be promoted from L3 into an L2 image.
+    - MiOS self-hosts its forge, build, signing, updates, mesh, storage, orchestration and AI plane.
+  - **Phases.** "+" is the positive control (must pass); "-" is the planted defect (must fail).
+    - **F0, decisions.**
+      - D1 is resolved: siblings.
+      - D2: should L1 come in two flavours, MiOS-Field live (SystemRescue) and MiOS-Metal installed
+        (bootc MiOS as its own L1)? The operator has said MiOS can be its own L1; whether both ship,
+        and which is the default, is open.
+      - D3: should MiOS adopt Tetragon?
+      - D5: where does the seat GPU come from: the iGPU by VFIO, an SR-IOV virtual function, or a
+        second card? The answer also decides L1's local-console display.
+      - +: each decision task records the ruling.
+      - -: while a decision is pending, `mios-task ready` does not list the tasks that depend on it.
+    - **F1, L1 image.**
+      - AC: `miosd artifact-build field-hypervisor` builds an SRM-customized SystemRescue ISO from a
+        new `[field.hypervisor]` table:
+        - the version floats above an SSOT floor;
+        - the SHA-256 is read from upstream's `.sha256` and recorded in the SBOM;
+        - the SRM carries the static Rust admin TUI.
+      - +: a QEMU boot test shows kvm and vfio loaded, libvirtd active, the checksum passing and the
+        TUI on tty1.
+      - -: a tampered ISO fails the checksum; a package removed from `[field.hypervisor]` fails the boot
+        probe that names it.
+    - **F2, MiOS-Field integration.**
+      - AC: the launchers read the version floor from SSOT, and the hypervisor Ventoy entry is rendered
+        from SSOT and mirrored to mios-bootstrap (Law 15).
+      - +: `mios-gen sync` renders it without drift, and the bootstrap-sync check passes.
+      - -: a literal 13.02 in a launcher fails the version-literal gate.
+    - **F3, admin plane.**
+      - AC: L1 joins `wg-ipkvm` at boot. The TUI and SSH listen only on that interface. IP-KVMs are
+        declared per blade.
+      - +: from an admin-mesh peer the TUI answers; from the blade mesh it is unreachable.
+      - -: a route between the meshes, or an L2 address on `wg-ipkvm`, fails the isolation check.
+    - **F4, early VFIO.**
+      - AC: the dGPU and the seat GPU are chosen by class selectors in `[metal.gpu]`. The initcpio hook,
+        the `modprobe.d` softdeps and the kernel arguments are all rendered from those selectors.
+      - +: in a QEMU test with an emulated device, the device is bound to vfio-pci before its driver
+        loads.
+      - -: a PCI address literal in SSOT fails `check_metal_vfio`.
+    - **F5, L2 MiOS VMs.**
+      - AC:
+        - `[blade.mediator]` declares the VM shape and the VM-count policy, within
+          `[metal].guest_cpu_percent` and `guest_ram_percent`;
+        - libvirt domains are generated from SSOT;
+        - management binds a `[ports]` key on the blade mesh only.
+      - +: the domains regenerate with no diff, and the seat VM boots the published qcow2.
+      - -: a VM count whose shape exceeds the guest budget fails, and so does `0.0.0.0` in a
+        management bind.
+    - **F6, GPU arbiter.**
+      - AC: a native state machine (AI → draining → released → gaming → returning). It uses vLLM sleep
+        mode, a vsock request to L1, and light-lane failover.
+      - +: the full cycle runs green against mocked sysfs, QMP and `/v1`.
+      - -: a planted rebind failure must roll back to the AI lane, never leave the dGPU unattached, and
+        never attach it to two guests.
+    - **F7, seat sessions.**
+      - AC:
+        - Looking Glass runs across the siblings through an IVSHMEM file on L1, whose size comes from
+          SSOT (kvmfr's hard-coded 128 MB goes);
+        - Sunshine runs on the seat GPU;
+        - the consoles are served on the blade mesh only.
+      - +: a frame-path probe and a Moonlight handshake both succeed.
+      - -: a kvmfr size that disagrees with the IVSHMEM size fails the projection; a console bound to
+        the admin mesh fails.
+    - **F8, `mios-xbox` and L3.**
+      - AC:
+        - `mios-xbox` is generated as an L2 sibling, with the dGPU, swtpm, OVMF Secure Boot, the Looking
+          Glass host app and its WSL2 MiOS;
+        - Quadlets are placed across L2s and moved locally;
+        - each Quadlet holds a single-live lease, with paused standbys and failover;
+        - the promotable-core list is in SSOT.
+      - +: the placement renders, and a pause-here / resume-there move completes.
+      - -: two live instances of one Quadlet fail the gate, and so does a non-core Quadlet marked for
+        promotion.
+    - **F9, fleet, mobility, security and self-hosting.**
+      - AC:
+        - the three-phase flightpath (detach, transit, attach with an architecture check);
+        - per-blade egress gateways from `[blade.uplink]`;
+        - reconcile tests per data class;
+        - the sandbox ladder, with krun from ruling Q18;
+        - an offline blade that builds, signs, publishes to its own Forgejo and upgrades every MiOS
+          layer.
+      - +: a two-node migration resumes on the target.
+      - -: a cross-architecture attach is refused; a swapped reconcile rule fails its class test; a WAN
+        dependency fails the offline proof.
+    - **F10, projection.**
+      - AC: the design doc's `[ports]` citations and the Atlas labels are checked against SSOT.
+      - +: the gate passes on the tree.
+      - -: a wrong port value in the doc fails the gate, naming the key.
+  - **Dependencies:**
+    - F1 builds on the native artifact path (`miosd artifact-build`, already merged).
+    - F5 and F8 depend on the per-format tasks under ruling Q9: qcow2 for the MiOS VMs, MiOS-Xbox for
+      `mios-xbox`, WSL for its WSL2 MiOS.
+    - F9's sandbox ladder depends on the Q18 krun task.
+    - F9's self-hosting proof links the M5 self-build task, the Q4 signing task and the fleet-update
+      task rather than duplicating them.
+    - F4 and F5 extend the Metal class-selector and domain-generator task (brief P2-5).
 
 ## Operator rulings, 2026-10-09 (/loop-grill, 20 spec questions)
 
