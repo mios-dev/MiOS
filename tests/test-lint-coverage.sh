@@ -60,7 +60,7 @@ done
 EXCLUDED=(
     "usr/libexec/mios/mios-dashboard"
     "usr/share/mios/templates/python-tool"
-    "tests/templates/golden/python-tool.snap"
+    "tests/templates/golden.snap"
 )
 for rel in "${EXCLUDED[@]}"; do
     [ -f "${ROOT}/${rel}" ] || continue
