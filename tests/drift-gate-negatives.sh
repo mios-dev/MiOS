@@ -841,34 +841,53 @@ EOF
     log "Check_council_gate_ssot negative test passed"
 }
 
-test_agent_pipe_budgets() {
+test_agent_pipe_budgets() (
     log "Testing check_agent_pipe_budgets"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file"; printf X)"
-    printf '%s' "${orig_val%X}" > "$toml_file"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml" keep output empty_bins
+    keep="$(mktemp -d)"
+    cp "$toml_file" "$keep/mios.toml"
+    trap 'cp "$keep/mios.toml" "$toml_file"; rm -rf "$keep"' EXIT
+    trap 'exit 130' INT TERM
+    _neg_gate check_agent_pipe_budgets || die "budget census failed its clean baseline"
 
-    python3 - "$toml_file" << 'EOF'
-import sys
-p = sys.argv[1]
-t = open(p, encoding="utf-8").read()
-new = t.replace('swarm_max_width      = 3', '# swarm_max_width disabled', 1)
-open(p, "w", encoding="utf-8").write(new)
-EOF
+    python3 - "$toml_file" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+source = path.read_text()
+source, count = re.subn(r'^swarm_max_width\s*=.*$', '# required width removed', source, count=1, flags=re.M)
+assert count == 1, 'required width subject absent'
+path.write_text(source)
+PY
+    _neg_gate check_agent_pipe_budgets && die "budget census passed without required width"
+    [[ "$_NEG_GATE_OUT" == *"required budget key(s) missing"*"swarm_max_width"* ]] \
+        || die "budget census rejected the wrong missing-key defect"
+    cp "$keep/mios.toml" "$toml_file"
+    _neg_gate check_agent_pipe_budgets || die "budget census failed after width restoration"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_pipe_budgets >/dev/null 2>&1; then
-        rm -f "$toml_file"
-        printf '%s' "${orig_val%X}" > "$toml_file"
-        die "Check_agent_pipe_budgets passed despite missing swarm_max_width key"
+    python3 - "$toml_file" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+source = path.read_text()
+assert source.count('[agent_pipe]\n') == 1
+probe = 'budget_census_' + 'unconsumed_probe'
+path.write_text(source.replace('[agent_pipe]\n', '[agent_pipe]\n' + probe + ' = 1\n', 1))
+PY
+    _neg_gate check_agent_pipe_budgets && die "budget census passed with an unregistered dead key"
+    [[ "$_NEG_GATE_OUT" == *"no consumer and are not registered"*"$(printf 'budget_census_%s' unconsumed_probe)"* ]] \
+        || die "budget census rejected the wrong unconsumed-key defect"
+    cp "$keep/mios.toml" "$toml_file"
+    _neg_gate check_agent_pipe_budgets || die "budget census failed after dead-key restoration"
+
+    empty_bins="$keep/empty-bin"
+    mkdir "$empty_bins"
+    if output="$(MIOS_NATIVE_BIN_DIR="$empty_bins" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+        bash "$ROOT/automation/98-drift-checks.sh" check_agent_pipe_budgets 2>&1)"; then
+        die "budget census silently fell back from a missing configured native tool"
     fi
-
-    rm -f "$toml_file"
-    printf '%s' "${orig_val%X}" > "$toml_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_pipe_budgets >/dev/null 2>&1 \
-        || die "Check_agent_pipe_budgets failed after restoration"
-    log "Check_agent_pipe_budgets negative test passed"
-}
-
+    [[ "$output" == *"mios-aiplane-lint is required"* ]] \
+        || die "budget census rejected the wrong missing-tool defect: $output"
+    log "check_agent_pipe_budgets named negative controls and restoration passed"
+)
 test_agent_schema() {
     log "Testing check_agent_schema"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"

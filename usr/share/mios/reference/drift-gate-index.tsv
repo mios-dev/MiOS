@@ -25,7 +25,7 @@
 24	check_hummingbird	Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled
 25	check_container_ports	no manual port literals in container definitions
 26	check_bootstrap_sync	bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT
-27	check_agent_pipe_budgets	every [agent_pipe]/[dispatch] key enumerated from SSOT; unconsumed ones itemised in the register
+27	check_agent_pipe_budgets	every SSOT budget key has a consumer or an itemised shrink-only exemption
 28	check_no_bare_port_literals	no bare port literals remain in execution paths
 29	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
 30	check_edge_generators	every imperative edge-to-edge generator regenerates the surface the image installs byte-identical
@@ -73,8 +73,8 @@
 72	check_ai_artifacts	AI artifacts (ADR-0027): SFT/DPO datasets, weight headers, OCI closure with digests
 73	check_render_quadlets	render quadlets
 74	check_render_extension_coverage	render extension coverage
-75	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
-76	check_bake_plan_integrity	bake-plan integrity gate verified clean
+75	check_bake_plan	bake-plan lists match mios.toml build.bake SSOT
+76	check_bake_plan_integrity	bake-plan groups match active Quadlets and required SSOT image assignments
 77	check_bake_ref_defaults	all baker scripts have non-empty defaults matching SSOT bake_refs
 78	check_roadmap_index	roadmap index in sync with frontmatter metadata
 79	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe and os.system-free
@@ -146,7 +146,7 @@
 145	check_comment_landing	every pruned comment still lands in a doc
 146	check_credential_literals	no credential literal is baked into a systemd unit or Quadlet Environment= line (Law 11)
 147	check_protected_refs	every ref the Quadlet renderer leaves unbaked is actually supplied at runtime
-148	check_names_registry_equivalence	the Rust names-registry twin reproduces the Python leg byte for byte
+148	check_names_registry_equivalence	both name-registry artifacts match the canonical read-only native projection
 149	check_redact_coverage	log sanitizer redacts all sensitive fields listed in security schema
 150	check_task_schema	AGY-TASKS task descriptions conform strictly to task schema contract
 151	check_daemon_governor	daemon governor runtime limits and cgroup constraints are valid

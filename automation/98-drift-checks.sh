@@ -789,44 +789,19 @@ check_container_ports() {
     fi
 }
 
+# --- every SSOT budget key has a consumer or an itemised shrink-only exemption ---
 check_agent_pipe_budgets() {
-    # Absolute paths, never `command -v`: the Containerfile's rust-builder stage
-    # copies tools/native/target/release/mios-* into /usr/libexec/mios, which
-    # nothing puts on PATH, so the lookup this replaced could never resolve at
-    # bake and this check always fell through to the Python below it (T-1018).
-    local lint_bin=""
-    local _lc
-    for _lc in "${MIOS_AIPLANE_LINT_BIN:-}" \
-               "$ROOT/tools/native/target/release/mios-aiplane-lint" \
-               "$ROOT/tools/native/target/debug/mios-aiplane-lint" \
-               /usr/libexec/mios/mios-aiplane-lint; do
-        if [ -n "$_lc" ] && [ -x "$_lc" ]; then lint_bin="$_lc"; break; fi
-    done
-    # The lint prints its own tally -- N of M consumed, K registered unconsumed.
-    # This wrapper used to answer it with "all ... have code consumers", which
-    # was the overclaim the lint itself was making when it walked a hardcoded
-    # nine of 128 keys (T-1047). Do not reintroduce a summary here that asserts
-    # more than the tool it wraps just measured.
-    if [ -x "$lint_bin" ]; then
-        if MIOS_DRIFT_ROOT="$ROOT" "$lint_bin"; then
-            echo "[98-drift-checks]   every [agent_pipe]/[dispatch] key enumerated from SSOT; unconsumed ones itemised in the register"
-            return 0
-        else
-            _violation "[agent_pipe]/[dispatch] budget keys: unregistered dead key, stale register entry, or a ceiling off its measurement"
-            return 1
-        fi
-    fi
-
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py agent-pipe-budgets
-    then
-        # The Python leg still walks its own narrower list; say only that.
-        echo "[98-drift-checks]   [agent_pipe] budget keys checked by the Python fallback (narrower than mios-aiplane-lint)"
+    local lint_bin output
+    lint_bin="$(native_bin mios-aiplane-lint "${MIOS_AIPLANE_LINT_BIN:-}")" || {
+        _violation "mios-aiplane-lint is required for the complete SSOT budget census"
+        return
+    }
+    if output="$(MIOS_DRIFT_ROOT="$ROOT" "$lint_bin" 2>&1)"; then
+        printf '[98-drift-checks]   %s\n' "$output"
     else
-        _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
+        _violations_from "budget census: " "$output"
     fi
 }
-
 check_no_bare_port_literals() {
     _need_python || return 0
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-bare-port-literals 2>&1)" || {
@@ -2193,10 +2168,12 @@ _run_bake_plan_check() {
     fi
 }
 
+# --- bake-plan lists match mios.toml build.bake SSOT ---
 check_bake_plan() {
     _run_bake_plan_check --check
 }
 
+# --- bake-plan groups match active Quadlets and required SSOT image assignments ---
 check_bake_plan_integrity() {
     _run_bake_plan_check --check-integrity
 }
@@ -4653,6 +4630,7 @@ check_credential_literals() {
 
 # Retain the registered gate name while the retired Python twin has no executable.
 # Equivalence now means both committed artifacts match the canonical projection.
+# --- both name-registry artifacts match the canonical read-only native projection ---
 check_names_registry_equivalence() {
     check_names_registry
 }

@@ -2479,63 +2479,15 @@ def check_container_ports() -> int:
     return 1 if viol else 0
 
 def check_agent_pipe_budgets() -> int:
-    import os, sys, re
-    import tomllib
+    """Compatibility entrypoint for the complete native SSOT budget census."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_agent_pipe_budgets: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    agent_pipe = data.get("agent_pipe", {})
-    dispatch = data.get("dispatch", {})
-
-    def key_in_dict(d, k):
-        if not isinstance(d, dict):
-            return False
-        if k in d:
-            return True
-        return any(key_in_dict(v, k) for v in d.values() if isinstance(v, dict))
-
-    search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
-    if not os.path.isdir(search_dir):
-        search_dir = root
-
-    code = ""
-    for r, ds, fs in os.walk(search_dir):
-        for f in fs:
-            if f.endswith(".py"):
-                try:
-                    with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
-                        code += fh.read() + "\n"
-                except OSError:
-                    pass
-
-    budget_keys = [
-        "tool_max_iters", "replan_max", "no_progress_window",
-        "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable",
-        "swarm_max_width", "max_dispatch_depth", "default_hop_budget"
-    ]
-    missing = []
-    for k in budget_keys:
-        if not key_in_dict(agent_pipe, k) and not key_in_dict(dispatch, k):
-            missing.append(f"{k} (missing from mios.toml)")
-            continue
-        pattern = rf"['\"]{k}['\"]"
-        if not re.search(pattern, code) and k not in code:
-            missing.append(k)
-
-    if missing:
-        sys.stderr.write(f"    Missing code consumers or TOML definitions for budget keys: {missing}\n")
-        return 1
-    return 0
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.run(["bash", str(wrapper), "check_agent_pipe_budgets"], env=env).returncode
 
 def check_verb_backends() -> int:
     import os, sys, re
