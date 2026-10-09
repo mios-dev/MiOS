@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1671 |
+| pending | 1684 |
 | in_progress | 50 |
 | completed | 1824 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3582 |
+| total | 3595 |
 
 0 record(s) carry at least one override.
 
@@ -1124,6 +1124,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1149` Split the four over-ceiling routing modules (swarm/refine/agent_call/web_research) behind transcript goldens -- pending · P2 · size XL
 - `AGY-1150` Split oscontrol/vision/toolexec and memory/knowledge, typing the OS-control action schema on the way -- pending · P2 · size XL
 - `T-1187` Clear pre-existing shellcheck findings in the audited shell scripts, then remove their dead code -- pending · P3 · size S
+- `T-1292` Fold the two kvfork copies into one module (WS-DEBT | P3 | S) -- pending · P3 · size S
+- `T-1300` Remove [build.ratchet]'s residue: mios-config's BuildRatchet and ADR-0025's max_phase_scripts (WS-DEBT | P3 | S) -- pending · P3 · size S
 
 ## WS-DEBT-PIPE
 
@@ -1631,6 +1633,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1224` Law 8 gates describe the native tree: projection registry, coverage and host parity name the mios-gen modules (WS-DRIFT | P1 | M) -- completed · P1 · size M
 - `T-1228` Legibility ratchet green on PR #61 without raising a ceiling: tracked files and shell lines (WS-DRIFT | P0 | M) -- in_progress · owner claude · P0 · size M
 - `T-1239` Every Law 8 projection names its consumer, and the gate runs that consumer's own validator (WS-DRIFT | P1 | M) -- pending · P1 · size M
+- `T-1295` Native bootstrap-sync names the drifted table key again, not only the file (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1296` Register the two unchecked projections: the k3s manifests and the wsl.conf reference copy (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1297` `mios-gen standardize-docs --check` on an empty scope cannot run, instead of passing (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1298` Running one drift check by name reports every violation, not only the first (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1301` Gate hygiene: dead Python compatibility entries, and check_names_registry registered twice in main() (WS-DRIFT | P3 | S) -- pending · P3 · size S
 
 ## WS-DRIFTRUST
 
@@ -2391,6 +2398,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-470` Float the llama-swap image ref (3 copies) to family-latest and record it in the SBOM -- completed · P3 · size S
 - `AGY-519..AGY-540` Float each sidecar ref to :latest/family-channel with SBOM-recorded resolution, one image per task -- completed · P2 · size L
 - `T-1265` P1-9: Renovate actually runs, never auto-merges a cosign/syft/oras major, and actions are pinned by SHA (WS-LATEST | P1 | S) -- pending · P1 · size S
+- `T-1302` fetch-image-facts names the failed ref instead of a JSONDecodeError traceback (WS-LATEST | P3 | S) -- pending · P3 · size S
 
 ## WS-LINT
 
@@ -3092,6 +3100,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1193` Twin-parity corpus that cannot skip (WS-RESOLVER | P0 | M) -- pending · P0 · size M · depends_on T-1192
 - `T-1208` Aliases become an SSOT table; Python and bash twins consume `--emit json` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1193
 - `T-1210` `mios-resolve --explain KEY` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1192
+- `T-1291` [ai] is WALK_MOSTLY_DEAD in the resolver, so new [ai].x keys are never emitted: document or fix (WS-RESOLVER | P2 | S) -- pending · P2 · size S
 
 ## WS-ROADMAP
 
@@ -3815,6 +3824,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1559` Characterization golden locking mios-env-snapshot root-path/PID/timestamp normalization -- pending · P1 · size M
 - `AGY-1560` Extend the sibling-test ratchet from agent-pipe to `tools/*.py` and `usr/libexec/mios/*.py` via a shrink-only grandfather baseline -- pending · P2 · size M
 - `T-1220` Module test coverage is native and honest; six modules get real tests; socket suites hermetic; static-linkage audit folded into mios-gate (WS-TESTGOV | P1 | M) -- completed · P1 · size M
+- `T-1293` test_gateway_wallpaper_rust_e2e.py: fix its 5 failures and run it in a [ci] tier (WS-TESTGOV | P2 | S) -- pending · P2 · size S
+- `T-1299` A workspace cargo test must not rewrite usr/share/mios/names.generated.txt (WS-TESTGOV | P2 | S) -- pending · P2 · size S
 
 ## WS-THESIS
 
@@ -4211,6 +4222,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1475` Generate the nohc_allowlist bare-port exempt_patterns from the [ports] loopback keys and diff-gate them -- pending · P3 · size M
 - `AGY-1476` Correct the mios-ttyd-launch fallbacks to the SSOT ttyd ports and strip the stale :7681/:7682 comment literals -- pending · P3 · size S
 - `T-1203` Collapse duplicate appearance names; remove literals (WS-ZEROHC | P2 | M) -- pending · P2 · size M · depends_on T-1197
+- `T-1290` [headscale].server_url and listen_addr derive from [metal.mesh] and [ports], with an override (WS-ZEROHC | P2 | S) -- pending · P2 · size S
+- `T-1294` Two shipped units restate SSOT values: mios-agents.service's lane-B model and mios-cockpit-link.socket's port hint (WS-ZEROHC | P2 | S) -- pending · P2 · size S
 
 ## test-coverage
 
