@@ -5961,6 +5961,9 @@ kargs.nohz_full  MIOS_KARGS_NOHZ_FULL
 kargs.rcu_nocbs  MIOS_KARGS_RCU_NOCBS
 kargs.THP  MIOS_KARGS_THP
 testing.min_smoke_components  MIOS_TESTING_MIN_SMOKE_COMPONENTS
+testing.boot.timeout  MIOS_TESTING_BOOT_TIMEOUT
+testing.boot.firmware  MIOS_TESTING_BOOT_FIRMWARE
+testing.boot.probes  MIOS_TESTING_BOOT_PROBES
 testing.smoke_components.shims  MIOS_TESTING_SMOKE_COMPONENTS_SHIMS
 testing.smoke_components.units  MIOS_TESTING_SMOKE_COMPONENTS_UNITS
 testing.smoke_components.python_entries  MIOS_TESTING_SMOKE_COMPONENTS_PYTHON_ENTRIES
@@ -6182,6 +6185,7 @@ ci.max_tool_skips  MIOS_CI_MAX_TOOL_SKIPS
 ci.suite_timeout_s  MIOS_CI_SUITE_TIMEOUT_S
 tests.max_leaked_fixtures  MIOS_TESTS_MAX_LEAKED_FIXTURES
 tests.max_checks_without_negative  MIOS_TESTS_MAX_CHECKS_WITHOUT_NEGATIVE
+ci.artifacts.vhdx  MIOS_CI_ARTIFACTS_VHDX
 ci.python.requirements  MIOS_CI_PYTHON_REQUIREMENTS
 ci.python.packages  MIOS_CI_PYTHON_PACKAGES
 ci.powershell.modules.PSScriptAnalyzer  MIOS_CI_POWERSHELL_MODULES_PSSCRIPTANALYZER
@@ -6333,8 +6337,16 @@ deploy.formats.vhdx.target  MIOS_DEPLOY_FORMATS_VHDX_TARGET
 deploy.formats.vhdx.recipe  MIOS_DEPLOY_FORMATS_VHDX_RECIPE
 deploy.formats.vhdx.medium  MIOS_DEPLOY_FORMATS_VHDX_MEDIUM
 deploy.formats.vhdx.gui  MIOS_DEPLOY_FORMATS_VHDX_GUI
+deploy.formats.vhdx.bib_type  MIOS_DEPLOY_FORMATS_VHDX_BIB_TYPE
+deploy.formats.vhdx.subformat  MIOS_DEPLOY_FORMATS_VHDX_SUBFORMAT
 deploy.formats.vhdx.artifacts  MIOS_DEPLOY_FORMATS_VHDX_ARTIFACTS
 deploy.formats.vhdx.status  MIOS_DEPLOY_FORMATS_VHDX_STATUS
+deploy.formats.vhdx.vm.generation  MIOS_DEPLOY_FORMATS_VHDX_VM_GENERATION
+deploy.formats.vhdx.vm.secure_boot_template  MIOS_DEPLOY_FORMATS_VHDX_VM_SECURE_BOOT_TEMPLATE
+deploy.formats.vhdx.vm.processors  MIOS_DEPLOY_FORMATS_VHDX_VM_PROCESSORS
+deploy.formats.vhdx.vm.memory  MIOS_DEPLOY_FORMATS_VHDX_VM_MEMORY
+deploy.formats.vhdx.vm.dynamic_memory  MIOS_DEPLOY_FORMATS_VHDX_VM_DYNAMIC_MEMORY
+deploy.formats.vhdx.vm.switch  MIOS_DEPLOY_FORMATS_VHDX_VM_SWITCH
 deploy.formats.wsl2.title  MIOS_DEPLOY_FORMATS_WSL2_TITLE
 deploy.formats.wsl2.summary  MIOS_DEPLOY_FORMATS_WSL2_SUMMARY
 deploy.formats.wsl2.target  MIOS_DEPLOY_FORMATS_WSL2_TARGET
@@ -6344,6 +6356,8 @@ deploy.formats.wsl2.gui  MIOS_DEPLOY_FORMATS_WSL2_GUI
 deploy.formats.wsl2.artifacts  MIOS_DEPLOY_FORMATS_WSL2_ARTIFACTS
 deploy.formats.wsl2.status  MIOS_DEPLOY_FORMATS_WSL2_STATUS
 deploy.verify.min_bytes  MIOS_DEPLOY_VERIFY_MIN_BYTES
+deploy.identity.password_hash_env  MIOS_DEPLOY_IDENTITY_PASSWORD_HASH_ENV
+deploy.identity.ssh_key_env  MIOS_DEPLOY_IDENTITY_SSH_KEY_ENV
 rust.max_untested_crates  MIOS_RUST_MAX_UNTESTED_CRATES
 rust.categories.binaries  MIOS_RUST_CATEGORIES_BINARIES
 rust.categories.max_unowned  MIOS_RUST_CATEGORIES_MAX_UNOWNED

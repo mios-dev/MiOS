@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3841,
+  "total_metadata_entries": 3148,
+  "total_hints": 3138,
   "total_functions_indexed": 1469,
-  "total_related_links": 5223,
+  "total_related_links": 5231,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -2400,24 +2400,6 @@
       "has_shebang": false
     },
     {
-      "path": "config/artifacts/qcow2.toml",
-      "hint": "Defines the bootc-image-builder configuration for generating QCOW2 disk images, specifying user credentials, kernel boot parameters, and filesystem partition sizes...",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "config/artifacts/vhdx.toml",
-      "hint": "Defines the VHDX disk image configuration for Hyper-V targets, specifying user credentials, kernel boot parameters (iommu/nouveau), and filesystem partition sizes f...",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "config/artifacts/wsl2.toml",
       "hint": "Defines the WSL2-specific artifact configuration for the MiOS build system, specifying user account defaults and kernel parameters for the `wsl --import` workflow.",
       "related": [],
@@ -3043,6 +3025,15 @@
     {
       "path": "docs/research/tech-eval-oci-ai-artifacts-and-pipelines.md",
       "hint": "Research evaluation of upstream FOSS patterns for OCI-packaged AI artifacts and automated CI/CD pipelines.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "docs/research/upstream-prior-art-gaps-2026-10.md",
+      "hint": "Prioritised upstream prior-art gap brief for MiOS across six lanes (AI plane, configurator, image pipeline, supply chain, bare metal/fleet, dev/cloud/WSL), with repo evidence and SSOT-shaped fixes.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -4252,6 +4243,21 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-build/src/artifacts.rs",
+      "hint": "Renders a disk artifact's bootc-image-builder config from the layered SSOT, builds and converts it, and boot-tests it under QEMU; the credential is the operator's, never a recipe's.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "config/artifacts/iso.toml",
+        "Justfile",
+        "src/mios-rs/miosd/src/main.rs",
+        ".github/workflows/mios-ci.yml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-build/src/images.rs",
       "hint": "Build the operator's current source tree using SSOT image targets and verify installed runtime commands; never fetch, reset or reap it.",
       "related": [
@@ -4410,6 +4416,20 @@
       "related": [
         "src/mios-rs/mios-gate/src/artifact.rs",
         "usr/share/doc/mios/adr/0027-dual-tier-oci-ai-artifacts.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/artifact_recipes.rs",
+      "hint": "Fails when a committed artifact recipe carries a placeholder or a credential; a disk's credential is rendered from the operator at build time by miosd artifact-build, never stored in a recipe.",
+      "related": [
+        "config/artifacts/",
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": null,
@@ -29415,7 +29435,7 @@
       "hint": "Deploy the universal MiOS image as a Hyper-V Gen 2 VM booting a .vhdx on M: cut by bootc install/BIB, because the installer factory-populates /var + /var/home that a raw podman-export skips \u2014 read before building a run-off-M: deployment or touching the Ceph/VM bootstrap gates.",
       "related": [
         "Justfile vhdx target",
-        "config/artifacts/vhdx.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
         "usr/lib/bootc/kargs.d/10-mios-console.toml",
         "usr/lib/systemd/system/var-home.mount",
         "usr/lib/systemd/system/ceph-bootstrap.service",
@@ -33009,9 +33029,8 @@
         "usr/share/mios/ventoy/mios-kickstart.cfg",
         "config/artifacts/bib.toml",
         "config/artifacts/iso.toml",
-        "config/artifacts/qcow2.toml",
-        "config/artifacts/vhdx.toml",
         "config/artifacts/wsl2.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
         "Justfile",
         "automation/98-drift-checks.sh",
         "usr/share/mios/mios.toml ([deployment] [deploy.artifacts] [field])",
