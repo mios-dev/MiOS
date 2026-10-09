@@ -949,15 +949,15 @@ class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
             if expected != "desktop":
                 active, observer = receipt['active'], receipt["observer"]
                 # One SSOT split for the Linux workspace and the Windows host
-                # profile ([terminal.monitor] split_*): portrait stacks the
-                # monitor ABOVE the head; compact landscape puts the head on
-                # the LEFT and the monitor on the right.
+                # profile ([mcp.tmux.workspace].head_percent; the monitor takes
+                # the rest): portrait stacks the monitor ABOVE the head; compact
+                # landscape puts the head on the LEFT and the monitor on the right.
                 if expected == 'portrait':
                     self.assertEqual(cells[observer][0:2], [0, 0])
                     self.assertEqual(cells[active][0], 0)
                     self.assertGreater(cells[active][1], cells[observer][3])
                     self.assertEqual(cells[observer][3] > cells[active][3],
-                                     CONFIG["workspace"]["portrait_observer_percent"] > 50)
+                                     100 - CONFIG["workspace"]["head_percent"] > 50)
                     self.assertGreaterEqual(cells[active][3], min(CONFIG["workspace"]["minimum_head_rows"], height - 4))
                 else:
                     self.assertEqual(cells[active][0:2], [0, 0])

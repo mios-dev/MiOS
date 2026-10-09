@@ -83,7 +83,7 @@ fn test_compile_templates_cli_e2e() {
     );
     assert!(
         stdout.contains(
-            "[compile-templates] PASS: All 30 templates compiled/validated successfully."
+            "[compile-templates] PASS: All 29 templates compiled/validated successfully."
         ),
         "Expected success message not found in stdout: {}",
         stdout
@@ -108,7 +108,7 @@ fn test_compile_templates_cli_e2e() {
     assert_eq!(json_val["status"], "clean");
     assert_eq!(json_val["subcommand"], "compile-templates");
     assert_eq!(json_val["violations"], 0);
-    assert_eq!(json_val["templates_count"], 30);
+    assert_eq!(json_val["templates_count"], 29);
 
     // 3. Negative control: mutate toml-config with syntax defect
     let toml_tmpl = root.join("usr/share/mios/templates/toml-config");

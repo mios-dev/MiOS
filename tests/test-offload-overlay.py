@@ -151,7 +151,7 @@ class TestCanonicalAddressIsTheKeyConsumersRead(unittest.TestCase):
             # The emitters are not consumers: the two resolver twins name every
             # alias they emit, and the globals renderer carries fixture names.
             "usr/lib/mios/mios_toml.py", "tools/native/mios-resolver/",
-            "tools/native/mios-gen/src/render_globals.rs")
+            "tools/native/mios-gen/src/render.rs")
 
     def _consumers(self, var: str) -> int:
         out = subprocess.run(["git", "-C", _ROOT, "grep", "-lw", var],

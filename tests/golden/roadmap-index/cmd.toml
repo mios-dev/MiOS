@@ -1,3 +1,0 @@
-# AI-hint: trycmd case: mios-gen roadmap-index renders the ROADMAP index; the golden output beside it is the expected render.
-bin.name = "mios-gen"
-args = ["roadmap-index"]

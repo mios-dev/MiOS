@@ -16,10 +16,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1681 |
+| pending | 1680 |
 | in_progress | 50 |
-| completed | 1823 |
-| incomplete | 21 |
+| completed | 1825 |
+| incomplete | 20 |
 | cancelled | 20 |
 | total | 3595 |
 
@@ -1589,7 +1589,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-108` CONV-15 -- Full check_hummingbird drift-check plus distroless guide -- completed · P3 · size S · depends_on T-105, T-107
 - `T-996` GATE-01: check_no_inert_ssot_tables measures name-appearance, not consumption -- completed · P2 · size M
 - `T-997` GATE-02: check_schema_consumers shares the name-collision blind spot -- pending · P2 · size S · depends_on T-996
-- `T-998` GATE-03: the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases -- pending · P3 · size S · depends_on T-996
+- `T-998` GATE-03: the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases -- completed · P3 · size S · depends_on T-996
 - `T-1000` GATE-04: the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot -- completed · P1 · size M · depends_on T-996
 - `T-1001` GATE-05: check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one -- pending · P1 · size S · depends_on T-996
 - `T-1032` PYSHIM-01: the gate ran every check on a cached copy of a different interpreter -- completed · P0 · size S
@@ -1977,7 +1977,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### No epic
 
-- `T-1013` DUPVAL-01: the value-duplication ratchet is over its ceiling on main -- incomplete · P1 · size M
+- `T-1013` DUPVAL-01: the value-duplication ratchet is over its ceiling on main -- completed · P1 · size M
 - `T-1020` ALIAS-01: one emitted name, two sources, and table order decided which won -- pending · P1 · size M
 - `AGY-1403` Repair the fragmented tools/native Cargo workspace so all eight SSOT crates build as one graph -- pending · P1 · size M
 - `AGY-1404` Add cargo build/test/clippy/fmt Just targets plus `check_native_lint` (the missing shellcheck-equivalent) -- pending · P1 · size S

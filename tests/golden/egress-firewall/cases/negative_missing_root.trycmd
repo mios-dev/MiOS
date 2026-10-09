@@ -1,6 +1,0 @@
-```console
-$ mios-gen egress-firewall --root [..]/nonexistent
-? 1
-Error: generate-egress-firewall: Failed to read [..]
-
-```

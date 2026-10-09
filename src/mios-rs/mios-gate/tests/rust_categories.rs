@@ -23,7 +23,7 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
-const VALID: &str = "[rust.categories]\nbinaries = [\"mios-serve\"]\nmax_unowned = 0\nuniverse = [\"usr/libexec/mios/\"]\n[rust.categories.serve]\nowner = \"port-lane\"\nbinary = \"mios-serve\"\ninstall_dir = \"/usr/libexec/mios\"\nrole = \"services\"\ncrates = [\"mios-serve\"]\nscope = [\"usr/libexec/mios/db/*.py\"]\n";
+const VALID: &str = "[rust.categories]\nbinaries = [\"mios-serve\"]\nmax_unowned = 0\nuniverse = [\"usr/libexec/mios/\"]\n[rust.categories.owners]\nport-lane = [\"serve\"]\n[rust.categories.roles]\nservices = [\"serve\"]\n[rust.categories.serve]\nbinary = \"mios-serve\"\nscope = [\"usr/libexec/mios/db/*.py\"]\n[build.native.categories.services]\ninstall_dir = \"/usr/libexec/mios\"\n";
 
 fn repo(dir: &Path, toml: &str) {
     fs::create_dir_all(dir.join("usr/share/mios")).unwrap();
@@ -68,9 +68,7 @@ fn valid_registry_exits_zero() {
 fn ownerless_category_exits_one_and_names_it() {
     let dir = tempfile::tempdir().unwrap();
     // serve keeps its owner; a second porting category arrives without one.
-    let toml = format!(
-        "{VALID}\n[rust.categories.orphan]\nbinary = \"mios-serve\"\ninstall_dir = \"/usr/bin\"\nrole = \"cli\"\ncrates = []\n"
-    );
+    let toml = format!("{VALID}\n[rust.categories.orphan]\nbinary = \"mios-serve\"\n");
     repo(dir.path(), &toml);
     let (code, text) = run(dir.path());
     assert_eq!(code, 1, "output: {text}");

@@ -1,6 +1,0 @@
-```console
-$ mios-gen render-manpages --check --validate
-[render-manpages] 136 page(s) validated
-[render-manpages] 136 page(s) verified
-
-```

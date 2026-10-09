@@ -142,6 +142,7 @@
 # here. LEDGER.md and goal_state.json stay tracked: those are the durable handoff
 # state, and no run-* directory has ever been committed.
 /.devloop/run-*/
+/.devloop/.zai-probe.state
 /.devloop/backlog_archive.jsonl
 /.devloop/HISTORICAL_BACKLOG.md
 /.devloop/unified_tasks.jsonl

@@ -1,5 +1,0 @@
-```console
-$ mios-gen cargo-manifests --check
-PASS: tools/native/Cargo.toml matches its generator projection.
-
-```

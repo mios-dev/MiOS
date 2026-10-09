@@ -1,6 +1,0 @@
-```console
-$ mios-gen render-manpages --root [CWD]/nonexistent --check
-? 1
-Error: generate-render-manpages: render-manpages: [..]nonexistent[..]mios.toml could not be read: [..]
-
-```

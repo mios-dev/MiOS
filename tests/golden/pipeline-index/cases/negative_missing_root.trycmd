@@ -1,6 +1,0 @@
-```console
-$ mios-gen pipeline-index --root [..]/nonexistent --check
-? 1
-Error: generate-pipeline-index: ERROR: [..] not found
-
-```

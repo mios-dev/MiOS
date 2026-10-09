@@ -1,5 +1,5 @@
 <!-- AI-hint: Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by mios-gen adr-index; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy. -->
-<!-- AI-related: usr/share/doc/mios/adr/, usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], tools/native/mios-gen/src/adr_index.rs -->
+<!-- AI-related: usr/share/doc/mios/adr/, usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], tools/native/mios-gen/src/indexes.rs -->
 
 # MiOS Architecture Decision Records
 

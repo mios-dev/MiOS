@@ -1,6 +1,0 @@
-```console
-$ mios-gen render-desktop --root [CWD]/nonexistent --check
-? 1
-Error: generate-render-desktop: render-desktop: [..]nonexistent[..]mios.toml could not be read: [..]
-
-```

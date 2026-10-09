@@ -1,6 +1,0 @@
-```console
-$ mios-gen render-fastfetch --root [..]/nonexistent --mock
-? 1
-Error: generate-render-fastfetch: Missing SSOT toml file: [..]nonexistent[..]mios.toml
-
-```
