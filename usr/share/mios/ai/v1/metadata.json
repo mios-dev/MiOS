@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3780,
-  "total_metadata_entries": 3127,
-  "total_hints": 3117,
+  "total_files_scanned": 3760,
+  "total_metadata_entries": 3107,
+  "total_hints": 3097,
   "total_functions_indexed": 1469,
-  "total_related_links": 5184,
+  "total_related_links": 5163,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -10159,7 +10159,7 @@
       "hint": "Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.",
       "related": [
         "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/tests/projection_evidence.rs"
+        "tools/native/mios-gen/tests/ssot.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10303,43 +10303,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/adr_index.rs",
-      "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/adr_index.rs",
-        "usr/share/doc/mios/adr/",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/ai_manifest.rs",
-      "hint": "Two-sided integration test suite for mios-gen ai-manifest (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/bib_configs.rs",
-      "hint": "Two-sided integration test suite for mios-gen bib-configs (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/tests/btop_theme.rs",
       "hint": "Two-sided integration test suite for mios-gen render-btop-theme (ADR-0021, Law 14).",
       "related": [
@@ -10352,66 +10315,24 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/cargo_manifests.rs",
-      "hint": "Two-sided integration test suite for mios-gen cargo-manifests (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/tests/docs.rs",
+      "hint": "Two-sided integration tests for the mios-gen documentation verbs: adr-index, metal-vs-hosted, render-manpages, roadmap-index, standardize-docs and sync-wiki (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/cargo_manifests.rs",
+        "tools/native/mios-gen/src/adr_index.rs",
+        "usr/share/doc/mios/adr/",
+        "docs/design/doc-rust-static-port.md",
+        "tools/native/mios-gen/src/metal_vs_hosted.rs",
+        "usr/share/doc/mios/reference/metal-vs-hosted.md",
+        "tools/native/mios-gen/src/render_manpages.rs",
         "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
+        "tests/drift-gate-negatives.sh",
+        "tools/native/mios-gen/src/roadmap_index.rs",
+        "ROADMAP.md",
+        "tools/native/mios-gen/src/standardize_docs.rs",
+        "tools/native/mios-gen/src/sync_wiki.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/cosign_policy.rs",
-      "hint": "Integration tests for mios-gen cosign-policy verb -- verifies byte-identical rendering, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/main.rs",
-        "usr/share/mios/mios.toml",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/egress_firewall.rs",
-      "hint": "Integration tests for mios-gen egress-firewall verb -- verifies mode rendering, user resolution, and nftables rule syntax.",
-      "related": [
-        "tools/native/mios-gen/src/main.rs",
-        "usr/share/mios/mios.toml",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/fastfetch.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-fastfetch (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/fastfetch.rs",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/gate_index.rs",
-      "hint": "Integration tests for mios-gen gate-index verb -- verifies TSV generation, ordinal numbering, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/gate_index.rs",
-        "automation/98-drift-checks.sh",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10429,199 +10350,58 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/host_tmux.rs",
-      "hint": "Real CLI checks prove host rendering merges vendor, host and user policy and rejects malformed effective values.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/metal_vs_hosted.rs",
-      "hint": "Integration tests for mios-gen metal-vs-hosted verb (T-1010, AGY-1089).",
+      "path": "tools/native/mios-gen/tests/image.rs",
+      "hint": "Two-sided integration tests for the mios-gen image and supply-chain verbs: bib-configs, cargo-manifests, cosign-policy, egress-firewall and pod-quadlets (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/metal_vs_hosted.rs",
-        "usr/share/doc/mios/reference/metal-vs-hosted.md",
-        "docs/design/doc-rust-static-port.md"
+        "tools/native/mios-gen/src/bib_configs.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh",
+        "tools/native/mios-gen/src/cargo_manifests.rs",
+        "tools/native/mios-gen/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "docs/design/doc-rust-static-port.md",
+        "tools/native/mios-gen/src/pod_quadlets.rs"
       ],
       "functions": [],
-      "doc": null,
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/pipe_boundaries.rs",
-      "hint": "Two-sided integration test suite for mios-gen pipe-boundaries (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/tests/ssot.rs",
+      "hint": "Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).",
       "related": [
+        "tools/native/mios-gen/src/ai_manifest.rs",
+        "tools/native/mios-gen/src/gate_index.rs",
+        "automation/98-drift-checks.sh",
+        "docs/design/doc-rust-static-port.md",
         "tools/native/mios-gen/src/pipe_boundaries.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/pipeline_index.rs",
-      "hint": "Integration tests for mios-gen pipeline-index verb -- verifies TSV generation, NN space bounds, uniqueness, and --check verification.",
-      "related": [
+        "tests/drift-gate-negatives.sh",
         "tools/native/mios-gen/src/pipeline_index.rs",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/pod_quadlets.rs",
-      "hint": "Two-sided integration test suite for mios-gen pod-quadlets (ADR-0021, Law 6, Law 11, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/pod_quadlets.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/projection_evidence.rs",
-      "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
-      "related": [
-        "tools/native/mios-gen/src/projection_evidence.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_desktop.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-desktop (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/render_desktop.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_globals.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-globals (ADR-0021, Law 14).",
-      "related": [
+        "tools/native/mios-gen/src/projection_evidence.rs",
         "tools/native/mios-gen/src/render_globals.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_manpages.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-manpages (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/render_manpages.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_ports.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-ports (ADR-0021, Law 14).",
-      "related": [
         "tools/native/mios-gen/src/render_ports.rs",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/roadmap_index.rs",
-      "hint": "Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14) -- hermetic: every case runs against a fixture copy of ROADMAP.md, because a test that checks the LIVE tree's sync state fails on any mid-edit working copy and duplicates what the drift gate already asserts.",
-      "related": [
-        "tools/native/mios-gen/src/roadmap_index.rs",
-        "ROADMAP.md",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/standardize_docs.rs",
-      "hint": "Two-sided integration test suite for mios-gen standardize-docs (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/sync.rs",
-      "hint": "Execute native sync against independent Git fixtures; prerequisite failures must preserve files and index.",
-      "related": [
         "tools/native/mios-gen/src/sync.rs",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/sync_wiki.rs",
-      "hint": "Two-sided integration test suite for mios-gen sync-wiki (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/sync_wiki.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
-      "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
+      "path": "tools/native/mios-gen/tests/theme.rs",
+      "hint": "Two-sided integration tests for the mios-gen desktop and terminal verbs: render-fastfetch, render-desktop and render-tmux-theme with its host and runtime layers (ADR-0021, Law 14).",
       "related": [
+        "tools/native/mios-gen/src/fastfetch.rs",
+        "automation/98-drift-checks.sh",
+        "tools/native/mios-gen/src/render_desktop.rs",
+        "tests/drift-gate-negatives.sh",
         "tools/native/mios-gen/src/tmux_runtime.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
-        "usr/libexec/mios/mios-terminal"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/tmux_theme.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-tmux-theme (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
+        "usr/libexec/mios/mios-terminal",
+        "tools/native/mios-gen/src/tmux_theme.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",

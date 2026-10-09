@@ -1,5 +1,5 @@
 // AI-hint: Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.
-// AI-related: automation/98-drift-checks.sh, tools/native/mios-gen/tests/projection_evidence.rs
+// AI-related: automation/98-drift-checks.sh, tools/native/mios-gen/tests/ssot.rs
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path};
