@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3837,
+  "total_metadata_entries": 3145,
+  "total_hints": 3135,
   "total_functions_indexed": 1469,
-  "total_related_links": 5223,
+  "total_related_links": 5216,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -2019,7 +2019,7 @@
       "path": "automation/mios-motd",
       "hint": "Compatibility login entrypoint delegates the complete layered SSOT dashboard to the same native Linux/Windows engine.",
       "related": [
-        "tools/native/mios-gen/src/dashboard.rs",
+        "tools/native/mios-gen/src/main.rs",
         "etc/profile.d/zz-mios-motd.sh"
       ],
       "functions": [],
@@ -3050,11 +3050,29 @@
       "has_shebang": false
     },
     {
+      "path": "docs/research/upstream-prior-art-gaps-2026-10.md",
+      "hint": "Prioritised upstream prior-art gap brief for MiOS across six lanes (AI plane, configurator, image pipeline, supply chain, bare metal/fleet, dev/cloud/WSL), with repo evidence and SSOT-shaped fixes.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "etc/btop/btop.conf",
       "hint": "GENERATED btop config -- do NOT hand-edit. Projected from the mios.toml [btop] SSOT by mios-theme-render (surface \"btop-conf\" -> etc/btop/btop.conf), the SAME way [colors] projects into themes/mios.theme.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/btop.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "etc/btop/themes/mios.theme",
+      "hint": "btop color theme template; mios-gen render-btop-theme and mios-dotfiles-render fill its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
+      "related": [],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -9958,7 +9976,7 @@
       "hint": "Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.",
       "related": [
         "tools/native/generate-names-registry/src/main.rs",
-        "tools/native/mios-gen/src/names_registry.rs"
+        "tools/native/mios-gen/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10266,9 +10284,11 @@
     },
     {
       "path": "tools/native/mios-gen/src/btop_theme.rs",
-      "hint": "SSOT btop theme renderer mapping exact RGB hex colors from mios.toml [colors] (ADR-0021 gen category).",
+      "hint": "Native btop theme projector: renders the [dotfiles.registry.btop] template through mios.toml tokens, byte-identical to mios-dotfiles-render, so the theme has one source.",
       "related": [
         "usr/share/mios/mios.toml",
+        "usr/share/mios/theme/templates/btop-mios.theme.tmpl",
+        "usr/libexec/mios/mios-dotfiles-render",
         "etc/btop/themes/mios.theme",
         "automation/98-drift-checks.sh"
       ],
@@ -10287,18 +10307,6 @@
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/dashboard.rs",
-      "hint": "Native runtime dashboard adapter resolves six-tier SSOT once and renders structured host facts through the shared cross-platform engine.",
-      "related": [
-        "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10329,7 +10337,7 @@
     },
     {
       "path": "tools/native/mios-gen/src/lib.rs",
-      "hint": "Shared generator implementations used by unified verbs and installed compatibility commands.",
+      "hint": "mios-gen library: the names-registry generator (check 30) and the bootstrap mirror, shared with generate-names-registry and the mios-gen CLI.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -10358,15 +10366,6 @@
         "usr/share/mios/mios.toml",
         "tools/native/mios-gen/src/metal_vs_hosted.rs"
       ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/names_registry.rs",
-      "hint": "Rust SSOT names registry generator (check 30 generator).",
-      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10403,18 +10402,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/projection_evidence.rs",
-      "hint": "Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.",
-      "related": [
-        "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/tests/projection_evidence.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10527,21 +10514,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_runtime.rs",
-      "hint": "Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user). Replaces the `--runtime` mode of the deleted tmux_theme.py (Phase 3.18 regression fix).",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
-        "usr/lib/mios/mios_toml.py",
-        "usr/libexec/mios/ux/theme_sync.py",
-        "etc/profile.d/mios-prompt.sh",
-        "usr/libexec/mios/mios-terminal"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10731,7 +10703,7 @@
       "path": "tools/native/mios-gen/tests/projection_evidence.rs",
       "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
       "related": [
-        "tools/native/mios-gen/src/projection_evidence.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10844,7 +10816,7 @@
       "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
       "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
       "related": [
-        "tools/native/mios-gen/src/tmux_runtime.rs",
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
         "usr/libexec/mios/mios-terminal"
@@ -11305,7 +11277,7 @@
       "related": [
         "/usr/share/mios/templates/rust",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/dashboard.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -36392,7 +36364,7 @@
     },
     {
       "path": "usr/share/mios/theme/templates/btop-mios.theme.tmpl",
-      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
+      "hint": "btop color theme template; mios-gen render-btop-theme and mios-dotfiles-render fill its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
       "related": [],
       "functions": [],
       "doc": null,

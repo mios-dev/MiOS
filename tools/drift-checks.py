@@ -4599,11 +4599,42 @@ def check_docs_ratchet() -> int:
         return 1
     return 0
 
+def _ssot_script_generators(data, listed):
+    """Script generators the SSOT declares: the projection register, the [generation.sync]
+    adapters and [rust.categories.gen].scope. Native .rs modules are skipped."""
+    import fnmatch
+    out = set()
+    reg = (data.get("laws") or {}).get("projection_registry") or {}
+    for row in list(reg.get("surfaces") or []) + list(reg.get("exempt") or []):
+        if isinstance(row, dict) and row.get("generator"):
+            out.add(str(row["generator"]).strip())
+    for step in ((data.get("generation") or {}).get("sync") or {}).get("steps") or []:
+        for call in step.get("calls") or []:
+            if call.get("script"):
+                out.add(str(call["script"]).strip())
+        if step.get("snapshot"):
+            out.add(str(step["snapshot"][0]).strip())
+    scope = (((data.get("rust") or {}).get("categories") or {}).get("gen") or {}).get("scope") or []
+    for rel in listed:
+        if any(fnmatch.fnmatchcase(rel, pat) for pat in scope):
+            out.add(rel)
+    return {p for p in out if p and not p.endswith(".rs")}
+
+
 def check_generator_host_parity() -> int:
-    import os, subprocess, sys
+    import os, subprocess, sys, tomllib
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     viol = []
+
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(toml_path):
+        # A tracked deliverable, and the subject list comes from it.
+        print("check_generator_host_parity: usr/share/mios/mios.toml is missing, so the "
+              "generator list could not be read", file=sys.stderr)
+        return 1
+    with open(toml_path, "rb") as fh:
+        data = tomllib.load(fh)
 
     # Was a hardcoded list of seven scripts, so the same non-portable idiom in
     # any other generator went unseen -- proved by planting it in
@@ -4615,17 +4646,30 @@ def check_generator_host_parity() -> int:
     except OSError as exc:
         print("cannot enumerate generators: %s" % exc, file=sys.stderr)
         return 1
+    listed = [x.strip() for x in listed.split("\n") if x.strip()]
 
-    scanned_scripts = []
-    for rel in [x.strip() for x in listed.split("\n") if x.strip()]:
+    # The SSOT declares the subjects; the generate-/render- naming convention
+    # only adds the scripts it still names.
+    declared = _ssot_script_generators(data, listed)
+    named = set()
+    for rel in listed:
         base = os.path.basename(rel)
         if (base.startswith(("generate-", "render-"))
                 or base in ("mios-manual", "mios-version-lint", "mios_var_closure.py")):
-            scanned_scripts.append(rel)
+            named.add(rel)
+    scanned_scripts = sorted(declared | named)
 
     if len(scanned_scripts) < 15:
         print("only %d generator(s) discovered -- the subject list is wrong, so an "
               "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
+        return 1
+
+    # A generator the SSOT names but the tree lacks is a broken subject list,
+    # never a smaller scan.
+    absent = sorted(p for p in declared if not os.path.isfile(os.path.join(root, p)))
+    if absent:
+        print("%d SSOT-declared generator(s) are not on disk, so the subject list is "
+              "wrong: %s" % (len(absent), ", ".join(absent)), file=sys.stderr)
         return 1
 
     read = 0

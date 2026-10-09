@@ -2355,8 +2355,20 @@ test_projection_registry() {
         printf '%s' "${orig_val%X}" > "$toml_file"
         die "Check_projection_registry passed despite missing projection check"
     fi
-
     printf '%s' "${orig_val%X}" > "$toml_file"
+
+    # The generator half: a row naming a native module that is not on disk --
+    # the shape a port that renames or deletes its generator leaves behind.
+    sed -i 's|generator = "tools/native/mios-gen/src/pod_quadlets.rs"|generator = "tools/native/mios-gen/src/pod_quadlets_negtest.rs"|' "$toml_file"
+    grep -q 'pod_quadlets_negtest.rs' "$toml_file" || { printf '%s' "${orig_val%X}" > "$toml_file"; die "test_projection_registry: the pod-quadlets row was not re-pointed -- the mutation would prove nothing"; }
+    local out
+    if out="$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry 2>&1)"; then
+        printf '%s' "${orig_val%X}" > "$toml_file"
+        die "Check_projection_registry passed with a registered generator missing from disk"
+    fi
+    printf '%s' "${orig_val%X}" > "$toml_file"
+    [[ "$out" == *"pod_quadlets_negtest.rs' missing from disk"* ]] || die "Check_projection_registry failed without naming the absent generator: $out"
+
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1 \
         || die "Check_projection_registry failed after restoration"
     log "Test_projection_registry negative test passed"
@@ -4334,17 +4346,27 @@ test_docs_ratchet_monotone() {
 
 test_generator_host_parity() {
     log "Testing check_generator_host_parity"
-    # names-registry.py is deleted (AGY-1073); the probe plants the idiom in
-    # any discovered generator instead of sed-replacing an idiom the victim
-    # may not carry.
-    local script
-    script="$(find "${ROOT}/tools" -maxdepth 1 -name "generate-*.py" 2>/dev/null | sort | head -1)"
-    [[ -n "$script" && -f "$script" ]] || { log "No generator python script found to test"; return 0; }
+    # Plant in a registered Python generator the generate-/render- naming
+    # convention misses: only the SSOT-derived subject list can see it.
+    local rel script
+    rel="$(python3 - "${ROOT}/usr/share/mios/mios.toml" <<'PYEOF'
+import os, sys, tomllib
+rows = tomllib.load(open(sys.argv[1], "rb"))["laws"]["projection_registry"]["surfaces"]
+for r in rows:
+    g = r.get("generator", "")
+    if g.endswith(".py") and not os.path.basename(g).startswith(("generate-", "render-")):
+        print(g)
+        break
+PYEOF
+)"
+    script="${ROOT}/${rel}"
+    [[ -n "$rel" && -f "$script" ]] || die "check_generator_host_parity: no registered Python generator to plant in -- the probe would prove nothing"
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
     printf '\nimport fnmatch\nfnmatch.fnmatch("x", "x")\n' >> "$script"
-    _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage"
+    _neg_gate check_generator_host_parity && { cp "$backup" "$script"; rm -f "$backup"; die "check_generator_host_parity passed despite non-portable fnmatch usage in ${rel}"; }
     cp "$backup" "$script"; rm -f "$backup"
+    [[ "$_NEG_GATE_OUT" == *"${rel} uses non-portable fnmatch.fnmatch"* ]] || die "check_generator_host_parity failed without naming ${rel}: ${_NEG_GATE_OUT}"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"
     log "check_generator_host_parity negative test passed"
 }
@@ -4355,19 +4377,25 @@ test_generator_host_parity_unreadable_corpus() {
     log "Testing check_generator_host_parity against a listed-but-absent corpus"
     local tmp_dir i
     tmp_dir="$(mktemp -d)"
-    mkdir -p "${tmp_dir}/tools"
+    mkdir -p "${tmp_dir}/tools" "${tmp_dir}/usr/share/mios"
     git -C "$tmp_dir" init -q
     for ((i = 1; i <= 25; i++)); do
         : > "${tmp_dir}/tools/generate-probe-${i}.py"
         git -C "$tmp_dir" add -- "tools/generate-probe-${i}.py"
     done
     rm -f "${tmp_dir}"/tools/generate-probe-*.py
-    if MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
-        generator-host-parity >/dev/null 2>&1; then
+    # The subject list is SSOT-derived, so the SSOT is present: its declared
+    # generators are then listed-but-absent too, not merely unreadable SSOT.
+    cp "${ROOT}/usr/share/mios/mios.toml" "${tmp_dir}/usr/share/mios/mios.toml"
+    local out
+    if out="$(MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
+        generator-host-parity 2>&1)"; then
         rm -rf "$tmp_dir"
         die "check_generator_host_parity passed with 25 generators listed and none readable"
     fi
     rm -rf "$tmp_dir"
+    [[ "$out" == *"not on disk"* || "$out" == *"could be read"* ]] \
+        || die "check_generator_host_parity failed for the wrong reason on a listed-but-absent corpus: $out"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after cleanup"
     log "check_generator_host_parity unreadable-corpus negative test passed"
 }
@@ -4813,22 +4841,42 @@ test_projection_coverage() {
     _neg_gate check_projection_coverage || die "check_projection_coverage failed on the unmutated tree"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    local planted="${ROOT}/tools/generate-negtest-surface.py"
+    # Generators are native mios-gen modules, so the primary plant is a new one;
+    # the Python-era globs stay in scope, so a tools/ script is the second.
+    local planted="${ROOT}/tools/native/mios-gen/src/negtest_surface.rs"
+    local planted_rel="tools/native/mios-gen/src/negtest_surface.rs"
     local short_name="${ROOT}/tools/gen-negtest-surface.py"
     _pc_fail() {
         cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name"
         unset -f _pc_fail
         die "$1"
     }
+    _pc_exempt() {  # $1 = reason; adds the plant to the itemised register, one above the current ceiling
+        python3 - "$toml" "$planted_rel" "$1" <<'PYEOF'
+import re, sys
+p, gen, reason = sys.argv[1:4]
+s = open(p, encoding="utf-8").read()
+# Other registers carry an `exempt = [` too: edit only this table's.
+start = s.index("\n[laws.projection_registry]\n")
+end = s.index("\n[", start + 1)
+head, table, tail = s[:start], s[start:end], s[end:]
+table, n = re.subn(r'(?m)^exempt = \[$', 'exempt = [\n  { generator = "%s", reason = "%s" },' % (gen, reason), table, count=1)
+assert n == 1, "the [laws.projection_registry].exempt list was not found -- the plant would prove nothing"
+table, n = re.subn(r'(?m)^max_exempt = ([0-9]+)$', lambda m: "max_exempt = %d" % (int(m.group(1)) + 1), table, count=1)
+assert n == 1, "[laws.projection_registry].max_exempt was not found"
+open(p, "w", encoding="utf-8").write(head + table + tail)
+PYEOF
+    }
 
     # The defect this check exists for: a NEW generator that projects a tracked
     # file, with no drift check and no registry row. check_projection_registry
     # walks the register forward and is silent on a generator that is on no row,
     # so before this check the plant below passed the whole gate.
-    printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$planted"
+    printf 'pub fn run() { let _ = std::fs::write("usr/share/mios/negtest.txt", "x"); }\n' > "$planted"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with an unregistered generator on disk"
+    [[ "$_NEG_GATE_OUT" == *"$planted_rel"* ]] || _pc_fail "check_projection_coverage did not name the unregistered native generator: ${_NEG_GATE_OUT}"
 
-    cp "$planted" "$short_name"
+    printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$short_name"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage ignored an unregistered gen-prefix generator"
     [[ "$_NEG_GATE_OUT" == *"tools/gen-negtest-surface.py"* ]] || _pc_fail "check_projection_coverage did not name the gen-prefix generator"
     rm -f "$short_name"
@@ -4841,10 +4889,9 @@ test_projection_coverage() {
 
     # An exemption with no reason is a count, not an itemised register. Asserted
     # on the MESSAGE, not the exit code: the plant is still on disk here, so a
-    # sed that silently missed would fail the check for the earlier reason and
-    # the assertion would pass without having tested anything.
-    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"\" },\\n]|" "$toml"
-    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    # mutation that silently missed would fail the check for the earlier reason
+    # and the assertion would pass without having tested anything.
+    _pc_exempt ""
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a bare exemption carrying no reason"
     case "${_NEG_GATE_OUT}" in
         *"carries no \`reason\`"*) : ;;
@@ -4855,13 +4902,19 @@ test_projection_coverage() {
     # The positive half of the same branch: the SAME plant, exempted WITH a
     # reason under a ceiling that admits it, must pass. Without this the
     # exemption path could be dead code that never grants anything.
-    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"negative-test plant\" },\\n]|" "$toml"
-    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    _pc_exempt "negative-test plant"
     _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"; rm -f "$planted"
 
     # The scope is this check's own allowlist, so narrowing it must not buy a
-    # pass -- the register anchors the globs from outside.
+    # pass -- the register anchors the globs from outside. Narrowed, the native
+    # glob misses registered modules beside the ones it keeps.
+    sed -i 's|"tools/native/mios-gen/src/\*\.rs"|"tools/native/mios-gen/src/render_*.rs"|' "$toml"
+    grep -q '"tools/native/mios-gen/src/render_\*\.rs"' "$toml" || _pc_fail "the native discovery glob was not narrowed -- the mutation would prove nothing"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after the native discovery glob was narrowed"
+    [[ "$_NEG_GATE_OUT" == *"no glob matches it"* ]] || _pc_fail "check_projection_coverage failed for the wrong reason on a narrowed glob: ${_NEG_GATE_OUT}"
+    cp "$bak" "$toml"
+    # Deleted outright, the scope is empty, which is cannot-run, never a pass.
     sed -i 's|^generator_globs = .*$|generator_globs = ["tools/generate-*.py"]|' "$toml"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after a discovery glob was deleted"
     cp "$bak" "$toml"
@@ -4877,7 +4930,7 @@ test_projection_coverage() {
     cp "$bak" "$toml"
 
     rm -f "$bak" "$planted"
-    unset -f _pc_fail
+    unset -f _pc_fail _pc_exempt
     _neg_gate check_projection_coverage || die "check_projection_coverage failed after restoration: ${_NEG_GATE_OUT}"
     log "check_projection_coverage negative test passed"
 }
