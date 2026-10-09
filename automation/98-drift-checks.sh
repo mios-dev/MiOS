@@ -2823,9 +2823,9 @@ check_replaceme_mount_substitution() {
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py replaceme-mount-substitution
     then
-        echo "[98-drift-checks]   BIB recipes perform credential substitution on mounted config templates"
+        echo "[98-drift-checks]   no Justfile BIB recipe mounts a format recipe or a placeholder raw; miosd artifact-build renders credentials"
     else
-        _violation "unsubstituted REPLACEME template raw-mounted in Justfile BIB recipe"
+        _violation "a Justfile BIB recipe raw-mounts a format recipe or a REPLACE placeholder -- build disks with miosd artifact-build"
     fi
 }
 

@@ -11807,6 +11807,26 @@ THP            = ""                        # Transparent Huge Pages configuratio
 # floor below this, and a caller SSOT whose value sits below the image's own.
 min_smoke_components = 24
 
+# `miosd artifact-boot-test <format>` (P1-1): QEMU boots the disk read-only in
+# its [deploy.formats.<f>.vm] shape, waits for SSH with the build's key, then
+# runs each probe in the guest. A failing probe, no SSH within `timeout`, or an
+# early QEMU exit (-no-reboot catches a greenboot rollback) fails the test.
+[testing.boot]
+timeout  = "30m"
+# Secure Boot code and a variable store with Microsoft's UEFI CA enrolled, the
+# trust [deploy.formats.vhdx.vm].secure_boot_template names. First present wins.
+firmware = [
+  { code = "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd" },          # Debian, Ubuntu: ovmf
+  { code = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd" },  # Fedora: edk2-ovmf
+]
+probes = [
+  # Waits out startup, then requires the multi-user target.
+  "systemctl is-system-running --wait >/dev/null; systemctl is-active multi-user.target",
+  # greenboot's verdict on this boot: active only when every required.d check passed.
+  "systemctl is-active greenboot-healthcheck.service",
+  "sudo -n bootc status",
+]
+
 # What every MiOS image holds, whatever its profile (T-1171). The top-level
 # lists are the floor. sections.<s>, phases.<p> and profiles.<q> add probes
 # only when the asserted profile selects that [packages] section, registered
@@ -12833,6 +12853,12 @@ max_leaked_fixtures = 0
 # argument-position coverage predicate correctly re-counted.
 max_checks_without_negative = 44
 
+[ci.artifacts]
+# Disk formats the artifact-boot job (.github/workflows/mios-ci.yml) builds and
+# boots on every run: a second image build, a BIB run and a QEMU boot, about an
+# hour each, so every format starts off. Outside the drift-gate tiers.
+vhdx = false
+
 [ci.python]
 # Installed on a runner before the unit tier.
 #
@@ -13343,25 +13369,50 @@ gui     = "full desktop session"
 artifacts = ["usb-installer/*.iso"]
 status  = "partial"
 
+# Rendered per build by `miosd artifact-build qcow2`, like vhdx below.
 [deploy.formats.qcow2]
 title   = "QEMU disk"
 summary = "a virtual machine disk for libvirt, QEMU and the cloud images built from it"
 target  = "qcow2"
-recipe  = "config/artifacts/qcow2.toml"
+recipe  = ""
 medium  = "virtual machine"
 gui     = "full desktop session"
 artifacts = ["qcow2/qcow2/*.qcow2", "qcow2/*.qcow2"]
 status  = "shipping"
 
+# Hyper-V disk: BIB's VHD (bib_type, gated by [deployment].target_vhd) converted
+# to a `subformat` VHDX, its config rendered per build by `miosd artifact-build`.
+# Never published (GitHub assets stop at 2 GiB a file, GHCR at 10 GB a layer):
+# build it from the published digest, usr/share/doc/mios/upstream/deploy-targets.md.
 [deploy.formats.vhdx]
 title   = "Hyper-V disk"
 summary = "a virtual machine disk for Hyper-V and Windows virtualisation"
 target  = "vhdx"
-recipe  = "config/artifacts/vhdx.toml"
+recipe  = ""
 medium  = "virtual machine"
 gui     = "full desktop session"
-artifacts = ["vhdx/*.vhdx", "vhdx/vpc/*.vhd", "vhdx/*.vhd"]
+bib_type  = "vhd"
+subformat = "dynamic"
+artifacts = ["vhdx/*.vhdx"]
 status  = "shipping"
+
+# The Hyper-V virtual machine the disk is made for. New-VM and Set-VMFirmware
+# read it as written (usr/share/doc/mios/upstream/deploy-targets.md); the CI
+# boot test ([ci.artifacts], [testing.boot]) runs the same shape under QEMU.
+[deploy.formats.vhdx.vm]
+# A bootc disk is UEFI and GPT, which only a Generation 2 VM boots.
+generation           = 2
+# Fedora's shim is signed by the Microsoft UEFI CA, not the Windows CA, so Secure
+# Boot needs this template rather than Hyper-V's default (MicrosoftWindows).
+secure_boot_template = "MicrosoftUEFICertificateAuthority"
+processors           = 4
+# PowerShell's form, as New-VM -MemoryStartupBytes reads it; never below
+# [preflight].min_ram_gb, which miosd enforces.
+memory               = "8GB"
+# Fixed: GPU partitioning (GPU-PV) and the AI plane's model memory want it static.
+dynamic_memory       = false
+# Hyper-V's built-in NAT switch.
+switch               = "Default Switch"
 
 [deploy.formats.wsl2]
 title   = "WSL distribution"
@@ -13386,6 +13437,14 @@ status  = "partial"
 # and none of those is as small as four mebibytes, so a file under this floor
 # is a truncated or empty write rather than a smaller build.
 min_bytes = 4194304
+
+# A disk's credential, never stored here and never defaulted: `miosd
+# artifact-build` reads these environment variables, then [auth] in the layered
+# mios.toml (password_hash under password_policy "hashed", existing_ssh_key under
+# ssh_key_action "existing"), and refuses a disk none of them opens (P1-4).
+[deploy.identity]
+password_hash_env = "MIOS_USER_PASSWORD_HASH"   # `openssl passwd -6`; the console login
+ssh_key_env       = "MIOS_SSH_PUBKEY"
 
 # [rust] -- what the Rust layer's green actually covers.
 #
