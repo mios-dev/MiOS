@@ -32,7 +32,7 @@ enum Commands {
         #[arg(short, long, default_value_t = 101)]
         node_id: u32,
 
-        /// UDP port; defaults to MIOS_PORT_NODE ([ports].node, resolved at run time).
+        /// UDP port; defaults to MIOS_PORTS_NODE ([ports].node, resolved at run time).
         #[arg(short, long)]
         port: Option<u16>,
 
@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
         }) => {
             let port = match port {
                 Some(p) => p,
-                None => mios_node::ssot::require_port("MIOS_PORT_NODE")?,
+                None => mios_node::ssot::require_port("MIOS_PORTS_NODE")?,
             };
             println!("====================================================");
             println!("  MiOS ('My OS' / 'MyOS') Distributed Edge Runtime  ");
@@ -176,14 +176,14 @@ async fn main() -> Result<()> {
             };
             println!(
                 "  Discovery Port      : {} (UDP / TCP)",
-                show("MIOS_PORT_NODE")
+                show("MIOS_PORTS_NODE")
             );
             println!("  Default State File  : /var/lib/mios/state.json");
             println!("  AI Endpoint         : {}", show("MIOS_AI_ENDPOINT"));
             println!(
                 "  Inference Lanes     : mios-llm-light (:{}), mios-llm-heavy (:{})",
-                show("MIOS_PORT_LLM_LIGHT"),
-                show("MIOS_PORT_VLLM")
+                show("MIOS_PORTS_LLM_LIGHT"),
+                show("MIOS_PORTS_LLM_HEAVY")
             );
             println!("  Registered Sub-Agent: mios-node (role: edge_execution)");
             println!("====================================================");

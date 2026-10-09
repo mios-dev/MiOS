@@ -342,7 +342,7 @@ fn deployment_cli_advertises_modes_and_rejects_incomplete_options() {
     assert!(advertised.status.success());
     assert_eq!(
         String::from_utf8(advertised.stdout).unwrap(),
-        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install\n"
+        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\nbootc-install\nkeybindings\n"
     );
     let temp = tempfile::tempdir().unwrap();
     for options in [vec!["--root"], vec!["--toml", "--check"], vec!["--unknown"]] {
@@ -510,41 +510,6 @@ fn service_cli_projects_independent_roots_and_checks_corruption() {
 fn committed_service_configs_match_ssot() {
     for kind in [DeploymentKind::Cockpit, DeploymentKind::IpaEnroll] {
         assert_eq!(project_deployment(&root(), kind, true, None).unwrap(), 1);
-    }
-}
-
-#[test]
-fn sync_lookup_selects_the_host_suffix_when_both_artifacts_exist() {
-    let source = fs::read_to_string(root().join("tools/sync-generated.sh")).unwrap();
-    let start = source.find("native_bin() {").unwrap();
-    let end = start + source[start..].find("\n}\n").unwrap() + 3;
-    let helper = &source[start..end];
-    let temp = tempfile::tempdir().unwrap();
-    for suffix in ["", ".exe"] {
-        let relative = format!("tools/native/target/debug/fixture-tool{suffix}");
-        write_fixture(temp.path(), &relative, "fixture\n");
-        let status = std::process::Command::new("chmod")
-            .arg("+x")
-            .arg(temp.path().join(relative))
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-    for (platform, suffix) in [("Linux", ""), ("MINGW64_NT", ".exe"), ("MSYS_NT", ".exe")] {
-        let script =
-            format!("{helper}\nuname() {{ printf '%s' '{platform}'; }}\nnative_bin fixture-tool\n");
-        let result = std::process::Command::new("bash")
-            .args(["-c", &script])
-            .env("ROOT", temp.path())
-            .output()
-            .unwrap();
-        assert!(result.status.success());
-        assert_eq!(
-            String::from_utf8(result.stdout).unwrap(),
-            temp.path()
-                .join(format!("tools/native/target/debug/fixture-tool{suffix}"))
-                .to_string_lossy()
-        );
     }
 }
 

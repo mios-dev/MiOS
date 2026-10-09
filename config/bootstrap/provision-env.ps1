@@ -58,8 +58,8 @@ function Export-EnvFile {
     $lines = @(
         "# 'MiOS' Build Configuration"
         "# Generated: $([System.DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))"
-        "MIOS_USER=$env:MIOS_USER"
-        "MIOS_HOSTNAME=$env:MIOS_HOSTNAME"
+        "MIOS_IDENTITY_USERNAME=$env:MIOS_IDENTITY_USERNAME"
+        "MIOS_IDENTITY_HOSTNAME=$env:MIOS_IDENTITY_HOSTNAME"
     )
     if ($env:MIOS_GHCR_USER)       { $lines += "MIOS_GHCR_USER=$env:MIOS_GHCR_USER" }
     $lines | Set-Content $Path -Encoding UTF8
@@ -150,10 +150,10 @@ if (-not $env:GHCR_TOKEN) {
 Write-Host "Build Configuration" -ForegroundColor Yellow
 
 # ── Admin username ────────────────────────────────────────────────────────────
-if (-not $env:MIOS_USER) {
-    $env:MIOS_USER = Read-WithDefault "Admin username:" "mios"
+if (-not $env:MIOS_IDENTITY_USERNAME) {
+    $env:MIOS_IDENTITY_USERNAME = Read-WithDefault "Admin username:" "mios"
 } else {
-    Write-Host "  Admin username: $($env:MIOS_USER)  (env)" -ForegroundColor DarkGray
+    Write-Host "  Admin username: $($env:MIOS_IDENTITY_USERNAME)  (env)" -ForegroundColor DarkGray
 }
 
 # ── Admin password ────────────────────────────────────────────────────────────
@@ -170,16 +170,16 @@ if (-not $env:MIOS_PASSWORD) {
 }
 
 # ── Hostname ──────────────────────────────────────────────────────────────────
-if (-not $env:MIOS_HOSTNAME) {
+if (-not $env:MIOS_IDENTITY_HOSTNAME) {
     $suffix = '{0:D5}' -f (Get-Random -Minimum 10000 -Maximum 99999)
     Write-Host "  Hostname base " -NoNewline -ForegroundColor White
     Write-Host "[mios] " -NoNewline -ForegroundColor DarkGray
     Write-Host "(suffix -$suffix is pre-generated -> mios-$suffix): " -NoNewline -ForegroundColor DarkGray
     $hbase = Read-Host
     if ([string]::IsNullOrWhiteSpace($hbase)) { $hbase = "mios" }
-    $env:MIOS_HOSTNAME = "$hbase-$suffix"
+    $env:MIOS_IDENTITY_HOSTNAME = "$hbase-$suffix"
 } else {
-    Write-Host "  Hostname: $($env:MIOS_HOSTNAME)  (env)" -ForegroundColor DarkGray
+    Write-Host "  Hostname: $($env:MIOS_IDENTITY_HOSTNAME)  (env)" -ForegroundColor DarkGray
 }
 
 # ── Optional: GHCR push credentials ──────────────────────────────────────────
@@ -194,9 +194,9 @@ if ($env:MIOS_GHCR_USER -and -not $env:MIOS_GHCR_PUSH_TOKEN) {
 
 # ── Summary ────────────────────────────────────────────────────────────────────
 Write-Host "Summary" -ForegroundColor Yellow
-Write-Host ("    {0,-20} {1}" -f "Admin user:",    $env:MIOS_USER)
+Write-Host ("    {0,-20} {1}" -f "Admin user:",    $env:MIOS_IDENTITY_USERNAME)
 Write-Host ("    {0,-20} {1}" -f "Admin password:", "(masked)")
-Write-Host ("    {0,-20} {1}" -f "Hostname:",       $env:MIOS_HOSTNAME)
+Write-Host ("    {0,-20} {1}" -f "Hostname:",       $env:MIOS_IDENTITY_HOSTNAME)
 $pushStr = if ($env:MIOS_GHCR_USER) { $env:MIOS_GHCR_USER } else { "none (local build only)" }
 Write-Host ("    {0,-20} {1}" -f "Registry push:",  $pushStr)
 Write-Host ("    {0,-20} {1}" -f "Config saved to:", $EnvFile)

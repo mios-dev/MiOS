@@ -113,8 +113,8 @@ Run ONLY in the OPERATOR's user manager. The broker binds the shared
 (uid 1000) user manager ALSO starts it they contend for that socket, and
 whichever wins launches GUI apps in the WRONG session (root -> invisible,
 then the window dies). ConditionUser gates the broker to the operator so
-exactly ONE instance owns the socket. ('mios' = MIOS_USER, the operator;
-render from MIOS_USER if that default ever changes.) Operator-hit
+exactly ONE instance owns the socket. ('mios' = MIOS_IDENTITY_USERNAME, the operator;
+render from MIOS_IDENTITY_USERNAME if that default ever changes.) Operator-hit
 2026-06-06: multi-broker invisible launches recurring after WSL restarts.
 
 <!-- mios-src:917db232f01b from usr/lib/systemd/user/mios-launcher.service:26-34 -->
@@ -284,3 +284,15 @@ Implements T-964 / AGY-2562: Validates and enforces that primary user 'mios'
 has UID 1000 and GID 1000, aligning with systemd user session requirements.
 
 <!-- mios-src:4b712c70a198 from usr/libexec/mios/user/uid_enforce.py:5-9 -->
+### Run ONLY in the OPERATOR's user manager. The broker binds...
+
+Run ONLY in the OPERATOR's user manager. The broker binds the shared
+/run/mios-launcher/launcher.sock; if root's (uid 0) or a second user's
+(uid 1000) user manager ALSO starts it they contend for that socket, and
+whichever wins launches GUI apps in the WRONG session (root -> invisible,
+then the window dies). ConditionUser gates the broker to the operator so
+exactly ONE instance owns the socket. ('mios' = MIOS_IDENTITY_USERNAME, the operator;
+render from MIOS_IDENTITY_USERNAME if that default ever changes.) Operator-hit
+2026-06-06: multi-broker invisible launches recurring after WSL restarts.
+
+<!-- mios-src:bdd0df1dee46 from usr/lib/systemd/user/mios-launcher.service:26-34 -->

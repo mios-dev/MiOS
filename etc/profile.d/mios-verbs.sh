@@ -5,22 +5,26 @@
 
 _mios_dashboard() {
     local _label="$1"; shift
+    if [[ "$_label" != monitor ]]; then
+        /usr/bin/mios-gen dashboard --root / "$@"
+        return $?
+    fi
     local _c _dash=""
-    for _c in /usr/libexec/mios/mios-dashboard.sh \
-              /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
+    for _c in /usr/libexec/mios/mios-dashboard \
+              /mnt/m/usr/libexec/mios/mios-dashboard; do
         [[ -x "$_c" ]] && { _dash="$_c"; break; }
     done
-    [[ -n "$_dash" ]] || { echo "Mios $_label: mios-dashboard.sh not found" >&2; return 127; }
+    [[ -n "$_dash" ]] || { echo "Mios $_label: mios-dashboard not found" >&2; return 127; }
     "$_dash" "$@"
 }
 
 mios() {
     case "${1:-help}" in
         mini)
-            shift; _mios_dashboard mini --mini "$@"
+            shift; _mios_dashboard mini "$@"
             ;;
         dash|dashboard)
-            shift; ( export MIOS_DASH_SERVICES=1 MIOS_COMPACT=0; _mios_dashboard dash --dash "$@" )
+            shift; _mios_dashboard dash "$@"
             ;;
         mon|monitor)
             shift; _mios_dashboard monitor --monitor "$@"

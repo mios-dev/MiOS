@@ -8,6 +8,7 @@ that they are now reachable from a test, so this asserts exactly that.
 import ast
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,32 @@ def _load():
     return mod
 
 MOD = _load()
+
+class TestConfiguredResolver(unittest.TestCase):
+    def test_missing_catalog_binary_refuses_installed_fallback(self):
+        with tempfile.TemporaryDirectory() as catalog:
+            env = dict(os.environ, MIOS_NATIVE_BIN_DIR=catalog, MIOS_DRIFT_ROOT=_ROOT)
+            r = subprocess.run([sys.executable, _MOD_PATH, "resolver-differential-parity"],
+                               env=env, capture_output=True, text=True)
+            self.assertEqual(1, r.returncode, r.stdout + r.stderr)
+            self.assertIn("configured resolver is missing", r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_unexecutable_catalog_binary_refuses_installed_fallback(self):
+        with tempfile.TemporaryDirectory() as catalog:
+            name = "mios-resolver" + (".exe" if sys.platform == "win32" else "")
+            path = os.path.join(catalog, name)
+            with open(path, "w") as f:
+                f.write("invalid executable\n")
+            os.chmod(path, 0o755)
+            env = dict(os.environ, MIOS_NATIVE_BIN_DIR=catalog, MIOS_DRIFT_ROOT=_ROOT)
+            r = subprocess.run([sys.executable, _MOD_PATH, "resolver-differential-parity"],
+                               env=env, capture_output=True, text=True)
+            self.assertEqual(1, r.returncode, r.stdout + r.stderr)
+            self.assertIn("execution failed", r.stderr)
+            self.assertIn(path, r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
 
 class TestExtractedChecks(unittest.TestCase):
     def test_the_module_imports(self):
@@ -83,10 +110,21 @@ class TestExtractedChecks(unittest.TestCase):
     def test_the_shell_gate_calls_the_module_not_a_heredoc(self):
         with open(os.path.join(_ROOT, "automation/98-drift-checks.sh"), encoding="utf-8", errors="replace") as fh:
             gate = fh.read()
+        import inspect
         for name in MOD.SUBCOMMANDS:
-            self.assertIn("tools/drift-checks.py %s" % name, gate,
-                          "check_%s no longer dispatches to the module"
-                          % name.replace("-", "_"))
+            pattern = r'tools/drift-checks\.py["\x27]?\s+' + re.escape(name) + r'(?=[\s"\x27)]|$)'
+            if re.search(pattern, gate):
+                continue
+            # Ported to native: the entry here must re-enter the gate's own
+            # function, and that function must not call back -- one mechanism.
+            fn = "check_" + name.replace("-", "_")
+            src = inspect.getsource(MOD.SUBCOMMANDS[name])
+            self.assertTrue("98-drift-checks.sh" in src and '"%s"' % fn in src,
+                            "%s neither dispatches to the module nor re-enters the gate" % fn)
+            body = re.search(r"(?ms)^%s\(\) \{\n(.*?)^\}" % re.escape(fn), gate)
+            self.assertIsNotNone(body, "%s is not defined in the shell gate" % fn)
+            self.assertNotIn("drift-checks.py", body.group(1),
+                             "%s and its compatibility entry call each other" % fn)
 
 
 # A checkout that never had a file is a skip; a TRACKED file that has gone
@@ -356,67 +394,9 @@ class TestBoundImageStore(unittest.TestCase):
         self.check(1, "symlink targets wrong Quadlet")
 
 
-class TestBoundStoreProjection(unittest.TestCase):
-    def setUp(self):
-        spec = importlib.util.spec_from_file_location(
-            "pod_projection", os.path.join(_HERE, "generate-pod-quadlets.py"))
-        self.mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.mod)
-        self.temp = tempfile.mkdtemp(prefix="store-projection-")
-        self.addCleanup(shutil.rmtree, self.temp, True)
-        self.toml = os.path.join(self.temp, "mios.toml")
-        with open(self.toml, "w", encoding="utf-8") as fh:
-            fh.write('[build.bake]\nadditional_image_store = "/usr/lib/bootc/storage"\n'
-                     'firstboot_tokens = ["floating"]\n')
-
-    def project(self, args=None, image="example/core"):
-        section = {"Image": image}
-        if args is not None:
-            section["GlobalArgs"] = args
-        containers = {"core": {"Container": section}}
-        self.mod.apply_bound_image_store(containers, self.toml)
-        return containers, section
-
-    def test_preserves_other_args_and_is_idempotent(self):
-        containers, section = self.project(["--log-level=debug"])
-        expected = ["--log-level=debug", "--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
-        self.assertEqual(expected, section["GlobalArgs"])
-        self.mod.apply_bound_image_store(containers, self.toml)
-        self.assertEqual(expected, section["GlobalArgs"])
-
-    def test_split_option_is_preserved(self):
-        args = "--storage-opt additionalimagestore=/usr/lib/bootc/storage"
-        _, section = self.project(args)
-        self.assertEqual(args, section["GlobalArgs"])
-
-    def test_conflicting_or_duplicate_store_fails(self):
-        for args in (["--storage-opt=additionalimagestore=/other"],
-                     ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"] * 2):
-            with self.subTest(args=args), self.assertRaisesRegex(ValueError, "conflicting"):
-                self.project(args)
-
-    def test_malformed_args_fail(self):
-        for args in (0, False, [0]):
-            with self.subTest(args=args), self.assertRaisesRegex(ValueError, "GlobalArgs must"):
-                self.project(args)
-
-    def test_floating_image_never_uses_bound_store(self):
-        _, section = self.project(["--log-level=debug"], "example/floating")
-        self.assertEqual(["--log-level=debug"], section["GlobalArgs"])
-        with self.assertRaisesRegex(ValueError, "firstboot image"):
-            self.project("--storage-opt=additionalimagestore=/usr/lib/bootc/storage", "example/floating")
-
-    def test_false_settings_are_not_treated_as_missing(self):
-        for setting, value, message in (("additional_image_store", "false", "absolute path"),
-                                         ("firstboot_tokens", "false", "string array")):
-            with self.subTest(setting=setting):
-                with open(self.toml, "w", encoding="utf-8") as fh:
-                    fh.write('[build.bake]\n')
-                    if setting != "additional_image_store":
-                        fh.write('additional_image_store = "/usr/lib/bootc/storage"\n')
-                    fh.write(f"{setting} = {value}\n")
-                with self.assertRaisesRegex(ValueError, message):
-                    self.project()
+# The bound-image-store projection left Python with tools/generate-pod-quadlets.py
+# (f22b85ff, ported to `mios-gen pod-quadlets`). Its six cases now run beside the
+# implementation as the bound_store_* tests in tools/native/mios-gen/src/pod_quadlets.rs.
 
 
 class TestMonitorRegistry(unittest.TestCase):
@@ -511,8 +491,238 @@ class TestMonitorRegistry(unittest.TestCase):
         self.assertEqual("#102030", palette["bg"])
         self.assertEqual("#203040", palette["surface"])
         self.assertTrue(transparent)
+        # Transparency follows the SSOT on every platform, as the tmux theme's
+        # does (mios-service-core tmux_theme.rs): the monitor runs under WSL inside
+        # Windows Terminal, where IS_WINDOWS is False and the acrylic is real.
         self.ns["IS_WINDOWS"] = False
-        self.assertFalse(self.ns["load_ssot_colors"]()[1])
+        self.assertTrue(self.ns["load_ssot_colors"]()[1])
+        for theme in ({"acrylic": False, "opacity": 75}, {"acrylic": True, "opacity": 100}, {}):
+            self.ns.update(monitor_config=lambda theme=theme: {"colors": {"bg": "#102030"}, "theme": theme})
+            self.assertFalse(self.ns["load_ssot_colors"]()[1], theme)
+
+
+# The T-996 pair: a priority scale and a ceiling that must equal its register's
+# size, both 9 once -- two facts that agreed by accident.
+T996_ENV = {"MIOS_SCHED_URGENCY_HIGH": "9", "MIOS_SSOT_TABLES_MAX_UNCONSUMED": "9"}
+T996_SOURCES = {"MIOS_SCHED_URGENCY_HIGH": "sched.urgency_high",
+                "MIOS_SSOT_TABLES_MAX_UNCONSUMED": "ssot_tables.max_unconsumed"}
+T996_ROW = ("MIOS_SCHED_URGENCY_HIGH", "MIOS_SSOT_TABLES_MAX_UNCONSUMED", "keep-distinct",
+            "# a priority level vs a ceiling pinned to its register's size; they agree by accident")
+
+
+def _value_fixture(tmp, emitted, sources):
+    """A snapshot tool printing `emitted` and a resolver whose names registry
+    carries `sources` -- the two inputs both value gates read."""
+    import json
+    snap = os.path.join(tmp, "snapshot.sh")
+    with open(snap, "w", encoding="utf-8") as fh:
+        fh.write("#!/usr/bin/env bash\n")
+        for k, v in emitted.items():
+            fh.write("printf '%%s\\n' '%s=%s'\n" % (k, v))
+    resolver = os.path.join(tmp, "mios-resolver")
+    with open(resolver, "w", encoding="utf-8") as fh:
+        fh.write("#!%s\nimport json\nprint(json.dumps(%r))\n"
+                 % (sys.executable, {"entries": [], "sources": sources}))
+    os.chmod(resolver, 0o755)
+    return snap, resolver
+
+
+class TestValueDupCoincidence(unittest.TestCase):
+    """check_no_duplicate_value_key over declarations, and T-998's one exit."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mios-value-dup-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _run(self, emitted, sources, rows=(), ledger=()):
+        snap, resolver = _value_fixture(self.tmp, emitted, sources)
+        with open(os.path.join(self.tmp, "value-aliases.tsv"), "w", encoding="utf-8") as fh:
+            fh.write("# canonical\talias\tdisposition\n")
+            for row in rows:
+                fh.write("\t".join(row) + "\n")
+        base = os.path.join(self.tmp, "value-dup-baseline.tsv")
+        with open(base, "w", encoding="utf-8") as fh:
+            fh.write("#!ceiling\t%d\n" % len(ledger))
+            for val, keys in ledger:
+                fh.write("%s\t%d\t%s\n" % (val, len(keys), ",".join(keys)))
+        env = dict(os.environ, MIOS_RESOLVER_BIN=resolver, MIOS_TOML_ROOT=self.tmp)
+        return subprocess.run([sys.executable, _MOD_PATH, "no-duplicate-value-key", snap, base],
+                              capture_output=True, text=True, cwd=_ROOT, env=env)
+
+    def test_the_t996_pair_is_a_new_group_until_it_is_classified(self):
+        r = self._run(T996_ENV, T996_SOURCES)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_the_t996_pair_passes_through_its_keep_distinct_row(self):
+        r = self._run(T996_ENV, T996_SOURCES, [T996_ROW])
+        self.assertEqual(0, r.returncode, r.stderr)
+        self.assertIn("0 groups at ceiling 0; 1 coincidental", r.stdout)
+
+    def test_a_row_without_its_reason_explains_nothing(self):
+        # Both gates honour the same rows: check_value_aliases rejects this
+        # one, so the ratchet must not count it as a classification either.
+        r = self._run(T996_ENV, T996_SOURCES, [T996_ROW[:3]])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_spellings_of_one_declaration_are_not_a_group(self):
+        env = {"MIOS_PORTS_X": "8470", "MIOS_PORT_X": "8470", "MIOS_X_PORT": "8470"}
+        r = self._run(env, {k: "ports.x" for k in env})
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_two_declarations_spelled_alike_still_are_a_group(self):
+        # Name shape alone used to fold these; provenance does not.
+        env = {"MIOS_CODE_MODE_X": "v", "MIOS_CODEMODE_X": "v"}
+        r = self._run(env, {"MIOS_CODE_MODE_X": "code_mode.x", "MIOS_CODEMODE_X": "codemode.x"})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_a_row_explains_only_a_group_its_canonical_side_is_in(self):
+        env = dict(T996_ENV, MIOS_OTHER="7")
+        src = dict(T996_SOURCES, MIOS_OTHER="other.k")
+        row = ("MIOS_OTHER",) + T996_ROW[1:]
+        r = self._run(env, src, [row])
+        self.assertEqual(1, r.returncode)
+
+    def test_growth_needs_its_own_row(self):
+        env = {"MIOS_A": "20", "MIOS_B": "20", "MIOS_NEW": "20"}
+        src = {"MIOS_A": "a.k", "MIOS_B": "b.k", "MIOS_NEW": "n.k"}
+        ledger = [("20", ["MIOS_A", "MIOS_B"])]
+        r = self._run(env, src, ledger=ledger)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("GREW: MIOS_NEW", r.stderr)
+        row = ("MIOS_A", "MIOS_NEW", "keep-distinct", "# an unrelated tunable that is also twenty")
+        r = self._run(env, src, [row], ledger=ledger)
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_no_provenance_map_is_not_a_pass(self):
+        r = self._run(T996_ENV, {}, [T996_ROW])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("cannot tell aliases from duplicates", r.stderr)
+
+
+class TestValueAliasRegistry(unittest.TestCase):
+    """value-aliases.tsv vouches for names the resolver emits.
+
+    A row whose names were not emitted used to be skipped as informational.
+    A lost table header stranded fifteen [pgvector] keys under [offline].
+    Fourteen had rows here, every one was skipped, and each consumer quietly
+    took its inline default; the fifteenth, rls_enable, had no row at all.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mios-value-aliases-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _run(self, emitted, rows, sources=None):
+        snap, resolver = _value_fixture(self.tmp, emitted, sources or {})
+        tsv = os.path.join(self.tmp, "value-aliases.tsv")
+        with open(tsv, "w", encoding="utf-8") as fh:
+            fh.write("# canonical\talias\tdisposition\n")
+            for row in rows:
+                fh.write("\t".join(row) + "\n")
+        env = dict(os.environ, MIOS_DRIFT_ROOT=self.tmp, MIOS_RESOLVER_BIN=resolver)
+        return subprocess.run([sys.executable, _MOD_PATH, "value-aliases", snap, tsv],
+                              capture_output=True, text=True, cwd=_ROOT, env=env)
+
+    def test_an_emitted_derive_pair_with_equal_values_passes(self):
+        r = self._run({"T_A": "1", "T_B": "1"},
+                      [("T_A", "T_B", "derive")])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_a_divergent_derive_pair_fails(self):
+        r = self._run({"T_A": "1", "T_B": "2"},
+                      [("T_A", "T_B", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("MUST be equal", r.stderr)
+
+    # T-998. keep-distinct means two declarations whose values may coincide;
+    # it used to mean "must differ", which left a real coincidence no exit.
+    def test_the_t996_coincidence_passes_as_two_declarations(self):
+        r = self._run(T996_ENV, [T996_ROW], T996_SOURCES)
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_keep_distinct_without_a_reason_fails(self):
+        r = self._run(T996_ENV, [T996_ROW[:3]], T996_SOURCES)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("without a reason", r.stderr)
+
+    def test_one_declaration_under_two_names_is_never_keep_distinct(self):
+        # An alias the resolver emits beside its walked name, mislabelled.
+        one = {k: "sched.urgency_high" for k in T996_ENV}
+        r = self._run(T996_ENV, [T996_ROW], one)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("one declaration under two names", r.stderr)
+
+    def test_equal_values_with_no_declaration_to_tell_apart_fail(self):
+        r = self._run(T996_ENV, [T996_ROW], {"MIOS_SCHED_URGENCY_HIGH": "sched.urgency_high"})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("traces to no SSOT declaration", r.stderr)
+
+    def test_a_pair_registered_twice_fails(self):
+        reverse = (T996_ROW[1], T996_ROW[0]) + T996_ROW[2:]
+        r = self._run(T996_ENV, [T996_ROW, reverse], T996_SOURCES)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("already registered", r.stderr)
+
+    def test_a_provenance_less_resolver_is_not_a_pass(self):
+        r = self._run(T996_ENV, [T996_ROW], {})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("cannot be verified", r.stdout + r.stderr)
+
+    def test_a_stranded_family_fails_naming_both_variables(self):
+        # The lost-header shape: the key now parses under another table, so
+        # the resolver emits neither spelling the registry vouches for.
+        r = self._run({"OFFLINE_HNSW_ITERATIVE_SCAN": "strict_order"},
+                      [("PGVECTOR_HNSW_ITERATIVE_SCAN",
+                        "PG_HNSW_ITERATIVE_SCAN", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("PG_HNSW_ITERATIVE_SCAN is registered", r.stderr)
+        self.assertIn("PGVECTOR_HNSW_ITERATIVE_SCAN is registered", r.stderr)
+
+    def test_only_the_unemitted_side_is_named(self):
+        r = self._run({"T_A": "1"}, [("T_A", "T_B", "derive")])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("T_B is registered", r.stderr)
+        self.assertNotIn("T_A is registered", r.stderr)
+
+    def test_a_family_prefix_row_names_no_variable(self):
+        r = self._run({}, [("T_", "U_", "derive")])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def _gate_over(self, toml_text):
+        """The real gate, snapshot tool and registry over a copy of the SSOT."""
+        root = os.path.join(self.tmp, "root")
+        os.makedirs(os.path.join(root, "usr/share/mios"), exist_ok=True)
+        with open(os.path.join(root, "usr/share/mios/mios.toml"), "w", encoding="utf-8") as fh:
+            fh.write(toml_text)
+        return subprocess.run(
+            [sys.executable, _MOD_PATH, "value-aliases",
+             os.path.join(_ROOT, "usr/libexec/mios/mios-env-snapshot"),
+             os.path.join(_ROOT, "usr/share/mios/reference/value-aliases.tsv")],
+            capture_output=True, text=True, cwd=_ROOT,
+            env=dict(os.environ, MIOS_DRIFT_ROOT=root))
+
+    def test_the_lost_pgvector_header_is_named_by_variable(self):
+        # Replays the defect on the shipped SSOT: [lsfs] and [offline] opened
+        # mid-[pgvector], so rls_enable..listen_loopback parsed into [offline].
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), encoding="utf-8") as fh:
+            shipped = fh.read()
+        m = re.search(r"^rls_enable\s*=.*?^listen_loopback\s*=[^\n]*\n", shipped, re.S | re.M)
+        anchor = "\nfallback_to_online = true\n"
+        self.assertTrue(m and shipped.count(anchor) == 1,
+                        "[pgvector]/[offline] shape changed; this fixture is stale")
+        stranded = (shipped[:m.start()] + shipped[m.end():]).replace(anchor, anchor + m.group(0), 1)
+
+        control = self._gate_over(shipped)
+        self.assertEqual(0, control.returncode, control.stderr)
+
+        r = self._gate_over(stranded)
+        self.assertEqual(1, r.returncode, r.stderr)
+        # The names the pgvector Quadlet, agent-pipe pg.py and mios-pg-query read.
+        for name in ("MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN", "MIOS_PGVECTOR_POOL_ENABLE", "MIOS_PGVECTOR_RLS_ENABLE"):
+            self.assertIn(name + " is registered", r.stderr)
 
 
 if __name__ == "__main__":

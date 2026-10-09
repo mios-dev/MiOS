@@ -67,7 +67,7 @@ missing = sorted(set(re.findall(r"\$\{(MIOS_[A-Z0-9_]+)\}", text)) - set(exports
 if missing:
     sys.exit("unrendered placeholder(s): " + ", ".join(missing))
 open(sys.argv[2], "w", encoding="utf-8").write(re.sub(r"\$\{(MIOS_[A-Z0-9_]+)\}", lambda m: exports[m.group(1)], text))
-print(exports["MIOS_PORT_AGENT_PIPE"])
+print(exports["MIOS_PORTS_AGENT_PIPE"])
 PY
 )"
 grep -qx "ListenStream=${AGENT_PIPE_PORT}" "${RENDERED_SOCKET}" || { echo "ERROR: socket unit does not listen on SSOT [ports].agent_pipe (${AGENT_PIPE_PORT})"; exit 1; }
@@ -80,7 +80,7 @@ echo "  [PASS] Socket unit directives validated (TCP ${AGENT_PIPE_PORT} from [po
 
 # Test 4: Mock end-to-end socket swap lifecycle (--mock)
 echo "--- Test 4: Mock end-to-end socket swap lifecycle ---"
-python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" swap --service agent-pipe --timeout 5.0
+python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" --port 0 swap --service agent-pipe --timeout 5.0
 STATUS_OUT="$(python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" status --json)"
 echo "${STATUS_OUT}" | grep -q '"transitions_count": 1'
 echo "  [PASS] Mock socket swap executed successfully with recorded transition"
@@ -88,7 +88,7 @@ echo "  [PASS] Mock socket swap executed successfully with recorded transition"
 # Test 5: Negative control - candidate startup crash triggers abort and rollback
 echo "--- Test 5: Negative control - candidate startup crash triggers abort ---"
 set +e
-python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" swap --service agent-pipe --candidate "false" --timeout 2.0 >/dev/null 2>&1
+python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" --port 0 swap --service agent-pipe --candidate "false" --timeout 2.0 >/dev/null 2>&1
 CRASH_EC=$?
 set -e
 [ "${CRASH_EC}" -ne 0 ] || { echo "ERROR: Expected non-zero exit on crashed candidate"; exit 1; }

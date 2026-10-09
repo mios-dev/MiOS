@@ -16,12 +16,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1617 |
-| in_progress | 45 |
-| completed | 1807 |
-| incomplete | 21 |
-| cancelled | 16 |
-| total | 3506 |
+| pending | 1733 |
+| in_progress | 50 |
+| completed | 1827 |
+| incomplete | 20 |
+| cancelled | 20 |
+| total | 3650 |
 
 0 record(s) carry at least one override.
 
@@ -444,6 +444,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1135` Define MIOS_PORTS_MCP for mcp-server-runner (unbound variable under set -u) -- in_progress · owner claude-code · P1 · size S
 - `T-1140` Provision persistent speech model storage before its service starts -- in_progress · owner claude-code · P1 · size S
 - `T-1213` MiOS-MCP runs out of the box in every image: executable relay, no port literals, no retired-port peer, started by the dev/cloud lifecycle (WS-AI | P1 | S) -- pending · P1 · size S
+- `T-1216` Heavy lane loads real weights with tool calling; pgvector and the firstboot model resolve (WS-AI | P0 | S) -- completed · P0 · size S
+- `T-1247` Q2 (brief P1-24): only the tiny LFM2 micro model is baked; every other model is pulled; the cloud overlay skips pulls (WS-AI | P1 | M) -- pending · P1 · size M
+- `T-1285` P2-9: GPU co-tenancy -- vLLM sleep mode from admission, native KV offload, a per-lane device key (WS-AI | P2 | M) -- pending · P2 · size M
 
 ## WS-AIOS
 
@@ -561,6 +564,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-285` Retry-wrap the three `git clone`s in sys/Containerfile (clone-flake hardening) -- completed · P2 · size S
 - `AGY-286` Retry the Firecrawl pnpm registry ops and degrade `--frozen-lockfile` to a warned unfrozen install -- completed · P2 · size S · depends_on AGY-285
 - `AGY-287` One consolidated static "bake network-op discipline" test + per-invariant negative fixtures -- completed · P2 · size M · depends_on AGY-274
+- `T-1225` Bake-plan checks grade the tree under test and follow the engine selector; one btop projection; manual ch11 ToC (WS-BAKE | P1 | S) -- completed · P1 · size S
 
 ## WS-BAKE-HARDEN
 
@@ -610,6 +614,15 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1624` Implement blade workload mobility per ADR-0017 -- pending · P1 · size L · depends_on AGY-1623
 - `AGY-1635` Cover the reconcile-blade merge classes with adversarial tests -- pending · P1 · size M · depends_on AGY-1624
 - `T-1113` Wire the placement-failover resolver into role-apply -- completed · P1 · size M
+- `T-1266` P1-12: fleet updates -- staged rollout with a disruption budget, signatures enforced first (WS-BLADE | P1 | M) -- pending · P1 · size M · depends_on T-1243
+
+### Epic T-1303
+
+- `T-1319` M7 F8: single-live lease per Quadlet -- exactly one live instance across L2 and the fleet, paused standbys, failover promotion, reusing the k3s Lease (WS-BLADE | P1 | L) -- pending · P1 · size L · depends_on T-1313, T-990
+- `T-1320` M7 F8: single-live gate -- a native check fails when one Quadlet has two live instances, in the rendered placement or in a running fleet (WS-BLADE | P1 | S) -- pending · P1 · size S · depends_on T-1319
+- `T-1321` M7 F8: L3 Quadlet placement across the L2s, including mios-xbox's WSL2 MiOS, and local moves between L2s on one L1 (WS-BLADE | P1 | M) -- pending · P1 · size M · depends_on T-1319, T-1315
+- `T-1322` M7 F8: promotable core services -- an SSOT list of the services and modules that may move up from an L3 Quadlet to a native unit of an L2 image, the promotion mechanism and its gate (WS-BLADE | P2 | M) -- pending · P2 · size M · depends_on T-1321
+- `T-1323` M7 F9: three-phase flightpath for L2 VMs between blades -- detach with a CephFS checkpoint, WireGuard transit, attach with an architecture check (WS-BLADE | P2 | L) -- pending · P2 · size L · depends_on AGY-1624, T-991, T-1313
 
 ## WS-BOOT
 
@@ -660,6 +673,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2388` Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore -- pending · P1 · size M · depends_on AGY-2387
 - `AGY-2389` Automated kernel panic injection, ramoops log preservation, and database ingestion test suite -- pending · P2 · size S · depends_on AGY-2388
 - `T-1204` First-boot credential import as two ADR-0021 verbs (no new binary) (WS-BOOT | P2 | M) -- pending · P2 · size M · depends_on T-1196, T-1198
+- `T-1282` P2-3: delete the hand-rolled unsigned UKI path that writes into ostree's /boot/loader (WS-BOOT | P2 | S) -- pending · P2 · size S
 
 ## WS-BOOTC
 
@@ -683,6 +697,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-299` Collapse the byte-identical `automation/install.sh` ≡ `automation/install-fhs.sh` FHS-overlay installers -- completed · P3 · size S · depends_on AGY-154
 - `AGY-300` Author the bare-metal bootc install doc (to-disk offline, anaconda-iso, ostreecontainer kickstart, first-boot verify) and gate its cross-refs -- completed · P2 · size M · depends_on AGY-290, AGY-291
 - `AGY-301` Negative-test all 13 new WS-BOOTC drift-gates (288-300) so none is a green no-op -- completed · P2 · size L · depends_on AGY-288, AGY-300
+- `T-1262` Q3 (brief P1-5): update channels testing, stable and immutable dated tags from [image.streams]; the offline update actually applies (WS-BOOTC | P1 | M) -- pending · P1 · size M
 
 ## WS-BOOTSTRAP
 
@@ -692,6 +707,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1621` Sync the bootstrap repo at build time, not by hand -- completed · P0 · size M
 - `T-1194` Stop the bootstrap promote from writing the vendor tier (WS-BOOTSTRAP | P0 | M) -- pending · P0 · size M · depends_on T-1196
 - `T-1209` Bootstrap profile becomes a sparse host-tier delta (WS-BOOTSTRAP | P3 | M) -- pending · P3 · size M · depends_on T-1196, T-1194
+- `T-1226` Law 15 mirror: mios-bootstrap carries the PR #61 integration surfaces (WS-BOOTSTRAP | P1 | S) -- completed · P1 · size S
 
 ## WS-BUILD
 
@@ -762,6 +778,16 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2364` Automated out-of-tree module compilation, MOK signature verification, and cache test suite -- pending · P2 · size S · depends_on AGY-2363
 - `T-1128` Complete self-hosting and development package dependency closure -- completed · P1 · size M
 - `T-1200` Build-time consumers read the layered resolver, including host-tier pre-build edits (WS-BUILD | P1 | M) -- pending · P1 · size M · depends_on T-1192
+- `T-1237` M5: an installed MiOS rebuilds its own OCI image from its own SSOT through bootc container lint (WS-BUILD | P1 | L) -- pending · P1 · size L
+- `T-1264` P1-7: one rechunk recipe in mios-build that reuses the previous image's layers and fails closed on main (WS-BUILD | P1 | S) -- pending · P1 · size S
+
+### Epic T-1229
+
+- `T-1240` Q8 (brief P0-2): source-tree drift gates run only in the CI drift-gate job; the bake keeps image-content checks and `bootc container lint --fatal-warnings` (WS-BUILD | P0 | S) -- pending · P0 · size S
+
+### Epic T-1303
+
+- `T-1325` M7 F9: self-hosted blade proof -- offline, a blade builds MiOS, signs it, publishes to its own Forgejo and bootc-upgrades every MiOS it runs (WS-BUILD | P2 | L) -- pending · P2 · size L · depends_on T-1237, T-1243, T-1266, T-1313
 
 ## WS-C0
 
@@ -852,6 +878,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1168` Package every MiOS image as Linux FHS, OCI/bootc and AI-standard artifacts, with docs laid out to match -- in_progress · owner claude-code · P1 · size L
 - `T-1169` One canonical tasks.jsonl at the repo root; TASKS.md is rendered documentation plus operator overrides -- in_progress · owner claude-code · P0 · size L
 - `T-1183` Size measurements refuse a mid-merge index instead of counting conflicted paths once per stage -- completed · owner claude-code · P1 · size S
+- `T-1232` PR #61 lands: drift-gate and smoke-test green, bootstrap #26 first, merged only on the operator's final go (WS-CI | P0 | M) -- in_progress · owner claude-code · P0 · size M · depends_on T-1228, T-1229, T-1013
+- `T-1251` Turn on the CI VHDX build and boot job ([ci.artifacts].vhdx) once the disk blockers are fixed (WS-CI | P0 | S) -- pending · P0 · size S · depends_on T-1233, T-1241, T-1249, T-1250
+- `T-1261` P1-3: CI shape -- tier matrix from [ci.tiers], natives built once, the build's own image smoke-tested, timeouts from SSOT (WS-CI | P1 | M) -- pending · P1 · size M
 
 ## WS-CI-PARITY
 
@@ -870,6 +899,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-459` Audit every MIOS_K3S_VERSION consumer after the k3s float so one tag resolves everywhere -- completed · P3 · size S · depends_on AGY-372
 - `AGY-460` Feed vendored VERSIONS.txt into MiOS-SBOM.csv so vendored assets appear in the SBOM -- completed · P3 · size S · depends_on AGY-377, AGY-438
 - `AGY-475` Force every `just` artifact recipe to emit into the SSOT output dir (`build/`) -- completed · P3 · size S
+- `T-1238` M6 T1: six low-blast-radius shallow-tree moves, with a tree-shape ratchet (WS-CLEAN | P2 | M) -- pending · P2 · size M
 
 ## WS-CLI
 
@@ -919,6 +949,14 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1196` The shared SSOT crate owns the typed model, validate and tiered writes; `mios-gen schema` emits the schema (WS-CONFIG | P1 | M) -- pending · P1 · size M · depends_on T-1192
 - `T-1195` The configurator never parses TOML in the browser (WS-CONFIG | P0 | M) -- pending · P0 · size M · depends_on T-1196
 - `T-1206` Schema-generated configurator (WS-CONFIG | P2 | M) -- pending · P2 · size M · depends_on T-1195, T-1196
+- `T-1230` M4: mios.html is the setup interface, edited through key-level patches into each key's tier (WS-CONFIG | P1 | L) -- pending · P1 · size L
+- `T-1284` P2-8: config writes are atomic, 0600 and versioned, and can be rolled back (WS-CONFIG | P2 | S) -- pending · P2 · size S
+
+### Epic T-1230
+
+- `T-1245` Q14 (brief P0-5): each key declares the tier it is written to; system keys reach the host tier over a root-side SO_PEERCRED socket; vendor writes are refused (WS-CONFIG | P0 | M) -- pending · P0 · size M · depends_on T-1196
+- `T-1275` P1-21: configurator state carries a revision, unset and provenance (WS-CONFIG | P1 | M) -- pending · P1 · size M · depends_on T-1195
+- `T-1278` Q16 (brief P1-22): disclosure is per key -- level, group and order -- with an Admin/Extras section per group, search, @modified and per-key reset, all generated from SSOT (WS-CONFIG | P1 | M) -- pending · P1 · size M · depends_on T-1206
 
 ## WS-CONSOLIDATE
 
@@ -1098,6 +1136,13 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1149` Split the four over-ceiling routing modules (swarm/refine/agent_call/web_research) behind transcript goldens -- pending · P2 · size XL
 - `AGY-1150` Split oscontrol/vision/toolexec and memory/knowledge, typing the OS-control action schema on the way -- pending · P2 · size XL
 - `T-1187` Clear pre-existing shellcheck findings in the audited shell scripts, then remove their dead code -- pending · P3 · size S
+- `T-1292` Fold the two kvfork copies into one module (WS-DEBT | P3 | S) -- pending · P3 · size S
+- `T-1300` Remove [build.ratchet]'s residue: mios-config's BuildRatchet and ADR-0025's max_phase_scripts (WS-DEBT | P3 | S) -- pending · P3 · size S
+
+### Epic T-1331
+
+- `T-1353` M8 U6: retire the mios-dashboard zipapp and tools/compile-dashboard-binary.py -- it has no tracked source; closes AGY-1038 (WS-DEBT | P2 | S) -- pending · P2 · size S · depends_on T-1340, T-1346
+- `T-1354` M8 U6: retire the Python monitor and TUI family -- mios-mon.py, mios_agent_tui.py, mios-ai-terminal and the human-UI branches of mios-mcp-server -- after porting their tests (WS-DEBT | P1 | L) -- pending · P1 · size L · depends_on T-1339, T-1340, T-1341, T-1342, T-1346
 
 ## WS-DEBT-PIPE
 
@@ -1274,6 +1319,28 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1137` Verify service image references and pull prerequisites against SSOT policy -- in_progress · owner claude-code · P0 · size M
 - `T-1141` Order and report firstboot seeders when their dependencies are unavailable -- in_progress · owner claude-dazzling-lovelace · P2 · size M
 - `T-1184` Every Quadlet bind of MiOS-owned state exists at boot: declare radosgw's data dir, gate all /var/lib/mios and /srv binds -- completed · owner claude-code · P1 · size S
+- `T-1231` Q9: build and test every MiOS image locally -- OCI, ISO, qcow2, VHDX, raw, WSL, cloud and MiOS-Xbox (WS-DEPLOY | P1 | L) -- pending · P1 · size L
+- `T-1249` Hyper-V blocker: ship a MiOS bootc disk.yaml projected from [bootc_install] (ext4 with verity, CoreOS labels kept) (WS-DEPLOY | P0 | S) -- pending · P0 · size S
+- `T-1250` Hyper-V blocker: os-release VERSION_ID follows upstream; MiOS's release moves to IMAGE_VERSION (WS-DEPLOY | P0 | S) -- pending · P0 · size S
+- `T-1252` P0-9 phase B: MiOS-DEV runs on the Hyper-V provider as a MiOS VM with real bootc upgrade and rollback; the WSL provider stays supported (WS-DEPLOY | P0 | L) -- pending · P0 · size L · depends_on T-1233
+- `T-1287` P2-11: GCE runs MiOS natively via an SSOT-generated Ignition auto-rebase from Fedora CoreOS (WS-DEPLOY | P2 | M) -- pending · P2 · size M
+
+### Epic T-1231
+
+- `T-1233` Q9 VHDX / P0-9 phase A: native Hyper-V artifact build from [deploy.formats.vhdx], SSOT credentials, boot test, local delivery (WS-DEPLOY | P0 | M) -- in_progress · owner claude-code · P0 · size M
+- `T-1255` Q9 ISO: build the installer ISO and boot it through Anaconda; its rendered kickstart `user` line is only unit-tested today (WS-DEPLOY | P1 | M) -- pending · P1 · size M
+- `T-1256` Q9 qcow2: build the qcow2 disk locally and boot-test it (WS-DEPLOY | P1 | M) -- pending · P1 · size M
+- `T-1257` Q9 raw: the raw disk goes through the SSOT renderer (account and size), then builds and boots locally (WS-DEPLOY | P1 | M) -- pending · P1 · size M
+
+### Epic T-1303
+
+- `T-1308` M7 F1: L1 admin hypervisor image -- miosd artifact-build field-hypervisor drives sysrescue-customize --auto from a new [field.hypervisor] table, with a QEMU boot test (WS-DEPLOY | P1 | L) -- pending · P1 · size L
+- `T-1310` M7 F2: MiOS-Field integration -- SystemRescue version floor from SSOT in the launchers, and the hypervisor Ventoy entry rendered from SSOT and mirrored to mios-bootstrap (WS-DEPLOY | P2 | M) -- pending · P2 · size M · depends_on T-1308
+
+### Epic T-1331
+
+- `T-1347` M8 U5: L1 SystemRescue -- reconcile the two autorun copies, deliver static binaries and a rendered vendor mios.toml on the MiOS-Field data partition, start the desktop on tty1 (WS-DEPLOY | P1 | M) -- pending · P1 · size M · depends_on T-1336, T-1335
+- `T-1350` M8 U5: cloud and devcontainer -- the desktop runs without systemd or user units, with its socket root under /tmp (WS-DEPLOY | P2 | S) -- pending · P2 · size S · depends_on T-1336
 
 ## WS-DEPRED
 
@@ -1301,6 +1368,19 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1928` The desktop shell effects are hardcoded rather than projected -- pending · P2 · size M · depends_on AGY-1874
 - `T-1146` Flatpak hygiene: pre-seed the Fedora Platform runtime and de-duplicate Epiphany -- pending · P3 · size S
 - `T-1202` dconf from SSOT, readable at runtime (WS-DESKTOP | P2 | M) -- pending · P2 · size M · depends_on T-1201, T-1203
+- `T-1331` M8: one tmux TUI desktop in every MiOS image -- a miosd applet rendered with ratatui inside tmux (WS-DESKTOP | P1 | XL) -- pending · P1 · size XL
+
+### Epic T-1331
+
+- `T-1339` M8 U3: clients chooser and agents observer views -- the Rust versions made primary in the applet (WS-DESKTOP | P1 | M) -- pending · P1 · size M · depends_on T-1338
+- `T-1340` M8 U3: system and services view -- the mios-service-core dashboard catalog and probe, with mios-probe facts replacing fastfetch (WS-DESKTOP | P1 | M) -- pending · P1 · size M · depends_on T-1338
+- `T-1341` M8 U3: build progress view from the mios-build progress ledger, not log scraping (WS-DESKTOP | P2 | S) -- pending · P2 · size S · depends_on T-1338
+- `T-1342` M8 U3: flash view -- MiOS-Field media flashing progress from a structured ledger (WS-DESKTOP | P2 | S) -- pending · P2 · size S · depends_on T-1338
+- `T-1343` M8 U3: VMs view (new) -- L2 VMs, nested MiOS containers and the M7 GPU-arbiter state, with start, stop and attach (WS-DESKTOP | P1 | M) -- pending · P1 · size M · depends_on T-1338
+- `T-1344` M8 U3: Images view (new) -- bootc booted/staged/rollback, podman images, and the testing/stable channels (WS-DESKTOP | P2 | M) -- pending · P2 · size M · depends_on T-1338
+- `T-1345` M8 U3: btop as an optional embedded pane, with one theme writer (WS-DESKTOP | P3 | S) -- pending · P3 · size S · depends_on T-1337, T-1338
+- `T-1348` M8 U5: L2 desktop hotkeys call an installed terminal from SSOT, not alacritty (WS-DESKTOP | P2 | S) -- pending · P2 · size S · depends_on T-1336
+- `T-1356` M8 U6: mios-a2o adopts the desktop layout engine -- no hard-coded split ratios (WS-DESKTOP | P3 | S) -- pending · P3 · size S · depends_on T-1337
 
 ## WS-DIAG
 
@@ -1362,6 +1442,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1116` Drop .devloop/foreign-srf-libexec.patch and land its unlanded seed-db-config.py header hunk -- completed · P2 · size S
 - `T-1189` Drop stale AI-functions lines naming removed functions from the harvested manual -- pending · owner antigravity · P3 · size S
 
+### Epic T-1303
+
+- `T-1326` M7 F10: the M7 design doc and Atlas labels as an SSOT projection -- a native gate checks every `[ports].<key>` (value) citation against [ports] (WS-DOCGEN | P3 | S) -- pending · P3 · size S
+
 ## WS-DOCS
 
 ### No epic
@@ -1390,6 +1474,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1889` Documents describe checks by ordinal in prose that the index renumbers -- completed · P2 · size S · depends_on AGY-1817
 - `AGY-1890` The finalization plan's P0 items have no completion evidence -- completed · P1 · size M · depends_on AGY-1881
 - `AGY-1934` The finalization plan and this register are not cross-linked -- pending · P3 · size S · depends_on AGY-1890
+- `T-1221` Docs ratchet honest and at 0: native comment lexer matches its oracle, stale-ref axis resolves, 207 blocks harvested, 16 AI-hint headers within the cap (WS-DOCS | P1 | M) -- completed · P1 · size M
+- `T-1227` Upstream prior-art gap brief across six lanes; GOALS corrected from it (WS-DOCS | P1 | S) -- completed · P1 · size S
+- `T-1289` P3: ADR-0005 states why M: stays NTFS (Dev Drive/ReFS gives WSL nothing) (WS-DOCS | P3 | S) -- pending · P3 · size S
 
 ## WS-DOCS-ADR
 
@@ -1533,6 +1620,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1692` ADR-0010 finish charter (restated): registry kind + merge-surface test coverage, ON MAIN, no branches -- completed · P2 · size M · depends_on AGY-58
 - `T-1201` `mios-gen dotfiles` module (WS-DOTFILES | P2 | M) -- pending · P2 · size M · depends_on T-1192, T-1197
 
+### Epic T-1331
+
+- `T-1335` M8 U1: pure-Rust runtime render -- port theme_sync.py --render-prompt into mios-gen and fold the mios-unit-gen keybindings into mios-gen (WS-DOTFILES | P1 | M) -- pending · P1 · size M
+- `T-1352` M8 U5: Blink and mobile SSH enter through `mios terminal` and the namespace guard (WS-DOTFILES | P2 | S) -- pending · P2 · size S · depends_on T-1336
+
 ## WS-DOTFILES / ADR-0010
 
 ### No epic
@@ -1546,7 +1638,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-108` CONV-15 -- Full check_hummingbird drift-check plus distroless guide -- completed · P3 · size S · depends_on T-105, T-107
 - `T-996` GATE-01: check_no_inert_ssot_tables measures name-appearance, not consumption -- completed · P2 · size M
 - `T-997` GATE-02: check_schema_consumers shares the name-collision blind spot -- pending · P2 · size S · depends_on T-996
-- `T-998` GATE-03: the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases -- pending · P3 · size S · depends_on T-996
+- `T-998` GATE-03: the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases -- completed · P3 · size S · depends_on T-996
 - `T-1000` GATE-04: the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot -- completed · P1 · size M · depends_on T-996
 - `T-1001` GATE-05: check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one -- pending · P1 · size S · depends_on T-996
 - `T-1032` PYSHIM-01: the gate ran every check on a cached copy of a different interpreter -- completed · P0 · size S
@@ -1584,6 +1676,17 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-446` Add a pre-commit hook that regenerates projections when `mios.toml` changes -- completed · P2 · size S · depends_on AGY-445
 - `AGY-447` Add negative tests for every check introduced in this batch -- completed · P3 · size S · depends_on AGY-429
 - `AGY-1298` Add a Law-15 byte-parity drift-check for the PS files shared by mios.git and mios-bootstrap.git -- completed · P1 · size M
+- `T-1218` Task store, doc port scheme and build-tool dispatch gates green on PR #61 (WS-DRIFT | P1 | S) -- completed · P1 · size S
+- `T-1222` Four blind drift gates made able to fail; six stale negatives assert the current contract (WS-DRIFT | P1 | M) -- completed · P1 · size M
+- `T-1223` The drift gate is read-only; dead-lane and read-only negatives; one phase ceiling (WS-DRIFT | P1 | S) -- completed · P1 · size S
+- `T-1224` Law 8 gates describe the native tree: projection registry, coverage and host parity name the mios-gen modules (WS-DRIFT | P1 | M) -- completed · P1 · size M
+- `T-1228` Legibility ratchet green on PR #61 without raising a ceiling: tracked files and shell lines (WS-DRIFT | P0 | M) -- in_progress · owner claude-code · P0 · size M
+- `T-1239` Every Law 8 projection names its consumer, and the gate runs that consumer's own validator (WS-DRIFT | P1 | M) -- pending · P1 · size M
+- `T-1295` Native bootstrap-sync names the drifted table key again, not only the file (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1296` Register the two unchecked projections: the k3s manifests and the wsl.conf reference copy (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1297` `mios-gen standardize-docs --check` on an empty scope cannot run, instead of passing (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1298` Running one drift check by name reports every violation, not only the first (WS-DRIFT | P2 | S) -- pending · P2 · size S
+- `T-1301` Gate hygiene: dead Python compatibility entries, and check_names_registry registered twice in main() (WS-DRIFT | P3 | S) -- pending · P3 · size S
 
 ## WS-DRIFTRUST
 
@@ -1923,7 +2026,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### No epic
 
-- `T-1013` DUPVAL-01: the value-duplication ratchet is over its ceiling on main -- incomplete · P1 · size M
+- `T-1013` DUPVAL-01: the value-duplication ratchet is over its ceiling on main -- completed · P1 · size M
 - `T-1020` ALIAS-01: one emitted name, two sources, and table order decided which won -- pending · P1 · size M
 - `AGY-1403` Repair the fragmented tools/native Cargo workspace so all eight SSOT crates build as one graph -- pending · P1 · size M
 - `AGY-1404` Add cargo build/test/clippy/fmt Just targets plus `check_native_lint` (the missing shellcheck-equivalent) -- pending · P1 · size S
@@ -1963,6 +2066,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1438` Execute the staged, lossless-gated alias RETIREMENT waves that actually shrink the 2523-key namespace -- pending · P2 · size XL
 - `AGY-1439` Map and guardrail the ~738 direct os.environ['MIOS_*'] short-alias reads in the Python consumers -- pending · P3 · size L
 - `AGY-1440` Generate naming-unification.md FROM the derivation table so the human-facing key registry stops being hand-maintained -- pending · P3 · size S
+- `T-1219` Law 9: [headscale] and [aliases] restatements collapsed; the value-dup ledger records only groups that exist (WS-GUP | P1 | S) -- completed · P1 · size S
 
 ## WS-GUP2-VERSION
 
@@ -2068,6 +2172,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 ### No epic
 
 - `T-1205` Rust devcontainer projector + image metadata label (WS-IMAGE | P2 | M) -- pending · P2 · size M · depends_on T-1197
+- `T-1241` Q1 (brief P0-3): sidecars are baked into the full image only; cloud and dev images skip the bake; offline media keep --bound-images=stored (WS-IMAGE | P0 | M) -- pending · P0 · size M
+- `T-1248` Q11 (brief P0-8): the cloud image is <= 25 GB unpacked, enforced by a CI size gate; Codex Plus (8 GiB) is declared unsupported (WS-IMAGE | P0 | S) -- pending · P0 · size S · depends_on T-1241, T-1247
+- `T-1280` P2-1: image size discipline -- flatpaks through preinstall.d, the Rust toolchain only in the dev profile (WS-IMAGE | P2 | M) -- pending · P2 · size M
+- `T-1286` P2-10: an opt-in booted devcontainer profile with systemd as PID 1 (WS-IMAGE | P2 | S) -- pending · P2 · size S
 
 ### Epic T-1164
 
@@ -2084,6 +2192,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1180` Claude Code cloud VM runs the same devcontainer.json through podman; CA shadow resolves bases from devcontainer.json and refuses to guess -- pending · owner claude-code · P1 · size M · depends_on T-1179
 - `T-1181` ADR-0025 amended to the implemented shape; docs and the task ledger describe one rendered Containerfile and one gate -- pending · owner claude-code · P1 · size S · depends_on T-1180
 - `T-1182` One MiOS workspace: every image opens /workspaces with all MiOS repos, projected from [workspace] -- in_progress · owner claude-code · P1 · size S
+
+### Epic T-1231
+
+- `T-1254` Q9 OCI: build each OCI profile (full, dev, cloud) locally and smoke-test it (WS-IMAGE | P1 | M) -- pending · P1 · size M
+- `T-1259` Q9 cloud: build the cloud image locally, gate its size, and run it in the hosted-sandbox shape (WS-IMAGE | P1 | M) -- pending · P1 · size M · depends_on T-1248
 
 ## WS-INSTALL
 
@@ -2115,6 +2228,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1136` Re-establish the podman machine after the .wslconfig wsl --shutdown, before smoke/API use -- in_progress · owner lane-b · P0 · size M
 - `T-1142` Fix forceArgs splat collapse and winget error classification in install-host-tools.ps1 -- in_progress · owner claude-code · P1 · size S
 - `T-1143` Run dnf transactions inside the systemd namespace (or SYSTEMD_OFFLINE=1) so scriptlets stop failing ENOTCONN -- pending · P2 · size M
+- `T-1234` M1: the literal `irm <Get-MiOS.ps1 URL> | iex` runs install, build and runtime with no manual step (WS-INSTALL | P1 | L) -- pending · P1 · size L
+- `T-1267` P1-13: zero-touch identity -- an install answer file, credentials into the credstore, a mesh join that runs (WS-INSTALL | P1 | M) -- pending · P1 · size M
 
 ## WS-LANG
 
@@ -2191,6 +2306,16 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1199` One config server (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1198
 - `T-1207` Verb dispatcher projected; miosd render verbs moved into `mios-gen` (WS-LANG | P2 | M) -- pending · P2 · size M · depends_on T-1197
 - `T-1212` Amend ADR-0021: five function binaries, install/build/task folded in, miosd a thin exec shim (WS-LANG | P1 | S) -- pending · P1 · size S · depends_on T-1197
+- `T-1235` Q19 / M2: MiOS-MODULES -- one Rust workspace, crates as applet libraries, a few domain binaries dispatching on argv[0] (WS-LANG | P1 | L) -- pending · P1 · size L · depends_on T-1007, T-1197
+- `T-1236` M3: every script on a product path is a registered thin shim or AI-plane binding, in a shrink-only SSOT register (WS-LANG | P1 | M) -- pending · P1 · size M
+
+### Epic T-1331
+
+- `T-1336` M8 U2: miosd desktop applet -- session and namespace, folding mios-terminal (a path shim stays) under the miosd guard (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1332, T-1335
+- `T-1337` M8 U2: the desktop layout engine -- moved out of mios-agent-relay workspace() into the applet, generalized to every profile (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1336
+- `T-1338` M8 U2: ratatui + crossterm view framework in the applet, static on Linux musl and Windows (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1336
+- `T-1346` M8 U4: one Rust dispatch table for terminal, ai, agents, mon, dash, mini and btop, used on Linux and by mios-launch --dispatch; fix the `ai` conflict (WS-LANG | P1 | M) -- pending · P1 · size M · depends_on T-1336
+- `T-1357` M8 U7: [rust.categories.serve] names a binary (mios-serve) that no crate builds -- registry entries are built or marked planned (WS-LANG | P3 | S) -- pending · P3 · size S
 
 ## WS-LANG,WS-DEBT
 
@@ -2329,6 +2454,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-393` ADR: day-0 float, subsequent SBOM-pin policy -- completed · P3 · size S · depends_on AGY-384, AGY-390
 - `AGY-470` Float the llama-swap image ref (3 copies) to family-latest and record it in the SBOM -- completed · P3 · size S
 - `AGY-519..AGY-540` Float each sidecar ref to :latest/family-channel with SBOM-recorded resolution, one image per task -- completed · P2 · size L
+- `T-1265` P1-9: Renovate actually runs, never auto-merges a cosign/syft/oras major, and actions are pinned by SHA (WS-LATEST | P1 | S) -- pending · P1 · size S
+- `T-1302` fetch-image-facts names the failed ref instead of a JSONDecodeError traceback (WS-LATEST | P3 | S) -- pending · P3 · size S
 
 ## WS-LINT
 
@@ -2392,6 +2519,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `AGY-247` MCP tools/list pagination: follow nextCursor instead of registering page 1 only -- completed · P1 · size S
 - `AGY-248` Single-source the MCP protocol_version across consume side, published server and SSOT -- completed · P2 · size S
+- `T-1217` test_mios_mcp_aio is green in the CI container: tmux bridge keeps LC_CTYPE, terminal namespace check runs only where it applies, two stale contracts updated (WS-MCP | P1 | S) -- completed · P1 · size S
 
 ## WS-MDRIVE
 
@@ -2405,6 +2533,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `AGY-1929` The split-plane host design has no executable proof -- pending · P2 · size L · depends_on AGY-1902
 - `AGY-1930` Bare metal is untried -- pending · P1 · size L · depends_on AGY-1895
+- `T-1283` P2-5: Metal -- GPUs assigned by class selector resolved at boot; vfio-gen fails loudly; a MiOS-guest domain generator (WS-METAL | P2 | M) -- pending · P2 · size M
+
+### Epic T-1303
+
+- `T-1330` M7 F4: the GPU mode key -- attended (default) or headless, in [metal] beside dgpumode, applied at L1 boot (WS-METAL | P1 | S) -- pending · P1 · size S · depends_on T-1308
+- `T-1313` M7 F5: L2 seat VM `mios` -- [blade.mediator] shape, libvirt domain generated from SSOT on L1, desktop on the seat GPU, management on the blade mesh (WS-METAL | P1 | L) -- pending · P1 · size L · depends_on T-1312, T-1283, T-1256, T-1330
 
 ## WS-MINI
 
@@ -2442,6 +2576,15 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2584` Make hardware-facing capabilities unclaimable by a hosted image -- pending · P1 · size M · depends_on AGY-2583
 - `AGY-2585` Derive the k3s role from SSOT and stop shipping a join-less server -- pending · P0 · size L · depends_on AGY-2583
 - `AGY-2586` Fail closed on unfenced multi-node Pacemaker, reading the live nodelist -- pending · P0 · size L · depends_on AGY-2583
+- `T-1303` M7: MiOS-Field hypervisor and blade architecture -- L1 admin plane, sibling L2 VMs, single-live L3 Quadlets (WS-MINI | P1 | XL) -- pending · P1 · size XL
+
+### Epic T-1303
+
+- `T-1305` M7 D2 (decision): L1 flavours -- MiOS-Field live (SystemRescue) and MiOS-Metal installed (bootc MiOS as its own L1) sharing the L2/L3 contracts (WS-MINI | P1 | S) -- pending · P1 · size S
+- `T-1309` M7 F1: L1 admin TUI desktop -- static Rust MiOS-tmux plus the MiOS TUIs in the SRM, on the iGPU console; it starts, attaches to and consoles into the L2 VMs (WS-MINI | P1 | M) -- pending · P1 · size M · depends_on T-1308
+- `T-1314` M7 F5: L2 VM count from hardware pressure -- an SSOT policy in [blade.mediator] sizes how many MiOS VMs L1 runs from CPU, RAM and GPU headroom (WS-MINI | P2 | M) -- pending · P2 · size M · depends_on T-1313
+- `T-1324` M7 F9: per-blade egress exit gateways from [blade.uplink] with a translocation controller that changes exit region without changing workload addresses (WS-MINI | P2 | M) -- pending · P2 · size M · depends_on T-987
+- `T-1327` M7 F5: nested MiOS containers inside L2 MiOS VMs -- full images under podman --systemd=always, Quadlets embedded, counted by hardware pressure (WS-MINI | P1 | L) -- pending · P1 · size L · depends_on T-1313, T-1314
 
 ## WS-MIOSSYS
 
@@ -2477,13 +2620,13 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### No epic
 
-- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- pending · owner antigravity · P1 · size M
+- `T-1132` Make the Windows wallpaper cross-build hermetic inside MiOS-DEV -- completed · owner antigravity · P1 · size M
 - `T-1147` Classify native Rust executables through one shared role catalog -- completed · P1 · size M
-- `T-1148` Enforce static Linux linkage across native executable roles -- pending · P1 · size M · depends_on T-1147
+- `T-1148` Enforce static Linux linkage across native executable roles -- completed · P1 · size M · depends_on T-1147
 - `T-1149` Validate ARM64 native releases and bootc image lifecycle -- pending · P2 · size M · depends_on T-1148
 - `T-1157` Restore warning-free Rust task-store compilation -- completed · P1 · size S · depends_on T-1156
-- `T-1161` Consolidate recovered CLI tools and installer phases into Rust binaries -- pending · P1 · size L · depends_on T-1157
-- `T-1162` Consolidate recovered agent services and daemons through shared Rust components -- pending · P1 · size L · depends_on T-1157
+- `T-1161` Consolidate recovered CLI tools and installer phases into Rust binaries -- completed · P1 · size L · depends_on T-1157
+- `T-1162` Consolidate recovered agent services and daemons through shared Rust components -- completed · P1 · size L · depends_on T-1157
 
 ## WS-NET
 
@@ -2539,7 +2682,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-396` Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned -- completed · P1 · size M · depends_on AGY-1993
 - `T-400` Hardware watchdog timer integration (/dev/watchdog) in mios-node -- completed · P2 · size S · depends_on AGY-1997
 - `T-523` Signed Proxy WoL with SecureON payload and peer wake daemon -- completed · P1 · size S · depends_on AGY-2120
-- `T-524` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- completed · P1 · size M · depends_on AGY-2121
+- `T-524` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- pending · P1 · size M · depends_on AGY-2121
 - `T-529` Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser -- completed · P1 · size M · depends_on AGY-2126
 - `T-530` Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon -- completed · P1 · size M · depends_on AGY-2127
 - `T-563` In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder -- completed · P1 · size M · depends_on AGY-2160
@@ -2617,7 +2760,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1994` Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned -- pending · P1 · size M · depends_on AGY-1993
 - `AGY-1998` Hardware watchdog timer integration (/dev/watchdog) in mios-node -- pending · P2 · size S · depends_on AGY-1997
 - `AGY-2121` Signed Proxy WoL with SecureON payload and peer wake daemon -- pending · P1 · size S · depends_on AGY-2120
-- `AGY-2122` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- pending · P1 · size M · depends_on AGY-2121
+- `AGY-2122` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- cancelled · P1 · size M · depends_on AGY-2121
 - `AGY-2127` Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser -- pending · P1 · size M · depends_on AGY-2126
 - `AGY-2128` Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon -- pending · P1 · size M · depends_on AGY-2127
 - `AGY-2161` In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder -- pending · P1 · size M · depends_on AGY-2160
@@ -2678,6 +2821,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2453` Automated mobile peer discovery, adaptive prompt routing (<50ms), and memory sync test suite -- pending · P2 · size S · depends_on AGY-2452
 - `AGY-2568` Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node -- pending · P1 · size M · depends_on AGY-2567
 - `AGY-2569` Automated Seat-to-Blade profile transition and zero GPU leak verification test suite -- pending · P2 · size S · depends_on AGY-2568
+
+### Epic T-1303
+
+- `T-1311` M7 F3: L1 joins the wg-ipkvm admin mesh at boot; its TUI and SSH listen only there; no route between the admin and blade meshes (WS-NODE | P1 | M) -- pending · P1 · size M · depends_on T-1308
 
 ## WS-NODE-ANDROID
 
@@ -2805,6 +2952,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-240` Dependency-free OTLP/JSON exporter for the in-memory tracer -- completed · P1 · size M
 - `AGY-241` Pin the GenAI semconv key set in SSOT and gate span-attribute coverage -- completed · P2 · size M
 - `AGY-242` W3C Trace Context: adopt inbound traceparent, propagate it outbound -- completed · P1 · size M
+- `T-1279` P1-25: observability moves off end-of-life Jaeger v1; GenAI span attributes follow one SSOT key (WS-OTEL | P1 | S) -- pending · P1 · size S
 
 ## WS-PIPE
 
@@ -2926,6 +3074,12 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1316` Consolidate the Windows OCI export/convert plane into a MiOS.Export module with characterization tests -- completed · P2 · size M
 - `AGY-1317` Disambiguate the two bootstrap.ps1 entry points and normalize the GitHub repo slug casing -- completed · P2 · size S
 - `AGY-1318` Add an encoding/BOM + line-ending normalization gate for shipped .ps1 files -- completed · P2 · size S
+- `T-1274` Q12 (brief P1-20): the Windows host is one DSC v3 document rendered from SSOT; `dsc config test` is the Windows drift gate (WS-PWSH | P1 | L) -- pending · P1 · size L
+
+### Epic T-1331
+
+- `T-1351` M8 U5: Windows native tmux -- miosd.exe views in tmux.exe panes, mios-launch only places the window, one host tmux.conf writer (WS-PWSH | P1 | M) -- pending · P1 · size M · depends_on T-1337, T-1346
+- `T-1355` M8 U6: retire the PowerShell monitors and dashboards and the mios-native-entry.ps1 routing in both repos (Law 15) (WS-PWSH | P2 | M) -- pending · P2 · size M · depends_on T-1351, T-1346
 
 ## WS-RAG
 
@@ -3026,6 +3180,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1193` Twin-parity corpus that cannot skip (WS-RESOLVER | P0 | M) -- pending · P0 · size M · depends_on T-1192
 - `T-1208` Aliases become an SSOT table; Python and bash twins consume `--emit json` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1193
 - `T-1210` `mios-resolve --explain KEY` (WS-RESOLVER | P3 | M) -- pending · P3 · size M · depends_on T-1192
+- `T-1291` [ai] is WALK_MOSTLY_DEAD in the resolver, so new [ai].x keys are never emitted: document or fix (WS-RESOLVER | P2 | S) -- pending · P2 · size S
+
+### Epic T-1331
+
+- `T-1334` M8 U1: one layered SSOT loader -- mios-resolver only; delete mios-gen terminal.rs::load_layered and mios-service-core::ssot (WS-RESOLVER | P2 | M) -- pending · P2 · size M
 
 ## WS-ROADMAP
 
@@ -3082,6 +3241,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1925` Greenboot is shipped but no failure is proven to roll back -- pending · P1 · size M · depends_on AGY-1897
 - `AGY-1926` Shipped runtime components are unwired -- pending · P2 · size L · depends_on AGY-1910
 - `AGY-1927` `/var` persistence assumptions are undocumented and untested -- pending · P2 · size M · depends_on AGY-1897
+- `T-1263` P1-6: greenboot required.d holds OS-level checks only; app-plane checks move to wanted.d (WS-RUNTIME | P1 | S) -- pending · P1 · size S
 
 ## WS-RUNTIME-WIRE
 
@@ -3104,7 +3264,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1477` Add cosign signing to the Forgejo publisher so both forges sign every pushed tag -- pending · P1 · size M
 - `AGY-1478` Collapse the two divergent LUKS SSOT tables onto [security.luks] and make the recovery keyslot unconditional -- pending · P1 · size M
 - `AGY-1479` Pin CI cosign to v2.x legacy-attachment format so bootc/rpm-ostree policy can discover the signatures -- pending · P1 · size S
-- `AGY-1480` Generate a real sigstoreSigned policy.json from [security.sigstore] instead of insecureAcceptEverything -- pending · P1 · size M
+- `AGY-1480` Generate a real sigstoreSigned policy.json from [security.sigstore] instead of insecureAcceptEverything -- cancelled · P1 · size M
 - `AGY-1481` Attach the Syft SBOM to the published digest as a signed cosign attestation on both forges -- pending · P2 · size M
 - `AGY-1482` Emit signed SLSA build provenance for the published image, recording which forge built the digest -- pending · P2 · size L
 - `AGY-1483` Make the image build reproducible via a git-derived SOURCE_DATE_EPOCH and timestamp rewrite -- pending · P2 · size M
@@ -3270,7 +3430,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1002` LAW5-01: retired lane ports are hardcoded across the code surface and no gate covers code -- completed · P1 · size M
 - `T-1022` SECRED-01: check_secret_handling measured the wrong property -- completed · P1 · size S
 - `T-1035` QUADSEC-01: secrets at 0644 and a build-env var that writes User=0 -- in_progress · P0 · size M
-- `T-1036` COSIGN-01: signature verification is off and cannot be turned on -- pending · P1 · size M
+- `T-1036` COSIGN-01: signature verification is off and cannot be turned on -- cancelled · P1 · size M
 - `T-1050` LAW11KEYS-01: the secret-bearing key list is three hardcoded names, and a projected OTP is not one of them -- completed · P1 · size M · depends_on T-1022
 - `T-1053` IPANAME-01: zero-touch FreeIPA enrollment reads two variable names nothing emits -- completed · P1 · size S · depends_on T-1052
 - `AGY-192` Harden redact.py: add the high-value credential patterns and recurse structured payloads -- completed · P1 · size M · depends_on AGY-8, AGY-32
@@ -3380,7 +3540,29 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2561` Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite -- pending · P2 · size S · depends_on AGY-2560
 - `AGY-2580` Consult the policy arbiter by default instead of shipping it unreachable -- pending · P1 · size S
 - `T-1139` Grant ReadWritePaths to state-writing hardened units (mios-agents, mios-cron-director) -- in_progress · owner claude-code · P1 · size S
-- `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1211` Default password leaves vendor mios.toml; first boot takes a credential (WS-SEC | P1 | S) -- cancelled · P1 · size S
+- `T-1229` M0.5: close the four pre-publish items before the merge that publishes :latest (WS-SEC | P0 | M) -- pending · P0 · size M
+- `T-1243` Q4 (brief P0-1): key-based cosign by digest on both publishers; /etc/containers/policy.json enforces sigstoreSigned for ghcr.io/mios-dev (WS-SEC | P0 | M) -- pending · P0 · size M · depends_on AGY-1477, AGY-1479
+- `T-1268` Q6 (brief P1-14): bare-metal install defaults to LUKS2 with TPM2 and a generated recovery key; FIDO2 optional; one encryption table (WS-SEC | P1 | M) -- pending · P1 · size M · depends_on AGY-1478
+- `T-1269` P1-15: agent-pipe dispatch validates Host and Origin; the MCP-to-pipe hop uses a peercred UNIX socket; TCP on loopback (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1270` Q17 (brief P1-16): prompt-injection defenses ship in audit mode with provenance_taint = true, and move to enforce after one release (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1271` Q18 (brief P1-16): agent code runs in a krun microVM where /dev/kvm exists, else the hardened crun container; the simulated microVM is deleted (WS-SEC | P1 | M) -- pending · P1 · size M
+- `T-1276` Q15 research: the best systemd-creds implementation for MiOS secrets, before building it (WS-SEC | P1 | S) -- pending · P1 · size S
+- `T-1281` P2-2: delete the composefs 'seal' theatre and record the backend decision (WS-SEC | P2 | S) -- pending · P2 · size S
+
+### Epic T-1229
+
+- `T-1242` P0-4: lock down the config server -- same-origin, Host allowlist, per-launch token, secrets redacted on GET (WS-SEC | P0 | S) -- pending · P0 · size S
+- `T-1244` Q5 (brief P1-4): keep the password `mios`, but ship it expired so the first login must change it (WS-SEC | P0 | S) -- pending · P0 · size S
+- `T-1246` Q7 (brief P0-7): mios-attest-server is disabled now; Keylime replaces it later and may only issue a short-lived headscale pre-auth key and a k3s token (WS-SEC | P0 | S) -- pending · P0 · size S
+
+### Epic T-1230
+
+- `T-1277` Q15: secrets live in systemd-creds (TPM-bound where available) and render as write-only fields; GET never returns one (WS-SEC | P1 | M) -- pending · P1 · size M · depends_on T-1276, T-1195
+
+### Epic T-1303
+
+- `T-1306` M7 D3 (decision): adopt Cilium Tetragon for in-kernel enforcement, or not (WS-SEC | P2 | S) -- pending · P2 · size S
 
 ## WS-SEC2
 
@@ -3423,6 +3605,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1875` The dotfiles registry has one proven surface -- pending · P2 · size L · depends_on AGY-1874
 - `AGY-1876` `[code_mode]` and `[pgvector]` keys were moved to reachable tables without consumer tests -- pending · P2 · size S · depends_on AGY-1913
 
+### Epic T-1331
+
+- `T-1332` M8 U1: [terminal.desktop] SSOT family -- namespace, layout, views and per-environment overrides, absorbing the old desktop keys (WS-SSOT | P1 | M) -- pending · P1 · size M
+- `T-1333` M8 U1: restore [terminal.startup] to vendor -- zz-mios-motd reads a table only bootstrap's mios.toml carries (WS-SSOT | P1 | S) -- pending · P1 · size S
+
 ## WS-STD26
 
 ### No epic
@@ -3444,6 +3631,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 ### No epic
 
 - `T-1154` Validate streaming hardware requirements across guest and Blade roles -- pending · P2 · size M
+
+### Epic T-1303
+
+- `T-1318` M7 F7: Sunshine on the seat GPU and browser consoles on the blade mesh only -- Moonlight over Headscale, ttyd and the Hermes dashboard over HTTPS (WS-STREAMING | P2 | M) -- pending · P2 · size M · depends_on T-1313
 
 ## WS-STRG
 
@@ -3729,6 +3920,9 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1558` Characterization golden for mios-sync-theme (check-25 [colors] -> surfaces projection) before its port -- pending · P2 · size M
 - `AGY-1559` Characterization golden locking mios-env-snapshot root-path/PID/timestamp normalization -- pending · P1 · size M
 - `AGY-1560` Extend the sibling-test ratchet from agent-pipe to `tools/*.py` and `usr/libexec/mios/*.py` via a shrink-only grandfather baseline -- pending · P2 · size M
+- `T-1220` Module test coverage is native and honest; six modules get real tests; socket suites hermetic; static-linkage audit folded into mios-gate (WS-TESTGOV | P1 | M) -- completed · P1 · size M
+- `T-1293` test_gateway_wallpaper_rust_e2e.py: fix its 5 failures and run it in a [ci] tier (WS-TESTGOV | P2 | S) -- pending · P2 · size S
+- `T-1299` A workspace cargo test must not rewrite usr/share/mios/names.generated.txt (WS-TESTGOV | P2 | S) -- pending · P2 · size S
 
 ## WS-THESIS
 
@@ -3990,6 +4184,17 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-2471` Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite -- pending · P2 · size S · depends_on AGY-2470
 - `T-1119` Prove boot trust, persistent state, and rollback semantics on a real bootc host -- pending · P1 · size M
 - `T-1121` Measure VFIO group assignment and guest display versus compute -- pending · P1 · size M
+- `T-1253` Q10: GPU-PV in a Hyper-V MiOS VM from a MOK-signed dxgkrnl kmod, with the VM's GPU partition projected from SSOT (WS-VFIO | P2 | M) -- pending · P2 · size M · depends_on T-1252
+
+### Epic T-1303
+
+- `T-1304` M7 D1 (decision, resolved): the dGPU path -- mios-xbox is a sibling of the MiOS VMs on L1, one VFIO hop, frames through an IVSHMEM file on L1 (WS-VFIO | P1 | S) -- completed · P1 · size S
+- `T-1307` M7 D5 (decision, resolved): the seat VM's GPU by GPU mode -- attended (default: L1 keeps the iGPU, the seat takes a second GPU or an iGPU VF) or headless (the iGPU passes to the seat) (WS-VFIO | P1 | S) -- completed · P1 · size S
+- `T-1312` M7 F4: early VFIO on L1 -- [metal.gpu] class selectors that follow the GPU mode (attended excludes the iGPU, headless gives it to the seat); initcpio hook, modprobe.d softdeps and kernel arguments rendered from them (WS-VFIO | P1 | M) -- pending · P1 · size M · depends_on T-1308, T-1283, T-1330
+- `T-1316` M7 F6: dynamic GPU arbiter -- a native state machine moves the dGPU between the inference VM and mios-xbox, with vLLM sleep, light-lane failover and rollback (WS-VFIO | P1 | L) -- pending · P1 · size L · depends_on T-1313, T-1315
+- `T-1317` M7 F7: Looking Glass across siblings -- an IVSHMEM file on L1 sized from SSOT, kvmfr and the client in the seat VM, the host app in mios-xbox (WS-VFIO | P1 | M) -- pending · P1 · size M · depends_on T-1313, T-1315
+- `T-1328` M7 F5: CDI GPU sharing across nested MiOS containers -- per-container VRAM budgets from SSOT and a gate on their sum (WS-VFIO | P1 | M) -- pending · P1 · size M · depends_on T-1327
+- `T-1329` M7 F6: the GPU arbiter drains every nested container's GPU users before a VFIO hand-off to mios-xbox (WS-VFIO | P1 | M) -- pending · P1 · size M · depends_on T-1316, T-1328
 
 ## WS-VIRT
 
@@ -4055,6 +4260,17 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-214` WSL-01 rootfs-export -> `wsl --import` pipeline + a MiOS-owned updater for WSL -- in_progress · P2 · size L · depends_on T-215
 - `T-215` WSL-02 air-gapped atomic upgrade: `skopeo copy` -> oci -> `bootc switch` + soft-reboot -- pending · P2 · size L
 - `T-216` WSL-03 `.wslconfig` hygiene template + cosign self-verify on pull + `UserNS=auto` -- in_progress · P3 · size M
+- `T-1272` P1-17: one WSL exporter writes a mios.wsl that meets Microsoft's custom-distro contract (WS-WSL | P1 | M) -- pending · P1 · size M
+- `T-1273` P1-18: .wslconfig is a dotfiles projection of [wsl2]; both hand-written writers are deleted (WS-WSL | P1 | S) -- pending · P1 · size S
+- `T-1288` P2-12: keep the podman machine over wslc; pin the Dev Containers engine to podman from SSOT (WS-WSL | P2 | S) -- pending · P2 · size S
+
+### Epic T-1231
+
+- `T-1258` Q9 WSL: export the WSL distro locally, install it and boot-test it (WS-WSL | P1 | M) -- pending · P1 · size M
+
+### Epic T-1331
+
+- `T-1349` M8 U5: WSL2 (including inside mios-xbox) -- the desktop runs with no literal podman-MiOS-DEV, and the nested host/guest prefix is settled (WS-WSL | P2 | S) -- pending · P2 · size S · depends_on T-1336, T-1333
 
 ## WS-XBOX
 
@@ -4063,6 +4279,14 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-140` XBOX-01 -- Ship the Xbox Full Screen Experience enabled out of the box (with the correct 2026 ViVeTool IDs) -- completed · P2 · size S · depends_on T-142
 - `T-141` XBOX-02 -- Gaming loadout and Xbox service tuning, sanitized to MiOS branding -- completed · P3 · size M · depends_on T-140
 - `T-142` XBOX-03 -- Decide and encode the MiOS-XBOX posture: pure gaming (A) vs keep-the-brain (B) -- completed · P2 · size S · depends_on T-146
+
+### Epic T-1231
+
+- `T-1260` Q9 / Q12: MiOS-Xbox builds to SSOT specs from UUP Dump with DISM, Autounattend and XMLs on both the Linux and Windows pipelines, and is boot-tested (WS-XBOX | P1 | L) -- pending · P1 · size L
+
+### Epic T-1303
+
+- `T-1315` M7 F8: L2 sibling `mios-xbox` -- generated domain on L1 with the dGPU (one VFIO hop), swtpm TPM 2.0, OVMF Secure Boot, IVSHMEM, the Looking Glass host app and its WSL2 MiOS (WS-XBOX | P1 | L) -- pending · P1 · size L · depends_on T-1312, T-1260, T-1258
 
 ## WS-ZEROHC
 
@@ -4113,6 +4337,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1475` Generate the nohc_allowlist bare-port exempt_patterns from the [ports] loopback keys and diff-gate them -- pending · P3 · size M
 - `AGY-1476` Correct the mios-ttyd-launch fallbacks to the SSOT ttyd ports and strip the stale :7681/:7682 comment literals -- pending · P3 · size S
 - `T-1203` Collapse duplicate appearance names; remove literals (WS-ZEROHC | P2 | M) -- pending · P2 · size M · depends_on T-1197
+- `T-1290` [headscale].server_url and listen_addr derive from [metal.mesh] and [ports], with an override (WS-ZEROHC | P2 | S) -- pending · P2 · size S
+- `T-1294` Two shipped units restate SSOT values: mios-agents.service's lane-B model and mios-cockpit-link.socket's port hint (WS-ZEROHC | P2 | S) -- pending · P2 · size S
 
 ## test-coverage
 
@@ -4126,7 +4352,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `T-025` A6: migrate the kernel hot path out of `chat_completions()` into dispatcher handlers [VM] (WS-A6 | P2 [VM] | XL) -- completed · P2 · depends_on T-019
 - `T-168` KENF-01: Tetragon eBPF/LSM kernel enforcement plane behind the intent arbiter (WS-SEC | P2 | L) [VM] -- pending · P2 · depends_on T-033
-- `T-210` IGPU-00 Wave-0 go/no-go probes: iGPU-in-WSL, 4 GB heavy lane, WSL rebaseline (WS-IGPU | P2 [VM] | S) -- pending · P2
+- `T-210` IGPU-00 Wave-0 go/no-go probes: iGPU-in-WSL, 4 GB heavy lane, WSL rebaseline (WS-IGPU | P2 [VM] | S) -- completed · P2
 - `T-211` IGPU-01 move the iGPU inference lane in-VM and delete `mios-igpu-server.ps1` (WS-IGPU | P2 [VM] | L) -- pending · P2
 - `T-239` UKI-01: Ship the verity-rooted UKI build and the fapolicyd enforce promotion (WS-SEC2 | P3 | L) [VM] -- incomplete · P3
 - `T-240` A3F-01: Flip the CENTRAL path to pg-primary and close the un-mirrored writes (WS-DB | P2 | M) [VM] -- cancelled · P2
@@ -4438,3 +4664,5 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `MON-027` tools/drift-checks.py no-duplicate-value-key fails: MIOS_FINETUNE_MICRO_* keys duplicate MIOS_FINETUNE_* values and the ledger is stale by 1 group (404 live vs 403 declared, plus grown/gone groups) -- completed
 - `MON-028` tools/drift-checks.py docs-ratchet fails: 496 unmigrated narrative comment blocks (ceiling 0) and 41 over-cap AI-hint headers (ceiling 0) need harvesting into docs/, not a raised ceiling -- completed
 - `T-1118` Retire MiOS-Cat and /cat/; fold all behavior into canonical MiOS-Field componentry -- completed · owner Codex
+- `T-1214` Converge MiOS-MCP and native tmux across every MiOS image and localhost -- in_progress · owner codex · P1 · size L
+- `T-1215` Global MiOS mobile SSH keybindings across terminal desktop editor and AI -- in_progress · owner codex · P1 · size L

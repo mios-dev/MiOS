@@ -73,7 +73,8 @@ SEAL_ROOT="${COMPOSEFS_SEAL_ROOT:-}"
 
 # 1. Configure ostree prepare-root.conf
 COMPOSEFS_MODE="${COMPOSEFS_MODE:-verity}"
-PREPARE_CONF_CONTENT="[composefs]
+PREPARE_CONF_CONTENT="# AI-hint: ostree prepare-root (composefs mode, root/etc mount policy); generated from mios.toml [security].composefs_mode by automation/77-composefs-verity.sh.
+[composefs]
 enabled = ${COMPOSEFS_MODE}
 
 [root]

@@ -101,16 +101,16 @@ def _in_image_model(root: str, engine: str, spec: dict, argv: list[str]) -> list
     voice, data_dir = _flag(argv, "-m", "--model"), _flag(argv, "--data-dir")
     if not spec.get("voice"):
         errs.append("[services.piper] names no baked voice")
-    # The generator projects ${MIOS_PIPER_VOICE} to the SSOT voice.
-    if not spec.get("voice") or voice not in (spec["voice"], "${MIOS_PIPER_VOICE}"):
+    # The generator projects ${MIOS_SERVICES_PIPER_VOICE} to the SSOT voice.
+    if not spec.get("voice") or voice not in (spec["voice"], "${MIOS_SERVICES_PIPER_VOICE}"):
         errs.append(f"{unit} Exec= -m is {voice}, not the baked voice {spec.get('voice')}")
     if not data_dir or data_dir.startswith(("/models", "/var")):
         errs.append(f"{unit} Exec= --data-dir {data_dir} is not an in-image path")
         return errs
     with open(os.path.join(root, _PIPER_CF), encoding="utf-8") as f:
         cf = f.read()
-    if f"--download-dir {data_dir}" not in cf or f'test -s "{data_dir}/${{MIOS_PIPER_VOICE}}.onnx"' not in cf:
-        errs.append(f"{_PIPER_CF} does not bake ${{MIOS_PIPER_VOICE}}.onnx into {data_dir}")
+    if f"--download-dir {data_dir}" not in cf or f'test -s "{data_dir}/${{MIOS_SERVICES_PIPER_VOICE}}.onnx"' not in cf:
+        errs.append(f"{_PIPER_CF} does not bake ${{MIOS_SERVICES_PIPER_VOICE}}.onnx into {data_dir}")
     return errs
 
 
@@ -313,7 +313,7 @@ class TestSpeechStorage(unittest.TestCase):
 
     def test_negative_voice_not_baked(self) -> None:
         self._plant(_PIPER_CF, "--download-dir /usr/share/piper/voices", "--download-dir /tmp/voices")
-        self.assertIn(f"{_PIPER_CF} does not bake ${{MIOS_PIPER_VOICE}}.onnx into /usr/share/piper/voices",
+        self.assertIn(f"{_PIPER_CF} does not bake ${{MIOS_SERVICES_PIPER_VOICE}}.onnx into /usr/share/piper/voices",
                       check_engine(self.scratch, "piper", self.engines["piper"]))
 
     def test_negative_whisper_host_model(self) -> None:

@@ -728,7 +728,7 @@ The shell commands a workflow actually executes.
 
 build_exports() returns the UNEXPANDED map on purpose: it renders
 automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
-time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+time, and keeping `${MIOS_PORTS_AGENT_PIPE}` live there is what lets an
 operator's pre-export propagate. mios-resolver --emit=json is the resolved
 view and bakes. Comparing the two directly measured that difference in
 representation, not a divergence between the resolvers -- 103 "mismatches"
@@ -799,3 +799,83 @@ a committed table. Blobs are identical in every clean checkout of the
 same commit, so the gate converges.
 
 <!-- mios-src:ce4d50bb40a1 from tools/roadmap-index.py:269-276 -->
+
+### Size-optimized release for the Windows wallpaper daemon...
+
+Size-optimized release for the Windows wallpaper daemon (its profile
+previously sat in the member manifest, where cargo silently ignored
+it). lto/strip/panic are workspace-level profile knobs cargo cannot
+set per package.
+
+<!-- mios-src:29470f63dacf from tools/native/Cargo.toml:54-57 -->
+### Operator ruling
+
+Operator ruling: the ceiling governs SUB-MODULES only -- the packages named by
+[refactor].submodule_roots. The agent-pipe root (server.py, the mios_*.py
+components) holds main modules, where features fold in. Shims are excluded --
+they are ~28 lines of lazy re-export.
+
+<!-- mios-src:f7cb199fb90d from tools/check-testhygiene.py:556-559 -->
+
+### The dev container IS the MiOS image plus container wiring...
+
+The dev container IS the MiOS image plus container wiring, so anything that
+would make it a different image is refused: a second stage, a FROM other than
+the ARG, an ARG default other than [image].ref, a file brought in from the
+build context, or a RUN that installs a package, toolchain or payload. A
+component the devcontainer lacks belongs in the OS pipeline instead.
+
+<!-- mios-src:af11408df797 from tools/ci-suites.py:320-324 -->
+
+### The Python twin is mios_toml.emit_exports over a merge it...
+
+The Python twin is mios_toml.emit_exports over a merge it performs ITSELF.
+load_merged() with no layers hands the merge to mios-resolver whenever one
+is on PATH, and the check would then measure the Rust resolver against
+itself. emit_exports also resolves ${MIOS_*} cross-references, which is the
+baked form --emit=json prints. (tools/render-globals.py, the old Python
+side, was ported to `mios-gen render-globals` in 5776d4ff; importing it
+crashed this check on every run since.)
+
+<!-- mios-src:28ef4adc99fb from tools/drift-checks.py:109-115 -->
+
+### Container-side listening ports. This used to hard-code...
+
+Container-side listening ports. This used to hard-code (8080, 3002), the
+SearXNG and firecrawl upstream internals; SSOT now names that class
+`*_internal`. They may appear as the container side of a mapping or in an
+in-container `X=N`, never as a bare host-side `PublishPort=N`.
+
+<!-- mios-src:c32f4d0a96ae from tools/drift-checks.py:2559-2562 -->
+
+### A reviewed eval of non-agent input carries this annotation...
+
+A reviewed eval of non-agent input carries this annotation on the line
+DIRECTLY above it -- the remedy the message below prescribes. 5f2aadbf
+dropped the exemption and kept the message, so following the remedy no
+longer cleared the violation. Twin of eval_safety in
+src/mios-rs/miosd/src/drift/security.rs (Law 13).
+
+<!-- mios-src:25efb2748554 from tools/drift-checks.py:2865-2869 -->
+
+### What every devcontainer.json owns, as the resolver emits it...
+
+What every devcontainer.json owns, as the resolver emits it (emit_exports: stack_id offset and
+    ${MIOS_*} applied): forwardPorts from each [ports] key of [dotfiles.devcontainer].forward_port_keys,
+    in order; containerEnv[n] for each MIOS_* name n of .container_env_keys; remoteUser from
+    [identity].username; hostRequirements from .host_requirements. Exit 3 on an absent or empty list,
+    a name without a resolved (integer, for a port) value, or an invalid user or host requirement.
+
+<!-- mios-src:138dc3a7f084 from tools/sync-dotfiles.py:77-81 -->
+
+### Merge the CLIENT-PORTABLE subset of the SSOT settings into...
+
+Merge the CLIENT-PORTABLE subset of the SSOT settings into every
+    devcontainer.json / *.code-workspace settings block and PRUNE every
+    [dotfiles.vscode] desktop-only / User-only / unregistered key already there.
+    SSOT keys win on conflict; any surface-only key (installer-specific zenMode.*
+    tuning) survives. A devcontainer.json's forwardPorts array, remoteUser,
+    hostRequirements and the containerEnv entries in dc_owned are owned. Returns [(label, reason)] -- one line per key and file, so
+    --check names exactly what is wrong where.
+
+<!-- mios-src:dde5b5ab080e from tools/sync-dotfiles.py:268-274 -->

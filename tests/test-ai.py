@@ -822,7 +822,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
         self.assertEqual(alloc["models"]["default"]["name"], "qwen2.5-coder-32b")
         self.assertEqual(alloc["models"]["reasoning"]["name"], "deepseek-r1-distill-llama-70b")
         self.assertTrue(alloc["heavy_lane"]["enabled"])
-        self.assertEqual(alloc["heavy_lane"]["port_key"], "vllm")
+        self.assertEqual(alloc["heavy_lane"]["port_key"], "llm_heavy")
 
     def test_vram_headroom_reservation(self):
         allocator = mma_model_matrix_alloc.ModelMatrixAllocator(headroom_ratio=0.90, mock=True)
@@ -833,7 +833,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
     def test_generate_llama_swap_config_schema(self):
         allocator = mma_model_matrix_alloc.ModelMatrixAllocator(mock=True)
         alloc = allocator.allocate_matrix(vram_gb=16.0)
-        with patch.dict(os.environ, {"MIOS_PORT_LLM_LIGHT": ""}):
+        with patch.dict(os.environ, {"MIOS_PORTS_LLM_LIGHT": ""}):
             conf = allocator.generate_llama_swap_config(alloc)
 
         self.assertEqual(conf["version"], "1.0")
@@ -848,7 +848,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
         alloc = allocator.allocate_matrix(vram_gb=16.0)
         yaml_path = os.path.join(self.tmpdir.name, "llama-swap.yaml")
 
-        with patch.dict(os.environ, {"MIOS_PORT_LLM_LIGHT": ""}):
+        with patch.dict(os.environ, {"MIOS_PORTS_LLM_LIGHT": ""}):
             success = allocator.project_yaml(yaml_path, alloc)
         self.assertTrue(success)
         self.assertTrue(os.path.isfile(yaml_path))

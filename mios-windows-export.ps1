@@ -72,7 +72,7 @@ $ProgressPreference    = 'SilentlyContinue'
 $exportModule = Join-Path $PSScriptRoot 'usr\libexec\mios\MiOS.Export.psm1'
 if (Test-Path $exportModule) { Import-Module $exportModule -ErrorAction SilentlyContinue }
 
-# ── winget helper -- auto-install qemu + zstd if missing ─────────────────
+# -- winget helper -- auto-install qemu + zstd if missing -----------------
 # We use winget rather than chocolatey/scoop because winget is bundled in
 # every Win10 21H2+ install -- operators don't need a separate package
 # manager. The `--scope user` keeps installs in %LOCALAPPDATA%\Microsoft\
@@ -105,7 +105,7 @@ function Install-WingetTool([string]$WingetId, [string]$BinaryName) {
     return (Test-CommandExists $BinaryName)
 }
 
-# ── OCI registry helpers (GHCR public-image protocol) ────────────────────
+# -- OCI registry helpers (GHCR public-image protocol) --------------------
 # GHCR follows the OCI Distribution v1 spec. Public images need an
 # anonymous token from /token before /manifests/<ref> succeeds.
 function Get-GhcrToken([string]$Repo) {
@@ -132,7 +132,7 @@ function Resolve-ImageRef([string]$ImageRef) {
 }
 
 
-# ── Output directory resolver ─────────────────────────────────────────────
+# -- Output directory resolver ---------------------------------------------
 function Resolve-OutputBase {
     if ($script:OutputDir) { return $script:OutputDir }
     if (Test-Path -LiteralPath 'M:\') {
@@ -141,7 +141,7 @@ function Resolve-OutputBase {
     return Join-Path $env:USERPROFILE 'MiOS-Build'
 }
 
-# ── Surface handlers ──────────────────────────────────────────────────────
+# -- Surface handlers ------------------------------------------------------
 function Export-WslTar([string]$ImageRef, [string]$OutDir) {
     Write-Step "Surface: WSL2 rootfs export (direct container storage stream -> uncompressed .tar)"
     $tar = Join-Path $OutDir 'mios.wsl.tar'
@@ -329,7 +329,7 @@ Write-Host 'VM ready -- start with: Start-VM -Name $VmName' -ForegroundColor Gre
     Write-Host "    Open an elevated PowerShell + run: pwsh -File `"$script`"" -ForegroundColor DarkGray
 }
 
-# ── Main ──────────────────────────────────────────────────────────────────
+# -- Main ------------------------------------------------------------------
 Write-Step "MiOS Windows-side export  --  image=$Image"
 $ref = Resolve-ImageRef $Image
 Write-Ok ("Registry={0}  Repo={1}  Ref={2}" -f $ref.Registry, $ref.Repo, $ref.Ref)
@@ -354,7 +354,7 @@ foreach ($t in $Targets) {
     }
 }
 
-# ── Summary ───────────────────────────────────────────────────────────────
+# -- Summary ---------------------------------------------------------------
 Write-Step "Build summary"
 $rows = foreach ($f in Get-ChildItem -Path $outDir -File -ErrorAction SilentlyContinue) {
     [pscustomobject]@{

@@ -224,11 +224,23 @@ from mios_pipe.routing.dispatch_cmd import (   # noqa: E402,F401
     _build_dispatch_cmd,
 )
 
+def _normalize_tool_name(tool: str) -> str:
+    """Remove a trailing argument display without regex search backtracking."""
+    text = str(tool or "").strip()
+    if text.endswith(")"):
+        # The former pattern's dot did not cross a newline. Keep that boundary
+        # while finding the first opening parenthesis in the final line once.
+        start = text.find("(", text.rfind("\n") + 1)
+        if start >= 0:
+            text = text[:start]
+    return text.strip().strip("`'\"")
+
+
 async def _dispatch_bounded(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
+    _t = _normalize_tool_name(tool)
     async with _trace_span("dispatch", verb=_t), _TOOL_CONFLICT.guard(_t):
         if _t == "web_search":
             if WEB_DISPATCH_JITTER_S > 0:
@@ -520,7 +532,7 @@ async def _quarantine_gate(tool: str, args: dict, *,
         if session_id:
             a_tainted, _chain = await _session_is_tainted(session_id)
             if not a_tainted and mios_scratchpad.SQLITE_VEC_ENABLE:
-                scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
+                scratchpad_dir = os.environ.get("MIOS_CONVERGE_MEMORY_SCRATCHPAD_DIR", "/tmp")
                 if mios_scratchpad.has_tainted(session_id, scratchpad_dir):
                     a_tainted = True
 
@@ -595,7 +607,7 @@ async def _dispatch_mios_verb_inner_raw(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
+    tool = _normalize_tool_name(tool)
     if _letta_dispatch_handler:
         _res = await _letta_dispatch_handler(tool, args, session_id)
         if _res is not None:

@@ -103,10 +103,10 @@ _BACKFILL_EXEMPT = [
 ]
 
 def get_embed_config() -> Tuple[str, str]:
-    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500"
+    light_port = os.environ.get("MIOS_PORTS_LLM_LIGHT") or "8500"
     light_base = f"http://localhost:{light_port}"
     url = os.environ.get("MIOS_VERB_EMBED_URL") or f"{light_base}/v1/embeddings"
-    model = os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text"
+    model = os.environ.get("MIOS_AI_EMBED_MODEL") or "nomic-embed-text"
     return url, model
 
 def get_text_projection(table: str, row: dict) -> Optional[str]:

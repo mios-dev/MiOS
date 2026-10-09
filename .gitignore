@@ -36,6 +36,12 @@
 /.devcontainer/**
 
 !/.gitignore
+!/usr/share/mios/vendored/tmux-mcp/
+!/usr/share/mios/vendored/tmux-mcp/**
+!/usr/share/mios/keybindings/
+!/usr/share/mios/keybindings/**
+!/etc/tmux.conf
+!/etc/dconf/db/local.d/10-mios-keybindings
 !/artifact.md
 !/.claude/
 !/.claude/**
@@ -55,6 +61,8 @@
 !/.devcontainer/cloud-shell/bootstrap.sh
 !/.devcontainer/cloud-shell/README.md
 !/.devcontainer/cloud-shell/claude-code-cloud.sh
+!/.devcontainer/cloud-shell/codex-cloud.sh
+!/usr/share/man/man5/
 !/harness/
 !/harness/**
 !/invariants/
@@ -96,6 +104,7 @@
 !/.agents/plugins/**
 !/.agents/subagents.json
 !/.agents/AGENTS.md
+!/.agents/COORDINATION.md
 !/.agents/agents/
 !/.agents/agents/**
 !/images/
@@ -133,6 +142,7 @@
 # here. LEDGER.md and goal_state.json stay tracked: those are the durable handoff
 # state, and no run-* directory has ever been committed.
 /.devloop/run-*/
+/.devloop/.zai-probe.state
 /.devloop/backlog_archive.jsonl
 /.devloop/HISTORICAL_BACKLOG.md
 /.devloop/unified_tasks.jsonl
@@ -746,3 +756,17 @@ tools/native/target/
 **/target/
 /.devloop/native/
 tests/powershell/*.exe
+
+# Native terminal defaults are required on every MiOS image.
+!/etc/tmux.conf
+!/etc/dconf/db/local.d/10-mios-keybindings
+!/usr/share/mios/vendored/fonts/geist-nerd.zip
+!/usr/share/mios/sway/mios-keys.conf
+!/etc/skel/.config/Code/User/keybindings.json
+!/etc/skel/.local/share/code-server/User/keybindings.json
+!/etc/skel/.config/Code/
+!/etc/skel/.config/Code/User/
+!/etc/skel/.local/share/code-server/
+!/etc/skel/.local/share/code-server/User/
+!/etc/mios/ai/v1/
+!/etc/mios/ai/v1/a2a-peers.json

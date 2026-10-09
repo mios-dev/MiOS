@@ -6,3 +6,4 @@ bibata_cursor=v2.0.7
 nerd_fonts=v3.4.0
 geist_font=v1.3.0
 hermes_agent=daa1befaf61f2e2f3f0643818cfd6b32e2b51b10
+tmux_mcp=v2.0.0@d9e45cfe72cff75f7ba923c32ac35a19f424effb

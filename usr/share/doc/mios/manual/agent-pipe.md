@@ -1535,7 +1535,7 @@ swarms, allowing >1,500 concurrent background workers within a 16GB RAM limit.
 ### Law 5/7
 
 Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
-[observability].otel_endpoint ships a ${MIOS_PORT_OTELCOL_OTLP} placeholder and
+[observability].otel_endpoint ships a ${MIOS_PORTS_OTELCOL_OTLP} placeholder and
 os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
 value is not an endpoint -- drop it and rebuild from the resolved port.
 
@@ -1666,3 +1666,134 @@ AI-related: mios_pipe.routing
 AI-functions: check, _events, main
 
 <!-- mios-src:f65b48453236 from usr/lib/mios/agent-pipe/test_mios_web_research.py:432-437 -->
+### Concurrent streaming Piper TTS audio synthesis and PipeWire...
+
+Concurrent streaming Piper TTS audio synthesis and PipeWire buffer feeder.
+
+Buffers incoming LLM text tokens, detects sentence and clause boundaries in real time,
+synthesizes text chunks concurrently via the local piper1-gpl HTTP server (mios-piper),
+and feeds raw PCM audio frames directly into low-latency PipeWire playback buffers
+with sub-300ms time-to-first-sound latency.
+
+<!-- mios-src:d7f363209c51 from usr/lib/mios/agent-pipe/mios_audio_tts.py:4-10 -->
+
+### Multi-node dynamic AI workload partitioner and...
+
+Multi-node dynamic AI workload partitioner and capability-aware task router.
+
+Discovers and tracks live node capabilities across a 2-6 bare-metal Blade mesh,
+partitions composite agent workflows into discrete subtasks, dispatches them to
+optimal nodes based on a capability matrix and live health/VRAM/queue telemetry,
+and merges distributed outputs into unified OpenAI-compatible responses.
+
+<!-- mios-src:ff742fe83684 from usr/lib/mios/agent-pipe/mios_mesh_distributor.py:4-10 -->
+
+### Lightweight on-device OCR regex credential masking pipeline...
+
+Lightweight on-device OCR regex credential masking pipeline for vision frames.
+
+Scans vision frames / screenshots for visible credentials (API tokens, private keys,
+Bearer tokens, credit cards, password assignments) in inaccessible windows (terminals,
+web pages, dev tools) and applies solid black bounding box redactions before passing
+frames to multi-modal vision LLMs.
+
+<!-- mios-src:0c0ab188eb45 from usr/lib/mios/agent-pipe/mios_ocr_mask.py:4-10 -->
+
+### Linux PSI (Pressure Stall Information) sampler and...
+
+Linux PSI (Pressure Stall Information) sampler and throttling monitor for agent-pipe.
+
+Continuously samples /proc/pressure/cpu, /proc/pressure/memory, and /proc/pressure/io.
+Emits WARNING events when any resource's `some avg10 > 40.0`.
+Emits CRITICAL throttling events when any resource's `some avg10 > 70.0`.
+Signals throttling state to inference workers and admission scheduler with safe
+hysteresis margins to prevent alarm flapping.
+
+<!-- mios-src:d620b16acbca from usr/lib/mios/agent-pipe/mios_psi.py:5-12 -->
+
+### Parse a single line from a /proc/pressure/* file. Format...
+
+Parse a single line from a /proc/pressure/* file.
+
+    Format:
+        some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+        full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+
+    Returns:
+        (line_type, PsiMetric) or (None, None) if the line cannot be parsed.
+
+<!-- mios-src:eb36a27064f7 from usr/lib/mios/agent-pipe/mios_psi.py:156-164 -->
+
+### Continuous Linux PSI pressure stall sampler and...
+
+Continuous Linux PSI pressure stall sampler and load-shedding monitor.
+
+    Monitors cpu, memory, and io pressure metrics every `sample_interval_s` seconds.
+    Emits WARNING when `some avg10 > warning_threshold` (default 40.0%).
+    Emits CRITICAL throttling events when `some avg10 > critical_threshold` (default 70.0%).
+    Includes hysteresis to prevent alarm flapping.
+
+<!-- mios-src:e16890b2387b from usr/lib/mios/agent-pipe/mios_psi.py:271-277 -->
+
+### Automated node failure detection and zero-loss dynamic task...
+
+Automated node failure detection and zero-loss dynamic task re-distribution engine.
+
+Monitors active mesh node heartbeats and in-flight AI task leases:
+  - Detects dropped nodes (timeout after threshold, e.g. 5 seconds of lost heartbeats).
+  - Persists task lease states in PostgreSQL / pgvector `in_flight_tasks` or SQLite / JSON local journal.
+  - Provides zero-loss re-distribution: extracts pending prompt and conversation context,
+    re-queues without dropping tokens, and dispatches to the next healthy node satisfying
+    the capability requirement.
+  - Supports CLI and Daemon Modes: monitor, simulate-failure, status, --mock, --dry-run.
+
+<!-- mios-src:94edfb8c831b from usr/lib/mios/agent-pipe/mios_task_failover.py:4-13 -->
+
+### ATSPI accessibility tree sensitive widget coordinate...
+
+ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter.
+
+Discovers on-screen sensitive/password input fields by querying the ATSPI / DBus accessibility
+tree (looking for ROLE_PASSWORD_TEXT, ROLE_TEXT with STATE_PROTECTED, or security attributes).
+Computes screen bounding boxes (x, y, width, height) in pixel coordinates.
+Applies privacy redaction (Gaussian blur, box blur, or pixelation) to the bounding regions
+on captured Wayland frame buffers / images.
+Implements fallback pure-Python synthetic frame blurring when PIL / cv2 is not available or in synthetic mode.
+
+<!-- mios-src:17afe6d46c86 from usr/lib/mios/agent-pipe/mios_vision_redact.py:4-12 -->
+
+### Law 5/7
+
+Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
+[observability].otel_endpoint ships a ${MIOS_PORTS_OTELCOL_OTLP} placeholder and
+os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
+value is not an endpoint -- drop it and rebuild from the resolved port.
+
+<!-- mios-src:c3bf14e5fbb3 from usr/lib/mios/agent-pipe/server.py:332-335 -->
+
+### Stdlib unit tests for mios_lanes_resolver (strangler-fig...
+
+Stdlib unit tests for mios_lanes_resolver (strangler-fig extraction).
+
+Drives the moved lane-resolver cluster with a fake httpx client + stubbed
+config -- NO network, NO DB. Asserts: lane selection prefers the heavy lane when
+its probe is up, falls back to the always-on light lane when the heavy lane is
+down, the legacy heavy/light probe is used when the resolver path raises, and the
+_heavy_lane_up probe caches + degrades closed. Run: ``python test_mios_lanes_resolver.py``.
+
+<!-- mios-src:903edcf9d961 from usr/lib/mios/agent-pipe/test_mios_lanes_resolver.py:3-10 -->
+
+### Two-sided unit tests for Linux PSI monitoring, threshold...
+
+Two-sided unit tests for Linux PSI monitoring, threshold detection, and throttling triggers.
+
+Verifies:
+1. Parsing: positive controls on standard procfs lines; negative controls on malformed lines.
+2. Fallback/Mock: degradation when /proc/pressure is absent.
+3. Thresholds: positive controls (NORMAL, WARNING > 40.0, CRITICAL > 70.0); boundary controls.
+4. Negative controls: full-pressure isolation, negative numbers, missing fields.
+5. Throttling triggers & events: callback dispatch, event payload structure.
+6. Async background lifecycle: start, sample loop, and clean cancellation.
+7. Server integration: is_inference_throttled and _signal_inference_throttling.
+
+<!-- mios-src:bc539b73dcc4 from usr/lib/mios/agent-pipe/test_mios_psi.py:5-15 -->

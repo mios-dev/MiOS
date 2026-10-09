@@ -2,12 +2,13 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Retains MiOS self-development dependencies by default; strips build groups only when packages.self-build.retain_toolchain explicitly opts out.
 set -euo pipefail
+# shellcheck disable=SC1090 # The repository and installed log library are equivalent resolver locations.
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-retention="$(get_package_setting self-build retain_toolchain)" || {
+retention="$(get_package_setting self-build retain_toolchain "$(_resolve_mios_toml)")" || {
     mios_err "Missing [packages.self-build].retain_toolchain; refusing to remove self-build dependencies"
     exit 1
 }
@@ -51,6 +52,15 @@ for grp in "${BUILD_GROUPS[@]}"; do
             | grep -E '^\s*(Removing|Error|Warning|Nothing)' || true
     fi
 done
+
+# The SSOT rustup toolchain (55-native-build.sh --toolchain) goes with the compilers.
+if [[ -n "$TOML_FILE" && -f "$TOML_FILE" ]]; then
+    for _dir in $(python3 -c 'import sys, tomllib; t = tomllib.load(open(sys.argv[1], "rb")).get("build", {}).get("toolchain", {}); print(t.get("rustup_home", ""), t.get("cargo_home", ""))' "$TOML_FILE"); do
+        [[ "$_dir" == /usr/?* ]] || continue
+        mios_log "Removing the SSOT Rust toolchain ${_dir}"
+        rm -rf "$_dir"
+    done
+fi
 
 # Purge standalone bake-only tools
 if [[ -f /usr/local/bin/syft ]]; then

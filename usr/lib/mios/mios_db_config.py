@@ -26,15 +26,15 @@ def record_divergence(key: str | set[str] | list[str]) -> None:
 def get_pg_config() -> dict:
     e = os.environ
     try:
-        port = int(e.get("MIOS_PORT_PGVECTOR") or 8600)
+        port = int(e.get("MIOS_PORTS_PGVECTOR") or 8600)
     except (TypeError, ValueError):
         port = 8600
     return {
-        "host": e.get("MIOS_PG_HOST", "localhost"),
+        "host": e.get("MIOS_PGVECTOR_HOST", "localhost"),
         "port": port,
-        "user": e.get("MIOS_PG_USER", "mios"),
-        "password": e.get("MIOS_PG_PASS", "mios"),
-        "dbname": e.get("MIOS_PG_DB", "mios"),
+        "user": e.get("MIOS_PGVECTOR_USER", "mios"),
+        "password": e.get("MIOS_PGVECTOR_PASS", "mios"),
+        "dbname": e.get("MIOS_PGVECTOR_DB", "mios"),
     }
 
 _IS_DB_AUTHORITATIVE_CACHE = None

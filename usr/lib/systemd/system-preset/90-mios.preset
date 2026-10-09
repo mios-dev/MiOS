@@ -151,11 +151,11 @@ enable mios-agent-nudger.service
 enable mios-sys-env-refresh.timer
 enable mios-open-webui.service
 # mios-code-server RETIRED: superseded by mios-agents (code-server + Claude + agy +
-# tmux + mios-a2o) on the SAME MIOS_PORT_CODE_SERVER. Disabled so no duplicate IDE
+# tmux + mios-a2o) on the SAME MIOS_PORTS_CODE_SERVER. Disabled so no duplicate IDE
 # service runs. The [containers.mios-code-server.*] def remains inert in mios.toml.
 disable mios-code-server.service
 # A2O agents super-container = the single code-server IDE (Claude CLI + agy/Gemini +
-# tmux war room), on MIOS_PORT_CODE_SERVER. ExecStartPre builds localhost/mios-agents:latest
+# tmux war room), on MIOS_PORTS_CODE_SERVER. ExecStartPre builds localhost/mios-agents:latest
 # from /usr/share/mios/agents/Containerfile on first deploy; the deployed root / is the
 # workspace so agents develop MiOS from within itself.
 enable mios-agents.service

@@ -51,6 +51,15 @@ def t_parallel():
           e._endpoint_supports_parallel_tools(GENERIC) is False)
     check("parallel: light-lane port -> False",
           e._endpoint_supports_parallel_tools("http://h:11434/v1") is False)
+    # A [ports] key stands for that lane's allocated port, never for itself;
+    # a number or an unknown token passes through unchanged.
+    got = e._port_hints("llm_heavy, 11441,")
+    import mios_toml  # importable once the SSOT reader has put usr/lib/mios on sys.path
+    heavy = str(mios_toml.load_merged()["ports"]["llm_heavy"])
+    check("parallel: a [ports] key hint resolves to the lane's port",
+          got == (heavy, "11441"), str(got))
+    check("parallel: an unknown token is kept verbatim",
+          e._port_hints("no_such_lane") == ("no_such_lane",))
 
 def t_is_llamacpp():
     check("llamacpp: api=llamacpp -> True", e._endpoint_is_llamacpp(GENERIC, {"api": "llamacpp"}) is True)

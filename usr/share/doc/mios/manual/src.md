@@ -504,12 +504,12 @@ resolved-environment view) and `emit_install_env` (systemd
 `EnvironmentFile=` and podman `--env-file`). It is deliberately NOT called
 by `build_exports_map`, because `emit_shell` and `emit_ps` render into bash
 and PowerShell, which expand at source time: keeping the reference live
-there is what makes an operator's pre-exported `MIOS_PORT_AGENT_PIPE`
+there is what makes an operator's pre-exported `MIOS_PORTS_AGENT_PIPE`
 propagate into `MIOS_AI_ENDPOINT`. Baking in the shared builder would take
 that property away from both generated globals files.
 
 systemd `EnvironmentFile=` and podman `--env-file` have no such expansion,
-so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1`
+so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1`
 means two different things depending on who reads it. It is also why
 `system-sync-env.sh` DROPPED that variable rather than emitting it: its
 filter rejects any value containing `$` (T-1060).
@@ -554,3 +554,180 @@ legibility check measures the same way; measuring differently here would
 make the generated ceiling disagree with the gate that reads it.
 
 <!-- mios-src:5e1c2a4843b2 from tools/native/mios-size-ceiling/src/main.rs:22-27 -->
+### `mios.toml [profiles]` (ADR-0025): named selections over...
+
+`mios.toml [profiles]` (ADR-0025): named selections over the pipeline's own
+phases and package sections. Every error names what is wrong; nothing
+resolves to a default selection.
+
+<!-- mios-src:d8b9dea5501d from src/mios-rs/mios-build/src/lib.rs:949-951 -->
+
+### Every KEY=VALUE on one unit line that could carry a...
+
+Every KEY=VALUE on one unit line that could carry a credential.
+
+`Environment=` is the declarative surface. `--env KEY=VALUE` on an Exec line
+is the OTHER one, and scanning only the first measured the wrong property:
+mios-agents.service hands its container a password as
+`--env [redacted] on an ExecStart continuation, so a
+plain literal planted there passed this gate at rc=0 while the identical
+literal on an `Environment=` line failed it. Both controls were run.
+
+Bare `-e` is deliberately NOT matched: it collides with ordinary flags such
+as `bash -e`, and nothing in the corpus uses it to pass an environment pair.
+
+<!-- mios-src:da27d54768a3 from src/mios-rs/mios-gate/src/credentials.rs:59-69 -->
+
+### Replaced scripts check
+
+Replaced scripts check: any script listed in `replaces` must NOT
+exist on disk (per ADR-0021 / doc-rust-static-port.md: scripts are
+deleted in the same commit that proves parity).
+
+<!-- mios-src:ea100eff3936 from src/mios-rs/mios-gate/src/rust_categories.rs:251-253 -->
+
+### Delegation counts
+
+Delegation counts: everything in projections.rs hands ctx to
+regen_and_diff, which does the reading. Eleven checks look blind without
+this and are not.
+Handing the root itself to a callee as an argument is the same delegation:
+native_generator::command(&ctx.root, "pod-quadlets", true) runs the
+generator's --check over that tree. A path built from it is not
+(`ctx.root.join(` never matches "(ctx.root,"), so T-1045 still holds.
+
+<!-- mios-src:2634a62df573 from src/mios-rs/mios-gate/src/stubs.rs:21-27 -->
+
+### The resolved six-tier SSOT under `root` (vendor < vendor.d...
+
+The resolved six-tier SSOT under `root` (vendor < vendor.d < host <
+host.d < user < user.d), so an operator's [preflight] override is the
+threshold probed. A missing vendor file is still a hard stop.
+
+<!-- mios-src:67a3be483fb3 from src/mios-rs/mios-probe/src/probes.rs:7-9 -->
+
+### The observer pane can exit or be closed by the operator....
+
+The observer pane can exit or be closed by the operator. Every later step
+joins/breaks it, so a dead id made each window-resized hook fail with
+"can't find pane". Rebuild it in this head's storage session.
+
+<!-- mios-src:2cc13590122b from tools/native/mios-agent-relay/src/main.rs:1247-1249 -->
+
+### A recorded anchor pane can be killed (operator closed it...
+
+A recorded anchor pane can be killed (operator closed it, storage session
+reaped). Joining onto a dead anchor fails every resize with
+"can't find pane"; forget it so it is rebuilt below.
+
+<!-- mios-src:9e6b083d525b from tools/native/mios-agent-relay/src/main.rs:1417-1419 -->
+
+### Peer-lane audit (2026-10-07): without a subject, `--check`...
+
+Peer-lane audit (2026-10-07): without a subject, `--check` used to return
+success having compared nothing. A check reads and compares a real artifact
+or it fails; `--mock` only pins the metadata the render is built from.
+
+<!-- mios-src:94b4c821298d from tools/native/mios-gen/src/fastfetch.rs:289-291 -->
+
+### Reserved spec key
+
+Reserved spec key: `[<kind>s.<name>.engine]` holds `select` -- a dotted SSOT path
+whose string value names the engine -- and one overlay per engine,
+`[<kind>s.<name>.engine.<engine>.<Section>]`. One lane spec therefore renders
+whichever engine the SSOT selects (the heavy lane: vLLM or SGLang). After
+selection the table is replaced by a scalar describing the choice, which the
+renderer prints as a header comment and never as a section.
+
+<!-- mios-src:2ebfb5025ac7 from tools/native/mios-gen/src/pod_quadlets.rs:780-785 -->
+
+### Resolve `${MIOS_*}` that one emitted value makes to...
+
+Resolve `${MIOS_*}` that one emitted value makes to another.
+
+Called by the emitters whose consumer CANNOT expand -- `emit_json` (the
+resolved-environment view) and `emit_install_env` (systemd
+`EnvironmentFile=` and podman `--env-file`). It is deliberately NOT called
+by `build_exports_map`, because `emit_shell` and `emit_ps` render into bash
+and PowerShell, which expand at source time: keeping the reference live
+there is what makes an operator's pre-exported `MIOS_PORTS_AGENT_PIPE`
+propagate into `MIOS_AI_ENDPOINT`. Baking in the shared builder would take
+that property away from both generated globals files.
+
+systemd `EnvironmentFile=` and podman `--env-file` have no such expansion,
+so an emitted `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1`
+means two different things depending on who reads it. It is also why
+`system-sync-env.sh` DROPPED that variable rather than emitting it: its
+filter rejects any value containing `$` (T-1060).
+
+Expansion reads a snapshot, so the result does not depend on map order, and
+a name that resolves to nothing is left verbatim rather than blanked -- the
+caller can then report it instead of shipping an empty string.
+
+<!-- mios-src:dc829fd45e2d from tools/native/mios-resolver/src/emit.rs:127-146 -->
+
+### Parse `paths` lowest precedence first and fold them with...
+
+Parse `paths` lowest precedence first and fold them with the MiOS overlay
+rule (`merge::deep_merge`): an empty string never overrides a non-empty
+value below it (Law 1). figment's own `merge` has no such rule, so stacking
+the tiers as figment providers let `endpoint = ""` in /etc/mios erase the
+vendor endpoint for every native reader while mios_toml.py kept it.
+A layer that vanished between discovery and reading is skipped, as an
+absent tier is; one that cannot be read or parsed is an error naming it.
+
+<!-- mios-src:9d53fb20a545 from tools/native/mios-resolver/src/layers.rs:184-190 -->
+
+### The merged layers as one figment provider, so callers that...
+
+The merged layers as one figment provider, so callers that extract a typed
+model or stack `Env` on top keep their API while the tiers merge by Law 1.
+
+<!-- mios-src:7bc367795e06 from tools/native/mios-resolver/src/layers.rs:215-216 -->
+
+### The resolved MIOS_* environment, ${MIOS_*} references...
+
+The resolved MIOS_* environment, ${MIOS_*} references expanded -- the same
+values `mios-resolver --emit=json` prints. Native programs read the SSOT
+through this at run time instead of carrying their own copies of it.
+
+<!-- mios-src:e95a086f9bcb from tools/native/mios-resolver/src/lib.rs:105-107 -->
+
+### Run-time SSOT lookup for native programs
+
+Run-time SSOT lookup for native programs: the process environment (a
+unit's Environment=, the operator) wins, then the resolved six-tier
+mios.toml. A name neither provides is an error that names it -- callers
+never substitute a compiled-in value.
+
+<!-- mios-src:c30439a4e081 from tools/native/mios-resolver/src/lib.rs:115-118 -->
+
+### A table or array as TOML inline syntax, byte-equal to...
+
+A table or array as TOML inline syntax, byte-equal to mios_toml.py's
+_toml_inline: scalar and array keys sorted, then nested-table keys sorted;
+a string with a backslash (and no quote or newline) as a literal string.
+Rendered here rather than by the toml crate, whose inline layout changed
+between releases (newer releases no longer put nested tables last), so the twin
+held only in a workspace that happened to lock an older toml.
+
+<!-- mios-src:c0c6529c00d4 from tools/native/mios-resolver/src/walk.rs:56-61 -->
+
+### Transform a TOML value according to MiOS business rules: -...
+
+Transform a TOML value according to MiOS business rules:
+- Boolean -> "true" / "false"
+- `ports.*` (except `ports.stack_id`) -> `int(v) + stack_offset` (unless port == 53)
+- List/Array -> comma-separated string; table or array elements as
+  [`toml_inline`]
+- Scalar -> string representation
+
+<!-- mios-src:d2d9c71b4fb0 from tools/native/mios-resolver/src/walk.rs:94-99 -->
+
+### Render before publication. Replace legacy copies only when...
+
+Render before publication. Replace legacy copies only when absent or marked
+as MiOS-owned; save their exact old bytes before replacing them.
+Returns the paths of pre-existing owned files, used to scope live reloads.
+
+<!-- mios-src:17ec795e889f from tools/native/mios-service-core/src/host_tmux.rs:34-36 -->

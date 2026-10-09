@@ -174,7 +174,7 @@ except ImportError:
 def setUpModule():
     if psycopg is None:
         raise unittest.SkipTest("no live pgvector -- integration test")
-    port = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+    port = os.environ.get("MIOS_PORTS_PGVECTOR", "8600")
     conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
     try:
         with psycopg.connect(conn_str, connect_timeout=1) as conn:
@@ -205,10 +205,10 @@ class TestMiosRedact(unittest.TestCase):
         self.assertNotIn("alice.bob", res)
 
     def test_redact_mios_secrets(self):
-        text = 'Setting MIOS_PG_PASS="secretpassword" in env'
+        text = 'Setting MIOS_PGVECTOR_PASS="secretpassword" in env'
         res, redacted = redact(text)
         self.assertTrue(redacted)
-        self.assertIn("MIOS_PG_PASS=[REDACTED_SECRET]", res)
+        self.assertIn("MIOS_PGVECTOR_PASS=[REDACTED_SECRET]", res)
         self.assertNotIn("secretpassword", res)
 
     def test_redact_no_secrets(self):

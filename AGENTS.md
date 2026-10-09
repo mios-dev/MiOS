@@ -13,6 +13,18 @@
 > proprietary side-channels, no fallback to vendor-cloud URLs, no
 > vendor-specific agent / dev-tool product references in any AI file.
 >
+> **Universal Harness Neutrality & Native MiOS-MCP + tmux-mcp (Globally Binding):**
+> No agent or harness (Antigravity, OpenAI Codex, Claude Code, OpenCode, Gemini, etc.)
+> is permanently hardcoded as the master, worker, or monitor. Absolutely **ANY AGENT** can be
+> dynamically promoted to Orchestrator or Monitor based on whichever Agent CLI is invoked.
+> All multi-agent workflows, inter-agent coordination, sub-pane spawning, command execution,
+> and live monitoring MUST use `MiOS-MCP` (`agent-pipe` / `agent-relay` / `state.json`) and `tmux-mcp v2`
+> native slot tools (`open-pane`, `execute-command`, `send-keys`, `capture-pane`, `start-and-watch`,
+> the MiOS `mios_tmux_nested_workflow` adapter) natively. Native heads use verified human panes;
+> unbound automation uses private headless sessions. Each participant registers and consumes
+> its own relay inbox; automatic coordinator takeover and desktop conversation transfer are
+> not implemented. See [.agents/COORDINATION.md](.agents/COORDINATION.md).
+>
 > **System repo:** <https://github.com/mios-dev/mios> — that's where
 > the FHS overlay, Containerfile, automation scripts, and the six
 > Architectural Laws live. This repo is the *user-facing entry surface*.
@@ -351,6 +363,16 @@ See [bootstrap_install.md (mios-bootstrap)](https://github.com/mios-dev/mios-boo
   schema) is the shape to standardise on.
 
 ## 14. Persistence sanitization
+
+**MiOS names apply globally to new working artifacts.** Use a sanitized,
+function-based `mios-<purpose>` stem for worktree directories, branches,
+verification directories and helper artifacts. Follow the lowercase
+`a-z0-9-` charset in `[variants.naming]`; identify the job, not a harness,
+operator, model or timestamp. Keep ownership and run timestamps in the relay
+and ledger. Check for collisions before creation; do not silently overwrite
+an existing path. Rename owned lanes with Git worktree operations, preserve
+their commits and uncommitted contributions, and update executable references.
+Retain historical receipts and other participants' identities and worktrees.
 
 Anything persisted to `/var/lib/mios/ai/memory/` or
 `/var/lib/mios/ai/scratch/` must be vendor-neutral:

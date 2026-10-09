@@ -1,12 +1,16 @@
 # AI-hint: Configures Wayland/X11 environment variables (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR) and PulseAudio paths specifically for WSLg integration to ensure GUI applic...
 # AI-doc: usr/share/doc/mios/manual/profile.d.md
+# shellcheck shell=sh
 
 [ -d /mnt/wslg ] || return 0
 
 if [ -d "/run/user/$(id -u)" ]; then
     export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
     case "$XDG_RUNTIME_DIR" in
-        /mnt/wslg/*) export XDG_RUNTIME_DIR="/run/user/$(id -u)" ;;
+        /mnt/wslg/*)
+            XDG_RUNTIME_DIR="/run/user/$(id -u)"
+            export XDG_RUNTIME_DIR
+            ;;
     esac
 else
     export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/mnt/wslg/runtime-dir}"
@@ -19,7 +23,8 @@ export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-GNOME}"
 
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+    export DBUS_SESSION_BUS_ADDRESS
 fi
 
 if [ -z "${WSL_INTEROP:-}" ]; then
@@ -29,13 +34,13 @@ if [ -z "${WSL_INTEROP:-}" ]; then
 fi
 
 if [ -z "${GDK_BACKEND:-}" ]; then
-    export GDK_BACKEND="${MIOS_WSLG_GDK_BACKEND:-x11}"
+    export GDK_BACKEND="${MIOS_WSL2_DESKTOP_COMPAT_GDK_BACKEND:-x11}"
 fi
 if [ -z "${MOZ_ENABLE_WAYLAND:-}" ]; then
-    export MOZ_ENABLE_WAYLAND="${MIOS_WSLG_MOZ_WAYLAND:-0}"
+    export MOZ_ENABLE_WAYLAND="${MIOS_WSL2_DESKTOP_COMPAT_MOZ_WAYLAND:-0}"
 fi
 if [ -z "${QT_QPA_PLATFORM:-}" ]; then
-    export QT_QPA_PLATFORM="${MIOS_WSLG_QT_PLATFORM:-xcb}"
+    export QT_QPA_PLATFORM="${MIOS_WSL2_DESKTOP_COMPAT_QT_PLATFORM:-xcb}"
 fi
 
 if command -v mios-cursor-apply >/dev/null 2>&1; then

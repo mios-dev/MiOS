@@ -1,5 +1,5 @@
 <!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Metal" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/metal-vs-hosted.md, tools/generate-metal-vs-hosted.py, usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/metal-vs-hosted.md, tools/native/mios-gen/src/metal_vs_hosted.rs, usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -202,6 +202,13 @@ has exactly one canonical name its consumers resolve (`MIOS_DB_URL`, `MIOS_LLM_C
 this decision exists to prevent. They move to the register, whose comment now names the only two
 reasons an entry may appear there: the port serves no page, or its address is already stated
 elsewhere. The register stops being debt and becomes a classification — which is what it always was.
+
+**Amended 2026-10-08: the measurement above predates path-derived names.** The resolver now
+names every key `MIOS_<TABLE>_<KEY>` (`[urls].searxng` is `MIOS_URLS_SEARXNG`) and keeps the old
+`MIOS_<KEY>_URL` spelling only as an accepted input alias. The searxng and forge consumers moved to
+the canonical spelling, so "every `MIOS_URLS_*` has 0 readers" is no longer true and is no longer
+the point. The invariant is unchanged: each address is read under exactly one name.
+`tests/test-offload-overlay.py` now pins that for every `[urls]` key, plus the direction of the move.
 
 ### 2. A blade is a machine; a node is a lane on a blade
 

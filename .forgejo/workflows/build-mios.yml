@@ -56,9 +56,34 @@ jobs:
             || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages \
             || true
 
+
+      # [ci.powershell.modules] pins the test and analysis dependencies.
+      - name: Provision SSOT PowerShell modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import json,tomllib; print(json.dumps(tomllib.load(open("usr/share/mios/mios.toml","rb"))["ci"]["powershell"]["modules"]))' |
+            pwsh -NoProfile -NonInteractive -Command '
+              $ErrorActionPreference = "Stop"
+              $modules = $input | ConvertFrom-Json
+              if (-not $modules.PSScriptAnalyzer -or -not $modules.Pester) { throw "Required CI PowerShell modules are undeclared" }
+              foreach ($entry in $modules.PSObject.Properties) {
+                if ($entry.Name -notmatch "^[A-Za-z][A-Za-z0-9_.-]*$" -or $entry.Value -notmatch "^[0-9]+\.[0-9]+\.[0-9]+$") { throw "Invalid CI PowerShell module policy" }
+                if (-not (Get-Module -ListAvailable -Name $entry.Name | Where-Object { $_.Version -eq [version]$entry.Value })) {
+                  Install-Module -Name $entry.Name -RequiredVersion $entry.Value -Scope CurrentUser -Repository PSGallery -Force -SkipPublisherCheck -ErrorAction Stop
+                }
+              }
+            '
+
+      - name: Build and install the SSOT native catalog
+        run: |
+          set -euo pipefail
+          sudo bash ./automation/55-native-build.sh
+          python3.13 ./usr/libexec/mios/mios-mcp-server --install-native --source-root .
+
       - name: Generated artifacts match the SSOT
         run: |
-          bash ./tools/sync-generated.sh
+          mios-gen sync --root .
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "ERROR: generated artifacts differ from what the SSOT renders:" >&2
             git status --porcelain >&2
@@ -75,9 +100,6 @@ jobs:
           git clone --depth 1 https://github.com/mios-dev/mios-bootstrap.git \
               "${RUNNER_TEMP}/mios-bootstrap"
           echo "MIOS_BOOTSTRAP_ROOT=${RUNNER_TEMP}/mios-bootstrap" >> "$GITHUB_ENV"
-
-      - name: Build the native gate binaries
-        run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
 
       - name: Static analysis tier
         run: bash ./tests/run-suites.sh lint
@@ -106,12 +128,14 @@ jobs:
           set -euo pipefail
           # Build arguments come from /etc/mios/install.env, which the runner
           # Quadlet mounts read-only from the host.
-          BUILD_ARGS=()
+          BASE_IMAGE="$(./usr/libexec/mios/mios-toml-get --vendor image base)"
+          [[ -n "$BASE_IMAGE" ]] || { echo "SSOT image.base is empty" >&2; exit 1; }
+          BUILD_ARGS=(--build-arg "BASE_IMAGE=$BASE_IMAGE")
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env
-              [[ -n "${MIOS_LINUX_USER:-}"     ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
-              [[ -n "${MIOS_HOSTNAME:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+              [[ -n "${MIOS_LINUX_USER:-}"     ]] && BUILD_ARGS+=(--build-arg "MIOS_IDENTITY_USERNAME=${MIOS_LINUX_USER}")
+              [[ -n "${MIOS_IDENTITY_HOSTNAME:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_IDENTITY_HOSTNAME=${MIOS_IDENTITY_HOSTNAME}")
               [[ -n "${MIOS_AI_MODEL:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
               [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
           fi

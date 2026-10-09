@@ -171,11 +171,9 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │       └─ agreements-banner.ps1       scrollable acknowledgement gate (PowerShell)
 │   │
 │   ├─ config/
-│   │   ├─ artifacts/             bootc-image-builder configs
+│   │   ├─ artifacts/             bootc-image-builder recipes (qcow2/vhdx are rendered by miosd artifact-build)
 │   │   │   ├─ bib.toml                shared base
 │   │   │   ├─ iso.toml                ISO installer
-│   │   │   ├─ qcow2.toml              KVM/QEMU disk image
-│   │   │   ├─ vhdx.toml               Hyper-V disk image
 │   │   │   └─ wsl2.toml               WSL2 tar
 │   │   └─ bootstrap/
 │   │       ├─ bootstrap.sh           legacy bootstrap entry (Linux)
@@ -427,7 +425,7 @@ reference and in historical migration notes; pgvector is the sole vector store).
 | Inference lane map | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-llm-light.service` (upstream llama-swap proxy) | every agent that requests a model from the `llm_light` lane |
 | Agent datastore schema | `usr/share/mios/postgres/schema-init.sql` | `mios-ai-firstboot` (applies it) | agent-pipe (`mios_pg.py`), Hermes, `mios-pg-query` / `mios-db --pg` on `:5432` |
 | Image refs | `mios.toml [image].*` | userenv.sh → `MIOS_IMAGE_REF`, `MIOS_BASE_IMAGE`, `MIOS_BIB_IMAGE` | Containerfile, `bootc switch`, `build-mios.*` |
-| Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_USER`, `MIOS_HOSTNAME`, `MIOS_USER_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
+| Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_IDENTITY_USERNAME`, `MIOS_IDENTITY_HOSTNAME`, `MIOS_IDENTITY_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
 | Pipeline phases | `./mios-pipeline.{sh,ps1}` | -- | calls `bootstrap.sh` / `build-mios.{sh,ps1}` / `install.{sh,ps1}` per phase |
 
 ## Three-layer overlay (read order: lowest → highest)
@@ -586,8 +584,6 @@ artifacts have been renamed or removed in the live tree).
 |  +- artifacts/
 |  |  +- bib.toml
 |  |  +- iso.toml
-|  |  +- qcow2.toml
-|  |  +- vhdx.toml
 |  |  `- wsl2.toml
 |  `- bootstrap/
 |     +- bootstrap.ps1
