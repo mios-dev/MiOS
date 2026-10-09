@@ -16,11 +16,11 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 | Status | Records |
 |---|---|
-| pending | 1682 |
+| pending | 1681 |
 | in_progress | 50 |
 | completed | 1823 |
 | incomplete | 21 |
-| cancelled | 19 |
+| cancelled | 20 |
 | total | 3595 |
 
 0 record(s) carry at least one override.
@@ -866,7 +866,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1168` Package every MiOS image as Linux FHS, OCI/bootc and AI-standard artifacts, with docs laid out to match -- in_progress · owner claude-code · P1 · size L
 - `T-1169` One canonical tasks.jsonl at the repo root; TASKS.md is rendered documentation plus operator overrides -- in_progress · owner claude-code · P0 · size L
 - `T-1183` Size measurements refuse a mid-merge index instead of counting conflicted paths once per stage -- completed · owner claude-code · P1 · size S
-- `T-1232` PR #61 lands: drift-gate and smoke-test green, bootstrap #26 first, merged only on the operator's final go (WS-CI | P0 | M) -- in_progress · owner claude · P0 · size M · depends_on T-1228, T-1229, T-1013
+- `T-1232` PR #61 lands: drift-gate and smoke-test green, bootstrap #26 first, merged only on the operator's final go (WS-CI | P0 | M) -- in_progress · owner claude-code · P0 · size M · depends_on T-1228, T-1229, T-1013
 - `T-1251` Turn on the CI VHDX build and boot job ([ci.artifacts].vhdx) once the disk blockers are fixed (WS-CI | P0 | S) -- pending · P0 · size S · depends_on T-1233, T-1241, T-1249, T-1250
 - `T-1261` P1-3: CI shape -- tier matrix from [ci.tiers], natives built once, the build's own image smoke-tested, timeouts from SSOT (WS-CI | P1 | M) -- pending · P1 · size M
 
@@ -1310,7 +1310,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 ### Epic T-1231
 
-- `T-1233` Q9 VHDX / P0-9 phase A: native Hyper-V artifact build from [deploy.formats.vhdx], SSOT credentials, boot test, local delivery (WS-DEPLOY | P0 | M) -- in_progress · owner claude · P0 · size M
+- `T-1233` Q9 VHDX / P0-9 phase A: native Hyper-V artifact build from [deploy.formats.vhdx], SSOT credentials, boot test, local delivery (WS-DEPLOY | P0 | M) -- in_progress · owner claude-code · P0 · size M
 - `T-1255` Q9 ISO: build the installer ISO and boot it through Anaconda; its rendered kickstart `user` line is only unit-tested today (WS-DEPLOY | P1 | M) -- pending · P1 · size M
 - `T-1256` Q9 qcow2: build the qcow2 disk locally and boot-test it (WS-DEPLOY | P1 | M) -- pending · P1 · size M
 - `T-1257` Q9 raw: the raw disk goes through the SSOT renderer (account and size), then builds and boots locally (WS-DEPLOY | P1 | M) -- pending · P1 · size M
@@ -1631,7 +1631,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1222` Four blind drift gates made able to fail; six stale negatives assert the current contract (WS-DRIFT | P1 | M) -- completed · P1 · size M
 - `T-1223` The drift gate is read-only; dead-lane and read-only negatives; one phase ceiling (WS-DRIFT | P1 | S) -- completed · P1 · size S
 - `T-1224` Law 8 gates describe the native tree: projection registry, coverage and host parity name the mios-gen modules (WS-DRIFT | P1 | M) -- completed · P1 · size M
-- `T-1228` Legibility ratchet green on PR #61 without raising a ceiling: tracked files and shell lines (WS-DRIFT | P0 | M) -- in_progress · owner claude · P0 · size M
+- `T-1228` Legibility ratchet green on PR #61 without raising a ceiling: tracked files and shell lines (WS-DRIFT | P0 | M) -- in_progress · owner claude-code · P0 · size M
 - `T-1239` Every Law 8 projection names its consumer, and the gate runs that consumer's own validator (WS-DRIFT | P1 | M) -- pending · P1 · size M
 - `T-1295` Native bootstrap-sync names the drifted table key again, not only the file (WS-DRIFT | P2 | S) -- pending · P2 · size S
 - `T-1296` Register the two unchecked projections: the k3s manifests and the wsl.conf reference copy (WS-DRIFT | P2 | S) -- pending · P2 · size S
@@ -2689,7 +2689,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1994` Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned -- pending · P1 · size M · depends_on AGY-1993
 - `AGY-1998` Hardware watchdog timer integration (/dev/watchdog) in mios-node -- pending · P2 · size S · depends_on AGY-1997
 - `AGY-2121` Signed Proxy WoL with SecureON payload and peer wake daemon -- pending · P1 · size S · depends_on AGY-2120
-- `AGY-2122` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- pending · P1 · size M · depends_on AGY-2121
+- `AGY-2122` Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner -- cancelled · P1 · size M · depends_on AGY-2121
 - `AGY-2127` Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser -- pending · P1 · size M · depends_on AGY-2126
 - `AGY-2128` Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon -- pending · P1 · size M · depends_on AGY-2127
 - `AGY-2161` In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder -- pending · P1 · size M · depends_on AGY-2160
