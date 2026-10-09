@@ -6471,6 +6471,7 @@ served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (
 gpu_util       = 0.85           # --gpu-memory-utilization: the ~16GB AWQ weights need >0.66; 0.85=~20.4GB leaves ~4GB KV. Heavy lane is gated OFF by default -> only claims the GPU when explicitly enabled (near-exclusive 4090 then).
 max_model_len  = 262144        # 256k native. On the shared 24GB 4090 vLLM's ~4GB fp8-KV budget admits well short of a full 256k sequence -> for the FULL 256k select the SGLang engine below (HiCache CPU KV-offload). vLLM PagedAttention admits up to this ceiling as KV allows.
 kv_cache_dtype = "fp8"          # --kv-cache-dtype fp8 (e5m2 on Ada): ~2x KV capacity; REQUIRED to approach the ceiling on 24GB.
+load_format    = "auto"          # --load-format: read the real weights from /models. "dummy" initialises RANDOM weights (vLLM profiling only) -- never ship it.
 quantization   = ""              # quantization format (empty = vLLM auto-detects from model weights config.json)
 tool_call_parser = "hermes"     # Qwen3 emits Hermes-style <tool_call> blocks -> OpenAI tool_calls[]
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
@@ -6486,6 +6487,7 @@ mem_fraction       = 0.85           # --mem-fraction-static: the ~16GB AWQ weigh
 tool_parser        = "qwen25"       # --tool-call-parser: Qwen3-2507 emits Qwen <tool_call> blocks (qwen25 parser handles them); SGLang's qwen25 parser fits the Qwen3 family.
 reasoning_parser   = ""             # Qwen3-30B-A3B-INSTRUCT-2507 is NON-thinking (no <think>) -> no reasoning parser. For CoT, bake Qwen/Qwen3-30B-A3B-Thinking-2507 and set reasoning_parser = "qwen3".
 kv_cache_dtype     = "fp8_e5m2"     # --kv-cache-dtype fp8_e5m2: ~2x KV capacity; REQUIRED with HiCache to reach 256k.
+load_format        = "auto"         # --load-format: read the real weights from /models ("dummy" = random weights, profiling only).
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM -- the mechanism that makes 256k fit
 unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixTree): enable radx-tree KV cache optimization
 
@@ -7656,7 +7658,7 @@ postgres           = "docker.io/library/postgres:latest"
 guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
-pgvector           = "docker.io/pgvector/pgvector:latest"
+pgvector           = "docker.io/pgvector/pgvector:pg18"   # pgvector floats per PostgreSQL MAJOR (pgNN); no :latest tag exists. mios-pgvector-major-upgrade migrates PGDATA across majors
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
@@ -8158,7 +8160,7 @@ core = [
   "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lizardbyte/sunshine:latest-ubuntu-26.10",
   "docker.io/lmsysorg/sglang:latest",
-  "docker.io/pgvector/pgvector:latest",
+  "docker.io/pgvector/pgvector:pg18",
   "docker.io/rancher/k3s:latest",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
@@ -10138,7 +10140,7 @@ Environment = [
   "TRITON_CACHE_DIR=/tmp/.cache",
   "VLLM_HOST_IP=127.0.0.1"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_LLM_HEAVY:-8520} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.80} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-8192} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --load-format ${MIOS_VLLM_LOAD_FORMAT:-dummy} --enable-prefix-caching --enforce-eager"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_LLM_HEAVY:-8520} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.80} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-8192} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --load-format ${MIOS_VLLM_LOAD_FORMAT:-auto} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 
 [containers.mios-llm-heavy.engine.vllm.Unit]
@@ -10146,7 +10148,7 @@ Description = "'MiOS' heavy lane, vLLM engine (OpenAI /v1, PagedAttention + APC;
 
 # SGLang: HiCache spills inactive KV to CPU RAM for the native 256k context; options [ai.sglang].
 [containers.mios-llm-heavy.engine.sglang.Container]
-Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_LLM_HEAVY:-8520} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --load-format ${MIOS_SGLANG_LOAD_FORMAT:-dummy} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --trust-remote-code"
+Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORTS_LLM_HEAVY:-8520} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --load-format ${MIOS_SGLANG_LOAD_FORMAT:-auto} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --trust-remote-code"
 Image = "${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}"
 
 [containers.mios-llm-heavy.engine.sglang.Unit]
@@ -10366,7 +10368,7 @@ Environment = [
 ]
 Exec = "postgres -c port=${MIOS_PORTS_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PGVECTOR_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PGVECTOR_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PGVECTOR_HNSW_SCAN_MEM_MULTIPLIER:-1}"
 Group = "${MIOS_SERVICES_PGVECTOR_GID:-826}"
-Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:latest}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg18}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
@@ -12795,10 +12797,12 @@ max_tooling_python_lines = 81101   # T-1009 unit 2: canonical-bools strangled to
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
+# Keys are the fetcher's contract (usr/libexec/mios/mios-models-firstboot): name + source +
+# sha256; the file lands in /var/lib/mios/llamacpp/models/<name>. The digest is the upstream
+# LFS oid of the same file [llamacpp].bake_models names.
 name   = "lfm2-700m.gguf"
-url    = "https://huggingface.co/stelterlab/lfm2-700m-GGUF/resolve/main/lfm2-700m.gguf"
-dest   = "/usr/share/mios/llamacpp/model.gguf"
-sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+source = "https://huggingface.co/LiquidAI/LFM2-700M-GGUF/resolve/main/LFM2-700M-Q4_K_M.gguf"
+sha256 = "684e8406dc13321452b3f6aeca432776e2a6a7e1ad6c23f7887b8fe3efbe2efa"
 
 # The suite registry: every publisher runs this list and only this list.
 # Before it existed the two ran different sets and thirteen suites ran
