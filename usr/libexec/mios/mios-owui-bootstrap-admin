@@ -208,8 +208,8 @@ def _bcrypt_hash_via_container(password: str) -> str:
             input=password, capture_output=True, text=True, timeout=30, check=True
         )
         return out.stdout.strip()
-    except (subprocess.SubprocessError, FileNotFoundError) as e:
-        _log(f"FATAL: bcrypt unavailable on host AND fallback container exec failed: {e}")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        _log("FATAL: bcrypt unavailable on host AND fallback container exec failed")
         raise SystemExit(2)
 
 
@@ -244,8 +244,8 @@ def _export_admin_api_key(conn, uid: str) -> None:
         except (KeyError, PermissionError, OSError):
             pass  # group may not exist / not root -- file is still 0640
         _log(f"exported OWUI admin api_key -> {out} (mode 0640, root:mios-ai)")
-    except Exception as e:  # noqa: BLE001 -- never block firstboot
-        _log(f"api_key export skipped: {e}")
+    except Exception:  # noqa: BLE001 -- never block firstboot
+        _log("api_key export skipped: database or credential file unavailable")
 
 
 def main():
@@ -257,8 +257,8 @@ def main():
     try:
         try:
             user_cols = {row[1] for row in conn.execute("PRAGMA table_info(user)")}
-        except sqlite3.OperationalError as e:
-            _log(f"OWUI db schema not ready ({e}) -- skipping")
+        except sqlite3.OperationalError:
+            _log("OWUI db schema not ready -- skipping")
             return 0
         if "id" not in user_cols:
             _log("OWUI user table not ready (no columns) -- skipping")
@@ -291,17 +291,16 @@ def main():
             conn.commit()
             _write_credentials_receipt(name, email, source, receipt_password)
             _export_admin_api_key(conn, uid)
-            _log(f"reconciled OWUI admin {email!r} password to SSOT (source: {source})")
+            _log("reconciled OWUI admin credentials to SSOT")
             return 0
 
         existing = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
         if existing > 0:
-            _log(f"OWUI has {existing} user(s), none with the MiOS admin email "
-                 f"{email!r} -- leaving as-is")
+            _log(f"OWUI has {existing} user(s), none matching the configured admin -- leaving as-is")
             return 0
 
         uid = str(uuid.uuid4())
-        _log(f"creating first OWUI admin: name={name!r} email={email!r} (password source: {source})")
+        _log("creating first OWUI admin from configured identity and credentials")
         candidate = {
             "id": uid,
             "name": name,
@@ -327,10 +326,10 @@ def main():
             (uid, email, password_hash, 1),
         )
         conn.commit()
-        _log(f"admin user created (id={uid[:8]}..., role=admin)")
+        _log("admin user created (role=admin)")
         _write_credentials_receipt(name, email, source, receipt_password)
         _export_admin_api_key(conn, uid)
-        _log(f"credentials written to {PASSWORD_OUT} (mode 0600)")
+        _log("credentials written to the configured private receipt (mode 0600)")
         return 0
     finally:
         conn.close()

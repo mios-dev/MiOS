@@ -3899,6 +3899,71 @@ def vs_main() -> int:
 
 
 
+
+class TestOwuiCredentialDiagnostics(unittest.TestCase):
+    """Real SQLite creation/reconciliation and failing secret boundaries stay private."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.machinery
+        from pathlib import Path
+        target = Path(__file__).resolve().parents[1] / "usr/libexec/mios/mios-owui-bootstrap-admin"
+        loader = importlib.machinery.SourceFileLoader("owui_credentials_under_test", str(target))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        cls.admin = importlib.util.module_from_spec(spec)
+        loader.exec_module(cls.admin)
+
+    def test_creation_and_reconciliation_do_not_log_identity_or_credentials(self):
+        import contextlib
+        import io
+        import sqlite3
+        from pathlib import Path
+        marker = "DEVLOOP-PLANTED-PRIVATE"
+        email = marker + "@example.invalid"
+        with tempfile.TemporaryDirectory(prefix="mios-owui-privacy-") as temporary:
+            database = Path(temporary) / "webui.db"
+            receipt = Path(temporary) / (marker + "-credentials")
+            with sqlite3.connect(database) as connection:
+                connection.executescript("CREATE TABLE user(id TEXT, name TEXT, email TEXT, role TEXT, updated_at INTEGER);"
+                                         "CREATE TABLE auth(id TEXT, email TEXT, password TEXT, active INTEGER);")
+            output = io.StringIO()
+            with patch.object(self.admin, "DB", database), patch.object(self.admin, "PASSWORD_OUT", receipt), \
+                 patch.object(self.admin, "_read_mios_toml_identity", return_value=(marker, email)), \
+                 patch.object(self.admin, "_password_tier", return_value=(0, False)), \
+                 patch.object(self.admin, "_read_password", return_value=marker), \
+                 patch.object(self.admin, "_bcrypt_hash", return_value="fixture-hash"), contextlib.redirect_stderr(output):
+                self.assertEqual(self.admin.main(), 0)
+                self.assertEqual(self.admin.main(), 0)
+            self.assertNotIn(marker, output.getvalue())
+            self.assertIn("admin user created", output.getvalue())
+            self.assertIn("reconciled OWUI admin", output.getvalue())
+            with sqlite3.connect(database) as connection:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM user").fetchone()[0], 1)
+                self.assertEqual(connection.execute("SELECT password, active FROM auth").fetchone(), ("fixture-hash", 1))
+            self.assertNotIn("password: " + marker, receipt.read_text())
+            if os.name != "nt":
+                self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+
+    def test_failed_hash_and_key_export_do_not_log_exception_payloads(self):
+        import contextlib
+        import io
+        import subprocess
+        from unittest.mock import Mock
+        marker = "DEVLOOP-PLANTED-PRIVATE"
+        output = io.StringIO()
+        with patch.object(subprocess, "run", side_effect=FileNotFoundError(marker)), contextlib.redirect_stderr(output):
+            with self.assertRaises(SystemExit) as failure:
+                self.admin._bcrypt_hash_via_container(marker)
+        self.assertEqual(failure.exception.code, 2)
+        connection = Mock()
+        connection.execute.side_effect = RuntimeError(marker)
+        with contextlib.redirect_stderr(output):
+            self.admin._export_admin_api_key(connection, "fixture-user")
+        self.assertNotIn(marker, output.getvalue())
+        self.assertIn("FATAL: bcrypt unavailable", output.getvalue())
+        self.assertIn("api_key export skipped", output.getvalue())
+
+
 def main() -> int:
     rc = 0 if unittest.main(argv=[sys.argv[0]], exit=False).result.wasSuccessful() else 1
     return rc
