@@ -7593,3 +7593,31 @@ Windows-side tail entirely.
 
 <!-- mios-src:0acbcca01ab2 from build-mios.ps1:1-38 -->
 
+### Invoke-Expression runs this body inside its caller's...
+
+Invoke-Expression runs this body inside its caller's PowerShell process.
+This entrypoint uses `exit` for explicit pipeline exit codes, so executing it
+directly with `irm ... | iex` would close the operator's terminal. Re-run the
+fetched entrypoint as a script file in a child process; exit then returns to
+the caller's prompt. The environment guard prevents the child's cache-busted
+in-process refresh from spawning another child.
+
+<!-- mios-src:c0df16f5dc7a from Get-MiOS.ps1:66-71 -->
+
+### The monitor must use the profile named by the operator...
+
+The monitor must use the profile named by the operator SSOT. Delay launch
+until the TOML resolver exists so the WT profile is not inferred from a
+stale global default.
+
+<!-- mios-src:0a430550eb7e from Get-MiOS.ps1:583-585 -->
+
+### Read existing settings.json -- preserve operator globals...
+
+Read existing settings.json -- preserve operator globals except the
+system default profile, which MiOS intentionally owns per bootstrap
+contract. Other global settings and keybindings remain untouched.
+WT writes JSONC; ConvertFrom-Json on PS5.1 chokes on it, so strip
+comments + trailing commas before parsing.
+
+<!-- mios-src:720d88370c85 from Get-MiOS.ps1:1758-1762 -->

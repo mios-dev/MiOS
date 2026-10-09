@@ -3973,10 +3973,7 @@ metal.mesh.headscale_domain  MIOS_METAL_MESH_HEADSCALE_DOMAIN
 metal.mesh.vnet_cidr  MIOS_METAL_MESH_VNET_CIDR
 metal.mesh.swtpm_vtpm  MIOS_METAL_MESH_SWTPM_VTPM
 headscale.enabled  MIOS_HEADSCALE_ENABLED
-headscale.port  MIOS_HEADSCALE_PORT
 headscale.server_url  MIOS_HEADSCALE_SERVER_URL
-headscale.base_domain  MIOS_HEADSCALE_BASE_DOMAIN
-headscale.vnet_cidr  MIOS_HEADSCALE_VNET_CIDR
 headscale.listen_addr  MIOS_HEADSCALE_LISTEN_ADDR
 headscale.metrics_listen_addr  MIOS_HEADSCALE_METRICS_LISTEN_ADDR
 headscale.config_path  MIOS_HEADSCALE_CONFIG_PATH
@@ -4012,11 +4009,7 @@ network.quadlet.subnet  MIOS_NETWORK_QUADLET_SUBNET
 network.quadlet.core_subnet  MIOS_NETWORK_QUADLET_CORE_SUBNET
 network.quadlet.core_gateway  MIOS_NETWORK_QUADLET_CORE_GATEWAY
 aliases.browser  MIOS_ALIASES_BROWSER
-aliases.web  MIOS_ALIASES_WEB
-aliases.default_browser  MIOS_ALIASES_DEFAULT_BROWSER
 aliases.editor  MIOS_ALIASES_EDITOR
-aliases.terminal  MIOS_ALIASES_TERMINAL
-aliases.file_manager  MIOS_ALIASES_FILE_MANAGER
 colors.bg  MIOS_COLORS_BG
 colors.fg  MIOS_COLORS_FG
 colors.accent  MIOS_COLORS_ACCENT
@@ -6007,7 +6000,6 @@ pipeline.invariants.label_not_stale  MIOS_PIPELINE_INVARIANTS_LABEL_NOT_STALE
 pipeline.invariants.single_progress  MIOS_PIPELINE_INVARIANTS_SINGLE_PROGRESS
 pipeline.external.counters  MIOS_PIPELINE_EXTERNAL_COUNTERS
 pipeline.external.suppress_hint  MIOS_PIPELINE_EXTERNAL_SUPPRESS_HINT
-drift.generated_ceilings.build.ratchet.max_phase_scripts  MIOS_DRIFT_GENERATED_CEILINGS_BUILD_RATCHET_MAX_PHASE_SCRIPTS
 drift.generated_ceilings.build.rechunk_max_layers  MIOS_DRIFT_GENERATED_CEILINGS_BUILD_RECHUNK_MAX_LAYERS
 drift.generated_ceilings.legibility.max_tracked_mb  MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TRACKED_MB
 drift.generated_ceilings.legibility.max_tracked_files  MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_TRACKED_FILES
@@ -6024,7 +6016,6 @@ drift.unimplemented.checks  MIOS_DRIFT_UNIMPLEMENTED_CHECKS
 build.phases.unregistered  MIOS_BUILD_PHASES_UNREGISTERED
 build.phases.max_unregistered  MIOS_BUILD_PHASES_MAX_UNREGISTERED
 build.phases.list  MIOS_BUILD_PHASES_LIST
-build.ratchet.max_phase_scripts  MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS
 templates.placeholders.name  MIOS_TEMPLATES_PLACEHOLDERS_NAME
 templates.placeholders.PascalName  MIOS_TEMPLATES_PLACEHOLDERS_PASCALNAME
 templates.placeholders.date  MIOS_TEMPLATES_PLACEHOLDERS_DATE
@@ -6075,7 +6066,6 @@ docs.ref_allowlist  MIOS_DOCS_REF_ALLOWLIST
 docs.link_base  MIOS_DOCS_LINK_BASE
 docs.distill.enable  MIOS_DOCS_DISTILL_ENABLE
 docs.distill.dest_dir  MIOS_DOCS_DISTILL_DEST_DIR
-docs.distill.skip_globs  MIOS_DOCS_DISTILL_SKIP_GLOBS
 docs.sanitize.redact_patterns  MIOS_DOCS_SANITIZE_REDACT_PATTERNS
 docs.sanitize.redact_with  MIOS_DOCS_SANITIZE_REDACT_WITH
 docs.sanitize.path_rewrites  MIOS_DOCS_SANITIZE_PATH_REWRITES

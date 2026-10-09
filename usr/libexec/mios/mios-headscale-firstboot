@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# AI-hint: Generates the initial Headscale config.yaml by reading mios.toml [headscale] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.
+# AI-hint: Generates the initial Headscale config.yaml by reading mios.toml [headscale], [metal.mesh] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.
 # AI-related: /etc/headscale/config.yaml, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /var/lib/headscale, mios-headscale
 """'MiOS' Headscale mesh VPN coordinator first-boot config generator.
 
-Writes /etc/headscale/config.yaml from the [headscale] + [ports] SSOT in
+Writes /etc/headscale/config.yaml from the [headscale] + [metal.mesh] + [ports] SSOT in
 mios.toml (layered: vendor /usr/share/mios/mios.toml < host /etc/mios/mios.toml).
 
 Idempotent + non-destructive: if the config file already exists it does NOTHING
@@ -49,14 +49,15 @@ def _ensure_dirs(uid: int, gid: int) -> None:
 def _build_config_yaml(data: dict) -> str:
     ports_sec = data.get("ports", {})
     hs_sec = data.get("headscale", {})
+    mesh_sec = data.get("metal", {}).get("mesh", {})  # ONE home of the tailnet domain + prefix
 
-    port = int(ports_sec.get("headscale", hs_sec.get("port", 8085)))
-    server_url = str(hs_sec.get("server_url", f"http://mesh.mios.local:{port}"))
+    port = int(ports_sec.get("headscale", 8085))
+    base_domain = str(mesh_sec.get("headscale_domain", "mesh.mios.local"))
+    vnet_cidr = str(mesh_sec.get("vnet_cidr", "100.64.0.0/10"))
+    server_url = str(hs_sec.get("server_url", f"http://{base_domain}:{port}"))
     listen_addr = str(hs_sec.get("listen_addr", f"0.0.0.0:{port}"))
     metrics_listen = str(hs_sec.get("metrics_listen_addr", "127.0.0.1:9090"))
     grpc_listen = str(hs_sec.get("grpc_listen_addr", "127.0.0.1:50443"))
-    base_domain = str(hs_sec.get("base_domain", "mesh.mios.local"))
-    vnet_cidr = str(hs_sec.get("vnet_cidr", "100.64.0.0/10"))
     db_path = str(hs_sec.get("db_path", "/var/lib/headscale/db.sqlite"))
     policy_path = str(hs_sec.get("policy_path", "/usr/share/mios/mini/headscale-policy.hujson"))
 

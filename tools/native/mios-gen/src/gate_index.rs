@@ -132,17 +132,28 @@ pub fn run_gate_index(
     let content = fs::read_to_string(&script_path)
         .map_err(|e| (format!("Failed to read {}: {e}", script_path.display()), 1))?;
 
-    let main_start = content.find("main() {").ok_or_else(|| {
-        (
-            "ERROR: main() function not found in 98-drift-checks.sh".to_string(),
-            1,
-        )
-    })?;
+    let lines: Vec<&str> = content.lines().collect();
+    let main_start = lines
+        .iter()
+        .position(|line| *line == "main() {")
+        .ok_or_else(|| {
+            (
+                "ERROR: main() function not found in 98-drift-checks.sh".to_string(),
+                1,
+            )
+        })?;
 
-    let main_body = &content[main_start..];
+    // The registry's main function closes at column zero. Helpers declared
+    // afterwards may delegate to registered checks; those calls are not entries.
+    let main_end = lines[main_start + 1..]
+        .iter()
+        .position(|line| *line == "}")
+        .map(|offset| main_start + 1 + offset)
+        .ok_or_else(|| ("ERROR: main() function is not closed".to_string(), 1))?;
+    let main_body = lines[main_start + 1..main_end].join("\n");
     let check_re = Regex::new(r"(?m)^\s*(check_[a-z0-9_]+)\s*$").unwrap();
     let check_names: Vec<String> = check_re
-        .captures_iter(main_body)
+        .captures_iter(&main_body)
         .map(|c| c.get(1).unwrap().as_str().to_string())
         .collect();
 
@@ -160,7 +171,6 @@ pub fn run_gate_index(
         }
     }
 
-    let lines: Vec<&str> = content.lines().collect();
     let mut rows = Vec::new();
     for (idx, name) in check_names.iter().enumerate() {
         let desc = describe(root, &lines, &content, name);

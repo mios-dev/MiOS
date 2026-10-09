@@ -1,4 +1,4 @@
-// AI-hint: Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14) -- hermetic: every case runs against a fixture copy of ROADMAP.md, because a test that checks the LIVE tree's sync state fails on any mid-edit working copy and duplicates what the drift gate already asserts.
+// AI-hint: Two-sided integration tests for mios-gen roadmap-index (ADR-0021, Law 14), hermetic: each case runs on a fixture copy of ROADMAP.md, since checking the LIVE tree fails on any mid-edit copy and duplicates the drift gate.
 // AI-doc: usr/share/doc/mios/manual/tools.md
 // AI-related: tools/native/mios-gen/src/roadmap_index.rs, ROADMAP.md, automation/98-drift-checks.sh
 

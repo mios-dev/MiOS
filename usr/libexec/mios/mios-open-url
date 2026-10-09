@@ -80,13 +80,11 @@ if env_browser and env_browser not in seen:
 
 d = mios_toml.load_merged()
 
-# 2. SSOT aliases: [aliases].browser or [aliases].web from mios.toml / mios.html
-aliases = d.get("aliases", {})
-for key in ("browser", "web", "default_browser"):
-    val = aliases.get(key)
-    if isinstance(val, str) and val and val not in seen:
-        chain.append(val)
-        seen.add(val)
+# 2. SSOT default browser: [aliases].browser from mios.toml / mios.html
+val = d.get("aliases", {}).get("browser")
+if isinstance(val, str) and val and val not in seen:
+    chain.append(val)
+    seen.add(val)
 
 # 3. [browser].default
 br_default = d.get("browser", {}).get("default")
