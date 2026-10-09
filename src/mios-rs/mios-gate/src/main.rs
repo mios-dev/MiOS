@@ -101,8 +101,8 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
                              doc-refs-headers, doc-refs-resolve, drift-stubs, gate-registry, generator-host-parity,\n\
                              image-equivalence, image-freshness, module-test-coverage, negative-coverage,\n\
-                             no-inert-ssot-tables, profile-integrity,\n\
-                             phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
+                             no-inert-ssot-tables, phase-ratchet, phase-registry, profile-integrity,\n\
+                             powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
 
@@ -235,6 +235,7 @@ fn main() -> ExitCode {
         "module-test-coverage" => module_tests::check(&root),
         "negative-coverage" => negative_coverage::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
+        "phase-ratchet" => phases::ratchet(&root),
         "phase-registry" => phases::check(&root),
         "powershell-parse" => powershell::check(&root, false),
         "powershell-analyze" => powershell::check(&root, true),

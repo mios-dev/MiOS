@@ -3598,13 +3598,9 @@ check_no_hardcoded_ssot_literal() {
 
 check_bash_phase_ratchet() {
     echo "[98-drift-checks]   bash phase script count ratchet check"
-    local count
-    count="$(find "$ROOT/automation" -maxdepth 1 -name "[0-9][0-9]-*.sh" | wc -l)"
-    local max_allowed
-    max_allowed="$(python3 -c "import tomllib; f=open('${ROOT}/usr/share/mios/mios.toml','rb'); d=tomllib.load(f); print(d.get('build',{}).get('ratchet',{}).get('max_phase_scripts', 71))" 2>/dev/null || echo "71")"
-    if [[ "$count" -gt "$max_allowed" ]]; then
-        _violation "bash phase script count ($count) exceeds ratchet baseline ($max_allowed)"
-    fi
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_bash_phase_ratchet could not run"; return; }
+    "$bin" phase-ratchet --root "$ROOT" || \
+        _violation "the automation/NN-*.sh count is not exactly [legibility].max_automation_phases -- fold a phase, or lower the ceiling to the count"
 }
 
 check_signature_policy() {
@@ -3845,9 +3841,31 @@ check_ai_manifests_fresh() {
     fi
 }
 
+# A drift gate grades the tree and must never write it: check_names_registry
+# rewrote names.generated.txt in place (6488 -> 720 lines) and nothing noticed.
+# The tracked tree is fingerprinted through a private index (the real index is
+# never touched) before and after the checks; no git work tree, no fingerprint.
+_tracked_tree() {
+    local idx; idx="$(mktemp)" || return 1
+    cp "$(git -C "$ROOT" rev-parse --path-format=absolute --git-path index 2>/dev/null)" "$idx" 2>/dev/null \
+        && GIT_INDEX_FILE="$idx" git -C "$ROOT" add -u >/dev/null 2>&1 \
+        && GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree 2>/dev/null
+    local rc=$?; rm -f "$idx"; return "$rc"
+}
+_assert_read_only() {  # $1 = what ran; _RO_BEFORE = the fingerprint taken before it
+    local after; [[ -n "${_RO_BEFORE:-}" ]] && after="$(_tracked_tree)" || return 0
+    [[ "$after" == "$_RO_BEFORE" ]] && return 0
+    _violation "$1 wrote into the tree it grades -- a drift gate must be read-only: $(git -C "$ROOT" diff-tree -r --name-only "$_RO_BEFORE" "$after" | head -5 | tr '\n' ' ')" || :
+    return 1
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
+            _RO_BEFORE="$(_tracked_tree)" || _RO_BEFORE=""
+            _RO_WHO="$1"
+            # A trap, so a check that dies under errexit is still held to it.
+            trap '_assert_read_only "$_RO_WHO" || exit 1' EXIT
             "$1"
             if [[ "$VIOLATIONS" -eq 0 ]]; then
                 exit 0
@@ -3866,6 +3884,7 @@ main() {
     # was unreachable whenever it had anything to report. Accumulate instead;
     # VIOLATIONS is the signal, not the exit status of the last check.
     set +e
+    _RO_BEFORE="$(_tracked_tree)" || _RO_BEFORE=""
 
     check_gate_registry
     check_dead_lane
@@ -4103,6 +4122,7 @@ main() {
     check_negatives_registered
     check_tracked_readable
     check_leaked_fixtures
+    _assert_read_only "the gate run (re-run each check alone to name the writer)"
 
     set -e
 
