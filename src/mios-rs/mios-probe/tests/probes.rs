@@ -1,5 +1,5 @@
 // AI-hint: Integration tests for mios-probe: every threshold comes from SSOT, and an unreadable input never reads as ready.
-// AI-related: src/mios-rs/mios-probe/src/probes.rs, usr/share/mios/mios.toml
+// AI-related: src/mios-rs/mios-probe/src/main.rs, usr/share/mios/mios.toml
 
 use std::fs;
 use std::path::Path;

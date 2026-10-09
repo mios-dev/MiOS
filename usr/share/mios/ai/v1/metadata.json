@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3707,
-  "total_metadata_entries": 3055,
-  "total_hints": 3045,
+  "total_files_scanned": 3700,
+  "total_metadata_entries": 3048,
+  "total_hints": 3038,
   "total_functions_indexed": 1453,
-  "total_related_links": 5105,
+  "total_related_links": 5098,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -4367,19 +4367,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "/etc/mios/mios.toml",
-        "tools/lib/userenv.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-config/src/validator.rs",
-      "hint": "Zero-dependency SSOT mios.toml type validator and schema enforcement engine.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "/etc/mios/mios.toml",
+        "tools/lib/userenv.sh",
         "tools/drift-checks.py"
       ],
       "functions": [],
@@ -5144,33 +5132,8 @@
       "path": "src/mios-rs/mios-probe/src/main.rs",
       "hint": "Entry point for mios-probe, the native host-readiness prober; resolves every threshold from mios.toml rather than from code.",
       "related": [
-        "src/mios-rs/mios-probe/src/probes.rs",
         "usr/share/mios/mios.toml",
-        "Justfile"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-probe/src/probes.rs",
-      "hint": "The two probe sets -- build-host readiness and host-install thresholds -- both resolved from mios.toml [preflight].",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "src/mios-rs/mios-probe/src/report.rs",
-        "Justfile"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-probe/src/report.rs",
-      "hint": "The probe report type and its two renderings: the human lines the shell script printed, and an OpenAI-format structured object.",
-      "related": [
-        "src/mios-rs/mios-probe/src/main.rs",
+        "Justfile",
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md"
       ],
       "functions": [],
@@ -5182,7 +5145,7 @@
       "path": "src/mios-rs/mios-probe/tests/probes.rs",
       "hint": "Integration tests for mios-probe: every threshold comes from SSOT, and an unreadable input never reads as ready.",
       "related": [
-        "src/mios-rs/mios-probe/src/probes.rs",
+        "src/mios-rs/mios-probe/src/main.rs",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
@@ -7336,7 +7299,7 @@
       "hint": "Test suite for T-398: Rust SSOT mios.toml validator (mios check / miosd check).",
       "related": [
         "usr/share/mios/mios.toml",
-        "src/mios-rs/mios-config/src/validator.rs"
+        "src/mios-rs/mios-config/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9354,17 +9317,7 @@
         "etc/mios/ai/config.json",
         "usr/share/mios/ai/v1/config.json",
         "automation/98-drift-checks.sh",
-        "tools/sync-generated.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-ai-config/src/runtime.rs",
-      "hint": "Shared layered endpoint selection, OpenCode projection and bounded readiness probe; never starts inference or substitutes a model.",
-      "related": [
+        "tools/sync-generated.sh",
         "usr/libexec/mios/mios-mcp-server",
         "usr/share/mios/windows/mios-native-client-setup.ps1"
       ],
@@ -10813,35 +10766,8 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-wallpaperd/src/guiwatch.rs",
-      "hint": "GUI window watcher module for mios-wallpaperd.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-wallpaperd/src/host.rs",
-      "hint": "Wallpaper host window module running WebView behind Windows desktop icons.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-wallpaperd/src/main.rs",
       "hint": "Main entry point for mios-wallpaperd wallpaper daemon on Windows.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-wallpaperd/src/workerw.rs",
-      "hint": "WorkerW window attach module for embedding wallpaper behind Explorer desktop icons.",
       "related": [],
       "functions": [],
       "doc": null,
