@@ -1,4 +1,4 @@
-// AI-hint: Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021); --census adds the per-binary SHA-256/interpreter/DT_NEEDED inventory and the dependency census.
+// AI-hint: Static linkage gate for mios-gate: asserts no PT_INTERP or DT_NEEDED on Linux native binaries (Law 14, ADR-0021); --census adds the SHA-256 and dependency inventory.
 // AI-related: src/mios-rs/mios-gate/src/main.rs, usr/share/mios/mios.toml, automation/98-drift-checks.sh, automation/55-native-build.sh
 
 use crate::Report;

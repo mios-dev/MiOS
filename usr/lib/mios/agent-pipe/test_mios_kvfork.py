@@ -2,16 +2,10 @@
 # AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_kvfork (WS-8 KV-cache fork primitives).
 
-Pure stdlib + the sibling modules only -- no server.py import, so it runs on any
+Pure stdlib + the sibling module only -- no server.py import, so it runs on any
 Python 3.10+ without the agent-pipe runtime deps. Mirrors the mios_sched /
 mios_evict standalone-test pattern: explicit asserts, PASS/FAIL summary, exit
 code != 0 on any failure.
-
-The primitives exist twice. mios_pipe.context.kvfork is the R13 extraction the
-manual documents (context.md); mios_kvfork re-implemented them when T-340 turned
-its re-export shim into the slot manager, and agent_call/daemons import that
-copy. Until they are one module again, every contract check below runs against
-BOTH, so the copies cannot drift apart unseen.
 
 Run:  python test_mios_kvfork.py
 """
@@ -22,6 +16,8 @@ import sys
 import mios_kvfork
 from mios_pipe.context import kvfork as context_kvfork
 
+# The primitives exist twice (mios_kvfork re-implemented context.kvfork); every
+# contract check runs against both, so the copies cannot drift apart unseen.
 _IMPLEMENTATIONS = (("mios_kvfork", mios_kvfork),
                     ("mios_pipe.context.kvfork", context_kvfork))
 

@@ -81,11 +81,7 @@ def main() -> int:
 
 
 # ==============================================================================
-# mios_pipe.auth -- the two HTTP middlewares server.py mounts. T-1092 folded
-# test_mios_auth.py in here as a placeholder that could not fail; these are the
-# checks it never had. Requests and upstream responses are minimal stand-ins:
-# the middlewares read only url.path, headers, state, body_iterator and
-# status_code.
+# mios_pipe.auth middlewares; T-1092 had folded only a placeholder here.
 # ==============================================================================
 import asyncio
 import json

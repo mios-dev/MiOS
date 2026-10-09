@@ -116,10 +116,7 @@ def main():
 
 
 # ==============================================================================
-# mios_pipe.streaming -- the bounded streaming sibling of _call_agent_complete.
-# T-1092 folded test_mios_streaming.py in here as a placeholder that could not
-# fail; these are the checks it never had. Every collaborator is injected through
-# configure(), so the admission/gate/accounting order is observable directly.
+# mios_pipe.streaming via configure() fakes; T-1092 had folded only a placeholder here.
 # ==============================================================================
 from mios_pipe import streaming as _streaming
 

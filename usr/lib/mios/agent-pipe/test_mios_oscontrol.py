@@ -278,10 +278,8 @@ _LIVE_CONNECT = None
 
 
 def setUpModule():
-    """Hermeticity guard: every executor call below goes through a patched
-    urlopen, so no test here may open a real connection. Refuse one outright:
-    a dropped mock then fails the suite instead of reaching whatever listens on
-    the executor port of the machine running it."""
+    """Hermeticity guard: every executor call is mocked, so refuse a real
+    connection -- a dropped mock fails here instead of reaching a live executor."""
     global _LIVE_CONNECT
     import socket
 

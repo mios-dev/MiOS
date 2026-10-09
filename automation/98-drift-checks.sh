@@ -425,13 +425,7 @@ check_cli_sql_safety() {
 }
 
 check_module_test_coverage() {
-    # mios-gate module-test-coverage (ADR-0021). T-1092 folded 62 per-module
-    # sibling tests into 45 subject suites, so "a file named test_<module>.py
-    # exists" stopped being the evidence -- and three of the files it folded were
-    # placeholders that could not fail. The gate asks whether a unit test NAMES
-    # each agent-pipe module (imports it, loads its file, or imports its
-    # re-export shim); tools/ and libexec keep the sibling-test rule and its
-    # shrink-only ledger, now with the sibling required to load its module.
+    # Native (ADR-0021): a unit test must NAME each module; a test file named after it is not evidence.
     local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_module_test_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"

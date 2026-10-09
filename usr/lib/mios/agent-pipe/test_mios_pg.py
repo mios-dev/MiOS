@@ -428,10 +428,7 @@ def main() -> int:
 
 
 # ==============================================================================
-# mios_pipe.db -- the legacy /sql transport server.py still routes reads and
-# updates through. T-1092 folded test_mios_db.py in here as a placeholder that
-# could not fail; these are the checks it never had. The HTTP client and the
-# Postgres handle are injected, so nothing here leaves the process.
+# mios_pipe.db transport, client and Postgres injected; T-1092 had folded only a placeholder here.
 # ==============================================================================
 import time
 import unittest

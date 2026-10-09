@@ -67,10 +67,8 @@ def t_drop_stale_tool_results():
     check("drop_tool: keeps recent tool message", any(x.get("role") == "tool" for x in res2))
 
 def t_chat_history():
-    """mios_pipe.routing.chat_history: the gateway session-replay store split out
-    of chat.py. chat_completions_logic resolves these names in chat, so the
-    re-export must hand over the very same objects; the store must degrade to an
-    empty history, never raise into a turn."""
+    """mios_pipe.routing.chat_history: chat re-exports the very same objects;
+    the session store degrades to an empty history, never raising into a turn."""
     import asyncio
     import json
     from mios_pipe.routing import chat, chat_history as ch
