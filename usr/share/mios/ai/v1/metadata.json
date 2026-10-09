@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3672,
-  "total_metadata_entries": 3029,
-  "total_hints": 3019,
+  "total_files_scanned": 3660,
+  "total_metadata_entries": 3018,
+  "total_hints": 3008,
   "total_functions_indexed": 1452,
-  "total_related_links": 5064,
+  "total_related_links": 5059,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -1222,7 +1222,7 @@
       "path": "automation/55-native-build.sh",
       "hint": "Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build. --toolchain provisions the image's own SSOT Rust toolchain instead.",
       "related": [
-        "src/mios-rs/mios-build/src/native_build.rs",
+        "src/mios-rs/mios-build/src/lib.rs",
         "usr/share/mios/mios.toml",
         "Containerfile"
       ],
@@ -4201,37 +4201,16 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-build/src/images.rs",
-      "hint": "Build the operator's current source tree using SSOT image targets and verify installed runtime commands; never fetch, reset or reap it.",
-      "related": [
-        "build-mios.ps1",
-        "Containerfile",
-        ".devcontainer/Containerfile",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "src/mios-rs/mios-build/src/lib.rs",
       "hint": "Native build orchestrator and phase registry for MiOS.",
       "related": [
         "automation/build.sh",
-        "automation/build-mios.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-build/src/native_build.rs",
-      "hint": "Native SSOT catalog build, static-artifact verification and atomic FHS installation.",
-      "related": [
-        "automation/55-native-build.sh",
+        "automation/build-mios.sh",
+        "build-mios.ps1",
+        "Containerfile",
+        ".devcontainer/Containerfile",
         "usr/share/mios/mios.toml",
+        "automation/55-native-build.sh",
         "miosd native-build"
       ],
       "functions": [],
@@ -5367,7 +5346,13 @@
       "path": "src/mios-rs/miosd/src/lib.rs",
       "hint": "Library module exports for miosd crate.",
       "related": [
-        "src/mios-rs/miosd/src/main.rs"
+        "src/mios-rs/miosd/src/main.rs",
+        "tools/native/mios-gen",
+        "automation/33-generate-quadlets.sh",
+        "usr/libexec/mios/mios-keyring-autounlock",
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/configurator/mios.html",
+        "/usr/libexec/mios/mios-configurator-launch"
       ],
       "functions": [],
       "doc": null,
@@ -5379,55 +5364,7 @@
       "hint": "Entry point for the MiOS daemon native workspace (WS-LANG)",
       "related": [
         "Containerfile",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/native_generator.rs",
-      "hint": "Shared native generator dispatch for build verbs and read-only drift checks.",
-      "related": [
-        "tools/native/mios-gen",
-        "automation/33-generate-quadlets.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/secret.rs",
-      "hint": "Native Linux secret management, desktop prompts, Keyrings interface, and automated pipeline safety scanning for miosd.",
-      "related": [
-        "src/mios-rs/miosd/src/main.rs",
-        "usr/libexec/mios/mios-keyring-autounlock",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/server.rs",
-      "hint": "Lightweight, embedded HTTP loopback server hosting mios.html and SSOT /portal/config API.",
-      "related": [
-        "usr/share/mios/configurator/mios.html",
-        "/usr/libexec/mios/mios-configurator-launch",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/terminal_runtime.rs",
-      "hint": "Validate and repair the SSOT-selected tmux namespace using live peer credentials and inode descriptors; preserve running sessions.",
-      "related": [
+        "automation/98-drift-checks.sh",
         "usr/libexec/mios/mios-terminal",
         "usr/share/mios/windows/mios-native-client-setup.ps1"
       ],
@@ -6265,7 +6202,7 @@
       "path": "tests/test-configurator-server.sh",
       "hint": "Automated CI verification test suite for miosd embedded Rust SSOT configurator engine (mios.html & /portal/config).",
       "related": [
-        "src/mios-rs/miosd/src/server.rs",
+        "src/mios-rs/miosd/src/lib.rs",
         "usr/share/mios/configurator/mios.html",
         "usr/share/mios/mios.toml"
       ],
@@ -7199,7 +7136,7 @@
       "path": "tests/test-miosd-secret.sh",
       "hint": "Verification test suite for miosd secret management, Linux native Keyrings, and pipeline credential scanner.",
       "related": [
-        "src/mios-rs/miosd/src/secret.rs",
+        "src/mios-rs/miosd/src/lib.rs",
         "src/mios-rs/miosd/src/main.rs",
         "usr/share/mios/mios.toml"
       ],
@@ -9964,15 +9901,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-resolver/tests/fixtures/vendor_host.toml",
-      "hint": "Fixture overlay for mios-resolver characterization tests -- vendor + host.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-resolver/tests/fixtures/vendor_only.toml",
       "hint": "Fixture overlay for mios-resolver characterization tests -- vendor only.",
       "related": [],
@@ -10007,15 +9935,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-service-core/src/host_tmux.rs",
-      "hint": "Native Windows tmux publication preserves operator configurations and backs up owned legacy projections.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-service-core/src/launcher.rs",
       "hint": "Shared native terminal policy and monitor layouts for Windows and Linux consumers.",
       "related": [
@@ -10032,42 +9951,10 @@
       "hint": "Shared daemon, relay, and service helpers for MiOS native binaries.",
       "related": [
         "tools/native/Cargo.toml",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/process.rs",
-      "hint": "Process creation flags, hidden console configuration, and workspace locking.",
-      "related": [
-        "tools/native/mios-launch",
-        "tools/native/mios-agent-relay"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/socket.rs",
-      "hint": "Socket discovery, validation, and ownership verification routines.",
-      "related": [
-        "tools/native/mios-agent-relay",
-        "usr/libexec/mios/mios-mcp-server"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/ssot.rs",
-      "hint": "Dynamic SSOT resolution from usr/share/mios/mios.toml and environment overrides.",
-      "related": [
         "usr/share/mios/mios.toml",
+        "tools/native/mios-launch",
+        "tools/native/mios-agent-relay",
+        "usr/libexec/mios/mios-mcp-server",
         "tools/native/mios-resolver"
       ],
       "functions": [],
@@ -34472,7 +34359,7 @@
       "hint": "MiOS Native Wayland Secret & Keyring Prompt Dialog for Quickshell.",
       "related": [
         "usr/share/mios/quickshell/Theme.qml",
-        "src/mios-rs/miosd/src/secret.rs"
+        "src/mios-rs/miosd/src/lib.rs"
       ],
       "functions": [],
       "doc": null,

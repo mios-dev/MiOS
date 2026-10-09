@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build. --toolchain provisions the image's own SSOT Rust toolchain instead.
-# AI-related: src/mios-rs/mios-build/src/native_build.rs, usr/share/mios/mios.toml, Containerfile
+# AI-related: src/mios-rs/mios-build/src/lib.rs, usr/share/mios/mios.toml, Containerfile
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
