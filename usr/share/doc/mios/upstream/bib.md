@@ -179,6 +179,16 @@ reach the next:
   resolve to an image ID`). Bound images pulled on first use (P0-3) remove both
   of the last two.
 
+Past those four, the host matters. `[security].composefs_mode = "verity"`
+needs fs-verity on the root filesystem: CoreOS's xfs root does not offer it,
+and with an ext4 root made with `verity: true` the MiOS-DEV kernel
+(6.18 `microsoft-standard-WSL2`, built without `CONFIG_FS_VERITY`) still
+cannot set it, so `bootc install` stops at `Filesystem does not support
+fs-verity`. BIB's `--in-vm`, which would bring its own kernel, fails in this
+build with `KeyError: 'graphroot'`. A disk of a verity image therefore needs a
+host kernel built with `CONFIG_FS_VERITY` -- Fedora's is, so MiOS-DEV on the
+Hyper-V provider would be; check a CI runner's before relying on it.
+
 ## Cross-refs
 
 - `usr/share/doc/mios/guides/deploy.md` — operator deploy guide (the full
