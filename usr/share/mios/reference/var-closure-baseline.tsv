@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 431
+#!ceiling 426
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:663
@@ -93,11 +93,6 @@ MIOS_CACHE_BUSTED	Get-MiOS.ps1:693
 MIOS_CACHE_DIR	usr/libexec/mios/user-setup.sh:17
 MIOS_CALLER_KEYS_PATH	usr/lib/mios/agent-pipe/server.py:725
 MIOS_CATALOG_FAIL_MODE	usr/lib/mios/agent-pipe/server.py:406
-MIOS_CAT_LIVE_CHAT_INCLUDE_FALLBACK	docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh:17
-MIOS_CAT_LIVE_CHAT_LLAMA_SWAP_IMAGE	docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh:19
-MIOS_CAT_LIVE_CHAT_MODEL	docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh:15
-MIOS_CAT_LIVE_CHAT_MODEL_FALLBACK	docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh:16
-MIOS_CAT_LIVE_CHAT_PORT	docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh:18
 MIOS_CHECK_ID	usr/lib/mios/log.sh:26
 MIOS_CHECK_INDEX	usr/lib/mios/log.sh:29
 MIOS_CHILD_TOOL_FLOOR	usr/lib/mios/agent-pipe/server.py:1837

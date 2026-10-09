@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3687,
-  "total_metadata_entries": 3035,
-  "total_hints": 3025,
+  "total_files_scanned": 3672,
+  "total_metadata_entries": 3029,
+  "total_hints": 3019,
   "total_functions_indexed": 1452,
-  "total_related_links": 5068,
+  "total_related_links": 5064,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -2472,79 +2472,6 @@
       "has_shebang": false
     },
     {
-      "path": "docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh",
-      "hint": "Build-time staging for the W10 live-boot AI chat lane -- fetches the",
-      "related": [
-        "mios.toml [cat.live_chat]",
-        "[llamacpp].bake_models",
-        "mios-cpu-node"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__config__live-profile__usr__libexec__mios__mios-live-chat-select-model",
-      "hint": "Boot-time oneshot -- re-resolves [cat.live_chat].model against",
-      "related": [
-        "mios.toml [cat.live_chat]",
-        "mios-live-chat-serve"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__config__live-profile__usr__libexec__mios__mios-live-chat-serve",
-      "hint": "ExecStart for mios-live-chat-server.service -- resolves the",
-      "related": [
-        "mios-live-chat-select-model",
-        "mios-live-chat-prep.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__mios.toml",
-      "hint": "Documentation artifact for MiOS-Cat TOML config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____MiOS__mios.toml",
-      "hint": "Documentation artifact for MiOS TOML config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____MiOS__usr__share__mios__mios.toml",
-      "hint": "Documentation artifact for usr/share/mios/mios.toml config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____mios-bootstrap__mios.toml",
-      "hint": "Documentation artifact for mios-bootstrap mios.toml config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "docs/agy/w10-live-boot/live-chat.toml",
       "hint": "Build-mechanics config for automation/build/live-iso.sh (W10 --",
       "related": [],
@@ -2892,6 +2819,19 @@
       "path": "docs/design/verbosity-changelist.md",
       "hint": "Summary record of the MiOS Automation Log-Message Verbosity Audit.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "docs/design/w10-live-boot/_artifacts.md",
+      "hint": "W10 live-chat design session artifacts that are text, not files to ship: edit snippets, superseded alternates and grounding excerpts, folded from docs/agy/w10-live-boot/.",
+      "related": [
+        "docs/design/w10-live-boot/_landing.md",
+        "docs/design/w10-live-boot/_design.md",
+        "docs/agy/w10-live-boot/live-iso.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
