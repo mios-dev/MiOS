@@ -1566,6 +1566,44 @@ def check_negative_test_coverage() -> int:
 
     sys.exit(0)
 
+def _unselected_engine_images(data):
+    """Images only an UNSELECTED [<kind>.<name>.engine] overlay declares, resolved as
+    mios-bake-plan does from the SSOT. A broken selector exempts nothing."""
+    import re
+    sidecars = {str(k).lower(): v for k, v in
+                ((data.get("image") or {}).get("sidecars") or {}).items() if isinstance(v, str)}
+    var_re = re.compile(r"\$\{([A-Za-z0-9_]+)(?::-([^}]*))?\}")
+
+    def resolve(val):
+        def sub(m):
+            name, fallback = m.group(1), m.group(2)
+            if name.startswith("MIOS_") and name.endswith("_IMAGE"):
+                sc = sidecars.get(name[5:-6].lower())
+                if sc:
+                    return sc
+            return fallback if fallback is not None else m.group(0)
+        return var_re.sub(sub, val).strip()
+
+    selected, unselected = set(), set()
+    for kind in ("containers", "images"):
+        for spec in (data.get(kind) or {}).values():
+            eng = spec.get("engine") if isinstance(spec, dict) else None
+            if not isinstance(eng, dict):
+                continue
+            choice = data
+            for part in str(eng.get("select", "")).split("."):
+                choice = choice.get(part) if isinstance(choice, dict) else None
+            overlays = {k: v for k, v in eng.items() if isinstance(v, dict)}
+            if choice not in overlays:
+                continue
+            for name, overlay in overlays.items():
+                for section in overlay.values():
+                    img = section.get("Image") if isinstance(section, dict) else None
+                    if isinstance(img, str):
+                        (selected if name == choice else unselected).add(resolve(img))
+    return unselected - selected
+
+
 def check_bake_plan_integrity() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -1587,6 +1625,13 @@ def check_bake_plan_integrity() -> int:
     bake_cfg = data.get("build", {}).get("bake", {})
     core_set = set(bake_cfg.get("core", []))
     tokens = bake_cfg.get("firstboot_tokens", [])
+
+    # One lane, several engines (the heavy lane: vLLM or SGLang per
+    # [ai].heavy_engine). Only the selected overlay renders a Quadlet, so the
+    # plan carries only its image; the others stay in core so switching engines
+    # is one SSOT edit. Those are the ONLY core images the plan may omit.
+    unselected = _unselected_engine_images(data)
+    planned_core = core_set - unselected
 
     group_files = sorted(glob.glob(os.path.join(plan_dir, "[0-9][0-9]-*.list")))
     fb_file = os.path.join(plan_dir, "firstboot.list")
@@ -1613,7 +1658,7 @@ def check_bake_plan_integrity() -> int:
             if hits:
                 viol.append(f"Firstboot token '{tok}' image(s) found in baked group list {gname}: {hits}")
 
-        matching_core = [img for img in core_set if tok in img.lower()]
+        matching_core = [img for img in planned_core if tok in img.lower()]
         for img in matching_core:
             if img not in fb_images:
                 viol.append(f"Core image '{img}' matching firstboot token '{tok}' missing from firstboot.list")
@@ -1628,8 +1673,13 @@ def check_bake_plan_integrity() -> int:
     if len(all_plan_imgs) != len(set(all_plan_imgs)):
         viol.append("Duplicate image entries found across plan.d/*.list and firstboot.list")
 
-    if set(all_plan_imgs) != core_set:
-        missing_from_plan = core_set - set(all_plan_imgs)
+    # The plan follows the engine selector: an unselected engine's image in it
+    # would be pulled for a lane that never runs it.
+    for img in sorted(unselected & set(all_plan_imgs)):
+        viol.append(f"Image '{img}' belongs only to an unselected engine overlay but is in the plan")
+
+    if set(all_plan_imgs) != planned_core:
+        missing_from_plan = planned_core - set(all_plan_imgs)
         extra_in_plan = set(all_plan_imgs) - core_set
         if missing_from_plan:
             viol.append(f"Core images missing from plan.d: {missing_from_plan}")

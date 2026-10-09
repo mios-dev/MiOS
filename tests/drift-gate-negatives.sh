@@ -871,16 +871,20 @@ new = t.replace('firstboot_tokens = [', 'firstboot_tokens = ["bogus_unmatched_fi
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "Generate-bake-plan.py --check passed despite a bogus firstboot token"
-    fi
+    grep -q 'bogus_unmatched_firstboot_token' "$toml_file" || { cp "$bak_file" "$toml_file" && rm -f "$bak_file"; die "test_bake_tokens: the bogus token was not planted -- the mutation would prove nothing"; }
 
+    # The Python generator is retired (79c4d9ed); check_bake_plan drives the
+    # native mios-bake-plan stage 85 runs. --check writes nothing, so restoring
+    # mios.toml restores the whole subject.
+    if _neg_gate check_bake_plan; then
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
+        die "check_bake_plan passed despite a bogus firstboot token"
+    fi
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "Generate-bake-plan.py --check failed after restoration"
+    [[ "$_NEG_GATE_OUT" == *"Firstboot token 'bogus_unmatched_firstboot_token'"* ]] \
+        || die "check_bake_plan failed without naming the bogus firstboot token: ${_NEG_GATE_OUT}"
+
+    _neg_gate check_bake_plan || die "check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_bake_tokens negative test passed"
 }
 test_bake_unresolved_image() {
@@ -944,7 +948,6 @@ test_firstboot_tier() {
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
         cp "$bak_file" "$fb_list" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "Check_firstboot_tier passed despite unmatched firstboot.list entry"
     fi
 
@@ -958,7 +961,7 @@ test_firstboot_tier() {
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 && die "Check_firstboot_tier passed despite unjustified firstboot token"
     cp "$toml_bak" "$toml" && rm -f "$toml_bak"
 
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+    # Both plants were restored byte-for-byte above; nothing to regenerate.
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "Check_firstboot_tier failed after restoration"
     log "Check_firstboot_tier negative test passed"
@@ -1008,16 +1011,18 @@ if n != 1:
 with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(t)
 PYEOF
-    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
+    # The retired Python generator is gone (79c4d9ed); the gate drives the
+    # native mios-bake-plan, and --check writes nothing.
+    if _neg_gate check_bake_plan; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "test_bake_core_reconcile: generate-bake-plan.py --check passed despite missing core image reconcile"
+        die "test_bake_core_reconcile: check_bake_plan passed despite a core image no Quadlet references"
     fi
-
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "test_bake_core_reconcile: generate-bake-plan.py --check failed after core image reconcile restoration"
+    [[ "$_NEG_GATE_OUT" == *"'docker.io/library/unreferenced-image-xyz999:latest' is not referenced by any Quadlet"* ]] \
+        || die "test_bake_core_reconcile: check_bake_plan failed without naming the unreferenced core image: ${_NEG_GATE_OUT}"
+
+    _neg_gate check_bake_plan \
+        || die "test_bake_core_reconcile: check_bake_plan failed after core image reconcile restoration: ${_NEG_GATE_OUT}"
     log "Test_bake_core_reconcile negative test passed"
 }
 
@@ -2027,16 +2032,19 @@ test_bake_plan() {
         cp "$plan_file" "$bak_file"
         echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
+        if _neg_gate check_bake_plan; then
             cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-            MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
             die "Check_bake_plan passed despite stale/invalid bake plan"
         fi
-
         cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
-            || die "Check_bake_plan failed after restoration"
+        # Assert the check named the list the plant landed in, not just any failure.
+        [[ "$_NEG_GATE_OUT" == *"DRIFT: "*"$(basename "$plan_file") does not match"* ]] \
+            || die "Check_bake_plan failed without naming the drifted list: ${_NEG_GATE_OUT}"
+
+        # Restored byte-for-byte above; --check never writes, so nothing to regenerate.
+        _neg_gate check_bake_plan || die "Check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
+    else
+        die "No [0-9][0-9]-extra.list found in plan.d -- the plant would prove nothing"
     fi
     log "Test_bake_plan negative test passed"
 }
@@ -2372,6 +2380,34 @@ test_bake_plan_integrity() {
     fi
 
     echo "$orig_val" > "$list_file"
+
+    # Only the UNSELECTED engine's image may be absent from the plan: listing it,
+    # or flipping the selector without regenerating, must fail.
+    local fb="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list" toml="${ROOT}/usr/share/mios/mios.toml"
+    local fb_bak toml_bak; fb_bak="$(mktemp)"; toml_bak="$(mktemp)"
+    cp "$fb" "$fb_bak"; cp "$toml" "$toml_bak"
+    _bpi_restore() { cp "$fb_bak" "$fb"; cp "$toml_bak" "$toml"; rm -f "$fb_bak" "$toml_bak"; }
+    local unselected
+    unselected="$(MIOS_DRIFT_ROOT="$ROOT" python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("dc", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+import tomllib; print("\n".join(sorted(m._unselected_engine_images(tomllib.load(open(sys.argv[2], "rb"))))))' "${ROOT}/tools/drift-checks.py" "$toml")"
+    [[ -n "$unselected" ]] || { _bpi_restore; die "test_bake_plan_integrity: no unselected engine image in the SSOT -- the exemption branch would go untested"; }
+    printf '%s\n' "$unselected" >> "$fb"
+    _neg_gate check_bake_plan_integrity && { _bpi_restore; die "Check_bake_plan_integrity passed with an unselected engine's image in firstboot.list"; }
+    [[ "$_NEG_GATE_OUT" == *"belongs only to an unselected engine overlay"* ]] || { _bpi_restore; die "Check_bake_plan_integrity failed for the wrong reason on an unselected engine image: ${_NEG_GATE_OUT}"; }
+    cp "$fb_bak" "$fb"
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+m = re.search(r'(?m)^heavy_engine\s*=\s*"([a-z]+)"', s)
+assert m, "[ai].heavy_engine not found -- the selector flip would prove nothing"
+other = {"vllm": "sglang", "sglang": "vllm"}[m.group(1)]
+open(p, "w", encoding="utf-8").write(s[:m.start(1)] + other + s[m.end(1):])
+PYEOF
+    _neg_gate check_bake_plan_integrity && { _bpi_restore; die "Check_bake_plan_integrity passed after the engine selector flipped under an unregenerated plan"; }
+    _bpi_restore; unset -f _bpi_restore
+
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1 \
         || die "Check_bake_plan_integrity failed after restoration"
     log "Test_bake_plan_integrity negative test passed"
