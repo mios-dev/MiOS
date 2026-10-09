@@ -4232,17 +4232,8 @@ check_resolver_shell_equivalence() {
 # --- comment lexing preserves semantic intent across documentation generators ---
 check_comment_lex_equivalence() {
     echo "[98-drift-checks] comment lexing preserves semantic intent across documentation generators"
-    local out bin
-    if ! bin="$(native_bin mios-comment-lex "${MIOS_COMMENT_LEX_BIN:-}")"; then
-        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-            _violation "mios-comment-lex is not built, so the two comment lexers were never compared"
-            return
-        fi
-        echo "[98-drift-checks]   mios-comment-lex absent; equivalence not measured" >&2
-        return 0
-    fi
-    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_COMMENT_LEX_BIN="$bin" \
-            python3 tools/check-docs.py comment-lex 2>&1); then
+    local out bin; bin="$(native_bin mios-comment-lex "${MIOS_COMMENT_LEX_BIN:-}")" || bin=""
+    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_COMMENT_LEX_BIN="$bin" python3 tools/check-docs.py comment-lex 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "comment lexer equivalence check failed"
     fi
@@ -4602,7 +4593,6 @@ check_unit_dependency_closure() {
 # --- documentation coverage count meets or exceeds established ratchet floor ---
 check_docs_ratchet() {
     echo "[98-drift-checks] documentation coverage count meets or exceeds established ratchet floor"
-    # Stale references are resolved by mios-gate doc-refs-headers.
     local out bin; bin="$(_gate_bin)" || bin=""
     out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_GATE_BIN="$bin" python3 tools/drift-checks.py docs-ratchet)" || {
         _violations_from "" "$out"; return; }

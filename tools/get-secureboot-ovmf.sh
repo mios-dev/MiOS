@@ -1,10 +1,8 @@
 #!/bin/bash
 # AI-hint: Locates enrolled OVMF Secure Boot varstores by CONTENT (bounded EDK2 variable-store parser) across all known layouts, checks each CODE/VARS pair against qemu firmware descriptors and offers a verification-gated repair menu.
 # AI-related: find-ovmf-firmware.sh, check-ovmf-enrollment.sh, fix-ovmf-enrollment.sh
-#
-# Layouts: /usr/share/edk2/ovmf (Fedora), /usr/share/edk2/x64 (kraxel) and the
-# /usr/share/OVMF symlinks. It never installs a blank or unverified varstore,
-# never overwrites existing files, and never touches live NVRAM.
+# Layouts: /usr/share/edk2/ovmf (Fedora), /usr/share/edk2/x64 (kraxel), /usr/share/OVMF symlinks. Never installs a
+# blank or unverified varstore, never overwrites existing files, never touches live NVRAM.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -1,11 +1,8 @@
 #!/bin/bash
 # AI-hint: Root-gated repair that ensures a content-verified ENROLLED OVMF varstore exists: copies the distro's enrolled VARS, enrolls a same-build blank template, or fetches edk2-ovmf; never overwrites firmware or touches live NVRAM.
 # AI-related: find-ovmf-firmware.sh, check-ovmf-enrollment.sh, get-secureboot-ovmf.sh
-#
-# Current state is read first with the bounded EDK2 variable-store parser.
-# Enrollment uses virt-fw-vars --enroll-redhat; a fetch uses dnf download. Every
-# artifact is content-verified and pair-checked before install, and
-# /var/lib/libvirt/qemu/nvram and live VM state are never touched.
+# State is read first by the bounded EDK2 parser; enrollment is virt-fw-vars --enroll-redhat, a fetch is dnf download,
+# and every artifact is content- and pair-checked before install (never /var/lib/libvirt/qemu/nvram or a live VM).
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

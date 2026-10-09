@@ -1,10 +1,7 @@
 #!/bin/bash
 # AI-hint: Diagnoses Secure Boot OVMF enrollment by CONTENT, not filenames: parses every OVMF_VARS varstore under /usr/share (raw and qcow2) and reports enrolled versus blank, plus which CODE images are Secure Boot capable. Read-only.
 # AI-related: find-ovmf-firmware.sh, get-secureboot-ovmf.sh, fix-ovmf-enrollment.sh
-#
-# Enrolled means live PK/KEK/db signature lists plus SecureBootEnable, read by the
-# bounded EDK2 variable-store parser in tools/find-ovmf-firmware.sh (sourced).
-# Never modifies firmware, NVRAM, or VM state.
+# Enrolled = live PK/KEK/db signature lists + SecureBootEnable, per the EDK2 parser sourced from find-ovmf-firmware.sh.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

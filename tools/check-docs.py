@@ -160,8 +160,8 @@ def cle_main():
     import json
     import subprocess
     root = os.environ.get("MIOS_DRIFT_ROOT", cle__REPO_ROOT)
-    native_bin = (os.environ.get("MIOS_COMMENT_LEX_BIN")
-                  or mios_comments._find_native_comment_lex())
+    # The drift gate passes its resolver's answer; set but empty means none was found.
+    native_bin = os.environ.get("MIOS_COMMENT_LEX_BIN", mios_comments._find_native_comment_lex())
 
     if not native_bin:
         if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS") == "1":

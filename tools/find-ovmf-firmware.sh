@@ -2,10 +2,8 @@
 # AI-hint: Shared OVMF firmware library + discovery UI: finds OVMF CODE/VARS pairs under /usr/share, proves Secure Boot capability and enrollment from content (qemu descriptors, bounded EDK2 varstore parser) and rejects incompatible pairs.
 # AI-functions: find_vars_for_code, ovmf_share_root, ovmf_fwdesc_dir, ovmf_file_format, ovmf_descriptor_pairs, ovmf_vars_enrollment, ovmf_sb_capability, ovmf_pair_status, ovmf_enroll_with_virt_fw_vars, ovmf_install_verified_vars, ovmf_repair_menu
 #
-# Incompatible means a cross-build, size, or format mismatch. Sourced by
-# tools/get-secureboot-ovmf.sh, tools/check-ovmf-enrollment.sh and
-# tools/fix-ovmf-enrollment.sh; run directly for the discovery report.
-#
+# Incompatible = a cross-build, size or format mismatch. Sourced by tools/get-secureboot-ovmf.sh,
+# tools/check-ovmf-enrollment.sh and tools/fix-ovmf-enrollment.sh; run directly for the discovery report.
 # Upstream contracts: QEMU docs/interop/firmware.json and EDK2
 # MdeModulePkg/Include/Guid/VariableFormat.h, MdePkg/Include/Guid/ImageAuthentication.h.
 #   - Fedora ships /usr/share/edk2/ovmf/{OVMF_CODE[.secboot].fd, OVMF_VARS[.secboot].fd, *_4M.qcow2}
