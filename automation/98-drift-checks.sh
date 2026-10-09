@@ -2635,14 +2635,13 @@ check_rechunk_budget() {
     echo "[98-drift-checks]   rechunk budget & SSOT image reference verified"
 }
 
+# --- gate definitions are registered exactly once inside main() ---
 check_gate_registry() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py gate-registry
-    then
-        echo "[98-drift-checks]   gate registry integrity verified"
-    else
-        _violation "gate registry drift detected in 98-drift-checks.sh"
-    fi
+    local bin; bin="$(_gate_bin)" || {
+        _violation "check_gate_registry requires native mios-gate"; return; }
+    local out; out="$("$bin" gate-registry --root "$ROOT" 2>&1)" || {
+        _violations_from "check_gate_registry: " "$out"; return; }
+    echo "[98-drift-checks]   $out"
 }
 
 check_python_lint() {

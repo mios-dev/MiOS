@@ -1,5 +1,5 @@
 # Ordinal	Check Function	Description
-1	check_gate_registry	gate registry integrity verified
+1	check_gate_registry	gate definitions are registered exactly once inside main()
 2	check_dead_lane	no retired :11434 lane in active config
 3	check_retired_models	no retired model-id in consumer config
 4	check_structured	every [nodes.local-*] localhost lane is served; ai/v1 manifests parse + refs resolve

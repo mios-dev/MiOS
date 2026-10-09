@@ -1083,32 +1083,68 @@ test_nested_podman_retry() {
     log "Test_nested_podman_retry negative test passed"
 }
 
-test_gate_registry() {
+test_gate_registry() (
     log "Testing check_gate_registry"
-    local script="${ROOT}/automation/98-drift-checks.sh"
-    local bak_file="${script}.bak"
-    cp "$script" "$bak_file"
-
-    # Test 1: Duplicate definition
-    sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite duplicate check_dead_lane definition"
-    cp "$bak_file" "$script"
-
-    # Test 2: Unregistered definition
-    echo 'check_unregistered_dummy() { return 0; }' >> "$script"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite unregistered function definition"
-    cp "$bak_file" "$script"
-
-    # Test 3: Undefined call in main()
-    sed -i '/check_dead_lane/a \    check_undefined_dummy' "$script"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite undefined check function call in main()"
-
-    cp "$bak_file" "$script" && rm -f "$bak_file"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 \
-        || die "check_gate_registry failed after restoration"
-    log "test_gate_registry negative test passed"
+    local wrapper="${ROOT}/automation/98-drift-checks.sh"
+    local fixture; fixture="$(mktemp -d)"
+    trap 'rm -rf -- "$fixture"' EXIT
+    mkdir -p "$fixture/automation" "$fixture/tools"
+    local script="$fixture/automation/98-drift-checks.sh"
+    local baseline="$fixture/baseline"
+    cat > "$baseline" <<'EOF'
+check_alpha() { :; }
+main() {
+    check_alpha
 }
+_alias() {
+    check_alpha
+}
+EOF
+    cp "$baseline" "$script"
+    MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        || die "gate registry clean repository failed"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        || die "gate registry counted a helper alias outside main"
 
+    printf 'check_alpha() { :; }\n' >> "$script"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry accepted a duplicate definition"
+    grep -q 'duplicate function definition: check_alpha' "$fixture/out" \
+        || die "gate registry did not name the duplicate definition"
+    cp "$baseline" "$script"
+    printf 'check_unregistered_dummy() { :; }\n' >> "$script"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry accepted an unregistered definition"
+    grep -q 'not registered in main(): check_unregistered_dummy' "$fixture/out" \
+        || die "gate registry did not name the unregistered definition"
+    sed '/^main() {/a\    check_undefined_dummy' "$baseline" > "$script"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry accepted an undefined main call"
+    grep -q 'main() calls undefined check: check_undefined_dummy' "$fixture/out" \
+        || die "gate registry did not name the undefined call"
+    cp "$baseline" "$script"
+    printf '# AI-hint: A drift check.\npass\n' > "$fixture/tools/check-fixture.py"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry accepted an unreferenced drift tool"
+    grep -q 'tools/check-fixture.py claims drift-check identity' "$fixture/out" \
+        || die "gate registry did not name the unreferenced tool"
+    rm -- "$fixture/tools/check-fixture.py"
+    : > "$script"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry accepted empty input"
+    grep -q 'expected one closed column-zero main() function' "$fixture/out" \
+        || die "gate registry did not reject empty input for the expected reason"
+    cp "$baseline" "$script"
+    MIOS_DRIFT_CHECK_ROOT="$fixture" bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        || die "gate registry failed after restoration"
+    cmp -s "$baseline" "$script" || die "gate registry mutated fixture sources"
+    MIOS_NATIVE_BIN_DIR="$fixture/missing" MIOS_DRIFT_CHECK_ROOT="$fixture" \
+        bash "$wrapper" check_gate_registry >"$fixture/out" 2>&1 \
+        && die "gate registry passed without its configured native binary"
+    grep -q 'requires native mios-gate' "$fixture/out" \
+        || die "gate registry missing-binary failure was not named"
+    log "test_gate_registry negative test passed"
+)
 test_test_hermeticity() {
     log "Testing check_test_hermeticity"
     # In a subdirectory on purpose: a top-level plant passed just as well when

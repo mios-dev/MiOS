@@ -2113,83 +2113,15 @@ def check_bound_image_store() -> int:
     return 1 if bad else 0
 
 def check_gate_registry() -> int:
-    """Lifted from a shell heredoc so it can be imported, linted and tested.
+    """Compatibility entrypoint; native Rust owns bounded registration checks."""
+    import os
+    import subprocess
+    from pathlib import Path
 
-    Inside a heredoc a syntax error surfaces only when the check runs.
-    """
-    import glob, os, sys, re
-
-    root = os.environ["MIOS_DRIFT_ROOT"]
-    script_path = os.path.join(root, "automation/98-drift-checks.sh")
-
-    _rc = _absent(root, script_path)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    with open(script_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    def_re = re.compile(r"^(check_[a-z0-9_]+)\s*\(\)\s*\{")
-    main_call_re = re.compile(r"^\s*(check_[a-z0-9_]+)\s*($|#|;|\|\||&&)")
-
-    defined_counts = {}
-    in_main = False
-    main_calls = []
-
-    for line in lines:
-        line_clean = line.split("#")[0].strip()
-        if line_clean == "main() {":
-            in_main = True
-            continue
-        if in_main and line_clean.startswith("echo \"[98-drift-checks] ----------"):
-            in_main = False
-            continue
-
-        m_def = def_re.match(line)
-        if m_def:
-            name = m_def.group(1)
-            defined_counts[name] = defined_counts.get(name, 0) + 1
-
-        if in_main:
-            m_call = main_call_re.match(line_clean)
-            if m_call:
-                main_calls.append(m_call.group(1))
-
-    bad = []
-
-    for name, count in defined_counts.items():
-        if count > 1:
-            bad.append(f"Duplicate function definition found in 98-drift-checks.sh: {name} (defined {count} times)")
-
-    for name in defined_counts.keys():
-        calls = main_calls.count(name)
-        if calls == 0:
-            bad.append(f"Defined check function is not registered in main(): {name}")
-        elif calls > 1:
-            bad.append(f"Defined check function is called multiple times in main(): {name} ({calls} times)")
-
-    for call in main_calls:
-        if call not in defined_counts:
-            bad.append(f"main() calls unregistered/undefined check function: {call}")
-
-    sh_text = "".join(lines)
-    tool_checks = glob.glob(os.path.join(root, "tools/check-*.py"))
-
-    for tc in tool_checks:
-        tc_name = os.path.basename(tc)
-        if tc_name not in sh_text:
-            with open(tc, "r", encoding="utf-8", errors="ignore") as tcf:
-                tc_head = [tcf.readline() for _ in range(3)]
-            tc_hint = "".join(tc_head).lower()
-            if "drift check" in tc_hint or "drift-check" in tc_hint:
-                bad.append(f"tools/{tc_name} claims drift-check identity in AI-hint but is not referenced in 98-drift-checks.sh")
-
-    if bad:
-        for b in bad:
-            sys.stderr.write(f"    [gate-registry-drift] {b}\n")
-        sys.exit(1)
-
-    sys.exit(0)
+    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
+    env = os.environ.copy()
+    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
+    return subprocess.call(["bash", str(wrapper), "check_gate_registry"], env=env)
 
 def check_names_registry() -> int:
     """Compatibility entrypoint; native Rust owns the read-only projection check."""
