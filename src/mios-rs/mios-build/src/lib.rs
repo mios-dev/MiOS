@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub mod artifacts;
 pub mod images {
     use serde::Serialize;
     use std::path::{Component, Path, PathBuf};

@@ -171,11 +171,9 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │       └─ agreements-banner.ps1       scrollable acknowledgement gate (PowerShell)
 │   │
 │   ├─ config/
-│   │   ├─ artifacts/             bootc-image-builder configs
+│   │   ├─ artifacts/             bootc-image-builder recipes (qcow2/vhdx are rendered by miosd artifact-build)
 │   │   │   ├─ bib.toml                shared base
 │   │   │   ├─ iso.toml                ISO installer
-│   │   │   ├─ qcow2.toml              KVM/QEMU disk image
-│   │   │   ├─ vhdx.toml               Hyper-V disk image
 │   │   │   └─ wsl2.toml               WSL2 tar
 │   │   └─ bootstrap/
 │   │       ├─ bootstrap.sh           legacy bootstrap entry (Linux)
@@ -586,8 +584,6 @@ artifacts have been renamed or removed in the live tree).
 |  +- artifacts/
 |  |  +- bib.toml
 |  |  +- iso.toml
-|  |  +- qcow2.toml
-|  |  +- vhdx.toml
 |  |  `- wsl2.toml
 |  `- bootstrap/
 |     +- bootstrap.ps1

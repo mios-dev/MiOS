@@ -22,6 +22,8 @@ VERSION := `cat VERSION 2>/dev/null || echo {{MIOS_VAR_VERSION}}`
 LOCAL := env_var_or_default("MIOS_LOCAL_TAG", "localhost/mios:latest") # @verb:SET_LOCAL
 MIOS_IMG_BIB := "quay.io/centos-bootc/bootc-image-builder:latest" # @verb:GET_BIB
 BIB := env_var_or_default("MIOS_BIB_IMAGE", MIOS_IMG_BIB)
+# miosd by ABSOLUTE path, never `command -v` (T-1018): this tree's build, else the installed one.
+MIOSD := `for c in "${MIOS_MIOSD_BIN:-}" ./src/mios-rs/target/release/miosd ./src/mios-rs/target/debug/miosd /usr/libexec/mios/miosd; do [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; exit 0; }; done; printf '%s' miosd-is-not-built`
 
 # Resolved by ABSOLUTE path, never `command -v` (T-1018).
 preflight:
@@ -268,61 +270,20 @@ raw: build
         {{BIB}} build --type raw --rootfs ext4 {{LOCAL}}
     @echo "[OK] RAW image in build/raw"
 
+# iso, qcow2, vhdx: `miosd artifact-build <format>` renders the builder config
+# from the SSOT and the credential [deploy.identity] names, and refuses without
+# one. `sudo -E` keeps those variables for rootful podman.
 iso: build
-    mkdir -p build/iso
-    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
-    @TMPTOML="$(mktemp /tmp/mios-iso-XXXXXX.toml)" && \
-        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
-            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/iso.toml > "$$TMPTOML" && \
-        sudo podman run --rm -it --privileged \
-            --security-opt label=type:unconfined_t \
-            -v ./build/iso:/output \
-            -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$$TMPTOML":/config.toml:ro \
-            {{BIB}} build --type iso --rootfs ext4 {{LOCAL}}; \
-        rm -f "$$TMPTOML"
-    @echo "[OK] ISO image in build/iso"
+    sudo -E {{MIOSD}} artifact-build iso --root . --image {{LOCAL}}
 
 qcow2: build
-    mkdir -p build/qcow2
-    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
-    @TMPTOML="$(mktemp /tmp/mios-qcow2-XXXXXX.toml)" && \
-        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
-            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/qcow2.toml > "$$TMPTOML" && \
-        sudo podman run --rm -it --privileged \
-            --security-opt label=type:unconfined_t \
-            -v ./build/qcow2:/output \
-            -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$$TMPTOML":/config.toml:ro \
-            {{BIB}} build --type qcow2 --rootfs ext4 {{LOCAL}}; \
-        rm -f "$$TMPTOML"
-    @echo "[OK] QCOW2 image in build/qcow2"
+    sudo -E {{MIOSD}} artifact-build qcow2 --root . --image {{LOCAL}}
 
+# Hyper-V: the builder's VHD converted to a dynamic VHDX, for the VM
+# [deploy.formats.vhdx.vm] declares. Boot-test it with
+# `miosd artifact-boot-test vhdx --disk build/vhdx/disk.vhdx --identity <key>`.
 vhdx: build
-    mkdir -p build/vhdx
-    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
-    @TMPTOML="$(mktemp /tmp/mios-vhdx-XXXXXX.toml)" && \
-        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
-            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/vhdx.toml > "$$TMPTOML" && \
-        sudo podman run --rm -it --privileged \
-            --security-opt label=type:unconfined_t \
-            -v ./build/vhdx:/output \
-            -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$$TMPTOML":/config.toml:ro \
-            {{BIB}} build --type vhd --rootfs ext4 {{LOCAL}}; \
-        rm -f "$$TMPTOML"
-    @if command -v qemu-img >/dev/null 2>&1 && ls build/vhdx/*.vhd >/dev/null 2>&1; then \
-        for vhd in build/vhdx/*.vhd; do \
-            vhdx="$${vhd%.vhd}.vhdx"; \
-            qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
-        done; \
-    else \
-        echo "[WARN] qemu-img not found or no .vhd produced"; \
-    fi
-    @echo "[OK] VHDX image in build/vhdx"
+    sudo -E {{MIOSD}} artifact-build vhdx --root . --image {{LOCAL}}
 
 wsl2: build
     @mkdir -p build/wsl2

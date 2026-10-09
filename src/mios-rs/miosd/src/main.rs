@@ -392,6 +392,39 @@ enum Commands {
         #[arg(long)]
         plan: bool,
     },
+    /// Build a [deploy.formats.<format>] disk from a bootc image with bootc-image-builder;
+    /// the operator's credential is required and never defaulted
+    ArtifactBuild {
+        /// A [deploy.formats] key, e.g. vhdx, qcow2, iso
+        format: String,
+        #[arg(long, default_value = ".")]
+        root: std::path::PathBuf,
+        /// Image to build from; [image].local_tag when omitted. A published
+        /// digest (ghcr.io/...@sha256:...) is pulled first.
+        #[arg(long)]
+        image: Option<String>,
+        /// Output directory; [build.artifacts].output_dir/<format> when omitted
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+        /// Print the rendered config (credential withheld) and the builder call
+        #[arg(long)]
+        plan: bool,
+    },
+    /// Boot a built disk under QEMU in its [deploy.formats.<format>.vm] shape and run
+    /// [testing.boot].probes in the guest over SSH
+    ArtifactBootTest {
+        format: String,
+        #[arg(long, default_value = ".")]
+        root: std::path::PathBuf,
+        #[arg(long)]
+        disk: std::path::PathBuf,
+        /// Private key whose public half the disk was built with
+        #[arg(long)]
+        identity: std::path::PathBuf,
+        /// Serial console log; kept as boot evidence
+        #[arg(long, default_value = "boot-serial.log")]
+        serial_log: std::path::PathBuf,
+    },
     /// Resolve the SSOT native Linux target, linker and static runtime flags
     NativeBuildSettings {
         #[arg(long, default_value = ".")]
@@ -1307,6 +1340,72 @@ async fn main() {
             if let Err(error) = result {
                 eprintln!("[miosd] Image build: {error}");
                 std::process::exit(1);
+            }
+        }
+        Commands::ArtifactBuild {
+            format,
+            root,
+            image,
+            output,
+            plan,
+        } => {
+            let env = |name: &str| std::env::var(name).ok();
+            let result = mios_resolver::resolve_merged(Some(root), false)
+                .map_err(|e| e.to_string())
+                .and_then(|config| {
+                    if *plan {
+                        let plan = mios_build::artifacts::plan(
+                            &config,
+                            root,
+                            format,
+                            image.as_deref(),
+                            output.as_deref(),
+                            &env,
+                        )?;
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&plan).map_err(|e| e.to_string())?
+                        );
+                        return Ok(());
+                    }
+                    let disk = mios_build::artifacts::build(
+                        &config,
+                        root,
+                        format,
+                        image.as_deref(),
+                        output.as_deref(),
+                        &env,
+                    )?;
+                    println!("[miosd] {format} artifact: {}", disk.display());
+                    Ok(())
+                });
+            if let Err(error) = result {
+                eprintln!("[miosd] Artifact {format}: {error}");
+                std::process::exit(1);
+            }
+        }
+        Commands::ArtifactBootTest {
+            format,
+            root,
+            disk,
+            identity,
+            serial_log,
+        } => {
+            let result = mios_resolver::resolve_merged(Some(root), false)
+                .map_err(|e| e.to_string())
+                .and_then(|config| {
+                    mios_build::artifacts::boot_test(&config, format, disk, identity, serial_log)
+                });
+            match result {
+                Ok(probes) => println!(
+                    "[miosd] {format} booted; {} probe(s) passed in the guest (serial log: {})",
+                    probes.len(),
+                    serial_log.display()
+                ),
+                Err(error) => {
+                    eprintln!("[miosd] Boot test {format}: {error}");
+                    std::process::exit(1);
+                }
             }
         }
         Commands::NativeBuildSettings { root, arch, json } => {
