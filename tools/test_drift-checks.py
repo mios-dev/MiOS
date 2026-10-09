@@ -84,11 +84,21 @@ class TestExtractedChecks(unittest.TestCase):
     def test_the_shell_gate_calls_the_module_not_a_heredoc(self):
         with open(os.path.join(_ROOT, "automation/98-drift-checks.sh"), encoding="utf-8", errors="replace") as fh:
             gate = fh.read()
+        import inspect
         for name in MOD.SUBCOMMANDS:
             pattern = r'tools/drift-checks\.py["\x27]?\s+' + re.escape(name) + r'(?=[\s"\x27)]|$)'
-            self.assertRegex(gate, pattern,
-                             "check_%s no longer dispatches to the module"
-                             % name.replace("-", "_"))
+            if re.search(pattern, gate):
+                continue
+            # Ported to native: the entry here must re-enter the gate's own
+            # function, and that function must not call back -- one mechanism.
+            fn = "check_" + name.replace("-", "_")
+            src = inspect.getsource(MOD.SUBCOMMANDS[name])
+            self.assertTrue("98-drift-checks.sh" in src and '"%s"' % fn in src,
+                            "%s neither dispatches to the module nor re-enters the gate" % fn)
+            body = re.search(r"(?ms)^%s\(\) \{\n(.*?)^\}" % re.escape(fn), gate)
+            self.assertIsNotNone(body, "%s is not defined in the shell gate" % fn)
+            self.assertNotIn("drift-checks.py", body.group(1),
+                             "%s and its compatibility entry call each other" % fn)
 
 
 # A checkout that never had a file is a skip; a TRACKED file that has gone

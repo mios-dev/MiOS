@@ -1857,9 +1857,9 @@ def check_cephfs_ssot() -> int:
     import tomllib as _toml
 
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if _toml is None:
-        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
-    elif os.path.isfile(toml_path):
+    if not os.path.isfile(toml_path):
+        viol.append("usr/share/mios/mios.toml is missing, so [storage.cephfs] was never read")
+    else:
         with open(toml_path, "rb") as fh:
             data = _toml.load(fh)
         cephfs = data.get("storage", {}).get("cephfs", {}) or {}
@@ -1900,22 +1900,34 @@ def check_cephfs_ssot() -> int:
             os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl"),
             os.path.join(root, "usr/share/mios/systemd/home-@.automount.tmpl"),
         ]
-        setup_script = os.path.join(root, "automation/firstboot/mios-cephfs-mount-setup.sh")
-        setup_code = ""
-        if os.path.exists(setup_script):
-            with open(setup_script, "r", encoding="utf-8", errors="ignore") as sf:
+        # A token is named from its table path, [storage.cephfs].<key>. The
+        # prefix was hardcoded without the "storage" segment and matched nothing
+        # after the rename (0023c51d), so no token was compared and deleting
+        # mount_options stayed green. A missing setup script or zero tokens is
+        # now a finding, never a pass.
+        pfx = "MIOS_" + "_".join(("storage", "cephfs")).upper() + "_"
+        setup_code = None
+        try:
+            with open(os.path.join(root, "automation/firstboot/mios-cephfs-mount-setup.sh"),
+                      encoding="utf-8", errors="ignore") as sf:
                 setup_code = sf.read()
+        except OSError:
+            viol.append("automation/firstboot/mios-cephfs-mount-setup.sh is missing, so no template token is substituted")
 
+        ntok = 0
         for tmpl in tmpls:
             if os.path.exists(tmpl):
                 with open(tmpl, "r", encoding="utf-8", errors="ignore") as tf:
-                    tokens = set(re.findall(r"\$\{MIOS_CEPHFS_([A-Z0-9_]+)\}", tf.read()))
-                for tok in tokens:
+                    tokens = set(re.findall(r"\$\{" + pfx + r"([A-Z0-9_]+)\}", tf.read()))
+                ntok += len(tokens)
+                for tok in sorted(tokens):
                     key = tok.lower()
                     if key not in cephfs:
-                        viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} has no corresponding key '{key}' in [storage.cephfs]")
-                    if setup_code and f"MIOS_CEPHFS_{tok}" not in setup_code:
-                        viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} is not substituted by mios-cephfs-mount-setup.sh")
+                        viol.append(f"Template token ${{{pfx}{tok}}} has no corresponding key '{key}' in [storage.cephfs]")
+                    if setup_code is not None and "${%s%s}" % (pfx, tok) not in setup_code:
+                        viol.append(f"Template token ${{{pfx}{tok}}} is not substituted by mios-cephfs-mount-setup.sh")
+        if not ntok:
+            viol.append(f"the home-@ templates carry no ${{{pfx}*}} token, so nothing was compared")
 
     for v in viol:
         sys.stderr.write(f"    {v}\n")
@@ -2122,17 +2134,6 @@ def check_gate_registry() -> int:
     env = os.environ.copy()
     env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
     return subprocess.call(["bash", str(wrapper), "check_gate_registry"], env=env)
-
-def check_names_registry() -> int:
-    """Compatibility entrypoint; native Rust owns the read-only projection check."""
-    import os
-    import subprocess
-    from pathlib import Path
-
-    wrapper = Path(__file__).resolve().parents[1] / "automation/98-drift-checks.sh"
-    env = os.environ.copy()
-    env["MIOS_DRIFT_CHECK_ROOT"] = env.get("MIOS_DRIFT_ROOT", ".")
-    return subprocess.run(["bash", str(wrapper), "check_names_registry"], env=env).returncode
 
 def check_agent_schema() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -3469,26 +3470,36 @@ def check_v2v_import_ssot() -> int:
               ' compared', file=sys.stderr)
         return 1
 
-    with open(wrapper, "r", encoding="utf-8") as f:
-        wcode = f.read()
-
-    if "qcow2" in wcode and "output_format" not in wcode:
-        sys.stderr.write("    mios-v2v-import hardcodes format instead of resolving [virt.v2v].output_format\n")
-        return 1
-
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
-
-    v2v_cfg = data.get("virt", {}).get("v2v", {})
-    fmt = v2v_cfg.get("output_format", "qcow2")
-
-    proc = subprocess.run(["bash", wrapper, "--dry-run"], capture_output=True, text=True, env=dict(os.environ, MIOS_TOML=toml_path))
-    out = proc.stdout + proc.stderr
-    if f"-of {fmt}" not in out:
-        sys.stderr.write(f"    mios-v2v-import --dry-run output does not contain expected '-of {fmt}' from SSOT\n")
+    fmt = data.get("virt", {}).get("v2v", {}).get("output_format")
+    if not fmt:
+        sys.stderr.write("    [virt.v2v].output_format is absent, so the wrapper has no SSOT value to resolve\n")
         return 1
 
-    return 0
+    def planned(ssot):
+        proc = subprocess.run(["bash", wrapper, "--dry-run"], capture_output=True, text=True,
+                              env=dict(os.environ, MIOS_TOML=ssot))
+        return proc.stdout + proc.stderr
+
+    bad = []
+    if f"-of {fmt}" not in planned(toml_path):
+        bad.append(f"mios-v2v-import --dry-run output does not contain expected '-of {fmt}' from SSOT")
+    # Echoing the shipped value proves nothing alone: a wrapper that hardcodes
+    # today's "qcow2" emits it too, and passed. Hand it a probe SSOT whose values
+    # are new and require each one back on its flag.
+    import tempfile
+    probe = {"output_format": ("-of", "negprobe-fmt"), "output_storage": ("-os", "negprobe-pool")}
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "mios.toml")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write("[virt.v2v]\n" + "".join(f'{k} = "{v}"\n' for k, (_, v) in probe.items()))
+        out = planned(p)
+    bad += [f"mios-v2v-import ignores [virt.v2v].{k}: a probe SSOT set it to '{v}' and '{flag} {v}' never appeared"
+            for k, (flag, v) in probe.items() if f"{flag} {v}" not in out]
+    for b in bad:
+        sys.stderr.write(f"    {b}\n")
+    return 1 if bad else 0
 
 def check_value_aliases() -> int:
     import sys, subprocess, os
@@ -4407,7 +4418,7 @@ def check_blade_reconcile_schema() -> int:
     return 0
 
 _SUBCOMMAND_NAMES = (
-    "agent-schema", "names-registry", "gate-registry",
+    "agent-schema", "gate-registry",
     "firstboot-tier", "bound-image-store", "cephfs-ssot", "verb-stub-backends", "no-bare-port-literals",
     "globals-image-parity", "bake-plan-integrity", "negative-test-coverage",
     "structured", "drift-build-catalog", "drift-projection", "unwired-modules",

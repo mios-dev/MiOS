@@ -688,7 +688,6 @@ _mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || {
 : "${MIOS_BUILD_QUADLET_RENDER_EXTENSIONS:=container,network,volume,pod,image,build,toml,json,conf,service,socket}"
 : "${MIOS_BUILD_QUADLET_RENDER_MAX_DEPTH:=2}"
 : "${MIOS_BUILD_QUADLET_RENDER_RUNTIME_REF_DIRECTIVES:=ExecStart,ExecStartPre,ExecStartPost,ExecStop,ExecStopPost,ExecReload,ExecCondition}"
-: "${MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=79}"
 _mios_input MIOS_BUILD_RECHUNK_MAX_LAYERS MIOS_RECHUNK_MAX_LAYERS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_BUILD_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_BUILD_TOOLCHAIN_CARGO_HOME:=/usr/lib/mios/cargo}"
@@ -1452,7 +1451,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DRIFT_BUDGET_KEYS_REQUIRED:=tool_max_iters,replan_max,no_progress_window,max_consecutive_failures,wall_clock_budget_s,reflexion_enable,swarm_max_width,max_dispatch_depth,default_hop_budget}"
 : "${MIOS_DRIFT_BUDGET_KEYS_UNCONSUMED:=client_tools_passthrough,lane_concurrency_cpu,lane_concurrency_gpu0,reflexion_limit,tool_backend_model,tool_loop_limit,trace_enable,trace_max_spans_per_trace,trace_max_traces}"
 : "${MIOS_DRIFT_DENYLIST:=mios_ctxpack,mios_deliberate,mios_embed_backfill,mios_persona,mios_provider_translate,mios_smartroute,mios_worker_tools}"
-: "${MIOS_DRIFT_GENERATED_CEILINGS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=Phase scripts expanded during Phase 2 build features; ceiling raised to 79 to match verified phase scripts on disk (T-515, T-497, T-509)}"
 : "${MIOS_DRIFT_GENERATED_CEILINGS_BUILD_RECHUNK_MAX_LAYERS:=OCI layer ceiling for hhd-dev/rechunk; trades layer count against pull size and rebuild caching, so it is an operator-tunable budget rather than a shrink-only code-debt ratchet (T-1071)}"
 : "${MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_AUTOMATION_PHASES:=Re-baselined to 79 following approved phase scripts on disk}"
 : "${MIOS_DRIFT_GENERATED_CEILINGS_LEGIBILITY_MAX_LIBEXEC_VERBS:=Re-baselined to 313 following approved merges on main}"
