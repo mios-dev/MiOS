@@ -10,7 +10,7 @@
 9	check_ai_manifest	ai/v1 verb-catalog manifest in sync with mios.toml SSOT
 10	check_package_registry	package registry dormant
 11	check_cli_sql_safety	libexec CLIs SQL-safe
-12	check_module_test_coverage	every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test
+12	check_module_test_coverage	every agent-pipe module is named by a unit test; tools/ and libexec python within the sibling-test ratchet
 13	check_raw_toml_readers	no raw MIOS_TOML readers in agent-pipe
 14	check_capability_manifest	ai/v1 capability manifest in sync with mios.toml SSOT
 15	check_surface_parity	server.py public surface matches the committed golden

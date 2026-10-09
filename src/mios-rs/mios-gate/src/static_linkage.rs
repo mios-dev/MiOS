@@ -1,8 +1,8 @@
-// AI-hint: Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021).
+// AI-hint: Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021); --census adds the per-binary SHA-256/interpreter/DT_NEEDED inventory and the dependency census.
 // AI-related: src/mios-rs/mios-gate/src/main.rs, usr/share/mios/mios.toml, automation/98-drift-checks.sh, automation/55-native-build.sh
 
 use crate::Report;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 const CHECK: &str = "static-linkage";
@@ -86,6 +86,117 @@ fn load_exceptions(root: &Path) -> BTreeSet<String> {
     exceptions
 }
 
+/// What the audit records about one ELF whatever the policy says of it: the
+/// interpreter it asks for and the libraries it names. The verifier stops at
+/// the first PT_INTERP or DT_NEEDED; this names all of them, so a finding says
+/// WHICH loader and WHICH libraries a dynamic artifact pulled in.
+#[derive(Default)]
+struct ElfFacts {
+    arch: String,
+    kind: &'static str,
+    interp: Option<String>,
+    needed: Vec<String>,
+}
+
+fn le(data: &[u8], offset: usize, width: usize) -> Option<u64> {
+    let bytes = data.get(offset..offset.checked_add(width)?)?;
+    Some(
+        bytes
+            .iter()
+            .enumerate()
+            .fold(0, |n, (i, byte)| n | ((*byte as u64) << (i * 8))),
+    )
+}
+
+fn cstr(data: &[u8], offset: usize) -> Option<String> {
+    let tail = data.get(offset..)?;
+    let end = tail.iter().position(|b| *b == 0).unwrap_or(tail.len());
+    Some(String::from_utf8_lossy(tail.get(..end)?).into_owned())
+}
+
+/// Reads a little-endian ELF64's program headers. None for anything else, or
+/// for a header table that does not fit the file.
+fn elf_facts(data: &[u8]) -> Option<ElfFacts> {
+    if data.get(..4) != Some(b"\x7fELF") || data.get(4) != Some(&2) || data.get(5) != Some(&1) {
+        return None;
+    }
+    let machine = le(data, 18, 2)?;
+    let mut facts = ElfFacts {
+        arch: match machine {
+            62 => "x86_64".to_string(),
+            183 => "aarch64".to_string(),
+            other => format!("machine_{other}"),
+        },
+        kind: match le(data, 16, 2)? {
+            2 => "ET_EXEC",
+            3 => "ET_DYN",
+            _ => "other",
+        },
+        ..ElfFacts::default()
+    };
+    let phoff = usize::try_from(le(data, 32, 8)?).ok()?;
+    let phentsize = usize::try_from(le(data, 54, 2)?).ok()?;
+    let phnum = usize::try_from(le(data, 56, 2)?).ok()?;
+    if phentsize < 56 {
+        return None;
+    }
+    let mut loads: Vec<(u64, u64, u64)> = Vec::new(); // (vaddr, file offset, file size)
+    let mut dynamic: Option<(usize, usize)> = None;
+    for index in 0..phnum {
+        let base = phoff.checked_add(index.checked_mul(phentsize)?)?;
+        let offset = le(data, base + 8, 8)?;
+        let filesz = le(data, base + 32, 8)?;
+        match le(data, base, 4)? {
+            1 => loads.push((le(data, base + 16, 8)?, offset, filesz)),
+            2 => dynamic = Some((usize::try_from(offset).ok()?, usize::try_from(filesz).ok()?)),
+            3 => facts.interp = cstr(data, usize::try_from(offset).ok()?),
+            _ => {}
+        }
+    }
+    if let Some((start, size)) = dynamic {
+        let (mut needed, mut strtab) = (Vec::new(), None);
+        for entry in (start..start.saturating_add(size)).step_by(16) {
+            match le(data, entry, 8) {
+                None | Some(0) => break,
+                Some(1) => needed.push(le(data, entry + 8, 8)?),
+                Some(5) => strtab = le(data, entry + 8, 8),
+                Some(_) => {}
+            }
+        }
+        // DT_STRTAB is an address; the PT_LOAD that maps it gives its file offset.
+        let strtab = strtab.and_then(|addr| {
+            loads
+                .iter()
+                .find(|(vaddr, _, filesz)| addr >= *vaddr && addr < vaddr.saturating_add(*filesz))
+                .map(|(vaddr, offset, _)| offset + (addr - vaddr))
+        });
+        for name in needed {
+            let resolved = strtab
+                .and_then(|table| usize::try_from(table.checked_add(name)?).ok())
+                .and_then(|at| cstr(data, at));
+            facts
+                .needed
+                .push(resolved.unwrap_or_else(|| format!("strtab+{name}")));
+        }
+    }
+    Some(facts)
+}
+
+/// The verifier's reason, plus which loader and libraries the artifact names.
+fn describe_failure(error: &str, data: &[u8]) -> String {
+    let Some(facts) = elf_facts(data) else {
+        return error.to_string();
+    };
+    let mut out = error.to_string();
+    if let Some(interp) = &facts.interp {
+        out.push_str(&format!(" [interpreter: {interp}]"));
+    }
+    if !facts.needed.is_empty() {
+        out.push_str(&format!(" [needs: {}]", facts.needed.join(", ")));
+    }
+    out
+}
+
 fn check_single_binary(
     path: &Path,
     arch_override: Option<&str>,
@@ -117,7 +228,11 @@ fn check_single_binary(
     let require_pie = resolve_pie_policy(root, arch);
 
     if let Err(e) = mios_build::verify_static_elf(&data, arch, require_pie) {
-        findings.push(format!("{}: {e}", path.display()));
+        findings.push(format!(
+            "{}: {}",
+            path.display(),
+            describe_failure(&e, &data)
+        ));
         return false;
     }
     true
@@ -211,7 +326,45 @@ pub fn check(opts: &Options) -> Report {
         };
     }
 
-    // Scan candidate directories for standalone Linux release ELF binaries
+    let binaries = match scanned(opts) {
+        Ok(b) => b,
+        Err(report) => return report,
+    };
+
+    for b in &binaries {
+        check_single_binary(
+            b,
+            opts.arch.as_deref(),
+            &opts.root,
+            &exceptions,
+            &mut findings,
+        );
+    }
+
+    let ok = findings.is_empty();
+    let summary = if ok {
+        format!(
+            "{} standalone Linux release binary(ies) verified as static ELF (no PT_INTERP, no DT_NEEDED)",
+            binaries.len()
+        )
+    } else {
+        format!(
+            "static linkage audit failed: {} violation(s) detected across {} binary(ies)",
+            findings.len(),
+            binaries.len()
+        )
+    };
+    Report {
+        check: CHECK.to_string(),
+        ok,
+        could_not_run: None,
+        summary,
+        findings,
+    }
+}
+
+/// The standalone Linux release ELF binaries a directory scan audits.
+fn scanned(opts: &Options) -> Result<Vec<PathBuf>, Report> {
     let mut binaries = Vec::new();
 
     // 1. Installed FHS directories in root
@@ -267,42 +420,94 @@ pub fn check(opts: &Options) -> Report {
     binaries.dedup();
 
     if binaries.is_empty() {
-        return cannot_run(format!(
+        return Err(cannot_run(format!(
             "no standalone Linux release ELF binaries found to audit in {}",
             opts.root.display()
-        ));
+        )));
     }
+    Ok(binaries)
+}
 
-    for b in &binaries {
-        check_single_binary(
-            b,
+/// `static-linkage --census`: the gate's verdict plus an inventory of every
+/// audited artifact -- SHA-256, size, architecture, ELF type, interpreter,
+/// DT_NEEDED libraries, exemption and verdict -- and the dependency census
+/// (library -> the binaries that need it). An OpenAI-format structured object
+/// whose exit code is the gate's own, so a census is never a softer gate.
+pub fn census(opts: &Options) -> (String, u8) {
+    use sha2::Digest;
+
+    let report = check(opts);
+    let targets = match &opts.binary {
+        Some(b) if b.is_file() => vec![b.clone()],
+        Some(_) => Vec::new(),
+        None => scanned(opts).unwrap_or_default(),
+    };
+    let exceptions = load_exceptions(&opts.root);
+    let mut dependencies: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut binaries = Vec::new();
+    for path in &targets {
+        let data = std::fs::read(path).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let facts = elf_facts(&data).unwrap_or_default();
+        let exempt = exceptions.contains(&name);
+        let mut reasons = Vec::new();
+        let passed = check_single_binary(
+            path,
             opts.arch.as_deref(),
             &opts.root,
             &exceptions,
-            &mut findings,
+            &mut reasons,
         );
+        for lib in &facts.needed {
+            dependencies
+                .entry(lib.clone())
+                .or_default()
+                .insert(name.clone());
+        }
+        let verdict = if exempt {
+            "exempt".to_string()
+        } else if passed {
+            "static".to_string()
+        } else {
+            reasons.join("; ")
+        };
+        binaries.push(serde_json::json!({
+            "path": path.display().to_string(),
+            "sha256": format!("{:x}", sha2::Sha256::digest(&data)),
+            "size": data.len(),
+            "arch": facts.arch,
+            "type": facts.kind,
+            "interpreter": facts.interp,
+            "needed": facts.needed,
+            "exempt": exempt,
+            "verdict": verdict,
+        }));
     }
-
-    let ok = findings.is_empty();
-    let summary = if ok {
-        format!(
-            "{} standalone Linux release binary(ies) verified as static ELF (no PT_INTERP, no DT_NEEDED)",
-            binaries.len()
-        )
+    let status = if report.could_not_run.is_some() {
+        "could_not_run"
+    } else if report.ok {
+        "clean"
     } else {
-        format!(
-            "static linkage audit failed: {} violation(s) detected across {} binary(ies)",
-            findings.len(),
-            binaries.len()
-        )
+        "violations"
     };
-    Report {
-        check: CHECK.to_string(),
-        ok,
-        could_not_run: None,
-        summary,
-        findings,
-    }
+    let value = serde_json::json!({
+        "check": CHECK,
+        "status": status,
+        "summary": report.could_not_run.clone().unwrap_or_else(|| report.summary.clone()),
+        "findings": report.findings,
+        "census": { "binaries": binaries, "dependencies": dependencies },
+    });
+    let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| {
+        // Serialising our own object cannot fail, but a gate never panics.
+        format!(
+            "{{\"check\":\"{CHECK}\",\"status\":\"could_not_run\",\
+             \"summary\":\"census could not be serialised\",\"findings\":[]}}"
+        )
+    });
+    (text, report.code())
 }
 
 #[cfg(test)]
@@ -352,6 +557,114 @@ mod tests {
         let mut dyn_bin = make_elf(2);
         dyn_bin[224..232].copy_from_slice(&1_u64.to_le_bytes()); // DT_NEEDED
         dyn_bin
+    }
+
+    /// A dynamic artifact whose DT_STRTAB resolves: it needs libfoo.so.
+    fn make_needs_libfoo() -> Vec<u8> {
+        let mut bin = make_elf(2);
+        bin[224..232].copy_from_slice(&5_u64.to_le_bytes()); // DT_STRTAB
+        bin[232..240].copy_from_slice(&(0x1000_u64 + 200).to_le_bytes()); // -> file offset 200
+        bin[240..248].copy_from_slice(&1_u64.to_le_bytes()); // DT_NEEDED
+        bin[248..256].copy_from_slice(&1_u64.to_le_bytes()); // strtab + 1
+        bin[201..210].copy_from_slice(b"libfoo.so");
+        bin
+    }
+
+    /// A dynamic artifact that asks for a named loader.
+    fn make_interp_named() -> Vec<u8> {
+        let mut bin = make_elf(3);
+        bin[128..136].copy_from_slice(&200_u64.to_le_bytes()); // p_offset
+        bin[152..160].copy_from_slice(&18_u64.to_le_bytes()); // p_filesz
+        bin[200..217].copy_from_slice(b"/lib/ld-musl.so.1");
+        bin
+    }
+
+    fn single(bytes: Vec<u8>) -> Report {
+        let tmp = tempfile::tempdir().unwrap();
+        let bin_path = tmp.path().join("dyn_bin");
+        std::fs::write(&bin_path, bytes).unwrap();
+        check(&Options {
+            root: tmp.path().to_path_buf(),
+            binary: Some(bin_path),
+            arch: Some("x86_64".into()),
+        })
+    }
+
+    #[test]
+    fn a_dynamic_finding_names_the_libraries_it_needs() {
+        let report = single(make_needs_libfoo());
+        assert_eq!(report.code(), 1);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("DT_NEEDED") && f.contains("[needs: libfoo.so]")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn an_interpreter_finding_names_the_loader() {
+        let report = single(make_interp_named());
+        assert_eq!(report.code(), 1);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("PT_INTERP") && f.contains("[interpreter: /lib/ld-musl.so.1]")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn census_inventories_every_binary_and_keeps_the_gate_verdict() {
+        use sha2::Digest;
+        let tmp = tempfile::tempdir().unwrap();
+        let (good, bad) = (make_static_pie(), make_needs_libfoo());
+        std::fs::write(tmp.path().join("good_bin"), &good).unwrap();
+        std::fs::write(tmp.path().join("dyn_bin"), &bad).unwrap();
+        let (text, code) = census(&Options {
+            root: tmp.path().to_path_buf(),
+            binary: None,
+            arch: Some("x86_64".into()),
+        });
+        assert_eq!(code, 1, "a census is never a softer gate: {text}");
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["status"], "violations");
+        let bins = v["census"]["binaries"].as_array().unwrap();
+        assert_eq!(bins.len(), 2, "{text}");
+        let by_name = |n: &str| {
+            bins.iter()
+                .find(|b| b["path"].as_str().unwrap().ends_with(n))
+                .unwrap()
+                .clone()
+        };
+        let g = by_name("good_bin");
+        assert_eq!(g["verdict"], "static");
+        assert_eq!(g["sha256"], format!("{:x}", sha2::Sha256::digest(&good)));
+        assert_eq!(g["arch"], "x86_64");
+        assert_eq!(g["type"], "ET_DYN");
+        let d = by_name("dyn_bin");
+        assert_eq!(d["needed"], serde_json::json!(["libfoo.so"]));
+        assert!(d["verdict"].as_str().unwrap().contains("DT_NEEDED"));
+        assert_eq!(
+            v["census"]["dependencies"]["libfoo.so"],
+            serde_json::json!(["dyn_bin"])
+        );
+    }
+
+    #[test]
+    fn census_of_nothing_cannot_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (text, code) = census(&Options {
+            root: tmp.path().to_path_buf(),
+            binary: None,
+            arch: None,
+        });
+        assert_eq!(code, 2, "{text}");
+        assert!(text.contains("could_not_run"), "{text}");
     }
 
     #[test]

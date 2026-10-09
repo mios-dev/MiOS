@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3841,
+  "total_metadata_entries": 3148,
+  "total_hints": 3138,
   "total_functions_indexed": 1469,
-  "total_related_links": 5223,
+  "total_related_links": 5227,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -3050,6 +3050,15 @@
       "has_shebang": false
     },
     {
+      "path": "docs/research/upstream-prior-art-gaps-2026-10.md",
+      "hint": "Prioritised upstream prior-art gap brief for MiOS across six lanes (AI plane, configurator, image pipeline, supply chain, bare metal/fleet, dev/cloud/WSL), with repo evidence and SSOT-shaped fixes.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "etc/btop/btop.conf",
       "hint": "GENERATED btop config -- do NOT hand-edit. Projected from the mios.toml [btop] SSOT by mios-theme-render (surface \"btop-conf\" -> etc/btop/btop.conf), the SAME way [colors] projects into themes/mios.theme.",
       "related": [],
@@ -4540,6 +4549,20 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/module_tests.rs",
+      "hint": "Asserts every agent-pipe module is NAMED by a unit test (imported, loaded by file, or reached through its re-export shim), and every tools/ and libexec Python module has a sibling test that names it or sits in the shrink-only grandfather ledger.",
+      "related": [
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh",
+        "usr/share/mios/reference/python-untested-baseline.txt",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/negative_coverage.rs",
       "hint": "Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this gate is what keeps the phantom population at zero.",
       "related": [
@@ -4679,7 +4702,7 @@
     },
     {
       "path": "src/mios-rs/mios-gate/src/static_linkage.rs",
-      "hint": "Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021).",
+      "hint": "Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021); --census adds the per-binary SHA-256/interpreter/DT_NEEDED inventory and the dependency census.",
       "related": [
         "src/mios-rs/mios-gate/src/main.rs",
         "usr/share/mios/mios.toml",
@@ -9425,15 +9448,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/audit-static-linkage.py",
-      "hint": "Audits ELF headers of compiled Linux binaries across tools/native and src/mios-rs, asserting static linkage (absence of PT_INTERP and DT_NEEDED).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "hash",
       "has_shebang": true
     },
