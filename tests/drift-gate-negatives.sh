@@ -3314,48 +3314,27 @@ test_resolved_env_lossless() {
 }
 
 test_no_duplicate_value_key() {
-    # Was a rubber stamp: it ran the gate and died only if the gate FAILED.
-    # Both cases below are SSOT-side, not a broken tool.
+    # Every case mutates the SSOT, never the tool: a new group, T-998's one exit, a joiner.
     log "Testing check_no_duplicate_value_key"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local ledger="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml" ledger="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
+    local aliases="${ROOT}/usr/share/mios/reference/value-aliases.tsv" bak_file="${ROOT}/usr/share/mios/mios.toml.bak" dup_value exit_rc=0
     [[ -f "$toml_file" && -f "$ledger" ]] || { log "Test_no_duplicate_value_key skipped (SSOT or ledger absent)"; return 0; }
-
-    _neg_gate check_no_duplicate_value_key \
-        || die "check_no_duplicate_value_key failed on the unmutated tree: ${_NEG_GATE_OUT}"
-
-    local bak_file="${toml_file}.bak"
-    cp "$toml_file" "$bak_file"
-
-    # Case 1 -- a brand-new group: two SSOT keys given one novel value. The
-    # group count rises above the ratchet ceiling AND the value is unlisted.
+    _neg_gate check_no_duplicate_value_key || die "check_no_duplicate_value_key failed on the unmutated tree: ${_NEG_GATE_OUT}"
+    cp "$toml_file" "$bak_file"; cp "$aliases" "${aliases}.bak"
+    # Case 1 -- a brand-new group: two SSOT keys given one novel value.
     printf '\n[negtest_value_dup]\nalpha = "ZZNEGDUPVALUE4271"\nbeta = "ZZNEGDUPVALUE4271"\n' >> "$toml_file"
-    if _neg_gate check_no_duplicate_value_key; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        die "check_no_duplicate_value_key passed despite two SSOT keys resolving to one unlisted value"
-    fi
-    cp "$bak_file" "$toml_file"
-
-    # Case 2 -- the harder one: a single new key joining a value group the
-    # ledger ALREADY tolerates. The group count is unchanged, so only the
-    # per-group key-set comparison can catch it. The value is read out of the
-    # ledger itself so the test never hardcodes an SSOT fact.
-    local dup_value
+    _neg_gate check_no_duplicate_value_key && { mv -f "$bak_file" "$toml_file"; mv -f "${aliases}.bak" "$aliases"; die "check_no_duplicate_value_key passed despite two SSOT keys resolving to one unlisted value"; }
+    # Case 2 -- T-998's one exit: the same plant passes once value-aliases.tsv classifies it keep-distinct.
+    printf 'MIOS_NEGTEST_VALUE_DUP_ALPHA\tMIOS_NEGTEST_VALUE_DUP_BETA\tkeep-distinct\t# two planted settings that agree by accident\n' >> "$aliases"
+    _neg_gate check_no_duplicate_value_key || exit_rc=$?; cp "$bak_file" "$toml_file"; mv -f "${aliases}.bak" "$aliases"
+    (( exit_rc == 0 )) || { mv -f "$bak_file" "$toml_file"; die "check_no_duplicate_value_key rejected a keep-distinct coincidence: ${_NEG_GATE_OUT}"; }
+    # Case 3 -- one new key joining a group the ledger tolerates: the count holds, only the per-group comparison sees it.
     dup_value="$(awk -F'\t' 'substr($0,1,1) != "#" && NF == 3 && $1 ~ /^[A-Za-z0-9._-]+$/ { print $1; exit }' "$ledger")"
-    if [[ -n "$dup_value" ]]; then
-        printf '\n[negtest_value_grow]\njoiner = "%s"\n' "$dup_value" >> "$toml_file"
-        if _neg_gate check_no_duplicate_value_key; then
-            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-            die "check_no_duplicate_value_key passed despite a new SSOT key joining the already-listed value group '${dup_value}'"
-        fi
-        cp "$bak_file" "$toml_file"
-    else
-        die "value-dup-baseline.tsv yielded no usable group value -- the ledger the gate ratchets against is empty or malformed"
-    fi
-
-    rm -f "$bak_file"
-    _neg_gate check_no_duplicate_value_key \
-        || die "check_no_duplicate_value_key failed after restoration: ${_NEG_GATE_OUT}"
+    [[ -n "$dup_value" ]] || { mv -f "$bak_file" "$toml_file"; die "value-dup-baseline.tsv yielded no usable group value -- the ledger the gate ratchets against is empty or malformed"; }
+    printf '\n[negtest_value_grow]\njoiner = "%s"\n' "$dup_value" >> "$toml_file"
+    _neg_gate check_no_duplicate_value_key && { mv -f "$bak_file" "$toml_file"; die "check_no_duplicate_value_key passed despite a new SSOT key joining the already-listed value group '${dup_value}'"; }
+    mv -f "$bak_file" "$toml_file"
+    _neg_gate check_no_duplicate_value_key || die "check_no_duplicate_value_key failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_no_duplicate_value_key negative test passed"
 }
 
@@ -3390,10 +3369,14 @@ test_value_aliases() {
     local backup; backup="$(mktemp)"
     cp "$f" "$backup"
     printf 'MIOS_A2A_COUNCIL\tMIOS_A2A_DISCOVER_PORT\tderive\n' >> "$f"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 && die "Check_value_aliases passed despite a derive-pair with divergent values"
+    _neg_gate check_value_aliases && { cp "$backup" "$f"; die "Check_value_aliases passed despite a derive-pair with divergent values"; }
+    # T-998: keep-distinct needs two declarations and a reason; an alias or a bare pair fails.
+    local row; for row in 'MIOS_PORTS_RADOSGW\tMIOS_RADOSGW_PORT\tkeep-distinct\t# one port, mislabelled a coincidence' \
+        'MIOS_SCHED_URGENCY_HIGH\tMIOS_SSOT_TABLES_MAX_UNCONSUMED\tkeep-distinct'; do cp "$backup" "$f"; printf "${row}\n" >> "$f"
+        _neg_gate check_value_aliases && { cp "$backup" "$f"; rm -f "$backup"; die "Check_value_aliases accepted an unjustified keep-distinct row: ${row}"; }
+    done
     cp "$backup" "$f"; rm -f "$backup"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 \
-        || die "Check_value_aliases failed after restoration"
+    _neg_gate check_value_aliases || die "Check_value_aliases failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_value_aliases negative test passed"
 }
 

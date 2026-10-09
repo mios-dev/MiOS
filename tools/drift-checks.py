@@ -277,6 +277,50 @@ def check_legibility_ratchet() -> int:
     print("\n".join(viol))
     sys.exit(1 if viol else 0)
 
+def _value_sources(root: str):
+    """(name -> declaring SSOT key path, None) from `mios-resolver --emit=names`,
+    run sealed like mios-env-snapshot; else (None, why)."""
+    import json, shutil, subprocess
+    binary = os.environ.get("MIOS_RESOLVER_BIN") or shutil.which("mios-resolver")
+    if not binary:
+        return None, ("mios-resolver is not built, so no name can be traced to its "
+                      "declaration -- build it: cd tools/native && cargo build -p mios-resolver")
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": "/nonexistent",
+           "XDG_CONFIG_HOME": "/nonexistent/.config", "MIOS_ROOT": root, "MIOS_TOML_ROOT": root,
+           "MIOS_VENDOR_TOML": os.environ.get("MIOS_VENDOR_TOML")
+           or os.path.join(root, "usr/share/mios/mios.toml"),
+           "MIOS_USER_TOML": "/nonexistent/user.toml", "MIOS_USER_TOML_D": "/nonexistent/user.d"}
+    try:
+        proc = subprocess.run([binary, "--emit=names"], capture_output=True, text=True, env=env)
+        sources = json.loads(proc.stdout).get("sources") if proc.returncode == 0 else None
+    except (OSError, ValueError, AttributeError) as exc:
+        return None, "%s --emit=names produced no registry: %s" % (binary, exc)
+    if not isinstance(sources, dict) or not sources:
+        tail = (proc.stderr or "").strip().splitlines()
+        return None, ("%s --emit=names exited %d with no provenance map%s" % (
+            binary, proc.returncode, ": " + tail[-1] if tail else
+            " (a resolver older than the `sources` field)"))
+    return sources, None
+
+# A keep-distinct row both value gates honour carries at least this much reason.
+KEEP_DISTINCT_MIN_REASON = 20
+
+def _alias_rows(tsv: str):
+    """value-aliases.tsv rows as (line, canonical, alias, disposition, reason)."""
+    rows = []
+    with open(tsv, encoding="utf-8") as fh:
+        for lineno, raw in enumerate(fh, 1):
+            raw = raw.rstrip("\n")
+            if not raw.strip() or raw.lstrip().startswith("#"):
+                continue
+            parts = raw.split("\t")
+            if len(parts) < 3 or not parts[2].split():
+                continue
+            rest = "\t".join(parts[2:])
+            rows.append((lineno, parts[0].strip(), parts[1].strip(), parts[2].split()[0].strip(),
+                         rest.split("#", 1)[1].strip() if "#" in rest else ""))
+    return rows
+
 def check_no_duplicate_value_key() -> int:
     """One value, one name, ratcheted against the baseline ledger.
 
@@ -385,20 +429,57 @@ def check_no_duplicate_value_key() -> int:
     for key, val in env.items():
         by_value.setdefault(val, []).append(key)
 
-    # Two spellings of ONE key are not two keys. The resolver emits an aliased
-    # name beside the walked name -- MIOS_CODE_MODE_SOCKET and
-    # MIOS_CODE_MODE_SOCKET are one declaration -- so counting them as a
-    # collision made every new key in an aliased table breach the ratchet, which
-    # would have forced the ceiling up for a duplicate that is not one.
-    def _shape(name):
-        return name.replace("_", "")
+    # A duplicate is two DECLARATIONS sharing one value. The resolver traces each
+    # name to its key path; an untraced name stands alone.
+    root = os.environ.get("MIOS_TOML_ROOT") or os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(snap_tool)), "..", "..", ".."))
+    sources, why = _value_sources(root)
+    if sources is None:
+        emit("cannot tell aliases from duplicates: " + why)
+        sys.exit(1)
 
-    live = {}
+    def _shape(name):
+        return ("decl", sources[name]) if name in sources else ("name", name.replace("_", ""))
+
+    def _rep(name_set):
+        """The one name a ledger row records for a declaration: its canonical."""
+        ident = _shape(next(iter(name_set)))
+        if ident[0] == "decl":
+            body = re.sub(r"[^A-Z0-9_]", "_", ident[1].upper())  # names::canonical_name
+            canon = body if body.startswith("MIOS_") else "MIOS_" + body
+            if canon in name_set:
+                return canon
+        return min(name_set)
+
+    # T-998: a keep-distinct row in value-aliases.tsv declares its alias column a
+    # distinct fact that shares the canonical column's value by coincidence.
+    # check_value_aliases proves the two are separate declarations and that the
+    # row says why; here the alias side stops counting as a duplicate of a group
+    # its canonical side is in. Nothing else exempts a value.
+    aliases_tsv = os.path.join(os.path.dirname(os.path.abspath(baseline_path)), "value-aliases.tsv")
+    if not os.path.isfile(aliases_tsv):
+        emit("%s is absent -- its keep-distinct rows are what tell a coincidence from a "
+             "duplicate, so this gate cannot classify a single group" % aliases_tsv)
+        sys.exit(1)
+    distinct = [(a, b) for _, a, b, disp, reason in _alias_rows(aliases_tsv)
+                if disp == "keep-distinct" and len(reason) >= KEEP_DISTINCT_MIN_REASON]
+
+    live, coincidental = {}, 0
     for val, keys in by_value.items():
         if val in EXEMPT_VALUES:
             continue
-        if len({_shape(k) for k in keys}) > 1:
-            live[val] = sorted(keys)
+        decls = {}
+        for k in keys:
+            decls.setdefault(_shape(k), set()).add(k)
+        if len(decls) < 2:
+            continue
+        explained = {_shape(b) for a, b in distinct
+                     if a in env and b in env and env[a] == env[b] == val and _shape(a) != _shape(b)}
+        residual = {i: n for i, n in decls.items() if i not in explained}
+        if len(residual) > 1:
+            live[val] = sorted(_rep(n) for n in residual.values())
+        else:
+            coincidental += 1
 
     # --- regeneration -----------------------------------------------------------
     if BUMP:
@@ -470,18 +551,26 @@ def check_no_duplicate_value_key() -> int:
     if new_groups:
         bad += 1
         for val in new_groups[:CAP]:
-            emit("NEW duplicate-value group, not on the ratchet ledger: %r is shared by %s" % (val, ", ".join(live[val])))
+            emit("NEW duplicate-value group, not on the ratchet ledger: %r is declared by %s "
+                 "-- collapse it to one declaration, or, only if they are distinct facts, "
+                 "register the pair keep-distinct with its reason in value-aliases.tsv"
+                 % (val, ", ".join(live[val])))
         if len(new_groups) > CAP:
             emit("... and %d further new groups" % (len(new_groups) - CAP))
 
-    # --- growth: a NEW key joining a group the ledger already tolerates ----------
+    # --- growth: a NEW declaration joining a group the ledger already tolerates --
+    # Compared by declaration, not spelling: a ledger row names each declaration
+    # once (its canonical), so a further alias of a recorded declaration is not
+    # growth, and a recorded name that now traces elsewhere is.
     grown = []
     shrunk = []
     for val in sorted(live):
         if val not in base:
             continue
-        added = sorted(set(live[val]) - set(base[val]))
-        removed = sorted(set(base[val]) - set(live[val]))
+        have = {_shape(k): k for k in live[val]}
+        had = {_shape(k): k for k in base[val]}
+        added = sorted(have[i] for i in set(have) - set(had))
+        removed = sorted(had[i] for i in set(had) - set(have))
         if added:
             grown.append((val, added))
         if removed:
@@ -490,7 +579,7 @@ def check_no_duplicate_value_key() -> int:
     if grown:
         bad += 1
         for val, added in grown[:CAP]:
-            emit("group %r GREW: %s now also resolve to it" % (val, ", ".join(added)))
+            emit("group %r GREW: %s now also declare it" % (val, ", ".join(added)))
         if len(grown) > CAP:
             emit("... and %d further grown groups" % (len(grown) - CAP))
 
@@ -517,10 +606,13 @@ def check_no_duplicate_value_key() -> int:
         emit("duplicate-value group count %d is BELOW the ratchet ceiling %d -- lower the ceiling to %d so the progress is locked in" % (len(live), ceiling, len(live)))
 
     if bad:
-        emit("resolver emitted %d MIOS_* keys forming %d non-exempt duplicate-value groups; ledger declares %s" % (len(env), len(live), ceiling))
+        emit("resolver emitted %d MIOS_* keys forming %d non-exempt duplicate-value groups "
+             "(%d more explained by keep-distinct rows); ledger declares %s"
+             % (len(env), len(live), coincidental, ceiling))
         sys.exit(1)
 
-    sys.stdout.write("%d groups at ceiling %d\n" % (len(live), ceiling))
+    sys.stdout.write("%d groups at ceiling %d; %d coincidental groups explained by "
+                     "value-aliases.tsv keep-distinct rows\n" % (len(live), ceiling, coincidental))
     sys.exit(0)
 
 def check_unwired_modules() -> int:
@@ -3812,27 +3904,43 @@ def check_value_aliases() -> int:
             k, v = line.split("=", 1)
             env[k] = v
     bad = []
-    with open(tsv, encoding="utf-8") as fh:
-        for raw in fh:
-            raw = raw.rstrip("\n")
-            if not raw.strip() or raw.lstrip().startswith("#"):
-                continue
-            parts = raw.split("\t")
-            if len(parts) < 3:
-                continue
-            a, b, disp = parts[0].strip(), parts[1].strip(), parts[2].split()[0].strip()
-            if a not in env or b not in env:  # never just skipped: that hid stranded keys; "X_" names a family
-                bad += [f"{n} is registered ({a} -> {b}, {disp}) but the resolver does not emit it -- its consumers"
-                        f" take their inline defaults; restore its key to the SSOT table that emits it"
-                        for n in (a, b) if n not in env and not n.endswith("_")]
-                continue
-            va, vb = env[a], env[b]
-            if disp in ("derive", "delete"):
-                if va != vb:
-                    bad.append(f"{a}={va!r} != {b}={vb!r} (disposition={disp}: MUST be equal -- silent SSOT divergence)")
-            elif disp == "keep-distinct":
-                if va == vb:
-                    bad.append(f"{a} == {b} == {va!r} but marked keep-distinct -- a naive collapse would corrupt this false-friend")
+    rows = _alias_rows(tsv)
+    sources = None
+    if any(disp == "keep-distinct" for *_, disp, _r in rows):
+        sources, why = _value_sources(os.path.abspath(root))
+        if sources is None:
+            print("keep-distinct rows cannot be verified: " + why)
+            return 1
+    seen = {}
+    for lineno, a, b, disp, reason in rows:
+        pair = frozenset((a, b))
+        if pair in seen:
+            bad.append(f"line {lineno}: {a} / {b} is already registered on line {seen[pair]} -- one pair, one row")
+        seen.setdefault(pair, lineno)
+        if a not in env or b not in env:  # never just skipped: that hid stranded keys; "X_" names a family
+            bad += [f"{n} is registered ({a} -> {b}, {disp}) but the resolver does not emit it -- its consumers"
+                    f" take their inline defaults; restore its key to the SSOT table that emits it"
+                    for n in (a, b) if n not in env and not n.endswith("_")]
+            continue
+        va, vb = env[a], env[b]
+        if disp in ("derive", "delete"):
+            if va != vb:
+                bad.append(f"{a}={va!r} != {b}={vb!r} (disposition={disp}: MUST be equal -- silent SSOT divergence)")
+        elif disp == "keep-distinct":
+            # T-998. keep-distinct means DISTINCT FACTS: two declarations, never
+            # collapsed, whose values may coincide. One declaration under two
+            # names is an alias whatever the row claims, and a claim nobody can
+            # review is not a classification.
+            sa, sb = sources.get(a), sources.get(b)
+            if len(reason) < KEEP_DISTINCT_MIN_REASON:
+                bad.append(f"line {lineno}: {a} / {b} is keep-distinct without a reason -- say why"
+                           f" either can change without the other becoming wrong")
+            if sa and sa == sb:
+                bad.append(f"{a} and {b} both carry {sa} -- one declaration under two names is an alias"
+                           f" (derive), never keep-distinct")
+            elif va == vb and not (sa and sb):
+                bad.append(f"{a} == {b} == {va!r} but {a if not sa else b} traces to no SSOT declaration,"
+                           f" so nothing shows the two are distinct facts")
     for msg in bad:
         sys.stderr.write("    [value-alias-drift] " + msg + "\n")
     return 1 if bad else 0

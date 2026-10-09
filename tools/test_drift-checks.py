@@ -465,6 +465,107 @@ class TestMonitorRegistry(unittest.TestCase):
             self.assertFalse(self.ns["load_ssot_colors"]()[1], theme)
 
 
+# The T-996 pair: a priority scale and a ceiling that must equal its register's
+# size, both 9 once -- two facts that agreed by accident.
+T996_ENV = {"MIOS_SCHED_URGENCY_HIGH": "9", "MIOS_SSOT_TABLES_MAX_UNCONSUMED": "9"}
+T996_SOURCES = {"MIOS_SCHED_URGENCY_HIGH": "sched.urgency_high",
+                "MIOS_SSOT_TABLES_MAX_UNCONSUMED": "ssot_tables.max_unconsumed"}
+T996_ROW = ("MIOS_SCHED_URGENCY_HIGH", "MIOS_SSOT_TABLES_MAX_UNCONSUMED", "keep-distinct",
+            "# a priority level vs a ceiling pinned to its register's size; they agree by accident")
+
+
+def _value_fixture(tmp, emitted, sources):
+    """A snapshot tool printing `emitted` and a resolver whose names registry
+    carries `sources` -- the two inputs both value gates read."""
+    import json
+    snap = os.path.join(tmp, "snapshot.sh")
+    with open(snap, "w", encoding="utf-8") as fh:
+        fh.write("#!/usr/bin/env bash\n")
+        for k, v in emitted.items():
+            fh.write("printf '%%s\\n' '%s=%s'\n" % (k, v))
+    resolver = os.path.join(tmp, "mios-resolver")
+    with open(resolver, "w", encoding="utf-8") as fh:
+        fh.write("#!%s\nimport json\nprint(json.dumps(%r))\n"
+                 % (sys.executable, {"entries": [], "sources": sources}))
+    os.chmod(resolver, 0o755)
+    return snap, resolver
+
+
+class TestValueDupCoincidence(unittest.TestCase):
+    """check_no_duplicate_value_key over declarations, and T-998's one exit."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mios-value-dup-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _run(self, emitted, sources, rows=(), ledger=()):
+        snap, resolver = _value_fixture(self.tmp, emitted, sources)
+        with open(os.path.join(self.tmp, "value-aliases.tsv"), "w", encoding="utf-8") as fh:
+            fh.write("# canonical\talias\tdisposition\n")
+            for row in rows:
+                fh.write("\t".join(row) + "\n")
+        base = os.path.join(self.tmp, "value-dup-baseline.tsv")
+        with open(base, "w", encoding="utf-8") as fh:
+            fh.write("#!ceiling\t%d\n" % len(ledger))
+            for val, keys in ledger:
+                fh.write("%s\t%d\t%s\n" % (val, len(keys), ",".join(keys)))
+        env = dict(os.environ, MIOS_RESOLVER_BIN=resolver, MIOS_TOML_ROOT=self.tmp)
+        return subprocess.run([sys.executable, _MOD_PATH, "no-duplicate-value-key", snap, base],
+                              capture_output=True, text=True, cwd=_ROOT, env=env)
+
+    def test_the_t996_pair_is_a_new_group_until_it_is_classified(self):
+        r = self._run(T996_ENV, T996_SOURCES)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_the_t996_pair_passes_through_its_keep_distinct_row(self):
+        r = self._run(T996_ENV, T996_SOURCES, [T996_ROW])
+        self.assertEqual(0, r.returncode, r.stderr)
+        self.assertIn("0 groups at ceiling 0; 1 coincidental", r.stdout)
+
+    def test_a_row_without_its_reason_explains_nothing(self):
+        # Both gates honour the same rows: check_value_aliases rejects this
+        # one, so the ratchet must not count it as a classification either.
+        r = self._run(T996_ENV, T996_SOURCES, [T996_ROW[:3]])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_spellings_of_one_declaration_are_not_a_group(self):
+        env = {"MIOS_PORTS_X": "8470", "MIOS_PORT_X": "8470", "MIOS_X_PORT": "8470"}
+        r = self._run(env, {k: "ports.x" for k in env})
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_two_declarations_spelled_alike_still_are_a_group(self):
+        # Name shape alone used to fold these; provenance does not.
+        env = {"MIOS_CODE_MODE_X": "v", "MIOS_CODEMODE_X": "v"}
+        r = self._run(env, {"MIOS_CODE_MODE_X": "code_mode.x", "MIOS_CODEMODE_X": "codemode.x"})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("NEW duplicate-value group", r.stderr)
+
+    def test_a_row_explains_only_a_group_its_canonical_side_is_in(self):
+        env = dict(T996_ENV, MIOS_OTHER="7")
+        src = dict(T996_SOURCES, MIOS_OTHER="other.k")
+        row = ("MIOS_OTHER",) + T996_ROW[1:]
+        r = self._run(env, src, [row])
+        self.assertEqual(1, r.returncode)
+
+    def test_growth_needs_its_own_row(self):
+        env = {"MIOS_A": "20", "MIOS_B": "20", "MIOS_NEW": "20"}
+        src = {"MIOS_A": "a.k", "MIOS_B": "b.k", "MIOS_NEW": "n.k"}
+        ledger = [("20", ["MIOS_A", "MIOS_B"])]
+        r = self._run(env, src, ledger=ledger)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("GREW: MIOS_NEW", r.stderr)
+        row = ("MIOS_A", "MIOS_NEW", "keep-distinct", "# an unrelated tunable that is also twenty")
+        r = self._run(env, src, [row], ledger=ledger)
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_no_provenance_map_is_not_a_pass(self):
+        r = self._run(T996_ENV, {}, [T996_ROW])
+        self.assertEqual(1, r.returncode)
+        self.assertIn("cannot tell aliases from duplicates", r.stderr)
+
+
 class TestValueAliasRegistry(unittest.TestCase):
     """value-aliases.tsv vouches for names the resolver emits.
 
@@ -478,18 +579,14 @@ class TestValueAliasRegistry(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="mios-value-aliases-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
-    def _run(self, emitted, rows):
-        snap = os.path.join(self.tmp, "snapshot.sh")
-        with open(snap, "w", encoding="utf-8") as fh:
-            fh.write("#!/usr/bin/env bash\n")
-            for k, v in emitted.items():
-                fh.write("printf '%%s\\n' '%s=%s'\n" % (k, v))
+    def _run(self, emitted, rows, sources=None):
+        snap, resolver = _value_fixture(self.tmp, emitted, sources or {})
         tsv = os.path.join(self.tmp, "value-aliases.tsv")
         with open(tsv, "w", encoding="utf-8") as fh:
             fh.write("# canonical\talias\tdisposition\n")
             for row in rows:
                 fh.write("\t".join(row) + "\n")
-        env = dict(os.environ, MIOS_DRIFT_ROOT=self.tmp)
+        env = dict(os.environ, MIOS_DRIFT_ROOT=self.tmp, MIOS_RESOLVER_BIN=resolver)
         return subprocess.run([sys.executable, _MOD_PATH, "value-aliases", snap, tsv],
                               capture_output=True, text=True, cwd=_ROOT, env=env)
 
@@ -504,11 +601,39 @@ class TestValueAliasRegistry(unittest.TestCase):
         self.assertEqual(1, r.returncode)
         self.assertIn("MUST be equal", r.stderr)
 
-    def test_an_equal_keep_distinct_pair_fails(self):
-        r = self._run({"T_A": "1", "T_B": "1"},
-                      [("T_A", "T_B", "keep-distinct")])
+    # T-998. keep-distinct means two declarations whose values may coincide;
+    # it used to mean "must differ", which left a real coincidence no exit.
+    def test_the_t996_coincidence_passes_as_two_declarations(self):
+        r = self._run(T996_ENV, [T996_ROW], T996_SOURCES)
+        self.assertEqual(0, r.returncode, r.stderr)
+
+    def test_keep_distinct_without_a_reason_fails(self):
+        r = self._run(T996_ENV, [T996_ROW[:3]], T996_SOURCES)
         self.assertEqual(1, r.returncode)
-        self.assertIn("keep-distinct", r.stderr)
+        self.assertIn("without a reason", r.stderr)
+
+    def test_one_declaration_under_two_names_is_never_keep_distinct(self):
+        # An alias the resolver emits beside its walked name, mislabelled.
+        one = {k: "sched.urgency_high" for k in T996_ENV}
+        r = self._run(T996_ENV, [T996_ROW], one)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("one declaration under two names", r.stderr)
+
+    def test_equal_values_with_no_declaration_to_tell_apart_fail(self):
+        r = self._run(T996_ENV, [T996_ROW], {"MIOS_SCHED_URGENCY_HIGH": "sched.urgency_high"})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("traces to no SSOT declaration", r.stderr)
+
+    def test_a_pair_registered_twice_fails(self):
+        reverse = (T996_ROW[1], T996_ROW[0]) + T996_ROW[2:]
+        r = self._run(T996_ENV, [T996_ROW, reverse], T996_SOURCES)
+        self.assertEqual(1, r.returncode)
+        self.assertIn("already registered", r.stderr)
+
+    def test_a_provenance_less_resolver_is_not_a_pass(self):
+        r = self._run(T996_ENV, [T996_ROW], {})
+        self.assertEqual(1, r.returncode)
+        self.assertIn("cannot be verified", r.stdout + r.stderr)
 
     def test_a_stranded_family_fails_naming_both_variables(self):
         # The lost-header shape: the key now parses under another table, so
