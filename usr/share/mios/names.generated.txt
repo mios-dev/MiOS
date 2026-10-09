@@ -6064,7 +6064,6 @@ docs.ref_allowlist  MIOS_DOCS_REF_ALLOWLIST
 docs.link_base  MIOS_DOCS_LINK_BASE
 docs.distill.enable  MIOS_DOCS_DISTILL_ENABLE
 docs.distill.dest_dir  MIOS_DOCS_DISTILL_DEST_DIR
-docs.distill.skip_globs  MIOS_DOCS_DISTILL_SKIP_GLOBS
 docs.sanitize.redact_patterns  MIOS_DOCS_SANITIZE_REDACT_PATTERNS
 docs.sanitize.redact_with  MIOS_DOCS_SANITIZE_REDACT_WITH
 docs.sanitize.path_rewrites  MIOS_DOCS_SANITIZE_PATH_REWRITES

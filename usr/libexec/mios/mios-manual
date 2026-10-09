@@ -167,6 +167,20 @@ def _refuse_if_degraded() -> int:
     return 1
 
 
+def _row(b, v, old: dict) -> dict:
+    """One ledger row; the landing columns are carried forward by hash, never recomputed."""
+    return {
+        "path": b.path, "start_line": str(b.start_line), "end_line": str(b.end_line),
+        "lines": str(b.lines), "words": str(b.words), "sha12": b.sha12,
+        "class": v.cls, "reason": v.reason, "as": v.as_,
+        "stale": "1" if v.stale else "0",
+        "landed_doc": old.get("landed_doc", ""),
+        "landed_anchor": old.get("landed_anchor", ""),
+        "landed_words": old.get("landed_words", ""),
+        "pruned": old.get("pruned", "0"),
+    }
+
+
 def cmd_ledger(args) -> int:
     root = args.root
     policy = _policy(root)
@@ -177,19 +191,8 @@ def cmd_ledger(args) -> int:
     rows = []
     seen: set[str] = set()
     for b, v in _iter_blocks(root, policy):
-        old = prior.get(b.sha12, {})
         seen.add(b.sha12)
-        rows.append({
-            "path": b.path, "start_line": str(b.start_line), "end_line": str(b.end_line),
-            "lines": str(b.lines), "words": str(b.words), "sha12": b.sha12,
-            "class": v.cls, "reason": v.reason, "as": v.as_,
-            "stale": "1" if v.stale else "0",
-            # Carried forward by hash, never recomputed.
-            "landed_doc": old.get("landed_doc", ""),
-            "landed_anchor": old.get("landed_anchor", ""),
-            "landed_words": old.get("landed_words", ""),
-            "pruned": old.get("pruned", "0"),
-        })
+        rows.append(_row(b, v, prior.get(b.sha12, {})))
 
     # Tombstones: a pruned block is gone from the tree but its landing proof
     # must outlive it, otherwise nothing can show the deletion was safe.
@@ -338,7 +341,6 @@ def cmd_distill(args) -> int:
     deriver, while narrative comments are copied forward. Removing a scraped
     comment stays a separate, opt-in `prune`.
     """
-    import fnmatch
     root = args.root
     policy = _policy(root)
     with open(_ssot_path(root), "rb") as fh:
@@ -348,7 +350,6 @@ def cmd_distill(args) -> int:
         print("distill disabled ([docs.distill].enable = false)")
         return 0
     dest_dir = str(cfg.get("dest_dir") or "usr/share/doc/mios/manual")
-    skips = [str(g) for g in (cfg.get("skip_globs") or [])]
 
     mc.DEGRADED.clear()
     ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
@@ -358,15 +359,17 @@ def cmd_distill(args) -> int:
               file=sys.stderr)
         return 1
 
+    # Exactly the blocks cmd_coverage and check_docs_ratchet count, so a clean
+    # distill always leaves the narrative ratchet at zero.
     by_dest: dict[str, list] = {}
     for b, v in _iter_blocks(root, policy):
         if v.cls != "MIGRATE":
             continue
-        if any(fnmatch.fnmatchcase(b.path, g) for g in skips):
-            continue
         row = rows.get(b.sha12)
-        if row is None or landed(row, root, policy):
+        if row is not None and landed(row, root, policy):
             continue          # already distilled, by content hash
+        if row is None:
+            rows[b.sha12] = _row(b, v, {})
         by_dest.setdefault(_distill_dest(b.path, dest_dir), []).append(b)
 
     if _refuse_if_degraded():
@@ -376,48 +379,49 @@ def cmd_distill(args) -> int:
         print("nothing to distil: every scraped comment already landed")
         return 0
 
-    written = 0
+    written = recorded = 0
     for dest_rel, blocks in sorted(by_dest.items()):
         dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
         existing = ""
         if os.path.isfile(dest_abs):
             with open(dest_abs, encoding="utf-8") as fh:
                 existing = fh.read()
-        chunks = []
+        chunks, queued = [], set()
         for b in blocks:
-            if f"mios-src:{b.sha12}" in existing:
-                continue
+            if f"mios-src:{b.sha12}" in existing or b.sha12 in queued:
+                continue      # the passage is there; only its landing is recorded
+            queued.add(b.sha12)
             clean = sanitize(b.text, ssot)
             chunks.append(f"### {_slug(clean)}\n\n{clean.strip()}\n\n"
                           f"<!-- mios-src:{b.sha12} "
                           f"from {b.path}:{b.start_line}-{b.end_line} -->\n")
-        if not chunks:
-            continue
         if args.dry_run:
-            print(f"would distil {len(chunks)} block(s) -> {dest_rel}")
+            print(f"would distil {len(chunks)} block(s) and record"
+                  f" {len(blocks)} landing(s) -> {dest_rel}")
             written += len(chunks)
             continue
-        os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
-        with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
-            if not existing:
-                area = os.path.splitext(os.path.basename(dest_rel))[0]
-                fh.write(f"<!-- AI-hint: Manual pages distilled from the source "
-                         f"comments of {area}, sanitized, each passage anchored to "
-                         f"the comment it came from. -->\n\n# {area}\n\n")
-            fh.write("\n".join(chunks))
+        if chunks:
+            os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+            with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+                if not existing:
+                    area = os.path.splitext(os.path.basename(dest_rel))[0]
+                    fh.write(f"<!-- AI-hint: Manual pages distilled from the source "
+                             f"comments of {area}, sanitized, each passage anchored to "
+                             f"the comment it came from. -->\n\n# {area}\n\n")
+                fh.write("\n".join(chunks))
+            print(f"distilled {len(chunks)} block(s) -> {dest_rel}")
         for b in blocks:
-            row = rows.get(b.sha12)
-            if row is None:
-                continue
+            row = rows[b.sha12]
             row["landed_doc"] = dest_rel
             row["landed_anchor"] = f"mios-src:{b.sha12}"
             row["landed_words"] = str(b.words)
         written += len(chunks)
-        print(f"distilled {len(chunks)} block(s) -> {dest_rel}")
+        recorded += len(blocks)
 
-    if not args.dry_run and written:
+    if not args.dry_run and recorded:
         _write_ledger(root, list(rows.values()))
-    print(f"distilled {written} block(s) into {len(by_dest)} manual page(s)")
+    print(f"distilled {written} block(s), recorded {recorded} landing(s)"
+          f" across {len(by_dest)} manual page(s)")
     return 0
 
 
