@@ -24502,7 +24502,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-headscale-firstboot",
-      "hint": "Generates the initial Headscale config.yaml by reading mios.toml [headscale] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.",
+      "hint": "Generates the initial Headscale config.yaml by reading mios.toml [headscale], [metal.mesh] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.",
       "related": [
         "/etc/headscale/config.yaml",
         "/usr/share/mios/mios.toml",

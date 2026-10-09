@@ -8242,11 +8242,10 @@ vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
 [headscale]
+# Port: [ports].headscale. MagicDNS base domain and tailnet prefix: [metal.mesh]
+# headscale_domain / vnet_cidr (mios-headscale-firstboot reads them there).
 enabled = false
-port = 8085
 server_url = "http://mesh.mios.local:8085"
-base_domain = "mesh.mios.local"
-vnet_cidr = "100.64.0.0/10"
 listen_addr = "0.0.0.0:8085"
 metrics_listen_addr = "127.0.0.1:9090"
 config_path = "/etc/headscale/config.yaml"
@@ -8302,12 +8301,10 @@ core_subnet = "10.89.0.0/24"
 core_gateway = "10.89.0.1"
 
 [aliases]
+# browser: the ONE default-browser key (mios-browser, mios-open-url). The
+# freedesktop role -> app ids (web, files, terminal) are [mios-find.aliases].
 browser         = "zen"
-web             = "zen"
-default_browser = "zen"
 editor          = "code"
-terminal        = "ptyxis"
-file_manager    = "nautilus"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
