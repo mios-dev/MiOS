@@ -3653,13 +3653,9 @@ check_no_hardcoded_ssot_literal() {
 
 check_bash_phase_ratchet() {
     echo "[98-drift-checks]   bash phase script count ratchet check"
-    local count
-    count="$(find "$ROOT/automation" -maxdepth 1 -name "[0-9][0-9]-*.sh" | wc -l)"
-    local max_allowed
-    max_allowed="$(python3 -c "import tomllib; f=open('${ROOT}/usr/share/mios/mios.toml','rb'); d=tomllib.load(f); print(d.get('build',{}).get('ratchet',{}).get('max_phase_scripts', 71))" 2>/dev/null || echo "71")"
-    if [[ "$count" -gt "$max_allowed" ]]; then
-        _violation "bash phase script count ($count) exceeds ratchet baseline ($max_allowed)"
-    fi
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_bash_phase_ratchet could not run"; return; }
+    "$bin" phase-ratchet --root "$ROOT" || \
+        _violation "the automation/NN-*.sh count is not exactly [build.ratchet].max_phase_scripts -- fold a phase, or lower the ceiling to the count"
 }
 
 check_signature_policy() {
@@ -4654,21 +4650,26 @@ check_credential_literals() {
         _violation "a credential literal is baked into a world-readable systemd unit or Quadlet whose exact path:KEY=VALUE is not on the shrink-only register (Law 11)"
 }
 
-# --- the Rust names-registry twin reproduces the Python leg byte for byte ---
+# --- the names-registry generator built from this checkout reproduces both committed artefacts byte for byte ---
 check_names_registry_equivalence() {
-    echo "[98-drift-checks] the native names-registry generator emits the same two artefacts as the Python leg"
-    # The twin was transliterated from a pre-fix revision and never called, so
-    # five later corrections landed on one side only: it emitted 3486 lines
-    # where the Python emits 1229. Nothing compared them, so pointing
-    # sync-generated at it would have rewritten the registry (T-1056).
-    local bin="$ROOT/tools/native/target/release/generate-names-registry"
-    [[ -x "$bin" ]] || bin="$ROOT/tools/native/target/debug/generate-names-registry"
-    if [[ ! -x "$bin" ]] && command -v cargo >/dev/null 2>&1; then
-        cargo build --manifest-path "$ROOT/tools/native/Cargo.toml" -p generate-names-registry >/dev/null 2>&1 || true
+    echo "[98-drift-checks] the names-registry generator built from this checkout emits both committed artefacts"
+    # The generator is mios_gen::names_registry (0023c51d) and the reference is
+    # the committed bytes (T-1056). Build from source whenever cargo is here: a
+    # stale release binary answered for code that had changed, so a generator
+    # mutated in source passed.
+    local tdir="${CARGO_TARGET_DIR:-$ROOT/tools/native/target}" bin="" c
+    if command -v cargo >/dev/null 2>&1; then
+        cargo build --manifest-path "$ROOT/tools/native/Cargo.toml" -p generate-names-registry >/dev/null 2>&1 \
+            || { _violation "generate-names-registry does not build from this checkout"; return; }
+        bin="$tdir/debug/generate-names-registry"
+    else
+        for c in "$tdir/release/generate-names-registry" "$tdir/debug/generate-names-registry"; do
+            [[ -x "$c" ]] && { bin="$c"; break; }
+        done
     fi
     if [[ ! -x "$bin" ]]; then
         if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-            _violation "generate-names-registry could not be built, so its equivalence to the Python leg is unverified"
+            _violation "generate-names-registry could not be built, so the committed names artefacts are unverified"
             return
         fi
         echo "[98-drift-checks]   generate-names-registry binary absent" >&2
@@ -4678,10 +4679,10 @@ check_names_registry_equivalence() {
     local names="$ROOT/usr/share/mios/names.generated.txt"
     local refs="$ROOT/usr/share/mios/referenced_names.txt"
     if [[ ! -f "$names" || ! -f "$refs" ]]; then
-        _violation "a names-registry artefact is missing, so the twins could not be compared"
+        _violation "a names-registry artefact is missing, so nothing could be compared"
         return
     fi
-    # Both legs write in place, so the committed bytes are copied out first and
+    # The generator writes in place, so the committed bytes are copied out first and
     # restored under every exit -- a comparison must not leave the tree changed.
     local keep; keep="$(mktemp -d)"
     cp "$names" "$keep/names" && cp "$refs" "$keep/refs" || {
@@ -4706,10 +4707,10 @@ check_names_registry_equivalence() {
     rm -rf "$keep"
 
     local bad=0
-    (( rc != 0 )) && { _violation "the native names-registry generator exited $rc" || true; bad=1; }
-    (( names_differ )) && { _violation "the native generator's names.generated.txt differs from the Python leg's" || true; bad=1; }
-    (( refs_differ )) && { _violation "the native generator's referenced_names.txt differs from the Python leg's" || true; bad=1; }
-    (( bad == 0 )) && echo "[98-drift-checks]   both artefacts regenerate byte-identically from the native twin"
+    (( rc != 0 )) && { _violation "the names-registry generator exited $rc" || true; bad=1; }
+    (( names_differ )) && { _violation "the generator's names.generated.txt differs from the committed one" || true; bad=1; }
+    (( refs_differ )) && { _violation "the generator's referenced_names.txt differs from the committed one" || true; bad=1; }
+    (( bad == 0 )) && echo "[98-drift-checks]   both artefacts regenerate byte-identically from this checkout"
     return 0
 }
 

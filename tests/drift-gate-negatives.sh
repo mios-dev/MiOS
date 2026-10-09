@@ -2144,38 +2144,50 @@ test_guacamole_consistency() {
 test_cephfs_ssot() {
     log "Testing check_cephfs_ssot"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file"; printf X)"
+    local tmpl="${ROOT}/usr/share/mios/systemd/home-@.mount.tmpl"
+    local auto="${ROOT}/usr/share/mios/systemd/home-@.automount.tmpl"
+    local tbak mbak abak; tbak="$(mktemp)"; mbak="$(mktemp)"; abak="$(mktemp)"
+    cp "$toml_file" "$tbak"; cp "$tmpl" "$mbak"; cp "$auto" "$abak"
+    _cs_fail() { cp "$tbak" "$toml_file"; cp "$mbak" "$tmpl"; cp "$abak" "$auto"; rm -f "$tbak" "$mbak" "$abak"; unset -f _cs_fail; die "$1"; }
 
-    sed -i 's/mount_options                   = "noatime,fsc,_netdev"/# mount_options removed/' "$toml_file"
+    sed -i 's/^mount_options                   = "noatime,fsc,_netdev"/# mount_options removed/' "$toml_file"
+    cmp -s "$tbak" "$toml_file" && _cs_fail "the mount_options plant landed nowhere -- [storage.cephfs] moved"
+    _neg_gate check_cephfs_ssot && _cs_fail "Check_cephfs_ssot passed despite missing mount_options key"
+    [[ "$_NEG_GATE_OUT" == *"no corresponding key 'mount_options'"* ]] || _cs_fail "Check_cephfs_ssot failed without naming mount_options: $_NEG_GATE_OUT"
+    cp "$tbak" "$toml_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1; then
-        printf '%s' "${orig_val%X}" > "$toml_file"
-        die "Check_cephfs_ssot passed despite missing mount_options key"
-    fi
+    # Unrecognised tokens must read as nothing compared, never clean: the 0023c51d
+    # rename hid the plant above that way. Lower-casing the prefix re-enacts it.
+    local pfx; pfx="MIOS_$(printf '%s' STORAGE_CEPHFS_)"
+    sed -i "s/{${pfx}/{${pfx,,}/g" "$tmpl" "$auto"
+    _neg_gate check_cephfs_ssot && _cs_fail "Check_cephfs_ssot passed with no recognisable template token"
+    [[ "$_NEG_GATE_OUT" == *"so nothing was compared"* ]] || _cs_fail "Check_cephfs_ssot failed the zero-token plant for the wrong reason: $_NEG_GATE_OUT"
 
-    printf '%s' "${orig_val%X}" > "$toml_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1 \
-        || die "Check_cephfs_ssot failed after restoration"
+    cp "$mbak" "$tmpl"; cp "$abak" "$auto"; rm -f "$tbak" "$mbak" "$abak"; unset -f _cs_fail
+    _neg_gate check_cephfs_ssot || die "Check_cephfs_ssot failed after restoration: $_NEG_GATE_OUT"
     log "Test_cephfs_ssot negative test passed"
 }
 
 test_v2v_import_ssot() {
     log "Testing check_v2v_import_ssot"
     local wrapper_file="${ROOT}/usr/libexec/mios/mios-v2v-import"
-    local orig_val
-    orig_val="$(cat "$wrapper_file")"
+    local bak; bak="$(mktemp)"; cp -p "$wrapper_file" "$bak"
+    _vv_fail() { cp -p "$bak" "$wrapper_file"; rm -f "$bak"; unset -f _vv_fail; die "$1"; }
 
-    sed -i 's/-of {output_format}/-of broken_format/' "$wrapper_file"
+    # The wrapper builds an argv list (5d667dbc); the old f-string plant matched
+    # nothing. A format that is not the SSOT's must fail, and so must a hardcode
+    # that happens to EQUAL today's SSOT value -- the one the gate could not see.
+    local fmt
+    for fmt in broken_format qcow2; do
+        sed -i "s/\"-of\", output_format,/\"-of\", \"${fmt}\",/" "$wrapper_file"
+        cmp -s "$bak" "$wrapper_file" && _vv_fail "the -of plant landed nowhere -- the wrapper's argv moved"
+        _neg_gate check_v2v_import_ssot && _vv_fail "Check_v2v_import_ssot passed despite a wrapper -of hardcoded to ${fmt}"
+        [[ "$_NEG_GATE_OUT" == *"ignores [virt.v2v].output_format"* ]] || _vv_fail "Check_v2v_import_ssot failed the ${fmt} plant for the wrong reason: $_NEG_GATE_OUT"
+        cp -p "$bak" "$wrapper_file"
+    done
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_v2v_import_ssot >/dev/null 2>&1; then
-        echo "$orig_val" > "$wrapper_file"
-        die "Check_v2v_import_ssot passed despite broken wrapper output_format"
-    fi
-
-    echo "$orig_val" > "$wrapper_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_v2v_import_ssot >/dev/null 2>&1 \
-        || die "Check_v2v_import_ssot failed after restoration"
+    rm -f "$bak"; unset -f _vv_fail
+    _neg_gate check_v2v_import_ssot || die "Check_v2v_import_ssot failed after restoration: $_NEG_GATE_OUT"
     log "Test_v2v_import_ssot negative test passed"
 }
 
@@ -3400,13 +3412,26 @@ test_value_aliases() {
 test_bash_phase_ratchet() {
     log "Testing check_bash_phase_ratchet"
     local dummy_script="${ROOT}/automation/99-dummy-test-phase.sh"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    # Every exit path removes the probe: die() used to leave it in automation/.
+    _bpr_fail() { rm -f "$dummy_script"; cp "$bak" "$toml"; rm -f "$bak"; unset -f _bpr_fail; die "$1"; }
+
     touch "$dummy_script"
-
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 && die "Check_bash_phase_ratchet passed despite extra bash phase script exceeding ratchet baseline"
-
+    _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed despite extra bash phase script exceeding ratchet baseline"
+    [[ "$_NEG_GATE_OUT" == *"fold a phase"* ]] || _bpr_fail "Check_bash_phase_ratchet failed the extra-script plant for the wrong reason: $_NEG_GATE_OUT"
     rm -f "$dummy_script"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 \
-        || die "Check_bash_phase_ratchet failed after restoration"
+
+    # Slack is the hole the probe above fell through (a ceiling of 79 over 77
+    # scripts), and an absent ceiling is not a default.
+    sed -i 's/^max_phase_scripts = \([0-9]*\)/max_phase_scripts = 9\1/' "$toml"
+    _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed with a ceiling above the phase-script count"
+    cp "$bak" "$toml"
+    sed -i '/^max_phase_scripts = /d' "$toml"
+    _neg_gate check_bash_phase_ratchet && _bpr_fail "Check_bash_phase_ratchet passed with [build.ratchet].max_phase_scripts absent"
+
+    cp "$bak" "$toml"; rm -f "$bak"; unset -f _bpr_fail
+    _neg_gate check_bash_phase_ratchet || die "Check_bash_phase_ratchet failed after restoration: $_NEG_GATE_OUT"
     log "Test_bash_phase_ratchet negative test passed"
 }
 
@@ -4409,14 +4434,15 @@ test_credential_literals() {
 
 test_names_registry_equivalence() {
     log "Testing check_names_registry_equivalence"
-    local src="${ROOT}/tools/native/generate-names-registry/src/main.rs"
-    local bin="${ROOT}/tools/native/target/release/generate-names-registry"
-    [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/generate-names-registry"
-    if [[ ! -x "$bin" ]] || ! command -v cargo >/dev/null 2>&1; then
+    # The generator is mios_gen::names_registry; generate-names-registry is a shim
+    # over it (0023c51d). Planting in the shim's main.rs landed nowhere, so plant
+    # where the code is. The gate builds from source, so cargo is the subject.
+    local src="${ROOT}/tools/native/mios-gen/src/names_registry.rs"
+    if ! command -v cargo >/dev/null 2>&1; then
         if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-            die "check_names_registry_equivalence negative test needs the built twin and cargo"
+            die "check_names_registry_equivalence negative test needs cargo"
         fi
-        log "check_names_registry_equivalence negative test skipped (twin or cargo absent)"
+        log "check_names_registry_equivalence negative test skipped (cargo absent)"
         return 0
     fi
     local backup; backup="$(mktemp)"; cp "$src" "$backup"
@@ -4424,7 +4450,7 @@ test_names_registry_equivalence() {
     local refs="${ROOT}/usr/share/mios/referenced_names.txt"
     local keep; keep="$(mktemp -d)"; cp "$names" "$keep/names"; cp "$refs" "$keep/refs"
     # The rebuild CREATES this binary when nothing had built it, and the restore rebuild cannot un-create it.
-    local _nre_bin="${ROOT}/tools/native/target/debug/generate-names-registry" _nre_had=0; [[ -f "$_nre_bin" ]] && _nre_had=1 || :
+    local _nre_bin="${CARGO_TARGET_DIR:-$ROOT/tools/native/target}/debug/generate-names-registry" _nre_had=0; [[ -f "$_nre_bin" ]] && _nre_had=1 || :
     _nre_restore() {
         cp "$backup" "$src" 2>/dev/null || true
         cp "$keep/names" "$names" 2>/dev/null || true; cp "$keep/refs" "$refs" 2>/dev/null || true
@@ -4433,12 +4459,12 @@ test_names_registry_equivalence() {
     }
     trap _nre_restore EXIT; trap '_nre_restore; exit 130' INT TERM   # no die path runs on a signal (SKILL 6)
 
-    # Re-introduce one measured divergence: the Python leg excludes the two
+    # Re-introduce one measured divergence: the generator excludes the two
     # generated globals files because they DEFINE the namespace. Scanning them
     # makes the registry cite itself, which is 2273 of the 2340 extra names.
     sed -i '/^        "automation\/lib\/globals.sh",$/d; /^        "automation\/lib\/globals.ps1",$/d' "$src"
-    if ! (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1); then
-        _nre_restore; die "check_names_registry_equivalence negative test could not build the mutated twin"
+    if cmp -s "$backup" "$src"; then
+        _nre_restore; die "check_names_registry_equivalence negative test planted nothing -- the globals exclusion moved"
     fi
     _neg_gate check_names_registry_equivalence && { _nre_restore; die "check_names_registry_equivalence passed with divergent twins"; }
     case "$_NEG_GATE_OUT" in

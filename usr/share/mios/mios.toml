@@ -12242,7 +12242,7 @@ list = [
 ]
 
 [build.ratchet]
-max_phase_scripts = 79   # +1: 55-native-build.sh, +kdump-config, +dns-config, +export-sbom, +composefs-seal
+max_phase_scripts = 77   # exactly the NN-*.sh count: mios-gate phase-ratchet fails slack as well as growth
 
 # ----------------------------------------------------------------------------
 # [templates.placeholders] -- Unified SSOT token vocabulary for scaffolding

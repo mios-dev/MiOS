@@ -692,7 +692,7 @@ _mios_input MIOS_PORTS_OPEN_WEBUI MIOS_PORT_OPEN_WEBUI MIOS_OPEN_WEBUI_PORT || {
 : "${MIOS_BUILD_QUADLET_RENDER_EXTENSIONS:=container,network,volume,pod,image,build,toml,json,conf,service,socket}"
 : "${MIOS_BUILD_QUADLET_RENDER_MAX_DEPTH:=2}"
 : "${MIOS_BUILD_QUADLET_RENDER_RUNTIME_REF_DIRECTIVES:=ExecStart,ExecStartPre,ExecStartPost,ExecStop,ExecStopPost,ExecReload,ExecCondition}"
-: "${MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=79}"
+: "${MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS:=77}"
 _mios_input MIOS_BUILD_RECHUNK_MAX_LAYERS MIOS_RECHUNK_MAX_LAYERS || { return 1 2>/dev/null || exit 1; }
 : "${MIOS_BUILD_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_BUILD_TOOLCHAIN_CARGO_HOME:=/usr/lib/mios/cargo}"

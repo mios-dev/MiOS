@@ -98,7 +98,8 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
                              doc-refs-resolve, drift-stubs, image-equivalence, image-freshness,\n\
                              negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
-                             phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
+                             phase-ratchet, phase-registry, powershell-parse, powershell-analyze,\n\
+                             projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
 
@@ -215,6 +216,7 @@ fn main() -> ExitCode {
         "law-enforcers" => laws::check(&root),
         "negative-coverage" => negative_coverage::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
+        "phase-ratchet" => phases::ratchet(&root),
         "phase-registry" => phases::check(&root),
         "powershell-parse" => powershell::check(&root, false),
         "powershell-analyze" => powershell::check(&root, true),
