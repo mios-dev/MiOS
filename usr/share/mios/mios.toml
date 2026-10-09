@@ -8242,11 +8242,10 @@ vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
 [headscale]
+# Port: [ports].headscale. MagicDNS base domain and tailnet prefix: [metal.mesh]
+# headscale_domain / vnet_cidr (mios-headscale-firstboot reads them there).
 enabled = false
-port = 8085
 server_url = "http://mesh.mios.local:8085"
-base_domain = "mesh.mios.local"
-vnet_cidr = "100.64.0.0/10"
 listen_addr = "0.0.0.0:8085"
 metrics_listen_addr = "127.0.0.1:9090"
 config_path = "/etc/headscale/config.yaml"
@@ -8302,12 +8301,10 @@ core_subnet = "10.89.0.0/24"
 core_gateway = "10.89.0.1"
 
 [aliases]
+# browser: the ONE default-browser key (mios-browser, mios-open-url). The
+# freedesktop role -> app ids (web, files, terminal) are [mios-find.aliases].
 browser         = "zen"
-web             = "zen"
-default_browser = "zen"
 editor          = "code"
-terminal        = "ptyxis"
-file_manager    = "nautilus"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
@@ -12439,7 +12436,7 @@ port_clean = [
 # Itemised shrink-only register of code files retaining retired ports (T-1002 / LAW5-01).
 # Strictly limited to intentional cleanup routines (e.g. Setup-MiOSLanPortProxy.ps1) and regression test fixtures.
 # Any unlisted code file under usr/libexec/mios or usr/lib/mios containing a retired port FAILS the gate.
-max_retired_code_exemptions = 21
+max_retired_code_exemptions = 20
 retired_code_exemptions = [
   "usr/libexec/mios/Setup-MiOSLanPortProxy.ps1",
   "usr/lib/mios/agent-pipe/test_mios_a2a_client.py",
@@ -12455,7 +12452,6 @@ retired_code_exemptions = [
   "usr/lib/mios/agent-pipe/test_mios_http_caps.py",
   "usr/lib/mios/agent-pipe/test_mios_knowledge.py",
   "usr/lib/mios/agent-pipe/test_mios_kvgc.py",
-  "usr/lib/mios/agent-pipe/test_mios_lanes.py",
   "usr/lib/mios/agent-pipe/test_mios_memguard.py",
   "usr/lib/mios/agent-pipe/test_mios_pg.py",
   "usr/lib/mios/agent-pipe/test_mios_portal.py",

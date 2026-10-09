@@ -3973,10 +3973,7 @@ metal.mesh.headscale_domain  MIOS_METAL_MESH_HEADSCALE_DOMAIN
 metal.mesh.vnet_cidr  MIOS_METAL_MESH_VNET_CIDR
 metal.mesh.swtpm_vtpm  MIOS_METAL_MESH_SWTPM_VTPM
 headscale.enabled  MIOS_HEADSCALE_ENABLED
-headscale.port  MIOS_HEADSCALE_PORT
 headscale.server_url  MIOS_HEADSCALE_SERVER_URL
-headscale.base_domain  MIOS_HEADSCALE_BASE_DOMAIN
-headscale.vnet_cidr  MIOS_HEADSCALE_VNET_CIDR
 headscale.listen_addr  MIOS_HEADSCALE_LISTEN_ADDR
 headscale.metrics_listen_addr  MIOS_HEADSCALE_METRICS_LISTEN_ADDR
 headscale.config_path  MIOS_HEADSCALE_CONFIG_PATH
@@ -4012,11 +4009,7 @@ network.quadlet.subnet  MIOS_NETWORK_QUADLET_SUBNET
 network.quadlet.core_subnet  MIOS_NETWORK_QUADLET_CORE_SUBNET
 network.quadlet.core_gateway  MIOS_NETWORK_QUADLET_CORE_GATEWAY
 aliases.browser  MIOS_ALIASES_BROWSER
-aliases.web  MIOS_ALIASES_WEB
-aliases.default_browser  MIOS_ALIASES_DEFAULT_BROWSER
 aliases.editor  MIOS_ALIASES_EDITOR
-aliases.terminal  MIOS_ALIASES_TERMINAL
-aliases.file_manager  MIOS_ALIASES_FILE_MANAGER
 colors.bg  MIOS_COLORS_BG
 colors.fg  MIOS_COLORS_FG
 colors.accent  MIOS_COLORS_ACCENT

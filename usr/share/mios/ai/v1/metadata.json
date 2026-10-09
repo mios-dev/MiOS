@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3841,
+  "total_metadata_entries": 3148,
+  "total_hints": 3138,
   "total_functions_indexed": 1469,
   "total_related_links": 5223,
   "entries": [
@@ -3043,6 +3043,15 @@
     {
       "path": "docs/research/tech-eval-oci-ai-artifacts-and-pipelines.md",
       "hint": "Research evaluation of upstream FOSS patterns for OCI-packaged AI artifacts and automated CI/CD pipelines.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "docs/research/upstream-prior-art-gaps-2026-10.md",
+      "hint": "Prioritised upstream prior-art gap brief for MiOS across six lanes (AI plane, configurator, image pipeline, supply chain, bare metal/fleet, dev/cloud/WSL), with repo evidence and SSOT-shaped fixes.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -24493,7 +24502,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-headscale-firstboot",
-      "hint": "Generates the initial Headscale config.yaml by reading mios.toml [headscale] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.",
+      "hint": "Generates the initial Headscale config.yaml by reading mios.toml [headscale], [metal.mesh] and [ports] SSOT, ensuring state directories and database paths exist before the container starts.",
       "related": [
         "/etc/headscale/config.yaml",
         "/usr/share/mios/mios.toml",

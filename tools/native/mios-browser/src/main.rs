@@ -132,14 +132,14 @@ pub fn resolve_browser(
         }
     }
 
-    // 2. [aliases].browser or [aliases].web
-    if let Some(aliases) = ssot.get("aliases") {
-        for k in ["browser", "web", "default_browser"] {
-            if let Some(alias_val) = aliases.get(k).and_then(|v| v.as_str()) {
-                if !alias_val.is_empty() {
-                    return alias_val.to_string();
-                }
-            }
+    // 2. [aliases].browser, the ONE default-browser key
+    if let Some(alias_val) = ssot
+        .get("aliases")
+        .and_then(|a| a.get("browser"))
+        .and_then(|v| v.as_str())
+    {
+        if !alias_val.is_empty() {
+            return alias_val.to_string();
         }
     }
 
