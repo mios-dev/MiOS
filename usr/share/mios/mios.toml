@@ -2416,7 +2416,7 @@ surfaces = [
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_ai_manifests_fresh", output = "automation/manifest.json" },
   { generator = "usr/libexec/mios/mios-ai-metadata.py", check = "check_ai_metadata_fresh", output = "usr/share/mios/ai/v1/metadata.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
-  { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
+  { generator = "tools/native/mios-gen/src/main.rs", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_adr_index", output = "ADR.md" },
@@ -2456,7 +2456,19 @@ surfaces = [
 # `check_projection_registry` (forward only) never asked. Single `*`, final
 # path segment only; a pattern the matcher cannot express is a hard error, not
 # a silent widening.
-generator_globs = ["tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py"]
+generator_globs = [
+  "tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py",
+  "tools/native/mios-gen/src/main*.rs",
+  "tools/native/mios-unit-gen/src/lib*.rs",
+  "tools/native/mios-bake-plan/src/main*.rs",
+  "tools/native/generate-names-registry/src/main*.rs",
+  "tools/native/mios-task/src/overrides*.rs",
+  "tools/native/mios-size-ceiling/src/main*.rs",
+  "tools/native/mios-toolchain-pin/src/main*.rs",
+  "tools/native/mios-ai-config/src/main*.rs",
+  "tools/native/xtask/src/main*.rs",
+  "tools/native/mios-edge-status/src/main*.rs",
+]
 
 # Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
 # then with the reason spelled out -- a bare name would make this a count.
@@ -8861,7 +8873,7 @@ http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
 [quadlets.scope]
-# Units tools/generate-pod-quadlets.py writes under users/ (podman's user Quadlet
+# Units mios-gen pod-quadlets writes under users/ (podman's user Quadlet
 # search path) instead of the system directory: they run rootless under each
 # login user's systemd. Everything not listed is a system unit.
 user = ["mios-sunshine"]

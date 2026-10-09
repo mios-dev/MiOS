@@ -2371,24 +2371,20 @@ test_usr_over_etc() {
     log "Test_usr_over_etc negative test passed"
 }
 
-test_projection_registry() {
+test_projection_registry() (
     log "Testing check_projection_registry"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file"; printf X)"
-
+    local bak; bak="$(mktemp)"; cp "$toml_file" "$bak"
+    trap 'cp "$bak" "$toml_file"; rm -f "$bak"' EXIT
+    _neg_gate check_projection_registry || die "Projection registry failed before the missing-check control"
     sed -i 's/check = "check_dotfiles_projection"/check = "check_nonexistent_proj_check"/' "$toml_file"
-
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1; then
-        printf '%s' "${orig_val%X}" > "$toml_file"
-        die "Check_projection_registry passed despite missing projection check"
-    fi
-
-    printf '%s' "${orig_val%X}" > "$toml_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1 \
-        || die "Check_projection_registry failed after restoration"
+    _neg_gate check_projection_registry && die "Projection registry accepted a missing projection check"
+    [[ "$_NEG_GATE_OUT" == *"check_nonexistent_proj_check"* ]] \
+        || die "Projection registry failed without naming the missing check"
+    cp "$bak" "$toml_file"
+    _neg_gate check_projection_registry || die "Projection registry failed after exact restoration"
     log "Test_projection_registry negative test passed"
-}
+)
 
 test_bake_plan_integrity() (
     log "Testing check_bake_plan_integrity"
@@ -4814,8 +4810,10 @@ test_projection_coverage() {
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
     local planted="${ROOT}/tools/generate-negtest-surface.py"
     local short_name="${ROOT}/tools/gen-negtest-surface.py"
+    local native_plant="${ROOT}/tools/native/mios-gen/src/main_negtest.rs"
+    [[ ! -e "$native_plant" ]] || die "Native projection control path already exists"
     _pc_fail() {
-        cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name"
+        cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name" "$native_plant"
         unset -f _pc_fail
         die "$1"
     }
@@ -4859,10 +4857,26 @@ test_projection_coverage() {
     _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"; rm -f "$planted"
 
+    printf '// Native projection coverage control\n' > "$native_plant"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage accepted an unregistered native generator"
+    [[ "$_NEG_GATE_OUT" == *"tools/native/mios-gen/src/main_negtest.rs"* ]] \
+        || _pc_fail "check_projection_coverage did not name the unregistered native generator"
+    rm -f "$native_plant"
+    _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage failed after native control restoration"
+
     # The scope is this check's own allowlist, so narrowing it must not buy a
     # pass -- the register anchors the globs from outside.
-    sed -i 's|^generator_globs = .*$|generator_globs = ["tools/generate-*.py"]|' "$toml"
+    python3 - "$toml" <<'PYEOF'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text, count = re.subn(r'(?m)^generator_globs\s*=\s*\[[^\]]*\]',
+                      'generator_globs = ["tools/generate-*.py"]', path.read_text(), count=1)
+assert count == 1, "projection discovery scope control anchor is missing"
+path.write_text(text)
+PYEOF
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after a discovery glob was deleted"
+    [[ "$_NEG_GATE_OUT" == *"matched no file"* || "$_NEG_GATE_OUT" == *"the scope has narrowed"* ]] \
+        || _pc_fail "check_projection_coverage failed without naming the narrowed or empty scope"
     cp "$bak" "$toml"
 
     # A registry row naming a check function that does not exist.
