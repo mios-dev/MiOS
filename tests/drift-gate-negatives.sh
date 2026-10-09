@@ -3127,7 +3127,7 @@ PYEOF
     mkdir -p "$alone/MiOS/usr/share/mios" "$alone/MiOS/usr/lib/mios/schemas"
     cp "$store" "$doc" "$alone/MiOS/"; cp "${ROOT}/usr/share/mios/mios.toml" "$alone/MiOS/usr/share/mios/"
     cp "${ROOT}/usr/lib/mios/schemas/task-record.schema.json" "$alone/MiOS/usr/lib/mios/schemas/"
-    local bin="${ROOT}/tools/native/target/release/mios-task"; [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/mios-task"
+    local bin; bin="$(_task_bin)" || { rm -rf "$alone"; _ts_fail "mios-task is not built"; }
     "$bin" check --root "$alone/MiOS" >/dev/null 2>&1 || { rm -rf "$alone"; _ts_fail "mios-task check needed a sibling checkout"; }
     rm -rf "$alone"
 
@@ -3669,10 +3669,13 @@ test_globals_generated() {
 }
 
 _FAILED=()
+# The gate's own native_bin, not a copy: CI installs the catalog via 55-native-build.sh
+# (target-triple dirs, then /usr/bin), where a tools/native/target/{release,debug} probe never looks.
+eval "$(sed -n '/^native_bin() {$/,/^}$/p' "${ROOT}/automation/98-drift-checks.sh")"
+declare -F native_bin >/dev/null || die "automation/98-drift-checks.sh no longer defines native_bin()"
+_task_bin() { native_bin mios-task || die "mios-task is not built (cd tools/native && cargo build -p mios-task)"; }
 _frozen_text() { # $1 = a frozen list, e.g. MiOS:TASKS.md: its bytes, rebuilt from tasks.jsonl (ADR-0028)
-    local b="${ROOT}/tools/native/target/release/mios-task"
-    [[ -x "$b" ]] || b="${ROOT}/tools/native/target/debug/mios-task"
-    [[ -x "$b" ]] || die "mios-task is not built (cd tools/native && cargo build -p mios-task)"
+    local b; b="$(_task_bin)" || exit 1
     "$b" source "$1" --root "$ROOT" || die "mios-task could not rebuild $1 from tasks.jsonl"
 }
 
