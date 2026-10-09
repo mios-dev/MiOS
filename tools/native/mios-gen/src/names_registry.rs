@@ -306,7 +306,63 @@ fn order_of(order: &std::collections::HashMap<String, usize>, path: &str) -> usi
     }
 }
 
+const NAMES_FILE: &str = "usr/share/mios/names.generated.txt";
+const REFERENCES_FILE: &str = "usr/share/mios/referenced_names.txt";
+
 pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let (names_content, referenced_content) = render(root)?;
+    let names_file = root.join(NAMES_FILE);
+    if let Some(parent) = names_file.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    print!("{names_content}");
+    write_registry_pair(
+        &names_file,
+        &names_content,
+        &root.join(REFERENCES_FILE),
+        &referenced_content,
+    )?;
+    Ok(())
+}
+
+/// The read-only twin of `run`: the committed artefacts the generator would
+/// rewrite, compared in memory. A drift gate must never write the tree it
+/// grades -- check_names_registry ran `run` and left a stale binary's 720-line
+/// registry over the 6488-line one.
+pub fn check(root: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let (names_content, referenced_content) = render(root)?;
+    Ok([
+        (NAMES_FILE, names_content),
+        (REFERENCES_FILE, referenced_content),
+    ]
+    .into_iter()
+    .filter(|(rel, want)| fs::read(root.join(rel)).ok().as_deref() != Some(want.as_bytes()))
+    .map(|(rel, _)| rel.to_string())
+    .collect())
+}
+
+/// `check` for a command line: each drifted artefact on stderr; true when clean.
+pub fn check_cli(root: &Path, tag: &str) -> bool {
+    match check(root) {
+        Ok(drift) if drift.is_empty() => {
+            println!("[{tag}] both names artefacts match what the generator renders");
+            true
+        }
+        Ok(drift) => {
+            for rel in drift {
+                eprintln!("[{tag}] {rel} differs from what the generator renders -- run mios-gen names-registry");
+            }
+            false
+        }
+        Err(error) => {
+            eprintln!("[{tag}] {error}");
+            false
+        }
+    }
+}
+
+/// Both artefacts exactly as `run` writes them.
+fn render(root: &Path) -> Result<(String, String), Box<dyn std::error::Error>> {
     let toml_path = root.join("usr/share/mios/mios.toml");
     if !toml_path.exists() {
         return Err(format!("mios.toml not found at {}", toml_path.display()).into());
@@ -323,25 +379,13 @@ pub fn run(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     walk_value(&data, "", &mut all_pairs);
     all_pairs.sort_by_key(|(path, _)| order_of(&order, path));
 
-    let names_file = root.join("usr/share/mios/names.generated.txt");
     // Census and parse failures must preserve BOTH existing projections.
     let referenced_content = render_referenced_vars(root)?;
-    if let Some(parent) = names_file.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
     let mut names_content = String::new();
     for (path, env_name) in &all_pairs {
         names_content.push_str(&format!("{}  {}\n", path, env_name));
-        println!("{}  {}", path, env_name);
     }
-    write_registry_pair(
-        &names_file,
-        &names_content,
-        &root.join("usr/share/mios/referenced_names.txt"),
-        &referenced_content,
-    )?;
-    Ok(())
+    Ok((names_content, referenced_content))
 }
 
 #[cfg(test)]
@@ -381,6 +425,32 @@ mod tests {
         write_registry_pair(&names, "replacement\n", &references, "references\n").unwrap();
         assert_eq!(fs::read_to_string(&names).unwrap(), "replacement\n");
         assert_eq!(fs::read_to_string(&references).unwrap(), "references\n");
+    }
+
+    /// `check` names what drifted, both ways, and never writes.
+    #[test]
+    fn check_reports_drift_and_writes_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let r = root.path();
+        fs::create_dir_all(r.join("usr/share/mios")).unwrap();
+        fs::write(r.join("usr/share/mios/mios.toml"), "[ports]\nhttp = 80\n").unwrap();
+        fs::write(r.join("serve.sh"), "httpd --port \"${MIOS_PORTS_HTTP}\"\n").unwrap();
+        for args in [
+            &["init", "-q"][..],
+            &["add", "usr/share/mios/mios.toml", "serve.sh"],
+        ] {
+            let ok = std::process::Command::new("git")
+                .arg("-C")
+                .arg(r)
+                .args(args)
+                .status();
+            assert!(ok.unwrap().success());
+        }
+        run(r).unwrap();
+        assert!(check(r).unwrap().is_empty());
+        fs::write(r.join(NAMES_FILE), "planted\n").unwrap();
+        assert_eq!(check(r).unwrap(), vec![NAMES_FILE.to_string()]);
+        assert_eq!(fs::read_to_string(r.join(NAMES_FILE)).unwrap(), "planted\n");
     }
 
     /// A whole-line skip loses every name riding on an env-prefix line.

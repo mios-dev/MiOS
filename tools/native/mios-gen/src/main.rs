@@ -87,6 +87,9 @@ enum Commands {
     NamesRegistry {
         #[arg(long)]
         root: Option<PathBuf>,
+        /// Compare both artefacts with what would be written; write nothing
+        #[arg(long)]
+        check: bool,
     },
     /// Regenerate every declared SSOT projection in dependency order.
     Sync {
@@ -794,8 +797,14 @@ fn main() -> ExitCode {
                 }
             };
         }
-        Commands::NamesRegistry { root } => {
+        Commands::NamesRegistry { root, check } => {
             let root = resolve_root(root);
+            if check {
+                return match mios_gen::names_registry::check_cli(&root, "mios-gen names-registry") {
+                    true => ExitCode::SUCCESS,
+                    false => ExitCode::FAILURE,
+                };
+            }
             return match mios_gen::names_registry::run(&root) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {

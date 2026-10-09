@@ -242,15 +242,14 @@ _names_gen_bin() {
     return 1
 }
 
-_names_gen_run() {
+_names_gen_run() {  # --check: compare in memory, never rewrite the tree under test
     local b; b="$(_names_gen_bin)" || return 1
-    "$b"
+    MIOS_DRIFT_ROOT="$ROOT" "$b" --check
 }
 
 test_names_registry() {
     log "Testing check_names_registry"
     local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
-    [[ -f "$reg_file" ]] || _names_gen_run >/dev/null 2>&1 || true
     local bak_file="${reg_file}.bak"
     cp "$reg_file" "$bak_file" 2>/dev/null || true
 
@@ -258,15 +257,34 @@ test_names_registry() {
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
         [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-        _names_gen_run >/dev/null 2>&1 || true
         die "Check_names_registry passed despite stale names.generated.txt"
     fi
 
     [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
-    _names_gen_run >/dev/null 2>&1 || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
         || die "Check_names_registry failed after restoration"
     log "Check_names_registry negative test passed"
+}
+
+# main() holds every check to read-only, so the guard is tested through a copy
+# of the gate carrying two planted checks: one only reads, one writes.
+test_read_only_gate() {
+    log "Testing the drift gate's read-only guard"
+    local src="${ROOT}/automation/98-drift-checks.sh" target="${ROOT}/usr/share/mios/names.generated.txt"
+    local gate bak out=""; gate="$(mktemp)"; bak="$(mktemp)"; cp "$target" "$bak"
+    _ro_fail() { cp "$bak" "$target"; rm -f "$gate" "$bak"; unset -f _ro_fail _ro_run; die "$1"; }
+    _ro_run() { out="$(MIOS_DRIFT_CHECK_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "$gate" "$(printf '%s_zz_%s' check "$1")" 2>&1)"; }
+    [[ "$(tail -n 1 "$src")" == 'main "$@"' ]] || _ro_fail "98-drift-checks.sh no longer ends in main; the planted copy would not run"
+    { sed '$d' "$src"
+      printf '%s_zz_reads() { cat "$ROOT/%s" >/dev/null; }\n' check usr/share/mios/names.generated.txt
+      printf '%s_zz_writes() { echo planted >> "$ROOT/%s"; }\n' check usr/share/mios/names.generated.txt
+      printf 'main "$@"\n'; } > "$gate"
+    _ro_run reads || _ro_fail "the read-only guard refused a check that only reads: $out"
+    _ro_run writes && _ro_fail "the drift gate passed a check that wrote into the tree it grades"
+    [[ "$out" == *"must be read-only: usr/share/mios/names.generated.txt"* ]] \
+        || _ro_fail "the read-only guard failed without naming the written file: $out"
+    cp "$bak" "$target"; rm -f "$gate" "$bak"; unset -f _ro_fail _ro_run
+    log "drift gate read-only guard negative test passed"
 }
 
 # Both readers answered a refusing git with a filesystem walk that skips every
@@ -5636,6 +5654,7 @@ _run_test test_leaked_fixtures
     _run_test test_container_ports
     _run_test test_shellcheck_failure
     _run_test test_names_registry
+    _run_test test_read_only_gate
     _run_test test_dead_git_corpus
     _run_test test_root_toml_subset
     _run_test test_toml_projection

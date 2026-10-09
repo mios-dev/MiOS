@@ -978,7 +978,6 @@ check_dag_integrity() {
 
 # --- generated names registry matches source topology ---
 check_names_registry() {
-    _need_python || return 0
     # Both guards printed a bare "names registry" and returned 0, which reads
     # exactly like a match. A single pending deletion therefore disabled the
     # check: planted registry drift fails, and the same drift plus one deleted
@@ -1001,11 +1000,15 @@ check_names_registry() {
         echo "[98-drift-checks]   WARNING: deleted tracked file(s) (${_deleted}) -- names registry NOT verified" >&2
         return 0
     fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py names-registry
-    then
-        echo "[98-drift-checks]   names registry matches the generate-names-registry binary"
+    # --check renders in memory. The Python leg ran the generator, which wrote
+    # both artefacts in place, from whatever binary it found first -- a stale
+    # /usr/libexec one left a 720-line registry over the 6488-line one.
+    local bin; bin="$(native_bin mios-gen "${MIOS_GEN_BIN:-}")" || {
+        _violation "native mios-gen is required for the names registry (check 30); build it: cd tools/native && cargo build -p mios-gen"; return; }
+    if "$bin" names-registry --root "$ROOT" --check; then
+        echo "[98-drift-checks]   names registry matches what mios-gen renders"
     else
-        _violation "naming registry drift / generate-names-registry stale (build it: cd tools/native && cargo build -p generate-names-registry; check 30)"
+        _violation "naming registry drift (check 30) -- regenerate with mios-gen names-registry; a mios-gen without --check predates this gate, rebuild it"
     fi
 }
 
@@ -3896,9 +3899,31 @@ check_ai_manifests_fresh() {
     fi
 }
 
+# A drift gate grades the tree and must never write it: check_names_registry
+# rewrote names.generated.txt in place (6488 -> 720 lines) and nothing noticed.
+# The tracked tree is fingerprinted through a private index (the real index is
+# never touched) before and after the checks; no git work tree, no fingerprint.
+_tracked_tree() {
+    local idx; idx="$(mktemp)" || return 1
+    cp "$(git -C "$ROOT" rev-parse --path-format=absolute --git-path index 2>/dev/null)" "$idx" 2>/dev/null \
+        && GIT_INDEX_FILE="$idx" git -C "$ROOT" add -u >/dev/null 2>&1 \
+        && GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree 2>/dev/null
+    local rc=$?; rm -f "$idx"; return "$rc"
+}
+_assert_read_only() {  # $1 = what ran; _RO_BEFORE = the fingerprint taken before it
+    local after; [[ -n "${_RO_BEFORE:-}" ]] && after="$(_tracked_tree)" || return 0
+    [[ "$after" == "$_RO_BEFORE" ]] && return 0
+    _violation "$1 wrote into the tree it grades -- a drift gate must be read-only: $(git -C "$ROOT" diff-tree -r --name-only "$_RO_BEFORE" "$after" | head -5 | tr '\n' ' ')" || :
+    return 1
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
+            _RO_BEFORE="$(_tracked_tree)" || _RO_BEFORE=""
+            _RO_WHO="$1"
+            # A trap, so a check that dies under errexit is still held to it.
+            trap '_assert_read_only "$_RO_WHO" || exit 1' EXIT
             "$1"
             if [[ "$VIOLATIONS" -eq 0 ]]; then
                 exit 0
@@ -3917,6 +3942,7 @@ main() {
     # was unreachable whenever it had anything to report. Accumulate instead;
     # VIOLATIONS is the signal, not the exit status of the last check.
     set +e
+    _RO_BEFORE="$(_tracked_tree)" || _RO_BEFORE=""
 
     check_gate_registry
     check_dead_lane
@@ -4154,6 +4180,7 @@ main() {
     check_negatives_registered
     check_tracked_readable
     check_leaked_fixtures
+    _assert_read_only "the gate run (re-run each check alone to name the writer)"
 
     set -e
 
@@ -4682,14 +4709,14 @@ check_names_registry_equivalence() {
         _violation "a names-registry artefact is missing, so nothing could be compared"
         return
     fi
-    # The generator writes in place, so the committed bytes are copied out first and
-    # restored under every exit -- a comparison must not leave the tree changed.
+    # --check compares in memory and writes nothing. The snapshot stays: a
+    # prebuilt shim older than --check ignores it and writes in place.
     local keep; keep="$(mktemp -d)"
     cp "$names" "$keep/names" && cp "$refs" "$keep/refs" || {
         rm -rf "$keep"; _violation "could not snapshot the names-registry artefacts"; return; }
 
     local rc=0
-    MIOS_DRIFT_ROOT="$ROOT" "$bin" >/dev/null 2>"$keep/err" || rc=$?
+    MIOS_DRIFT_ROOT="$ROOT" "$bin" --check >/dev/null 2>"$keep/err" || rc=$?
 
     # Compare, then RESTORE, then report. _violation returns 1 and errexit is
     # live, so a bare call aborts the function -- reporting first left the tree
@@ -4707,7 +4734,7 @@ check_names_registry_equivalence() {
     rm -rf "$keep"
 
     local bad=0
-    (( rc != 0 )) && { _violation "the names-registry generator exited $rc" || true; bad=1; }
+    (( rc != 0 )) && { _violation "the names-registry generator --check exited $rc (the drifted artefact is named above)" || true; bad=1; }
     (( names_differ )) && { _violation "the generator's names.generated.txt differs from the committed one" || true; bad=1; }
     (( refs_differ )) && { _violation "the generator's referenced_names.txt differs from the committed one" || true; bad=1; }
     (( bad == 0 )) && echo "[98-drift-checks]   both artefacts regenerate byte-identically from this checkout"
