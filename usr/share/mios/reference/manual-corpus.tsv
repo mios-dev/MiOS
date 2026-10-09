@@ -4782,6 +4782,7 @@ tests/powershell/MiOSInstall.Tests.ps1	9	10	2	19	39d5f8143925	STAY	local-scoped	
 tests/powershell/MiOSInstall.Tests.ps1	12	13	2	17	a92e5dd376ba	STAY	local-scoped		0				0
 tests/powershell/MiOSInstall.Tests.ps1	36	38	3	25	c65b21d7a717	STAY	midsize-why		0				0
 tests/powershell/MiOSInstall.Tests.ps1	45	45	1	2	858be9eac740	STAY	inline-scoped		0				0
+tests/powershell/MiOSInstall.Tests.ps1	82	82	1	11	c7197e6377fc	STAY	local-scoped		0				0
 tests/powershell/MiOSWin.Tests.ps1	1	1	1	9	460284955374	STAY	ai-header		0				0
 tests/powershell/MiOSWin.Tests.ps1	10	11	2	17	a92e5dd376ba	STAY	local-scoped		0				0
 tests/powershell/MiOSWin.Tests.ps1	17	19	3	34	a5f8a1f233b4	STAY	midsize-why		0				0
