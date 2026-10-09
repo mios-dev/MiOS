@@ -1602,6 +1602,22 @@ EOF
     log "Test_bib_single_config_invariant negative test passed"
 }
 
+test_artifact_recipes() {
+    log "Testing check_artifact_recipes"
+    local recipe="${ROOT}/config/artifacts/bib.toml" bak entry
+    bak="$(mktemp)"; cp "$recipe" "$bak"
+    # The placeholder hash vhdx.toml shipped, then a real-looking key with no REPLACE token.
+    for entry in 'password = "$6$REPLACEME_WITH_SHA512_HASH$REPLACEME"' \
+                 'key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAInegativetestbody neg@test"'; do
+        printf '\n[[customizations.user]]\nname = "neg"\n%s\n' "$entry" >> "$recipe"
+        _neg_gate check_artifact_recipes && { cp "$bak" "$recipe"; rm -f "$bak"; die "check_artifact_recipes passed with a committed ${entry%% *} in a recipe"; }
+        cp "$bak" "$recipe"
+    done
+    rm -f "$bak"
+    _neg_gate check_artifact_recipes || die "check_artifact_recipes failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_artifact_recipes negative test passed"
+}
+
 test_chpasswd_plaintext() {
     log "Testing mios-hardcode-lint plaintext chpasswd"
     local autorun_script="${ROOT}/usr/share/mios/ventoy/autorun/01-sysrescue-firstboot.sh"
@@ -5902,6 +5918,7 @@ _run_test test_leaked_fixtures
     _run_test test_ssot_lint_equivalence
     _run_test test_repo_partition_label_ssot
     _run_test test_bib_single_config_invariant
+    _run_test test_artifact_recipes
     _run_test test_chpasswd_plaintext
     _run_test test_hardcode_lint_anchored_allowlist
     _run_test test_build_artifacts_output_dir

@@ -54,7 +54,7 @@ passes on the real tree or system) and a negative control (a planted defect make
     - ETA: local replay green in about 3–5 h; GitHub CI green 2–5 h after that, since the smoke bake has not been green since 08-21; then merge on the operator's go-ahead.
 - **M0.5, before the merge that publishes `:latest`** (from `docs/research/upstream-prior-art-gaps-2026-10.md`):
   - P0-2: move the source-tree gates (phases 97/98, `miosd drift-check`) out of the Containerfile bake; the bake keeps image-content assertions only.
-  - P1-4: stop baking the known password `mios` into `/etc/shadow`; inject credentials at install.
+  - P1-4 (operator ruling Q5): keep the default password `mios`, but ship it **expired**, so the first console or Cockpit login must change it.
   - P0-7: condition off the simulated attestation server.
   - P0-4: lock down `miosd config-server` (same-origin, Host allowlist, per-launch token, no secrets on GET).
 - **M1:** run the literal Windows `irm | iex` bootstrap through to a full SSOT-derived install and build (SC-6).
@@ -124,6 +124,83 @@ passes on the real tree or system) and a negative control (a planted defect make
     - harness layouts (`.github/`, `.forgejo/workflows`, `.agents/plugins`, `.claude/commands`)
     - toolchain conventions: the Android/Gradle app (`tools/mios-portal-app`, the depth-9 branch) keeps
       Gradle's `src/main/java/<package>` layout unless it moves to its own repository.
+
+## Operator rulings, 2026-10-09 (/loop-grill, 20 spec questions)
+
+Each ruling is binding. "+" is the positive test (must pass); "-" is the planted-defect test (must fail).
+
+**Image and distribution**
+- **Q1.** Sidecar images are physically baked into the **full** image only (`MIOS_BAKE_BOUND_IMAGES=1`). Cloud and dev images skip the bake. Offline media keep `--bound-images=stored`.
+  - AC: the cloud/dev build sets bake=0 from SSOT, and the full build bakes.
+  - +: the cloud image has an empty `/usr/lib/containers/storage`.
+  - -: plant bake=1 in the cloud profile, and the size gate (Q11) fails.
+- **Q2.** Only the tiny LFM2 micro model is baked (~0.7 GB). Every other model is pulled (firstboot / OCI model image). The cloud overlay skips pulls.
+  - AC: `/usr/share/mios/llamacpp` ≤ 1 GB.
+  - +: an image-content check.
+  - -: plant granite in `bake_models`, and the check fails, naming it.
+- **Q3.** Channels are `testing` (every boot-tested main push), `stable` (a promoted digest) and immutable dated tags.
+  - AC: `[image.streams]` in SSOT, CI tags from it, and `bootc upgrade --tag` documented.
+  - +: the CI tag plan includes all three.
+  - -: drop a stream from SSOT, and the CI-plan gate fails.
+- **Q4.** Key-based cosign, by digest, with one MiOS key plus a backup on both GitHub and Forgejo. `/etc/containers/policy.json` enforces `sigstoreSigned` for `ghcr.io/mios-dev` and carries the base image's ublue entries. Keyless signing stays as an extra signature.
+  - +: `podman image trust show` lists the key, and a signed fixture pulls.
+  - -: an unsigned fixture is refused.
+
+**Install and security**
+- **Q5.** Keep the password `mios`, but ship it expired (`chage -d 0`).
+  - +: an image check shows a lastchg of 0 for `[identity].username`.
+  - -: plant a non-expired hash, and the check fails.
+- **Q6.** Bare-metal install defaults to LUKS with TPM2 plus a generated recovery key. FIDO2 is an optional second token. One SSOT table: fold `[security.luks]` into `[security.disk_encryption]`.
+  - +: an install on a loop device yields LUKS2 with a TPM2 token and a recovery keyslot.
+  - -: remove the recovery generation, and the install check fails.
+- **Q7.** `mios-attest-server` is disabled now (unit conditioned off), and Keylime replaces it later. It may only issue a short-lived headscale pre-auth key and a k3s token.
+  - +: the preset/unit check shows it inactive.
+  - -: enable it without Keylime, and the gate fails.
+- **Q8.** Source-tree drift gates run only in the CI drift-gate job. The bake keeps image-content checks (99-postcheck) and `bootc container lint --fatal-warnings`.
+  - +: the Containerfile has no `drift-check`.
+  - -: re-add it, and the gate fails.
+
+**Dev, cloud and Windows hosts**
+- **Q9.** Build and test **every** MiOS image locally, with tests: OCI, ISO, qcow2, VHDX, raw, WSL, cloud, and MiOS-Xbox. Both dev providers stay supported. This is a phased, filed task series.
+  - +: `miosd artifact-build <fmt>` plus `artifact-boot-test` per format.
+  - -: a planted boot failure fails that format.
+- **Q10.** GPU-PV in a Hyper-V MiOS VM comes from a signed dxgkrnl kmod (MOK, `module.sig_enforce=1`), with the VM GPU partition projected from SSOT.
+  - +: `/dev/dxg` exists in the VM.
+  - -: an unsigned module is rejected.
+- **Q11.** The cloud image must be ≤ 25 GB unpacked, enforced by a CI size gate. Codex Plus (8 GiB) is declared unsupported.
+  - +: the measured size is ≤ the SSOT ceiling.
+  - -: plant a 1 GB file, and the gate fails at the boundary.
+- **Q12.**
+  - The Windows host is declarative: `mios-gen` renders one DSC v3 document from SSOT, `Get-MiOS.ps1` installs DSC and runs `dsc config set`, and `dsc config test` is the Windows drift gate.
+  - **And MiOS-Xbox** (the MiOS-flavoured Windows) builds to SSOT specs from UUP Dump with DISM, Autounattend and XMLs, using native DISM tooling **on both the Linux and Windows build pipelines**.
+  - +: `dsc config test` is clean after set, and the Xbox WIM/ISO builds from UUP Dump on both hosts.
+  - -: plant a drifted registry value, and the test fails.
+
+**Configurator and SSOT**
+- **Q13.** mios.html → Rust `toml_edit` → mios.toml, through key-level patches as in the research docs (`docs/research/upstream-prior-art-gaps-2026-10.md` P0-6 and `.research/ssot-engine-prior-art-2026-10.md`). The same core runs as wasm for `file://`.
+  - +: a no-op save changes 0 keys, and comments survive.
+  - -: plant the `#`-strip defect, and the round-trip gate fails, naming `colors.bg`.
+- **Q14.** Each key declares the tier it is written to (`x-mios-tier`). System keys go to the host tier over a root-side `SO_PEERCRED` socket. Vendor writes are refused.
+  - +: a host-tier key lands in `/etc/mios/mios.d/`.
+  - -: a vendor-path write is refused.
+- **Q15.** Secrets use systemd-creds (TPM-bound where available), rendered as write-only fields. **Research the best implementation first**, building on `.research/*secrets*`.
+  - +: GET never returns a secret value.
+  - -: plant a secret into the TOML, and the secret gate fails.
+- **Q16.** Disclosure is per key: level `essential|advanced|internal`, plus group and order. Each group has an Admin/Extras collapsible section, plus search, an `@modified` filter and per-key reset. All of it is generated from the SSOT.
+  - +: every bound key has a level.
+  - -: an unlevelled key fails the configurator gate.
+
+**AI plane, code form and merge**
+- **Q17.** Prompt-injection defenses (Rule of Two, quarantine, principal binding) ship in `audit` mode with `provenance_taint = true`, and move to `enforce` after one release.
+  - +: the vendor defaults read audit.
+  - -: set all of them to off, and the gate fails.
+- **Q18.** Agent code runs in a krun microVM where `/dev/kvm` exists, falling back to the hardened crun container. The simulated microVM module is deleted.
+  - +: inside the sandbox, the kernel differs from the host.
+  - -: force crun with `/dev/kvm` present, and the check flags it.
+- **Q19.** MiOS-MODULES: one Rust workspace. Each crate becomes an applet library. A few domain binaries dispatch on argv[0], busybox/bootc style. Amend ADR-0021. Use a shared LTO/strip profile. Privilege separation lives in the systemd units.
+  - +: each `L+` shim name runs its applet.
+  - -: an unknown argv[0] fails loudly.
+- **Q20.** PR #61 merges only when GitHub `drift-gate` **and** `smoke-test` are green, with bootstrap #26 merged first and the operator's final go.
 
 ## Non-goals and blast radius
 - Do not rewrite history or force-push shared branches. Do not use `git add -A`; other agents share this tree.

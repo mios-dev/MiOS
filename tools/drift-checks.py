@@ -1536,6 +1536,7 @@ def check_negative_test_coverage() -> int:
         "check_bib_configs_projection",
         "check_repo_partition_label_ssot",
         "check_bib_single_config_invariant",
+        "check_artifact_recipes",
         "check_build_artifacts_output_dir",
         "check_win11_vm_template_xml",
         "check_ipa_enroll_projection",
@@ -3009,6 +3010,10 @@ def check_containerfile_pinned_clones() -> int:
 
 def check_replaceme_mount_substitution() -> int:
     import os, sys, re
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover
+        import tomli as tomllib  # type: ignore
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     justfile = os.path.join(root, "Justfile")
@@ -3018,6 +3023,19 @@ def check_replaceme_mount_substitution() -> int:
 
     with open(justfile, "r", encoding="utf-8") as f:
         content = f.read()
+
+    # P1-4: `miosd artifact-build` renders a disk's account and credential into
+    # its [deploy.formats.<f>] recipe, so mounting a format recipe raw ships a
+    # disk without them. Only the shared recipe may be mounted raw, and no
+    # mounted recipe may carry a REPLACE placeholder.
+    rendered = set()
+    ssot = os.path.join(root, "usr/share/mios/mios.toml")
+    if os.path.isfile(ssot):
+        with open(ssot, "rb") as fh:
+            formats = ((tomllib.load(fh).get("deploy") or {}).get("formats") or {})
+        for name, spec in formats.items():
+            if isinstance(spec, dict) and spec.get("recipe"):
+                rendered.add((os.path.basename(spec["recipe"]), name))
 
     recipe_blocks = re.split(r"\n(?=[a-zA-Z0-9_-]+:)", content)
 
@@ -3031,16 +3049,20 @@ def check_replaceme_mount_substitution() -> int:
 
         mounted_configs = re.findall(r"-v\s+\.?/?config/artifacts/([a-zA-Z0-9_.-]+\.toml)", block_text)
         for cfg in mounted_configs:
+            for base, fmt in sorted(rendered):
+                if base == cfg:
+                    bad.append(f"Recipe '{recipe_name}' mounts the [deploy.formats.{fmt}] recipe '{cfg}' raw, "
+                               f"so the disk gets no account or credential -- build it with "
+                               f"`miosd artifact-build {fmt}`")
             cfg_path = os.path.join(root, "config/artifacts", cfg)
             if os.path.isfile(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8", errors="ignore") as cf:
                     cfg_text = cf.read()
-                if "REPLACEME" in cfg_text or "AAAA_REPLACE" in cfg_text:
-                    if "sed " not in block_text and "sed -e" not in block_text:
-                        bad.append(f"Recipe '{recipe_name}' mounts '{cfg}' containing REPLACEME tokens without credential-substituting sed")
-                    if "REPLACEME_WITH_SHA512_HASH" in cfg_text:
-                        if "MIOS_USER_PASSWORD_HASH:-" in block_text or "[ -z \"${MIOS_USER_PASSWORD_HASH" not in block_text:
-                            bad.append(f"Recipe '{recipe_name}' mounts '{cfg}' with REPLACEME_WITH_SHA512_HASH without asserting non-empty MIOS_USER_PASSWORD_HASH")
+                if "REPLACE" in cfg_text:
+                    bad.append(f"Recipe '{recipe_name}' mounts '{cfg}', which carries a REPLACE placeholder")
+        if re.search(r"sed\b[^\n]*REPLACE", block_text):
+            bad.append(f"Recipe '{recipe_name}' sed-substitutes a credential placeholder; "
+                       f"credentials are rendered by miosd artifact-build")
 
     if bad:
         for b in bad:

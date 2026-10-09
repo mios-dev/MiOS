@@ -2768,9 +2768,9 @@ check_replaceme_mount_substitution() {
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py replaceme-mount-substitution
     then
-        echo "[98-drift-checks]   BIB recipes perform credential substitution on mounted config templates"
+        echo "[98-drift-checks]   no Justfile BIB recipe mounts a format recipe or a placeholder raw; miosd artifact-build renders credentials"
     else
-        _violation "unsubstituted REPLACEME template raw-mounted in Justfile BIB recipe"
+        _violation "a Justfile BIB recipe raw-mounts a format recipe or a REPLACE placeholder -- build disks with miosd artifact-build"
     fi
 }
 
@@ -2969,6 +2969,13 @@ check_repo_partition_label_ssot() {
     else
         echo "[98-drift-checks]   repo partition label consumers match [field.repo_partition].label SSOT"
     fi
+}
+
+check_artifact_recipes() {
+    echo "[98-drift-checks] no artifact recipe carries a placeholder or a committed credential; disks get the operator's at build time (Law 11)"
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_artifact_recipes could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"; return; }
+    "$bin" artifact-recipes --root "$ROOT" || \
+        _violation "an artifact recipe carries a placeholder or a committed credential -- disks get theirs from miosd artifact-build (Law 11)"
 }
 
 check_bib_single_config_invariant() {
@@ -3997,6 +4004,7 @@ main() {
     check_bib_configs_projection
     check_repo_partition_label_ssot
     check_bib_single_config_invariant
+    check_artifact_recipes
     check_build_artifacts_output_dir
     check_win11_vm_template_xml
     check_ipa_enroll_projection
