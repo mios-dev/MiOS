@@ -2126,8 +2126,8 @@ _run_bake_plan_check() {
     # Pin MIOS_ROOT and every SSOT tier: unpinned, the binary takes its root from
     # its own path, so an installed one graded / and not this tree.
     # shellcheck disable=SC2046
-    if out="$(cd "$ROOT" && env $(_render_env) MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" \
-            "$bin" --check "$mode" 2>&1)"; then
+    if out="$(cd "$ROOT" && env $(_render_env) \
+            MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" "$bin" --check "$mode" 2>&1)"; then
         if [[ "$mode" == --check-integrity && "$out" != *"Bake-plan integrity verified against active Quadlets and SSOT"* ]]; then
             _violation "mios-bake-plan does not support the required native integrity check"
             return

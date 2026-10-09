@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3843,
-  "total_metadata_entries": 3151,
-  "total_hints": 3141,
+  "total_files_scanned": 3839,
+  "total_metadata_entries": 3147,
+  "total_hints": 3137,
   "total_functions_indexed": 1469,
-  "total_related_links": 5231,
+  "total_related_links": 5222,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -2019,7 +2019,7 @@
       "path": "automation/mios-motd",
       "hint": "Compatibility login entrypoint delegates the complete layered SSOT dashboard to the same native Linux/Windows engine.",
       "related": [
-        "tools/native/mios-gen/src/dashboard.rs",
+        "tools/native/mios-gen/src/main.rs",
         "etc/profile.d/zz-mios-motd.sh"
       ],
       "functions": [],
@@ -10005,7 +10005,7 @@
       "hint": "Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.",
       "related": [
         "tools/native/generate-names-registry/src/main.rs",
-        "tools/native/mios-gen/src/names_registry.rs"
+        "tools/native/mios-gen/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10338,18 +10338,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/dashboard.rs",
-      "hint": "Native runtime dashboard adapter resolves six-tier SSOT once and renders structured host facts through the shared cross-platform engine.",
-      "related": [
-        "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/fastfetch.rs",
       "hint": "SSOT Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC (ADR-0021 gen category).",
       "related": [
@@ -10376,7 +10364,7 @@
     },
     {
       "path": "tools/native/mios-gen/src/lib.rs",
-      "hint": "Shared generator implementations used by unified verbs and installed compatibility commands.",
+      "hint": "mios-gen library: the names-registry generator (check 30) and the bootstrap mirror, shared with generate-names-registry and the mios-gen CLI.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -10405,15 +10393,6 @@
         "usr/share/mios/mios.toml",
         "tools/native/mios-gen/src/metal_vs_hosted.rs"
       ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/names_registry.rs",
-      "hint": "Rust SSOT names registry generator (check 30 generator).",
-      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10450,18 +10429,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/projection_evidence.rs",
-      "hint": "Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.",
-      "related": [
-        "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/tests/projection_evidence.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10574,21 +10541,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_runtime.rs",
-      "hint": "Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user), the `--runtime` mode of the deleted tmux_theme.py.",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
-        "usr/lib/mios/mios_toml.py",
-        "usr/libexec/mios/ux/theme_sync.py",
-        "etc/profile.d/mios-prompt.sh",
-        "usr/libexec/mios/mios-terminal"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10778,7 +10730,7 @@
       "path": "tools/native/mios-gen/tests/projection_evidence.rs",
       "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
       "related": [
-        "tools/native/mios-gen/src/projection_evidence.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10891,7 +10843,7 @@
       "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
       "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
       "related": [
-        "tools/native/mios-gen/src/tmux_runtime.rs",
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
         "usr/libexec/mios/mios-terminal"
@@ -11352,7 +11304,7 @@
       "related": [
         "/usr/share/mios/templates/rust",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/dashboard.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
