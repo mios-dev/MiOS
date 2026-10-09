@@ -11,15 +11,12 @@ use std::process::ExitCode;
 
 mod adr_index;
 mod ai_manifest;
-mod bib_configs;
 mod btop_theme;
-mod cargo_manifests;
-mod dashboard;
-mod fastfetch;
-mod gate_index;
+mod docs;
+mod image;
+mod indexes;
 mod metal_vs_hosted;
 mod pipe_boundaries;
-mod pipeline_index;
 mod pod_quadlets;
 mod projection_evidence;
 mod render_desktop;
@@ -27,11 +24,13 @@ mod render_globals;
 mod render_manpages;
 mod render_ports;
 mod roadmap_index;
-mod standardize_docs;
 mod sync;
-mod sync_wiki;
-mod tmux_runtime;
-mod tmux_theme;
+mod terminal;
+
+use docs::{standardize_docs, sync_wiki};
+use image::{bib_configs, cargo_manifests};
+use indexes::{gate_index, pipeline_index};
+use terminal::{dashboard, fastfetch, tmux_runtime, tmux_theme};
 
 #[derive(Parser, Debug)]
 #[command(

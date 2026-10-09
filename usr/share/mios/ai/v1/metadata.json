@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3730,
-  "total_metadata_entries": 3078,
-  "total_hints": 3068,
+  "total_files_scanned": 3723,
+  "total_metadata_entries": 3071,
+  "total_hints": 3061,
   "total_functions_indexed": 1453,
-  "total_related_links": 5126,
+  "total_related_links": 5114,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -2019,7 +2019,7 @@
       "path": "automation/mios-motd",
       "hint": "Compatibility login entrypoint delegates the complete layered SSOT dashboard to the same native Linux/Windows engine.",
       "related": [
-        "tools/native/mios-gen/src/dashboard.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "etc/profile.d/zz-mios-motd.sh"
       ],
       "functions": [],
@@ -9667,19 +9667,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/bib_configs.rs",
-      "hint": "Native Rust projector for BIB artifact filesystem configurations (config/artifacts/*.toml).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "config/artifacts/bib.toml",
-        "config/artifacts/iso.toml"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/bootstrap_sync.rs",
       "hint": "Native bootstrap mirror with parsed TOML comparisons, confined paths and rollback on publication failure.",
       "related": [
@@ -9706,11 +9693,34 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/cargo_manifests.rs",
-      "hint": "Native Rust projector for tools/native/Cargo.toml workspace manifest (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/src/docs.rs",
+      "hint": "specs/ markdown standardizer and wiki/spec metadata sync: version and RAG timestamps injected from SSOT (ADR-0021 gen category).",
       "related": [
-        "tools/native/Cargo.toml",
+        "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md",
+        "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
+        "VERSION"
+      ],
+      "functions": [
+        "get_version",
+        "render_header",
+        "render_footer",
+        "extract_ai_hint",
+        "standardize_content",
+        "run_standardize_docs"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/src/image.rs",
+      "hint": "Projectors for build artifacts: BIB filesystem configs under config/artifacts/ and the tools/native workspace Cargo.toml (ADR-0021, Law 14).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "config/artifacts/bib.toml",
+        "config/artifacts/iso.toml",
+        "tools/native/Cargo.toml",
         "tools/sync-generated.sh"
       ],
       "functions": [],
@@ -9719,33 +9729,8 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/dashboard.rs",
-      "hint": "Native runtime dashboard adapter resolves six-tier SSOT once and renders structured host facts through the shared cross-platform engine.",
-      "related": [
-        "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/fastfetch.rs",
-      "hint": "SSOT Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC (ADR-0021 gen category).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "usr/share/mios/fastfetch/config.jsonc",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/gate_index.rs",
-      "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
+      "path": "tools/native/mios-gen/src/indexes.rs",
+      "hint": "Generators and validators for the drift-gate and build-pipeline index TSVs under usr/share/mios/reference/ (ADR-0021 gen category).",
       "related": [
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
         "tools/native/mios-gen/src/main.rs"
@@ -9810,18 +9795,6 @@
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/pipeline_index.rs",
-      "hint": "Generator and validator for usr/share/mios/reference/pipeline-index.tsv from automation/[0-9][0-9]-*.sh and SSOT.",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tools/native/mios-gen/src/main.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -9915,25 +9888,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/standardize_docs.rs",
-      "hint": "SSOT projector and standardizer for specs/ markdown documentation (ADR-0021 gen category).",
-      "related": [
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
-      ],
-      "functions": [
-        "get_version",
-        "render_header",
-        "render_footer",
-        "extract_ai_hint",
-        "standardize_content",
-        "run_standardize_docs"
-      ],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/sync.rs",
       "hint": "One native, SSOT-declared generation pipeline for build, install and development.",
       "related": [
@@ -9946,23 +9900,13 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/sync_wiki.rs",
-      "hint": "Synchronizes metadata in wiki and spec markdown files by injecting current version and RAG sync timestamps into JSON blocks.",
+      "path": "tools/native/mios-gen/src/terminal.rs",
+      "hint": "Terminal projections for mios-gen: the native dashboard, the Fastfetch config, and the tmux theme fixture plus its layered --runtime render, all from SSOT (ADR-0021 gen category).",
       "related": [
-        "tools/native/mios-gen/src/main.rs",
+        "/usr/share/mios/templates/rust",
         "usr/share/mios/mios.toml",
-        "VERSION"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_runtime.rs",
-      "hint": "Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user). Replaces the `--runtime` mode of the deleted tmux_theme.py (Phase 3.18 regression fix).",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "usr/share/mios/fastfetch/config.jsonc",
+        "automation/98-drift-checks.sh",
         "usr/lib/mios/mios_toml.py",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
@@ -9970,15 +9914,6 @@
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_theme.rs",
-      "hint": "Build-time tmux fixture and runtime consumers share the native theme engine.",
-      "related": [],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10008,8 +9943,7 @@
         "tests/drift-gate-negatives.sh",
         "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "tools/native/mios-gen/src/sync_wiki.rs"
+        "tools/native/mios-gen/src/docs.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10033,10 +9967,9 @@
       "path": "tools/native/mios-gen/tests/image.rs",
       "hint": "Two-sided integration tests for the mios-gen image and supply-chain verbs: bib-configs, cargo-manifests, cosign-policy, egress-firewall and pod-quadlets (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
+        "tools/native/mios-gen/src/image.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/cargo_manifests.rs",
         "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
         "docs/design/doc-rust-static-port.md",
@@ -10052,12 +9985,11 @@
       "hint": "Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/ai_manifest.rs",
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh",
         "docs/design/doc-rust-static-port.md",
         "tools/native/mios-gen/src/pipe_boundaries.rs",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/pipeline_index.rs",
         "tools/native/mios-gen/src/projection_evidence.rs",
         "tools/native/mios-gen/src/render_globals.rs",
         "tools/native/mios-gen/src/render_ports.rs",
@@ -10073,15 +10005,13 @@
       "path": "tools/native/mios-gen/tests/theme.rs",
       "hint": "Two-sided integration tests for the mios-gen desktop and terminal verbs: render-fastfetch, render-desktop and render-tmux-theme with its host and runtime layers (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/fastfetch.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "automation/98-drift-checks.sh",
         "tools/native/mios-gen/src/render_desktop.rs",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/tmux_runtime.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
-        "usr/libexec/mios/mios-terminal",
-        "tools/native/mios-gen/src/tmux_theme.rs"
+        "usr/libexec/mios/mios-terminal"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10197,15 +10127,6 @@
         "usr/share/mios/mios.toml",
         "usr/share/mios/windows/mios-pc-control.ps1"
       ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-launch/src/monitor.rs",
-      "hint": "Monitor policy now lives in mios-service-core::launcher for both platform consumers.",
-      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10515,7 +10436,7 @@
       "related": [
         "/usr/share/mios/templates/rust",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/dashboard.rs"
+        "tools/native/mios-gen/src/terminal.rs"
       ],
       "functions": [],
       "doc": null,
@@ -11360,7 +11281,7 @@
       "path": "tools/test_generate-gate-index.py",
       "hint": "Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check.",
       "related": [
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -11372,8 +11293,8 @@
       "path": "tools/test_generator_check_agrees_with_write.py",
       "hint": "Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here.",
       "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/image.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -29779,7 +29700,7 @@
       "hint": "Guide to configuring Blink Shell on iOS (iPhone/iPad) and tmux for Shift+Tab and mobile terminal shortcut combos.",
       "related": [
         "/usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "/etc/tmux.conf"
       ],
       "functions": [],
@@ -32265,8 +32186,7 @@
         "usr/lib/mios/log.sh",
         "usr/share/mios/reference/drift-gate-index.tsv",
         "usr/share/mios/reference/pipeline-index.tsv",
-        "tools/native/mios-gen/src/gate_index.rs",
-        "tools/native/mios-gen/src/pipeline_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "usr/share/mios/mios.toml",
         "docs/design/doc-unified-pipeline.md"
       ],
@@ -35696,7 +35616,7 @@
       "path": "usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
       "hint": "Tmux key bindings and terminal capabilities for iOS Blink Shell, enabling Shift+Tab (backtab) and mobile shortcut combos.",
       "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "usr/share/doc/mios/guides/blink-tmux-mobile-keys.md"
       ],
       "functions": [],

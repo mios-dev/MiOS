@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here.
-# AI-related: tools/native/mios-gen/src/bib_configs.rs, tools/native/mios-gen/src/gate_index.rs, automation/98-drift-checks.sh
+# AI-related: tools/native/mios-gen/src/image.rs, tools/native/mios-gen/src/indexes.rs, automation/98-drift-checks.sh
 """Every gate-diffed generator's --check must agree with its write mode.
 
 The defect this exists to catch: tools/generate-bib-configs.py --check

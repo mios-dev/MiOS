@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/ai_manifest.rs, tools/native/mios-gen/src/gate_index.rs, automation/98-drift-checks.sh, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/pipe_boundaries.rs, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/pipeline_index.rs, tools/native/mios-gen/src/projection_evidence.rs, tools/native/mios-gen/src/render_globals.rs, tools/native/mios-gen/src/render_ports.rs, tools/native/mios-gen/src/sync.rs, usr/share/mios/mios.toml
+// AI-related: tools/native/mios-gen/src/ai_manifest.rs, tools/native/mios-gen/src/indexes.rs, automation/98-drift-checks.sh, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/pipe_boundaries.rs, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/projection_evidence.rs, tools/native/mios-gen/src/render_globals.rs, tools/native/mios-gen/src/render_ports.rs, tools/native/mios-gen/src/sync.rs, usr/share/mios/mios.toml
 
 use std::sync::{Mutex, MutexGuard};
 

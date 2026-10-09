@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Compatibility login entrypoint delegates the complete layered SSOT dashboard to the same native Linux/Windows engine.
-# AI-related: tools/native/mios-gen/src/dashboard.rs, etc/profile.d/zz-mios-motd.sh
+# AI-related: tools/native/mios-gen/src/terminal.rs, etc/profile.d/zz-mios-motd.sh
 if [[ $- == *i* && -z "${MIOS_NO_MOTD:-}" && -z "${MIOS_SKIP_MOTD:-}" ]]; then
     /usr/bin/mios-gen dashboard --root /
 fi

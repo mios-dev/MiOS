@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration tests for the mios-gen image and supply-chain verbs: bib-configs, cargo-manifests, cosign-policy, egress-firewall and pod-quadlets (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/bib_configs.rs, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/cargo_manifests.rs, tools/native/mios-gen/src/main.rs, usr/share/mios/mios.toml, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/pod_quadlets.rs
+// AI-related: tools/native/mios-gen/src/image.rs, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/main.rs, usr/share/mios/mios.toml, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/pod_quadlets.rs
 
 use std::sync::{Mutex, MutexGuard};
 
