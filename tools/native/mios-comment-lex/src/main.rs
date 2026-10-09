@@ -122,6 +122,7 @@ const WS: &str = r"[\s\x{1c}-\x{1f}]";
 struct Res {
     marker: Regex,
     end_marker: Regex,
+    html_end: Regex,
     ws_run: Regex,
     word: Regex,
 }
@@ -131,7 +132,8 @@ fn res() -> &'static Res {
     RES.get_or_init(|| Res {
         marker: Regex::new(&format!(r"^{WS}*(?:#+|//+|;+|--|<!--|\*|/\*){WS}?"))
             .expect("marker pattern"),
-        end_marker: Regex::new(&format!(r"{WS}*(?:-->|\*/){WS}*$")).expect("end pattern"),
+        end_marker: Regex::new(&format!(r"{WS}*(?:--!?>|\*/){WS}*$")).expect("end pattern"),
+        html_end: Regex::new(r"--!?>").expect("HTML end pattern"),
         ws_run: Regex::new(&format!("{WS}+")).expect("whitespace pattern"),
         word: Regex::new(r"[A-Za-z0-9_][A-Za-z0-9_./:-]*").expect("word pattern"),
     })
@@ -305,14 +307,14 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                 in_block = true;
                 block_start = i;
                 block_lines = vec![strip_line(raw)];
-                if s.contains("-->") {
+                if res().html_end.is_match(s) {
                     in_block = false;
                     let hdr = raw.contains("AI-hint");
                     out.push(markup_block(path, block_start, i, &block_lines, hdr));
                 }
             } else if in_block {
                 block_lines.push(strip_line(raw));
-                if s.contains("-->") {
+                if res().html_end.is_match(s) {
                     in_block = false;
                     let hdr = block_lines.iter().any(|x| x.contains("AI-hint"));
                     out.push(markup_block(path, block_start, i, &block_lines, hdr));
@@ -418,13 +420,13 @@ pub fn strip_non_code(path: &str, src: &str) -> Vec<String> {
         // HTML / Markdown <!-- -->
         if is_md || style == "<!--" {
             if in_multiline_comment {
-                if trimmed.contains("-->") {
+                if res().html_end.is_match(trimmed) {
                     in_multiline_comment = false;
                 }
                 continue;
             }
             if trimmed.starts_with("<!--") {
-                if !trimmed.contains("-->") {
+                if !res().html_end.is_match(trimmed) {
                     in_multiline_comment = true;
                 }
                 continue;
@@ -671,6 +673,25 @@ mod tests {
         assert_eq!(strip_line("# Hello world"), "Hello world");
         assert_eq!(strip_line("// Test line"), "Test line");
         assert_eq!(strip_line("<!-- Comment -->"), "Comment");
+    }
+
+    #[test]
+    fn html_endings_bound_comments_without_swallowing_following_content() {
+        for end in ["-->", "--!>"] {
+            assert_eq!(strip_line(&format!("<!-- comment {end}")), "comment");
+            let blocks = lex_generic(
+                "x.md",
+                &format!("<!-- first {end}\ntext\n<!-- second {end}\n"),
+                "<!--",
+            );
+            assert_eq!(blocks.len(), 2);
+            assert_eq!((blocks[0].start_line, blocks[0].end_line), (1, 1));
+            assert_eq!(blocks[1].text, "second");
+        }
+        let blocks = lex_generic("x.md", "<!-- first --!\nsecond --!>\ntext\n", "<!--");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].end_line, 2);
+        assert!(blocks[0].text.contains("first --!"));
     }
 
     #[test]

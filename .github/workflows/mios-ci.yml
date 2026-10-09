@@ -430,6 +430,8 @@ jobs:
   # The disk formats [ci.artifacts] opts in. None by default, so until the
   # operator turns one on this job is the whole cost.
   artifact-plan:
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     outputs:
       formats: ${{ steps.plan.outputs.formats }}
@@ -449,6 +451,9 @@ jobs:
   # QEMU, running [testing.boot]'s probes over SSH. Only the serial log is
   # uploaded: a VHDX exceeds GitHub's 2 GiB asset and GHCR's 10 GB layer limits.
   artifact-boot:
+    permissions:
+      contents: read
+      packages: read
     needs: artifact-plan
     if: needs.artifact-plan.outputs.formats != '[]'
     runs-on: ubuntu-24.04
