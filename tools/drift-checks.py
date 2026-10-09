@@ -2452,40 +2452,6 @@ def check_verb_backends() -> int:
         sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
     return 1 if missing else 0
 
-def check_python_untested_ratchet() -> int:
-    import sys, os
-    root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    base_file = os.path.join(root_dir, "usr/share/mios/reference/python-untested-baseline.txt")
-    _rc = _absent(root_dir, base_file)
-    if _rc is not None:
-        return _rc
-    with open(base_file, encoding="utf-8") as f:
-        allowed = set(line.strip() for line in f if line.strip() and not line.startswith("#"))
-
-    untested = []
-    for scan_dir in ['tools', os.path.join('usr', 'libexec', 'mios')]:
-        full_scan = os.path.join(root_dir, scan_dir)
-        if not os.path.isdir(full_scan):
-            continue
-        for f in os.listdir(full_scan):
-            if not f.endswith('.py') or f.startswith('test_') or f == '__init__.py':
-                continue
-            rel = f"{scan_dir}/{f}".replace("\\", "/")
-            norm_stem = f[:-3].replace("-", "_")
-            test1 = os.path.join(full_scan, f"test_{f}")
-            test2 = os.path.join(full_scan, f"test_{f[:-3]}.py")
-            test3 = os.path.join(full_scan, f"test_{norm_stem}.py")
-            if not (os.path.exists(test1) or os.path.exists(test2) or os.path.exists(test3)):
-                if rel not in allowed:
-                    untested.append(rel)
-
-    if untested:
-        for u in untested:
-            sys.stderr.write(f"    untested python module not in baseline: {u}\n")
-        return 1
-
-    return 0
-
 def check_dag_integrity() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -4444,7 +4410,7 @@ _SUBCOMMAND_NAMES = (
     "no-duplicate-value-key", "resolver-differential-parity", "legibility-ratchet",
     "header-integrity", "rbac-tiers", "ai-manifest", "capability-manifest",
     "surface-parity", "container-ports", "agent-pipe-budgets", "verb-backends",
-    "python-untested-ratchet", "dag-integrity",
+    "dag-integrity",
     "ai-endpoint-local", "bake-refs-parity", "cli-eval-safety",
     "resolver-ssot-refs", "bake-budget", "greenboot", "router-intent-coverage",
     "council-gate-ssot", "test-hermeticity", "containerfile-pinned-clones",

@@ -425,48 +425,17 @@ check_cli_sql_safety() {
 }
 
 check_module_test_coverage() {
-    local dir="$ROOT/usr/lib/mios/agent-pipe"
-    if [[ ! -d "$dir" ]]; then
-        _violation "agent-pipe dir absent -- a tracked deliverable is missing, so this check cannot run"
+    # Native (ADR-0021): a unit test must NAME each module; a test file named after it is not evidence.
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_module_test_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
     fi
-    local missing="" f base mod_name
-    while IFS= read -r f; do
-        [[ -f "$f" ]] || continue
-        base="$(basename "$f")"
-        case "$base" in test_*|__init__.py) continue ;; esac          # tests and package init don't need tests
-        if [[ ! -f "$dir/test_${base}" ]]; then
-            missing+="    $base (no test_${base})"$'\n'
-        fi
-    done < <(find "$dir" -maxdepth 1 -type f -name 'mios_*.py' 2>/dev/null)
-
-    if [[ -d "$dir/mios_pipe" ]]; then
-        while IFS= read -r f; do
-            [[ -f "$f" ]] || continue
-            base="$(basename "$f")"
-            case "$base" in test_*|__init__.py) continue ;; esac
-            mod_name="${base%.py}"
-            if [[ ! -f "$dir/test_mios_${mod_name}.py" && ! -f "$dir/test_${mod_name}.py" && ! -f "$dir/test_mios_a2a_${mod_name}.py" ]]; then
-                missing+="    mios_pipe/.../$base (no test_mios_${mod_name}.py)"$'\n'
-            fi
-        done < <(find "$dir/mios_pipe" -type f -name '*.py' 2>/dev/null)
-    fi
-
-    if [[ -n "$missing" ]]; then
-        printf '%s' "$missing" >&2
-        _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction "
+    local out
+    if out="$("$bin" module-test-coverage --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   every agent-pipe module is named by a unit test; tools/ and libexec python within the sibling-test ratchet"
     else
-        echo "[98-drift-checks]   every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
-    fi
-
-    local baseline_file="$ROOT/usr/share/mios/reference/python-untested-baseline.txt"
-    if [[ -f "$baseline_file" ]]; then
-        if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py python-untested-ratchet
-        then
-            echo "[98-drift-checks]   tools/ and libexec python module test coverage within baseline ratchet"
-        else
-            _violation "new untested tools/ or libexec python module found -- author sibling test_<module>.py or update baseline"
-        fi
+        _violations_from "check_module_test_coverage: " "$out"
     fi
 }
 

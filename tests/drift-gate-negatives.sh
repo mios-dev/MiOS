@@ -787,20 +787,33 @@ test_bake_budget() {
 
 test_module_test_coverage() {
     log "Testing check_module_test_coverage"
+    # Each plant must be NAMED in the diagnostic: a gate that fails for another
+    # reason (an unbuilt mios-gate, an unrelated module) proves nothing here.
     local temp_submodule="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/temp_untested_mod.py"
+    local temp_sibling="${ROOT}/usr/lib/mios/agent-pipe/test_mios_temp_untested_mod.py"
+    _mtc_clean() {
+        rm -f "$temp_submodule" "$temp_sibling" "${ROOT}/tools/temp_untested_tool_mod.py"             "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
+    }
+    _mtc_fail() { _mtc_clean; unset -f _mtc_clean _mtc_fail; die "$1"; }
+
     echo "# Temp untested submodule" > "$temp_submodule"
+    _neg_gate check_module_test_coverage && _mtc_fail "check_module_test_coverage passed despite an untested submodule"
+    grep -q "mios_pipe/identity/temp_untested_mod.py is named by no unit test" <<<"$_NEG_GATE_OUT"         || _mtc_fail "check_module_test_coverage did not name the untested submodule: ${_NEG_GATE_OUT}"
 
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 && die "Check_module_test_coverage passed despite missing submodule sibling test"
+    # T-1092: a test file NAMED after the module is not the evidence -- an empty
+    # one used to satisfy the old filename check.
+    : > "$temp_sibling"
+    _neg_gate check_module_test_coverage && _mtc_fail "check_module_test_coverage passed on an empty test named after the module"
+    grep -q "temp_untested_mod.py is named by no unit test" <<<"$_NEG_GATE_OUT"         || _mtc_fail "check_module_test_coverage did not name the module behind the empty sibling: ${_NEG_GATE_OUT}"
+    _mtc_clean
 
-    rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
+    echo "# Temp untested tool" > "${ROOT}/tools/temp_untested_tool_mod.py"
+    _neg_gate check_module_test_coverage && _mtc_fail "check_module_test_coverage passed despite an un-grandfathered tools module"
+    grep -q "untested python module not in baseline: tools/temp_untested_tool_mod.py" <<<"$_NEG_GATE_OUT"         || _mtc_fail "check_module_test_coverage did not name the untested tools module: ${_NEG_GATE_OUT}"
+    _mtc_clean
+    unset -f _mtc_clean _mtc_fail
 
-    local temp_tool="${ROOT}/tools/temp_untested_tool_mod.py"
-    echo "# Temp untested tool" > "$temp_tool"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 && die "Check_module_test_coverage passed despite un-grandfathered tools module"
-    rm -f "$temp_tool"
-
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 \
-        || die "Check_module_test_coverage failed after restoration"
+    _neg_gate check_module_test_coverage         || die "Check_module_test_coverage failed after restoration: ${_NEG_GATE_OUT}"
     log "Check_module_test_coverage negative test passed"
 }
 

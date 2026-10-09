@@ -16,6 +16,7 @@ mod image_equivalence;
 mod image_freshness;
 mod inert_tables;
 mod laws;
+mod module_tests;
 mod negative_coverage;
 mod phases;
 mod powershell;
@@ -96,11 +97,11 @@ impl Report {
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
-                     \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH]\n\
+                     \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH] [--census]\n\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
-                             doc-refs-resolve, drift-stubs, gate-registry, generator-host-parity, image-equivalence, image-freshness,\n\
-                             negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
-                             phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
+                             doc-refs-resolve, drift-stubs, gate-registry, generator-host-parity, image-equivalence, image-freshness,
+\n                             module-test-coverage, negative-coverage, no-inert-ssot-tables, profile-integrity,
+\n                             phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
 
@@ -113,9 +114,11 @@ fn main() -> ExitCode {
     let mut ssot: Option<String> = None;
     let mut profile: Option<String> = None;
     let mut allow_tree_only = false;
-    // static-linkage only: optional single binary and architecture override.
+    // static-linkage only: optional single binary and architecture override,
+    // and the per-binary census (SHA-256, interpreter, DT_NEEDED) as JSON.
     let mut binary: Option<String> = None;
     let mut arch: Option<String> = None;
+    let mut census = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -171,6 +174,7 @@ fn main() -> ExitCode {
                 arch = Some(v);
             }
             "--allow-tree-only" => allow_tree_only = true,
+            "--census" => census = true,
             "-h" | "--help" => {
                 print!("{USAGE}");
                 return ExitCode::from(EXIT_CLEAN);
@@ -195,9 +199,18 @@ fn main() -> ExitCode {
         eprint!("mios-gate: --ssot, --profile and --allow-tree-only belong to image-equivalence\n{USAGE}");
         return ExitCode::from(EXIT_CANNOT_RUN);
     }
-    if name != "static-linkage" && (binary.is_some() || arch.is_some()) {
-        eprint!("mios-gate: --binary and --arch belong to static-linkage\n{USAGE}");
+    if name != "static-linkage" && (binary.is_some() || arch.is_some() || census) {
+        eprint!("mios-gate: --binary, --arch and --census belong to static-linkage\n{USAGE}");
         return ExitCode::from(EXIT_CANNOT_RUN);
+    }
+    if census {
+        let (text, code) = static_linkage::census(&static_linkage::Options {
+            root: root.clone(),
+            binary: binary.map(std::path::PathBuf::from),
+            arch,
+        });
+        println!("{text}");
+        return ExitCode::from(code);
     }
 
     let report = match name.as_str() {
@@ -217,6 +230,7 @@ fn main() -> ExitCode {
         }),
         "image-freshness" => image_freshness::check(&root),
         "law-enforcers" => laws::check(&root),
+        "module-test-coverage" => module_tests::check(&root),
         "negative-coverage" => negative_coverage::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),
