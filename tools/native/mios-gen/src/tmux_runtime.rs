@@ -1,4 +1,4 @@
-// AI-hint: Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user). Replaces the `--runtime` mode of the deleted tmux_theme.py (Phase 3.18 regression fix).
+// AI-hint: Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user), the `--runtime` mode of the deleted tmux_theme.py.
 // AI-doc: usr/share/doc/mios/manual/tools.md
 // AI-related: tools/native/mios-gen/src/tmux_theme.rs, usr/lib/mios/mios_toml.py, usr/libexec/mios/ux/theme_sync.py, etc/profile.d/mios-prompt.sh, usr/libexec/mios/mios-terminal
 

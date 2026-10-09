@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Two-sided tests for the cloud/container overlay: bootstrap.sh renders [deployment.cloud.overlay] as a host drop-in, the layered resolver merges it, and the first-boot model pullers and the runtime flatpak installer then do nothing; without it they pull and install as before.
+# AI-hint: Two-sided tests for the cloud/container overlay: bootstrap.sh renders [deployment.cloud.overlay] as a host drop-in, the resolver merges it, and the first-boot model pullers and flatpak installer then do nothing; without it they run as before.
 # AI-related: .devcontainer/cloud-shell/bootstrap.sh, usr/share/mios/mios.toml, usr/libexec/mios/mios-ai-firstboot, usr/libexec/mios/mios-models-firstboot, usr/libexec/mios/mios-bound-images-firstboot, usr/libexec/mios-flatpak-install
 # AI-functions: TestOverlayRender, TestFirstbootPulls, TestFlatpakInstall, TestCloudScripts
 """Each consumer runs from a copy whose absolute state paths point into a temp
