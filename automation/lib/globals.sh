@@ -1419,7 +1419,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 '
 : "${MIOS_DOCS_DISTILL_DEST_DIR:=usr/share/doc/mios/manual}"
 : "${MIOS_DOCS_DISTILL_ENABLE:=true}"
-: "${MIOS_DOCS_DISTILL_SKIP_GLOBS:=usr/share/mios/mios.toml,tools/native/mios-unit-gen/tests/golden/*,usr/share/doc/*}"
 : "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"

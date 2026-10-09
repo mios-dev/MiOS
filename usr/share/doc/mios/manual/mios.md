@@ -5825,3 +5825,10 @@ Idempotent + non-destructive: if the config file already exists it does NOTHING
 (Headscale state/sqlite remains preserved across runs). Pass --force to regenerate.
 
 <!-- mios-src:a32618333bfe from usr/libexec/mios/mios-headscale-firstboot:4-11 -->
+### Units mios-gen pod-quadlets writes under users/ (podman's...
+
+Units mios-gen pod-quadlets writes under users/ (podman's user Quadlet
+search path) instead of the system directory: they run rootless under each
+login user's systemd. Everything not listed is a system unit.
+
+<!-- mios-src:72159aff486f from usr/share/mios/mios.toml:8876-8878 -->

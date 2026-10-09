@@ -1096,7 +1096,6 @@ MIOS_DOCS_BLOCKLIST_GLOBS=automation/lib/globals.sh,automation/lib/globals.ps1,t
 MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS=MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped\nFedora workstation -- the whole OS is a single container image, so `bootc\nupgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that\nis *also* a local, self-hosted, agentic AI operating system.\n
 MIOS_DOCS_DISTILL_DEST_DIR=usr/share/doc/mios/manual
 MIOS_DOCS_DISTILL_ENABLE=true
-MIOS_DOCS_DISTILL_SKIP_GLOBS=usr/share/mios/mios.toml,tools/native/mios-unit-gen/tests/golden/*,usr/share/doc/*
 MIOS_DOCS_LANDING_MIN_WORD_RATIO=0.9
 MIOS_DOCS_LINK_BASE=repo
 MIOS_DOCS_LLM_PAYLOAD_GLOBS=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**

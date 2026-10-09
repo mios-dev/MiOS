@@ -12558,13 +12558,8 @@ link_base = "repo"
 # forward by the index deriver instead.
 enable   = true
 dest_dir = "usr/share/doc/mios/manual"
-# Areas never distilled: their comments are the operator-facing documentation
-# where they sit, or they are generated artifacts.
-skip_globs = [
-  "usr/share/mios/mios.toml",
-  "tools/native/mios-unit-gen/tests/golden/*",
-  "usr/share/doc/*",
-]
+# No skip list: [docs].blocklist_globs is the one exclusion, so distill lands
+# every block the narrative ratchet counts.
 
 [docs.sanitize]
 # Applied to every scraped comment before it reaches a doc. Order matters:

@@ -1271,7 +1271,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 ' }
 $script:MIOS_DOCS_DISTILL_DEST_DIR = if ($env:MIOS_DOCS_DISTILL_DEST_DIR) { $env:MIOS_DOCS_DISTILL_DEST_DIR } else { 'usr/share/doc/mios/manual' }
 $script:MIOS_DOCS_DISTILL_ENABLE = if ($env:MIOS_DOCS_DISTILL_ENABLE) { $env:MIOS_DOCS_DISTILL_ENABLE } else { 'true' }
-$script:MIOS_DOCS_DISTILL_SKIP_GLOBS = if ($env:MIOS_DOCS_DISTILL_SKIP_GLOBS) { $env:MIOS_DOCS_DISTILL_SKIP_GLOBS } else { 'usr/share/mios/mios.toml,tools/native/mios-unit-gen/tests/golden/*,usr/share/doc/*' }
 $script:MIOS_DOCS_LANDING_MIN_WORD_RATIO = if ($env:MIOS_DOCS_LANDING_MIN_WORD_RATIO) { $env:MIOS_DOCS_LANDING_MIN_WORD_RATIO } else { '0.9' }
 $script:MIOS_DOCS_LINK_BASE = if ($env:MIOS_DOCS_LINK_BASE) { $env:MIOS_DOCS_LINK_BASE } else { 'repo' }
 $script:MIOS_DOCS_LLM_PAYLOAD_GLOBS = if ($env:MIOS_DOCS_LLM_PAYLOAD_GLOBS) { $env:MIOS_DOCS_LLM_PAYLOAD_GLOBS } else { 'usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**' }
