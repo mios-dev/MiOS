@@ -2123,7 +2123,10 @@ _run_bake_plan_check() {
         _violation "mios-bake-plan is not built for release, so check_bake_plan could not certify what stage 85 runs -- build it: cd tools/native && cargo build --release -p mios-bake-plan"
         return
     fi
-    if out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
+    # Pin MIOS_ROOT and every SSOT tier: unpinned, the binary takes its root from
+    # its own path, so an installed one graded / and not this tree.
+    # shellcheck disable=SC2046
+    if out="$(cd "$ROOT" && env $(_render_env) \
             MIOS_PLAN_OUT="$ROOT/usr/lib/mios/bake/plan.d" "$bin" --check "$mode" 2>&1)"; then
         if [[ "$mode" == --check-integrity && "$out" != *"Bake-plan integrity verified against active Quadlets and SSOT"* ]]; then
             _violation "mios-bake-plan does not support the required native integrity check"
@@ -2133,7 +2136,7 @@ _run_bake_plan_check() {
         echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
         printf '%s\n' "$out" >&2
-        _violation "bake-plan lists are STALE vs mios.toml -- regenerate with tools/native/target/release/mios-bake-plan"
+        _violation "bake-plan lists are STALE vs mios.toml -- regenerate with MIOS_ROOT=$ROOT $bin"
     fi
 }
 

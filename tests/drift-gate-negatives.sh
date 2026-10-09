@@ -991,16 +991,11 @@ new = t.replace('firstboot_tokens = [', 'firstboot_tokens = ["bogus_unmatched_fi
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "Generate-bake-plan.py --check passed despite a bogus firstboot token"
-    fi
-
+    # check_bake_plan drives the native generator stage 85 runs; --check writes nothing.
+    _neg_gate check_bake_plan || :
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "Generate-bake-plan.py --check failed after restoration"
+    [[ "$_NEG_GATE_OUT" == *"Firstboot token 'bogus_unmatched_firstboot_token'"* ]] || die "check_bake_plan did not reject a bogus firstboot token: ${_NEG_GATE_OUT}"
+    _neg_gate check_bake_plan || die "check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_bake_tokens negative test passed"
 }
 test_bake_unresolved_image() {
@@ -1064,7 +1059,6 @@ test_firstboot_tier() {
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
         cp "$bak_file" "$fb_list" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "Check_firstboot_tier passed despite unmatched firstboot.list entry"
     fi
 
@@ -1078,7 +1072,6 @@ test_firstboot_tier() {
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 && die "Check_firstboot_tier passed despite unjustified firstboot token"
     cp "$toml_bak" "$toml" && rm -f "$toml_bak"
 
-    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "Check_firstboot_tier failed after restoration"
     log "Check_firstboot_tier negative test passed"
@@ -2551,6 +2544,12 @@ test_projection_registry() (
         || die "Projection registry failed without naming the missing check"
     cp "$bak" "$toml_file"
     _neg_gate check_projection_registry || die "Projection registry failed after exact restoration"
+    # The generator half: a row naming a native module that is not on disk.
+    sed -i 's|src/pod_quadlets.rs"|src/pod_quadlets_negtest.rs"|' "$toml_file"
+    _neg_gate check_projection_registry && die "Projection registry accepted a registered generator missing from disk"
+    [[ "$_NEG_GATE_OUT" == *"pod_quadlets_negtest.rs' missing from disk"* ]] || die "Projection registry did not name the absent generator"
+    cp "$bak" "$toml_file"
+    _neg_gate check_projection_registry || die "Projection registry failed after the generator-half restoration"
     log "Test_projection_registry negative test passed"
 )
 
@@ -4524,17 +4523,17 @@ test_docs_ratchet_monotone() {
 
 test_generator_host_parity() (
     log "Testing check_generator_host_parity"
-    local script
-    script="$(find "${ROOT}/tools" -type f -name "generate-*.py" 2>/dev/null | sort | head -1)"
-    [[ -n "$script" && -f "$script" ]] || die "No legacy generator exists for the portability control"
+    # Plant in a registered Python generator the generate-/render- naming convention misses.
+    local rel script
+    rel="$(python3 -c 'import os, sys, tomllib; print(next(g for g in (r["generator"] for r in tomllib.load(open(sys.argv[1], "rb"))["laws"]["projection_registry"]["surfaces"]) if g.endswith(".py") and not os.path.basename(g).startswith(("generate-", "render-"))))' "${ROOT}/usr/share/mios/mios.toml")"
+    script="${ROOT}/${rel}"
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
     trap 'cp "$backup" "$script"; rm -f "$backup"' EXIT
     _neg_gate check_generator_host_parity || die "Generator portability failed before the idiom control"
     printf '\nimport fnmatch\nfnmatch.fnmatch("x", "x")\n' >> "$script"
-    _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage"
-    [[ "$_NEG_GATE_OUT" == *"${script#"${ROOT}/"}"* && "$_NEG_GATE_OUT" == *"uses non-portable"* ]] \
-        || die "Generator portability failed without naming the planted idiom"
+    _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage in ${rel}"
+    [[ "$_NEG_GATE_OUT" == *"${rel} uses non-portable"* ]] || die "Generator portability failed without naming ${rel}"
     cp "$backup" "$script"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"
     log "check_generator_host_parity negative test passed"
@@ -4978,24 +4977,25 @@ test_projection_coverage() {
     _neg_gate check_projection_coverage || die "check_projection_coverage failed on the unmutated tree"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    local planted="${ROOT}/tools/generate-negtest-surface.py"
+    # A new mios-gen module is the primary plant; the Python-era globs still claim tools/.
+    local planted_rel="tools/native/mios-gen/src/negtest_surface.rs"; local planted="${ROOT}/${planted_rel}"
     local short_name="${ROOT}/tools/gen-negtest-surface.py"
-    local native_plant="${ROOT}/tools/native/mios-gen/src/main_negtest.rs"
-    [[ ! -e "$native_plant" ]] || die "Native projection control path already exists"
     _pc_fail() {
-        cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name" "$native_plant"
+        cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name"
         unset -f _pc_fail
         die "$1"
     }
+    _pc_exempt() { sed -i "/^\[laws.projection_registry\]$/,/^\[/{s|^exempt = \[\]$|exempt = [{ generator = \"$planted_rel\", reason = \"$1\" }]|;s|^max_exempt = [0-9]*$|max_exempt = 1|}" "$toml"; }
 
     # The defect this check exists for: a NEW generator that projects a tracked
     # file, with no drift check and no registry row. check_projection_registry
     # walks the register forward and is silent on a generator that is on no row,
     # so before this check the plant below passed the whole gate.
-    printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$planted"
+    printf 'pub fn run() { let _ = std::fs::write("usr/share/mios/negtest.txt", "x"); }\n' > "$planted"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with an unregistered generator on disk"
+    [[ "$_NEG_GATE_OUT" == *"$planted_rel"* ]] || _pc_fail "check_projection_coverage did not name the unregistered native generator: ${_NEG_GATE_OUT}"
 
-    cp "$planted" "$short_name"
+    printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$short_name"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage ignored an unregistered gen-prefix generator"
     [[ "$_NEG_GATE_OUT" == *"tools/gen-negtest-surface.py"* ]] || _pc_fail "check_projection_coverage did not name the gen-prefix generator"
     rm -f "$short_name"
@@ -5008,10 +5008,9 @@ test_projection_coverage() {
 
     # An exemption with no reason is a count, not an itemised register. Asserted
     # on the MESSAGE, not the exit code: the plant is still on disk here, so a
-    # sed that silently missed would fail the check for the earlier reason and
-    # the assertion would pass without having tested anything.
-    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"\" },\\n]|" "$toml"
-    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    # mutation that silently missed would fail the check for the earlier reason
+    # and the assertion would pass without having tested anything.
+    _pc_exempt ""
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a bare exemption carrying no reason"
     case "${_NEG_GATE_OUT}" in
         *"carries no \`reason\`"*) : ;;
@@ -5022,20 +5021,16 @@ test_projection_coverage() {
     # The positive half of the same branch: the SAME plant, exempted WITH a
     # reason under a ceiling that admits it, must pass. Without this the
     # exemption path could be dead code that never grants anything.
-    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"negative-test plant\" },\\n]|" "$toml"
-    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    _pc_exempt "negative-test plant"
     _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"; rm -f "$planted"
 
-    printf '// Native projection coverage control\n' > "$native_plant"
-    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage accepted an unregistered native generator"
-    [[ "$_NEG_GATE_OUT" == *"tools/native/mios-gen/src/main_negtest.rs"* ]] \
-        || _pc_fail "check_projection_coverage did not name the unregistered native generator"
-    rm -f "$native_plant"
-    _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage failed after native control restoration"
-
     # The scope is this check's own allowlist, so narrowing it must not buy a
     # pass -- the register anchors the globs from outside.
+    sed -i 's|"tools/native/mios-gen/src/\*\.rs"|"tools/native/mios-gen/src/render_*.rs"|' "$toml"
+    _neg_gate check_projection_coverage || :
+    [[ "$_NEG_GATE_OUT" == *"no glob matches it"* ]] || _pc_fail "check_projection_coverage passed a narrowed native discovery glob: ${_NEG_GATE_OUT}"
+    cp "$bak" "$toml"
     python3 - "$toml" <<'PYEOF'
 import pathlib, re, sys
 path = pathlib.Path(sys.argv[1])
@@ -5060,7 +5055,7 @@ PYEOF
     cp "$bak" "$toml"
 
     rm -f "$bak" "$planted"
-    unset -f _pc_fail
+    unset -f _pc_fail _pc_exempt
     _neg_gate check_projection_coverage || die "check_projection_coverage failed after restoration: ${_NEG_GATE_OUT}"
     log "check_projection_coverage negative test passed"
 }
@@ -5694,6 +5689,11 @@ test_dotfiles_projection() {
     _dp_restore() { cp "$bak_s" "$surface"; cp "$bak_t" "$toml"; rm -f "$bak_s" "$bak_t"; unset -f _dp_restore; }
 
     _neg_gate check_dotfiles_projection || { _dp_restore; die "check_dotfiles_projection is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
+
+    # (0) The theme leg: a hand edit to the btop surface (the one two renderers write).
+    local theme="${ROOT}/etc/btop/themes/mios.theme" bak_th; bak_th="$(mktemp)"; cp "$theme" "$bak_th"
+    printf 'theme[title]="#000001"\n' >> "$theme"; _neg_gate check_dotfiles_projection || :; cp "$bak_th" "$theme"; rm -f "$bak_th"
+    grep -q "btop: etc/btop/themes/mios.theme drifted" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection did not name a hand-edited btop theme: ${_NEG_GATE_OUT}"; }
 
     # (1) A desktop-only key back on an API-applied surface must go red naming
     # the file AND the key (ADR-0024).

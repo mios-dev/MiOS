@@ -1,5 +1,5 @@
 // AI-hint: Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.
-// AI-related: tools/native/generate-names-registry/src/main.rs, tools/native/mios-gen/src/names_registry.rs
+// AI-related: tools/native/generate-names-registry/src/main.rs, tools/native/mios-gen/src/lib.rs
 
 use std::fs;
 use std::path::{Path, PathBuf};

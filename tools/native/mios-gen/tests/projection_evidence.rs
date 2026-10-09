@@ -1,5 +1,5 @@
 // AI-hint: Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.
-// AI-related: tools/native/mios-gen/src/projection_evidence.rs
+// AI-related: tools/native/mios-gen/src/main.rs
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};

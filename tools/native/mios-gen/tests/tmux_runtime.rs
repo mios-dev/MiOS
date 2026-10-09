@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/tmux_runtime.rs, usr/libexec/mios/ux/theme_sync.py, etc/profile.d/mios-prompt.sh, usr/libexec/mios/mios-terminal
+// AI-related: tools/native/mios-gen/src/tmux_theme.rs, usr/libexec/mios/ux/theme_sync.py, etc/profile.d/mios-prompt.sh, usr/libexec/mios/mios-terminal
 
 use std::fs;
 use std::path::{Path, PathBuf};
