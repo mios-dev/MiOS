@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration tests for the mios-gen documentation verbs: adr-index, metal-vs-hosted, render-manpages, roadmap-index, standardize-docs and sync-wiki (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/adr_index.rs, usr/share/doc/mios/adr/, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/metal_vs_hosted.rs, usr/share/doc/mios/reference/metal-vs-hosted.md, tools/native/mios-gen/src/render_manpages.rs, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/roadmap_index.rs, ROADMAP.md, tools/native/mios-gen/src/docs.rs
+// AI-related: tools/native/mios-gen/src/indexes.rs, usr/share/doc/mios/adr/, docs/design/doc-rust-static-port.md, tools/native/mios-gen/src/metal_vs_hosted.rs, usr/share/doc/mios/reference/metal-vs-hosted.md, tools/native/mios-gen/src/render.rs, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, ROADMAP.md, tools/native/mios-gen/src/docs.rs
 
 use std::sync::{Mutex, MutexGuard};
 

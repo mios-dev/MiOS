@@ -9,27 +9,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-mod adr_index;
-mod ai_manifest;
+mod ai;
 mod btop_theme;
 mod docs;
 mod image;
 mod indexes;
 mod metal_vs_hosted;
-mod pipe_boundaries;
 mod pod_quadlets;
 mod projection_evidence;
-mod render_desktop;
-mod render_globals;
-mod render_manpages;
-mod render_ports;
-mod roadmap_index;
+mod render;
 mod sync;
 mod terminal;
 
+use ai::{ai_manifest, pipe_boundaries};
 use docs::{standardize_docs, sync_wiki};
 use image::{bib_configs, cargo_manifests};
-use indexes::{gate_index, pipeline_index};
+use indexes::{adr_index, gate_index, pipeline_index, roadmap_index};
+use render::{render_desktop, render_globals, render_manpages, render_ports};
 use terminal::{dashboard, fastfetch, tmux_runtime, tmux_theme};
 
 #[derive(Parser, Debug)]

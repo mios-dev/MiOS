@@ -1,5 +1,5 @@
 ﻿# GENERATED IN FULL from usr/share/mios/mios.toml by mios-gen render-globals. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/native/mios-gen/src/render_globals.rs
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/native/mios-gen/src/render.rs
 # AI-functions: Resolve-MiosVersion
 #
 # PowerShell sibling of automation/lib/globals.sh -- both are rendered from the

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3693,
-  "total_metadata_entries": 3042,
-  "total_hints": 3032,
-  "total_functions_indexed": 1453,
-  "total_related_links": 5084,
+  "total_files_scanned": 3687,
+  "total_metadata_entries": 3035,
+  "total_hints": 3025,
+  "total_functions_indexed": 1452,
+  "total_related_links": 5068,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -518,7 +518,7 @@
         "usr/share/doc/mios/adr/",
         "usr/share/doc/mios/adr/README.md",
         "usr/share/mios/mios.toml [laws]",
-        "tools/native/mios-gen/src/adr_index.rs"
+        "tools/native/mios-gen/src/indexes.rs"
       ],
       "functions": [],
       "doc": null,
@@ -1844,7 +1844,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.sh",
-        "tools/native/mios-gen/src/render_globals.rs"
+        "tools/native/mios-gen/src/render.rs"
       ],
       "functions": [
         "Resolve-MiosVersion"
@@ -1859,7 +1859,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.ps1",
-        "tools/native/mios-gen/src/render_globals.rs"
+        "tools/native/mios-gen/src/render.rs"
       ],
       "functions": [
         "_mios_resolve_version"
@@ -3064,15 +3064,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/btop.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "etc/btop/themes/mios.theme",
-      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
-      "related": [],
-      "functions": [],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -8893,7 +8884,7 @@
         "usr/share/mios/k3s",
         "usr/share/containers/systemd",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/ai_manifest.rs"
+        "tools/native/mios-gen/src/ai.rs"
       ],
       "functions": [
         "_emit_header",
@@ -9433,29 +9424,18 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/adr_index.rs",
-      "hint": "SSOT projector and verifier for ADR.md breadcrumb index (ADR-0021 gen category).",
+      "path": "tools/native/mios-gen/src/ai.rs",
+      "hint": "SSOT projectors for the AI repository and tool manifests and for the agent-pipe module-boundary manifest (ADR-0021 gen category).",
       "related": [
-        "usr/share/doc/mios/adr/",
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/adr_index.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/ai_manifest.rs",
-      "hint": "SSOT projector and verifier for AI repository and tool manifests (ADR-0021 gen category).",
-      "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs",
         "automation/manifest.json",
         "tools/manifest.json",
-        "specs/manifest.json"
+        "specs/manifest.json",
+        "usr/share/mios/pipe-boundaries.manifest.json",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
-      "doc": null,
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -9523,13 +9503,16 @@
     },
     {
       "path": "tools/native/mios-gen/src/indexes.rs",
-      "hint": "Generators and validators for the drift-gate and build-pipeline index TSVs under usr/share/mios/reference/ (ADR-0021 gen category).",
+      "hint": "Generators and validators for the repository's indexes: ADR.md, the ROADMAP.md index and metrics, and the drift-gate and build-pipeline TSVs under usr/share/mios/reference/ (ADR-0021 gen category).",
       "related": [
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tools/native/mios-gen/src/main.rs"
+        "tools/native/mios-gen/src/main.rs",
+        "usr/share/doc/mios/adr/",
+        "usr/share/mios/mios.toml",
+        "ROADMAP.md"
       ],
       "functions": [],
-      "doc": null,
+      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -9579,19 +9562,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/pipe_boundaries.rs",
-      "hint": "SSOT module-boundary manifest generator for the agent-pipe DI contract (ADR-0021 gen category).",
-      "related": [
-        "usr/share/mios/pipe-boundaries.manifest.json",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/pod_quadlets.rs",
       "hint": "Generates systemd Quadlet files (.pod, .container, .network, .volume, .image) from mios.toml SSOT (WS-7 pods-as-SSOT).",
       "related": [],
@@ -9613,67 +9583,13 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/render_desktop.rs",
-      "hint": "Renders usr/share/applications/*.desktop files from SSOT [ports] and [desktop.launchers] table.",
+      "path": "tools/native/mios-gen/src/render.rs",
+      "hint": "The render-* projectors of mios-gen: .desktop launchers, automation/lib/globals.{sh,ps1} in full, man pages, and the [ports] table with its fallbacks, all from mios.toml (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_globals.rs",
-      "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "automation/lib/globals.ps1",
-        "tools/native/mios-gen/src/render_globals.rs"
-      ],
-      "functions": [
-        "_mios_resolve_version"
-      ],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_manpages.rs",
-      "hint": "Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/render_manpages.rs",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_ports.rs",
-      "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/render_ports.rs",
-        "automation/35-render-ports.sh",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/roadmap_index.rs",
-      "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14)",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "ROADMAP.md",
-        "tools/roadmap-index.py"
+        "automation/98-drift-checks.sh",
+        "automation/35-render-ports.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -9726,15 +9642,14 @@
       "path": "tools/native/mios-gen/tests/docs.rs",
       "hint": "Two-sided integration tests for the mios-gen documentation verbs: adr-index, metal-vs-hosted, render-manpages, roadmap-index, standardize-docs and sync-wiki (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/adr_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "usr/share/doc/mios/adr/",
         "docs/design/doc-rust-static-port.md",
         "tools/native/mios-gen/src/metal_vs_hosted.rs",
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
-        "tools/native/mios-gen/src/render_manpages.rs",
+        "tools/native/mios-gen/src/render.rs",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh",
-        "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
         "tools/native/mios-gen/src/docs.rs"
       ],
@@ -9777,15 +9692,13 @@
       "path": "tools/native/mios-gen/tests/ssot.rs",
       "hint": "Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs",
+        "tools/native/mios-gen/src/ai.rs",
         "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh",
         "docs/design/doc-rust-static-port.md",
-        "tools/native/mios-gen/src/pipe_boundaries.rs",
         "tests/drift-gate-negatives.sh",
         "tools/native/mios-gen/src/projection_evidence.rs",
-        "tools/native/mios-gen/src/render_globals.rs",
-        "tools/native/mios-gen/src/render_ports.rs",
+        "tools/native/mios-gen/src/render.rs",
         "tools/native/mios-gen/src/sync.rs",
         "usr/share/mios/mios.toml"
       ],
@@ -9800,7 +9713,7 @@
       "related": [
         "tools/native/mios-gen/src/terminal.rs",
         "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/src/render_desktop.rs",
+        "tools/native/mios-gen/src/render.rs",
         "tests/drift-gate-negatives.sh",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",

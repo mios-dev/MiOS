@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED IN FULL from usr/share/mios/mios.toml by mios-gen render-globals. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/native/mios-gen/src/render_globals.rs
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/native/mios-gen/src/render.rs
 # AI-functions: _mios_resolve_version
 #
 # Shell sibling of automation/lib/globals.ps1 -- both are rendered from the same
