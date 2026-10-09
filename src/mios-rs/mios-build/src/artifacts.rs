@@ -734,46 +734,63 @@ pub fn duration(value: &str) -> Result<Duration, String> {
     Ok(Duration::from_secs(seconds))
 }
 
-/// The first [testing.boot].firmware pair present on this host: Secure Boot
-/// code and a variable store with Microsoft's UEFI CA enrolled, the trust the
-/// Hyper-V template names.
-pub fn firmware(
-    config: &toml::Value,
-    exists: &dyn Fn(&Path) -> bool,
-) -> Result<(PathBuf, PathBuf), String> {
-    let pairs = at(config, "testing.boot.firmware")
-        .and_then(toml::Value::as_array)
-        .filter(|a| !a.is_empty())
-        .ok_or("SSOT testing.boot.firmware must be a nonempty array of { code, vars }")?;
-    for pair in pairs {
-        let code = pair.get("code").and_then(toml::Value::as_str);
-        let vars = pair.get("vars").and_then(toml::Value::as_str);
-        let (Some(code), Some(vars)) = (code, vars) else {
-            return Err("SSOT testing.boot.firmware entries need code and vars".into());
-        };
-        let (code, vars) = (PathBuf::from(code), PathBuf::from(vars));
-        if exists(&code) && exists(&vars) {
-            return Ok((code, vars));
-        }
-    }
-    Err(
-        "no [testing.boot].firmware pair is installed on this host (install OVMF / edk2-ovmf)"
-            .into(),
-    )
+/// UEFI firmware for one boot: code, a variable store, and whether it is the
+/// Secure Boot build (which needs SMM).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Firmware {
+    pub code: PathBuf,
+    pub vars: PathBuf,
+    pub secure_boot: bool,
 }
 
-/// The QEMU command line for one boot of `disk` in `shape`. The disk is opened
-/// with snapshot=on: the boot test never changes the artifact it ships.
+/// The first [testing.boot].firmware entry present on this host whose
+/// `secure_boot` matches [testing.boot].secure_boot. The Secure Boot entries
+/// enroll Microsoft's UEFI CA, the trust the Hyper-V template names.
+pub fn firmware(config: &toml::Value, exists: &dyn Fn(&Path) -> bool) -> Result<Firmware, String> {
+    let secure_boot = at(config, "testing.boot.secure_boot")
+        .and_then(toml::Value::as_bool)
+        .ok_or("SSOT testing.boot.secure_boot must be a boolean")?;
+    let entries = at(config, "testing.boot.firmware")
+        .and_then(toml::Value::as_array)
+        .filter(|a| !a.is_empty())
+        .ok_or(
+            "SSOT testing.boot.firmware must be a nonempty array of { code, vars, secure_boot }",
+        )?;
+    for entry in entries {
+        let code = entry.get("code").and_then(toml::Value::as_str);
+        let vars = entry.get("vars").and_then(toml::Value::as_str);
+        let secure = entry.get("secure_boot").and_then(toml::Value::as_bool);
+        let (Some(code), Some(vars), Some(secure)) = (code, vars, secure) else {
+            return Err(
+                "SSOT testing.boot.firmware entries need code, vars and secure_boot".into(),
+            );
+        };
+        let (code, vars) = (PathBuf::from(code), PathBuf::from(vars));
+        if secure == secure_boot && exists(&code) && exists(&vars) {
+            return Ok(Firmware {
+                code,
+                vars,
+                secure_boot,
+            });
+        }
+    }
+    Err(format!(
+        "no [testing.boot].firmware entry with secure_boot = {secure_boot} is installed on this host (install OVMF / edk2-ovmf)"
+    ))
+}
+
+/// The QEMU command line for one boot of `disk` in `shape` on `fw` (its vars
+/// a private copy). The disk is opened with snapshot=on: the boot test never
+/// changes the artifact it ships.
 pub fn qemu_args(
     shape: &VmShape,
     disk: &Path,
     disk_format: &str,
-    code: &Path,
-    vars: &Path,
+    fw: &Firmware,
     ssh_port: u16,
     serial_log: &Path,
 ) -> Vec<String> {
-    let secure = !shape.secure_boot_template.is_empty();
+    let (secure, code, vars) = (fw.secure_boot, fw.code.as_path(), fw.vars.as_path());
     let mut args = vec![
         "-machine".to_string(),
         format!("q35,smm={},accel=kvm", if secure { "on" } else { "off" }),
@@ -901,7 +918,7 @@ pub fn boot_test(
     serial_log: &Path,
 ) -> Result<Vec<Probe>, String> {
     let shape = vm_shape(config, name)?;
-    let (code, vars_template) = firmware(config, &|p: &Path| p.is_file())?;
+    let mut fw = firmware(config, &|p: &Path| p.is_file())?;
     let timeout = duration(text(config, "testing.boot.timeout")?)?;
     let probes = string_list(config, "testing.boot.probes")?;
     if probes.is_empty() {
@@ -919,15 +936,20 @@ pub fn boot_test(
     }
 
     let scratch = tempfile::tempdir().map_err(|e| format!("temporary directory: {e}"))?;
-    let vars = scratch.path().join("vars.fd");
-    std::fs::copy(&vars_template, &vars)
-        .map_err(|e| format!("{}: {e}", vars_template.display()))?;
+    // The guest writes its variable store; it gets a private copy, same name.
+    let vars = scratch.path().join(
+        fw.vars
+            .file_name()
+            .unwrap_or(std::ffi::OsStr::new("vars.fd")),
+    );
+    std::fs::copy(&fw.vars, &vars).map_err(|e| format!("{}: {e}", fw.vars.display()))?;
+    fw.vars = vars;
     let port = std::net::TcpListener::bind(("127.0.0.1", 0))
         .and_then(|l| l.local_addr())
         .map(|a| a.port())
         .map_err(|e| format!("no free loopback port: {e}"))?;
     let qemu = format!("qemu-system-{}", std::env::consts::ARCH);
-    let args = qemu_args(&shape, disk, name, &code, &vars, port, serial_log);
+    let args = qemu_args(&shape, disk, name, &fw, port, serial_log);
     println!("[miosd] {qemu} {}", args.join(" "));
     let mut child = Command::new(&qemu)
         .args(&args)
@@ -1057,7 +1079,12 @@ mod tests {
             min_ram_gb = 8
             [testing.boot]
             timeout = "25m"
-            firmware = [{ code = "/a/CODE.fd", vars = "/a/VARS.fd" }, { code = "/b/CODE.fd", vars = "/b/VARS.fd" }]
+            secure_boot = true
+            firmware = [
+              { code = "/a/CODE.secboot.fd", vars = "/a/VARS.ms.fd", secure_boot = true },
+              { code = "/b/CODE.secboot.fd", vars = "/b/VARS.ms.fd", secure_boot = true },
+              { code = "/b/CODE.fd", vars = "/b/VARS.fd", secure_boot = false },
+            ]
             probes = ["systemctl is-active multi-user.target"]
             "#,
         )
@@ -1312,15 +1339,16 @@ mod tests {
     fn the_boot_command_matches_the_shape_and_never_writes_the_disk() {
         let config = ssot();
         let shape = vm_shape(&config, "vhdx").unwrap();
-        let (code, vars) = firmware(&config, &|p: &Path| p.starts_with("/b")).unwrap();
-        assert_eq!(code, Path::new("/b/CODE.fd"));
+        // The first PRESENT entry of the requested kind wins.
+        let fw = firmware(&config, &|p: &Path| p.starts_with("/b")).unwrap();
+        assert_eq!(fw.code, Path::new("/b/CODE.secboot.fd"));
+        assert!(fw.secure_boot);
         assert!(firmware(&config, &|_: &Path| false).is_err());
         let args = qemu_args(
             &shape,
             Path::new("/out/disk.vhdx"),
             "vhdx",
-            &code,
-            &vars,
+            &fw,
             2200,
             Path::new("/tmp/serial.log"),
         )
@@ -1330,11 +1358,31 @@ mod tests {
             "-m 8192",
             "q35,smm=on",
             "property=secure,value=on",
+            "file=/b/CODE.secboot.fd",
             "file=/out/disk.vhdx,format=vhdx,if=virtio,snapshot=on",
             "hostfwd=tcp:127.0.0.1:2200-:22",
         ] {
             assert!(args.contains(want), "{want} not in {args}");
         }
+        // Where SMM cannot run (KVM nested under Hyper-V), the operator turns
+        // Secure Boot off and the plain firmware is chosen, without SMM.
+        let mut config = config;
+        config["testing"]["boot"]["secure_boot"] = toml::Value::Boolean(false);
+        let fw = firmware(&config, &|_: &Path| true).unwrap();
+        assert_eq!(fw.code, Path::new("/b/CODE.fd"));
+        let args = qemu_args(
+            &shape,
+            Path::new("/out/disk.vhdx"),
+            "vhdx",
+            &fw,
+            2200,
+            Path::new("/tmp/serial.log"),
+        )
+        .join(" ");
+        assert!(
+            args.contains("q35,smm=off") && !args.contains("property=secure"),
+            "{args}"
+        );
         let ssh = ssh_args(Path::new("/k"), 2200, "operator", "true").join(" ");
         assert!(ssh.ends_with("-p 2200 operator@127.0.0.1 true"), "{ssh}");
     }

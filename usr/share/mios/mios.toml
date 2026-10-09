@@ -11813,11 +11813,16 @@ min_smoke_components = 24
 # early QEMU exit (-no-reboot catches a greenboot rollback) fails the test.
 [testing.boot]
 timeout  = "30m"
-# Secure Boot code and a variable store with Microsoft's UEFI CA enrolled, the
-# trust [deploy.formats.vhdx.vm].secure_boot_template names. First present wins.
+# Secure Boot needs SMM, which KVM nested under Hyper-V (WSL2, so MiOS-DEV)
+# cannot enter ("KVM: entry failed"); false boots such a host without it.
+secure_boot = true
+# The first present entry whose secure_boot matches. The Secure Boot stores
+# enroll Microsoft's UEFI CA, the trust the Hyper-V template names.
 firmware = [
-  { code = "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd" },          # Debian, Ubuntu: ovmf
-  { code = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd" },  # Fedora: edk2-ovmf
+  { code = "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd", secure_boot = true },          # Debian, Ubuntu: ovmf
+  { code = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd", secure_boot = true },  # Fedora: edk2-ovmf
+  { code = "/usr/share/OVMF/OVMF_CODE_4M.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.fd", secure_boot = false },
+  { code = "/usr/share/edk2/ovmf/OVMF_CODE.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.fd", secure_boot = false },
 ]
 probes = [
   # Waits out startup, then requires the multi-user target.

@@ -5962,6 +5962,7 @@ kargs.rcu_nocbs  MIOS_KARGS_RCU_NOCBS
 kargs.THP  MIOS_KARGS_THP
 testing.min_smoke_components  MIOS_TESTING_MIN_SMOKE_COMPONENTS
 testing.boot.timeout  MIOS_TESTING_BOOT_TIMEOUT
+testing.boot.secure_boot  MIOS_TESTING_BOOT_SECURE_BOOT
 testing.boot.firmware  MIOS_TESTING_BOOT_FIRMWARE
 testing.boot.probes  MIOS_TESTING_BOOT_PROBES
 testing.smoke_components.shims  MIOS_TESTING_SMOKE_COMPONENTS_SHIMS
