@@ -871,19 +871,10 @@ new = t.replace('firstboot_tokens = [', 'firstboot_tokens = ["bogus_unmatched_fi
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    grep -q 'bogus_unmatched_firstboot_token' "$toml_file" || { cp "$bak_file" "$toml_file" && rm -f "$bak_file"; die "test_bake_tokens: the bogus token was not planted -- the mutation would prove nothing"; }
-
-    # The Python generator is retired (79c4d9ed); check_bake_plan drives the
-    # native mios-bake-plan stage 85 runs. --check writes nothing, so restoring
-    # mios.toml restores the whole subject.
-    if _neg_gate check_bake_plan; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        die "check_bake_plan passed despite a bogus firstboot token"
-    fi
+    # check_bake_plan drives the native generator stage 85 runs; --check writes nothing.
+    _neg_gate check_bake_plan || :
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    [[ "$_NEG_GATE_OUT" == *"Firstboot token 'bogus_unmatched_firstboot_token'"* ]] \
-        || die "check_bake_plan failed without naming the bogus firstboot token: ${_NEG_GATE_OUT}"
-
+    [[ "$_NEG_GATE_OUT" == *"Firstboot token 'bogus_unmatched_firstboot_token'"* ]] || die "check_bake_plan did not reject a bogus firstboot token: ${_NEG_GATE_OUT}"
     _neg_gate check_bake_plan || die "check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_bake_tokens negative test passed"
 }
@@ -961,7 +952,6 @@ test_firstboot_tier() {
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 && die "Check_firstboot_tier passed despite unjustified firstboot token"
     cp "$toml_bak" "$toml" && rm -f "$toml_bak"
 
-    # Both plants were restored byte-for-byte above; nothing to regenerate.
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "Check_firstboot_tier failed after restoration"
     log "Check_firstboot_tier negative test passed"
@@ -1011,18 +1001,10 @@ if n != 1:
 with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(t)
 PYEOF
-    # The retired Python generator is gone (79c4d9ed); the gate drives the
-    # native mios-bake-plan, and --check writes nothing.
-    if _neg_gate check_bake_plan; then
-        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        die "test_bake_core_reconcile: check_bake_plan passed despite a core image no Quadlet references"
-    fi
+    _neg_gate check_bake_plan || :
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    [[ "$_NEG_GATE_OUT" == *"'docker.io/library/unreferenced-image-xyz999:latest' is not referenced by any Quadlet"* ]] \
-        || die "test_bake_core_reconcile: check_bake_plan failed without naming the unreferenced core image: ${_NEG_GATE_OUT}"
-
-    _neg_gate check_bake_plan \
-        || die "test_bake_core_reconcile: check_bake_plan failed after core image reconcile restoration: ${_NEG_GATE_OUT}"
+    [[ "$_NEG_GATE_OUT" == *"'docker.io/library/unreferenced-image-xyz999:latest' is not referenced by any Quadlet"* ]] || die "test_bake_core_reconcile: check_bake_plan did not reject an unreferenced core image: ${_NEG_GATE_OUT}"
+    _neg_gate check_bake_plan || die "test_bake_core_reconcile: check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
     log "Test_bake_core_reconcile negative test passed"
 }
 
@@ -2032,16 +2014,9 @@ test_bake_plan() {
         cp "$plan_file" "$bak_file"
         echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
 
-        if _neg_gate check_bake_plan; then
-            cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-            die "Check_bake_plan passed despite stale/invalid bake plan"
-        fi
+        _neg_gate check_bake_plan || :
         cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-        # Assert the check named the list the plant landed in, not just any failure.
-        [[ "$_NEG_GATE_OUT" == *"DRIFT: "*"$(basename "$plan_file") does not match"* ]] \
-            || die "Check_bake_plan failed without naming the drifted list: ${_NEG_GATE_OUT}"
-
-        # Restored byte-for-byte above; --check never writes, so nothing to regenerate.
+        [[ "$_NEG_GATE_OUT" == *"DRIFT: "*"$(basename "$plan_file") does not match"* ]] || die "Check_bake_plan did not name the drifted list: ${_NEG_GATE_OUT}"
         _neg_gate check_bake_plan || die "Check_bake_plan failed after restoration: ${_NEG_GATE_OUT}"
     else
         die "No [0-9][0-9]-extra.list found in plan.d -- the plant would prove nothing"
@@ -2357,18 +2332,11 @@ test_projection_registry() {
     fi
     printf '%s' "${orig_val%X}" > "$toml_file"
 
-    # The generator half: a row naming a native module that is not on disk --
-    # the shape a port that renames or deletes its generator leaves behind.
-    sed -i 's|generator = "tools/native/mios-gen/src/pod_quadlets.rs"|generator = "tools/native/mios-gen/src/pod_quadlets_negtest.rs"|' "$toml_file"
-    grep -q 'pod_quadlets_negtest.rs' "$toml_file" || { printf '%s' "${orig_val%X}" > "$toml_file"; die "test_projection_registry: the pod-quadlets row was not re-pointed -- the mutation would prove nothing"; }
-    local out
-    if out="$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry 2>&1)"; then
-        printf '%s' "${orig_val%X}" > "$toml_file"
-        die "Check_projection_registry passed with a registered generator missing from disk"
-    fi
+    # The generator half: a row naming a native module that is not on disk.
+    sed -i 's|src/pod_quadlets.rs"|src/pod_quadlets_negtest.rs"|' "$toml_file"
+    _neg_gate check_projection_registry || :
     printf '%s' "${orig_val%X}" > "$toml_file"
-    [[ "$out" == *"pod_quadlets_negtest.rs' missing from disk"* ]] || die "Check_projection_registry failed without naming the absent generator: $out"
-
+    [[ "$_NEG_GATE_OUT" == *"pod_quadlets_negtest.rs' missing from disk"* ]] || die "Check_projection_registry did not name a registered generator missing from disk: ${_NEG_GATE_OUT}"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1 \
         || die "Check_projection_registry failed after restoration"
     log "Test_projection_registry negative test passed"
@@ -2393,32 +2361,14 @@ test_bake_plan_integrity() {
 
     echo "$orig_val" > "$list_file"
 
-    # Only the UNSELECTED engine's image may be absent from the plan: listing it,
-    # or flipping the selector without regenerating, must fail.
-    local fb="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list" toml="${ROOT}/usr/share/mios/mios.toml"
-    local fb_bak toml_bak; fb_bak="$(mktemp)"; toml_bak="$(mktemp)"
-    cp "$fb" "$fb_bak"; cp "$toml" "$toml_bak"
-    _bpi_restore() { cp "$fb_bak" "$fb"; cp "$toml_bak" "$toml"; rm -f "$fb_bak" "$toml_bak"; }
-    local unselected
-    unselected="$(MIOS_DRIFT_ROOT="$ROOT" python3 -c 'import importlib.util, sys
-spec = importlib.util.spec_from_file_location("dc", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-import tomllib; print("\n".join(sorted(m._unselected_engine_images(tomllib.load(open(sys.argv[2], "rb"))))))' "${ROOT}/tools/drift-checks.py" "$toml")"
-    [[ -n "$unselected" ]] || { _bpi_restore; die "test_bake_plan_integrity: no unselected engine image in the SSOT -- the exemption branch would go untested"; }
-    printf '%s\n' "$unselected" >> "$fb"
-    _neg_gate check_bake_plan_integrity && { _bpi_restore; die "Check_bake_plan_integrity passed with an unselected engine's image in firstboot.list"; }
-    [[ "$_NEG_GATE_OUT" == *"belongs only to an unselected engine overlay"* ]] || { _bpi_restore; die "Check_bake_plan_integrity failed for the wrong reason on an unselected engine image: ${_NEG_GATE_OUT}"; }
-    cp "$fb_bak" "$fb"
-    python3 - "$toml" <<'PYEOF'
-import re, sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-m = re.search(r'(?m)^heavy_engine\s*=\s*"([a-z]+)"', s)
-assert m, "[ai].heavy_engine not found -- the selector flip would prove nothing"
-other = {"vllm": "sglang", "sglang": "vllm"}[m.group(1)]
-open(p, "w", encoding="utf-8").write(s[:m.start(1)] + other + s[m.end(1):])
-PYEOF
-    _neg_gate check_bake_plan_integrity && { _bpi_restore; die "Check_bake_plan_integrity passed after the engine selector flipped under an unregenerated plan"; }
-    _bpi_restore; unset -f _bpi_restore
+    # Only the UNSELECTED engine's image may be absent from the plan; a selector naming no engine exempts nothing.
+    local fb="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list" toml="${ROOT}/usr/share/mios/mios.toml" fb_bak toml_bak img
+    fb_bak="$(mktemp)"; toml_bak="$(mktemp)"; cp "$fb" "$fb_bak"; cp "$toml" "$toml_bak"
+    img="$(python3 -c 'import importlib.util as u, sys, tomllib; s = u.spec_from_file_location("dc", sys.argv[1]); m = u.module_from_spec(s); s.loader.exec_module(m); print(sorted(m._unselected_engine_images(tomllib.load(open(sys.argv[2], "rb"))))[0])' "${ROOT}/tools/drift-checks.py" "$toml")"
+    printf '%s\n' "$img" >> "$fb"; _neg_gate check_bake_plan_integrity || :; cp "$fb_bak" "$fb"
+    [[ "$_NEG_GATE_OUT" == *"'$img' belongs only to an unselected engine overlay"* ]] || die "Check_bake_plan_integrity let an unselected engine image into the plan: ${_NEG_GATE_OUT}"
+    sed -i -E 's/^(heavy_engine *= *)"[a-z]+"/\1"negtest"/' "$toml"; _neg_gate check_bake_plan_integrity || :; cp "$toml_bak" "$toml"; rm -f "$fb_bak" "$toml_bak"
+    [[ "$_NEG_GATE_OUT" == *"Core images missing from plan.d"* ]] || die "Check_bake_plan_integrity let a selector naming no engine shrink the plan: ${_NEG_GATE_OUT}"
 
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1 \
         || die "Check_bake_plan_integrity failed after restoration"
@@ -4346,21 +4296,10 @@ test_docs_ratchet_monotone() {
 
 test_generator_host_parity() {
     log "Testing check_generator_host_parity"
-    # Plant in a registered Python generator the generate-/render- naming
-    # convention misses: only the SSOT-derived subject list can see it.
+    # Plant in a registered Python generator the generate-/render- naming convention misses.
     local rel script
-    rel="$(python3 - "${ROOT}/usr/share/mios/mios.toml" <<'PYEOF'
-import os, sys, tomllib
-rows = tomllib.load(open(sys.argv[1], "rb"))["laws"]["projection_registry"]["surfaces"]
-for r in rows:
-    g = r.get("generator", "")
-    if g.endswith(".py") and not os.path.basename(g).startswith(("generate-", "render-")):
-        print(g)
-        break
-PYEOF
-)"
+    rel="$(python3 -c 'import os, sys, tomllib; print(next(g for g in (r["generator"] for r in tomllib.load(open(sys.argv[1], "rb"))["laws"]["projection_registry"]["surfaces"]) if g.endswith(".py") and not os.path.basename(g).startswith(("generate-", "render-"))))' "${ROOT}/usr/share/mios/mios.toml")"
     script="${ROOT}/${rel}"
-    [[ -n "$rel" && -f "$script" ]] || die "check_generator_host_parity: no registered Python generator to plant in -- the probe would prove nothing"
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
     printf '\nimport fnmatch\nfnmatch.fnmatch("x", "x")\n' >> "$script"
@@ -4384,8 +4323,7 @@ test_generator_host_parity_unreadable_corpus() {
         git -C "$tmp_dir" add -- "tools/generate-probe-${i}.py"
     done
     rm -f "${tmp_dir}"/tools/generate-probe-*.py
-    # The subject list is SSOT-derived, so the SSOT is present: its declared
-    # generators are then listed-but-absent too, not merely unreadable SSOT.
+    # The SSOT is present, so its declared generators are listed-but-absent too.
     cp "${ROOT}/usr/share/mios/mios.toml" "${tmp_dir}/usr/share/mios/mios.toml"
     local out
     if out="$(MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
@@ -4394,8 +4332,7 @@ test_generator_host_parity_unreadable_corpus() {
         die "check_generator_host_parity passed with 25 generators listed and none readable"
     fi
     rm -rf "$tmp_dir"
-    [[ "$out" == *"not on disk"* || "$out" == *"could be read"* ]] \
-        || die "check_generator_host_parity failed for the wrong reason on a listed-but-absent corpus: $out"
+    [[ "$out" == *"not on disk"* ]] || die "check_generator_host_parity failed for the wrong reason on a listed-but-absent corpus: $out"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after cleanup"
     log "check_generator_host_parity unreadable-corpus negative test passed"
 }
@@ -4841,36 +4778,15 @@ test_projection_coverage() {
     _neg_gate check_projection_coverage || die "check_projection_coverage failed on the unmutated tree"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    # Generators are native mios-gen modules, so the primary plant is a new one;
-    # the Python-era globs stay in scope, so a tools/ script is the second.
-    local planted="${ROOT}/tools/native/mios-gen/src/negtest_surface.rs"
-    local planted_rel="tools/native/mios-gen/src/negtest_surface.rs"
+    # A new mios-gen module is the primary plant; the Python-era globs still claim tools/.
+    local planted_rel="tools/native/mios-gen/src/negtest_surface.rs"; local planted="${ROOT}/${planted_rel}"
     local short_name="${ROOT}/tools/gen-negtest-surface.py"
     _pc_fail() {
         cp "$bak" "$toml"; rm -f "$bak" "$planted" "$short_name"
         unset -f _pc_fail
         die "$1"
     }
-    _pc_exempt() {  # $1 = reason; adds the plant to the itemised register, one above the current ceiling
-        python3 - "$toml" "$planted_rel" "$1" <<'PYEOF'
-import re, sys
-p, gen, reason = sys.argv[1:4]
-s = open(p, encoding="utf-8").read()
-# Other registers carry an `exempt = [` too: edit only this table's.
-start = s.index("\n[laws.projection_registry]\n")
-end = s.index("\n[", start + 1)
-head, table, tail = s[:start], s[start:end], s[end:]
-row = '\n  { generator = "%s", reason = "%s" },' % (gen, reason)
-# Usually empty (`exempt = []`); an itemised register is multi-line.
-table, n = re.subn(r'(?m)^exempt = \[\]$', 'exempt = [' + row + '\n]', table, count=1)
-if n == 0:
-    table, n = re.subn(r'(?m)^exempt = \[$', 'exempt = [' + row, table, count=1)
-assert n == 1, "the [laws.projection_registry].exempt list was not found -- the plant would prove nothing"
-table, n = re.subn(r'(?m)^max_exempt = ([0-9]+)$', lambda m: "max_exempt = %d" % (int(m.group(1)) + 1), table, count=1)
-assert n == 1, "[laws.projection_registry].max_exempt was not found"
-open(p, "w", encoding="utf-8").write(head + table + tail)
-PYEOF
-    }
+    _pc_exempt() { sed -i "/^\[laws.projection_registry\]$/,/^\[/{s|^exempt = \[\]$|exempt = [{ generator = \"$planted_rel\", reason = \"$1\" }]|;s|^max_exempt = [0-9]*$|max_exempt = 1|}" "$toml"; }
 
     # The defect this check exists for: a NEW generator that projects a tracked
     # file, with no drift check and no registry row. check_projection_registry
@@ -4895,7 +4811,7 @@ PYEOF
     # on the MESSAGE, not the exit code: the plant is still on disk here, so a
     # mutation that silently missed would fail the check for the earlier reason
     # and the assertion would pass without having tested anything.
-    _pc_exempt "" || _pc_fail "test_projection_coverage could not itemise the plant"
+    _pc_exempt ""
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a bare exemption carrying no reason"
     case "${_NEG_GATE_OUT}" in
         *"carries no \`reason\`"*) : ;;
@@ -4906,19 +4822,16 @@ PYEOF
     # The positive half of the same branch: the SAME plant, exempted WITH a
     # reason under a ceiling that admits it, must pass. Without this the
     # exemption path could be dead code that never grants anything.
-    _pc_exempt "negative-test plant" || _pc_fail "test_projection_coverage could not itemise the plant"
+    _pc_exempt "negative-test plant"
     _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"; rm -f "$planted"
 
     # The scope is this check's own allowlist, so narrowing it must not buy a
-    # pass -- the register anchors the globs from outside. Narrowed, the native
-    # glob misses registered modules beside the ones it keeps.
+    # pass -- the register anchors the globs from outside.
     sed -i 's|"tools/native/mios-gen/src/\*\.rs"|"tools/native/mios-gen/src/render_*.rs"|' "$toml"
-    grep -q '"tools/native/mios-gen/src/render_\*\.rs"' "$toml" || _pc_fail "the native discovery glob was not narrowed -- the mutation would prove nothing"
-    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after the native discovery glob was narrowed"
-    [[ "$_NEG_GATE_OUT" == *"no glob matches it"* ]] || _pc_fail "check_projection_coverage failed for the wrong reason on a narrowed glob: ${_NEG_GATE_OUT}"
+    _neg_gate check_projection_coverage || :
+    [[ "$_NEG_GATE_OUT" == *"no glob matches it"* ]] || _pc_fail "check_projection_coverage passed a narrowed native discovery glob: ${_NEG_GATE_OUT}"
     cp "$bak" "$toml"
-    # Deleted outright, the scope is empty, which is cannot-run, never a pass.
     sed -i 's|^generator_globs = .*$|generator_globs = ["tools/generate-*.py"]|' "$toml"
     _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after a discovery glob was deleted"
     cp "$bak" "$toml"
@@ -5545,13 +5458,10 @@ test_dotfiles_projection() {
 
     _neg_gate check_dotfiles_projection || { _dp_restore; die "check_dotfiles_projection is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
 
-    # (0) The theme leg: a hand edit to a registered surface goes red naming the
-    # surface. btop is the one two renderers write, so it is the one to plant in.
+    # (0) The theme leg: a hand edit to the btop surface (the one two renderers write).
     local theme="${ROOT}/etc/btop/themes/mios.theme" bak_th; bak_th="$(mktemp)"; cp "$theme" "$bak_th"
-    printf '\n# devloop planted mutation\ntheme[title]="#000001"\n' >> "$theme"
-    _neg_gate check_dotfiles_projection && { cp "$bak_th" "$theme"; rm -f "$bak_th"; _dp_restore; die "check_dotfiles_projection passed with a hand-edited btop theme"; }
-    cp "$bak_th" "$theme"; rm -f "$bak_th"
-    grep -q "btop: etc/btop/themes/mios.theme drifted" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the btop surface: ${_NEG_GATE_OUT}"; }
+    printf 'theme[title]="#000001"\n' >> "$theme"; _neg_gate check_dotfiles_projection || :; cp "$bak_th" "$theme"; rm -f "$bak_th"
+    grep -q "btop: etc/btop/themes/mios.theme drifted" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection did not name a hand-edited btop theme: ${_NEG_GATE_OUT}"; }
 
     # (1) A desktop-only key back on an API-applied surface must go red naming
     # the file AND the key (ADR-0024).

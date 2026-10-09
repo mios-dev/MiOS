@@ -2174,9 +2174,7 @@ check_bake_plan() {
     # certified binary was one the bake can never run; debug is dropped because
     # that tree is where the two sides diverge (T-1057).
     local bin="" c
-    # An explicit MIOS_NATIVE_BIN_DIR names the build under test, exactly as
-    # native_bin honours it for every other native check; without it the
-    # installed binary would be certified even when it predates the tree.
+    # An explicit MIOS_NATIVE_BIN_DIR names the build under test, as native_bin honours it.
     if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
         bin="$(native_bin mios-bake-plan)" || bin=""
     else
