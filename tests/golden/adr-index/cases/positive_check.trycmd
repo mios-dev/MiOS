@@ -1,5 +1,0 @@
-```console
-$ mios-gen adr-index --check
-ADR.md matches the 28 baked ADR(s) and SSOT consistency checks pass
-
-```

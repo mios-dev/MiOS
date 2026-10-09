@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3838,
-  "total_metadata_entries": 3146,
-  "total_hints": 3136,
-  "total_functions_indexed": 1469,
-  "total_related_links": 5228,
+  "total_files_scanned": 3660,
+  "total_metadata_entries": 3019,
+  "total_hints": 3009,
+  "total_functions_indexed": 1452,
+  "total_related_links": 5069,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -518,7 +518,7 @@
         "usr/share/doc/mios/adr/",
         "usr/share/doc/mios/adr/README.md",
         "usr/share/mios/mios.toml [laws]",
-        "tools/native/mios-gen/src/adr_index.rs"
+        "tools/native/mios-gen/src/indexes.rs"
       ],
       "functions": [],
       "doc": null,
@@ -1222,7 +1222,7 @@
       "path": "automation/55-native-build.sh",
       "hint": "Bootstrap the Rust management binary; the SSOT native compile/install engine is miosd native-build. --toolchain provisions the image's own SSOT Rust toolchain instead.",
       "related": [
-        "src/mios-rs/mios-build/src/native_build.rs",
+        "src/mios-rs/mios-build/src/lib.rs",
         "usr/share/mios/mios.toml",
         "Containerfile"
       ],
@@ -1493,7 +1493,7 @@
     },
     {
       "path": "automation/97-ssot-lint.sh",
-      "hint": "SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line ha...",
+      "hint": "SSOT-render conformance lint: a thin adapter that runs native mios-ssot-lint over the Quadlet ${MIOS_*} placeholders; a missing binary fails closed.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
@@ -1844,7 +1844,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.sh",
-        "tools/native/mios-gen/src/render_globals.rs"
+        "tools/native/mios-gen/src/render.rs"
       ],
       "functions": [
         "Resolve-MiosVersion"
@@ -1859,7 +1859,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "automation/lib/globals.ps1",
-        "tools/native/mios-gen/src/render_globals.rs"
+        "tools/native/mios-gen/src/render.rs"
       ],
       "functions": [
         "_mios_resolve_version"
@@ -1977,10 +1977,8 @@
     },
     {
       "path": "automation/lint-shell.sh",
-      "hint": "Runner for shellcheck across automation, tools, and libexec shell scripts. Degrades open if shellcheck is absent.",
-      "related": [
-        "/usr/libexec/mios/mios-"
-      ],
+      "hint": "Thin adapter for the native mios-gate shell-lint check (ShellCheck over the SSOT [drift.lint] shell subjects); missing tools fail closed.",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -2454,79 +2452,6 @@
       "has_shebang": false
     },
     {
-      "path": "docs/agy/w10-live-boot/g1__automation__build__live-chat-fetch.sh",
-      "hint": "Build-time staging for the W10 live-boot AI chat lane -- fetches the",
-      "related": [
-        "mios.toml [cat.live_chat]",
-        "[llamacpp].bake_models",
-        "mios-cpu-node"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__config__live-profile__usr__libexec__mios__mios-live-chat-select-model",
-      "hint": "Boot-time oneshot -- re-resolves [cat.live_chat].model against",
-      "related": [
-        "mios.toml [cat.live_chat]",
-        "mios-live-chat-serve"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__config__live-profile__usr__libexec__mios__mios-live-chat-serve",
-      "hint": "ExecStart for mios-live-chat-server.service -- resolves the",
-      "related": [
-        "mios-live-chat-select-model",
-        "mios-live-chat-prep.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g1__mios.toml",
-      "hint": "Documentation artifact for MiOS-Cat TOML config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____MiOS__mios.toml",
-      "hint": "Documentation artifact for MiOS TOML config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____MiOS__usr__share__mios__mios.toml",
-      "hint": "Documentation artifact for usr/share/mios/mios.toml config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "docs/agy/w10-live-boot/g3__C____mios-bootstrap__mios.toml",
-      "hint": "Documentation artifact for mios-bootstrap mios.toml config.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "docs/agy/w10-live-boot/live-chat.toml",
       "hint": "Build-mechanics config for automation/build/live-iso.sh, the W10 MiOS-Cat zero-install live-USB-to-AI-chat leg: dracut/xorriso plumbing of this build leg, not operator SSOT and not a bootc-image-builder customization file.",
       "related": [],
@@ -2874,6 +2799,19 @@
       "path": "docs/design/verbosity-changelist.md",
       "hint": "Summary record of the MiOS Automation Log-Message Verbosity Audit.",
       "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "docs/design/w10-live-boot/_artifacts.md",
+      "hint": "W10 live-chat design session artifacts that are text, not files to ship: edit snippets, superseded alternates and grounding excerpts, folded from docs/agy/w10-live-boot/.",
+      "related": [
+        "docs/design/w10-live-boot/_landing.md",
+        "docs/design/w10-live-boot/_design.md",
+        "docs/agy/w10-live-boot/live-iso.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
@@ -4267,37 +4205,16 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-build/src/images.rs",
-      "hint": "Build the operator's current source tree using SSOT image targets and verify installed runtime commands; never fetch, reset or reap it.",
-      "related": [
-        "build-mios.ps1",
-        "Containerfile",
-        ".devcontainer/Containerfile",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "src/mios-rs/mios-build/src/lib.rs",
       "hint": "Native build orchestrator and phase registry for MiOS.",
       "related": [
         "automation/build.sh",
-        "automation/build-mios.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-build/src/native_build.rs",
-      "hint": "Native SSOT catalog build, static-artifact verification and atomic FHS installation.",
-      "related": [
-        "automation/55-native-build.sh",
+        "automation/build-mios.sh",
+        "build-mios.ps1",
+        "Containerfile",
+        ".devcontainer/Containerfile",
         "usr/share/mios/mios.toml",
+        "automation/55-native-build.sh",
         "miosd native-build"
       ],
       "functions": [],
@@ -4373,19 +4290,7 @@
       "related": [
         "usr/share/mios/mios.toml",
         "/etc/mios/mios.toml",
-        "tools/lib/userenv.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-config/src/validator.rs",
-      "hint": "Zero-dependency SSOT mios.toml type validator and schema enforcement engine.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "/etc/mios/mios.toml",
+        "tools/lib/userenv.sh",
         "tools/drift-checks.py"
       ],
       "functions": [],
@@ -4731,6 +4636,19 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/shell_lint.rs",
+      "hint": "ShellCheck gate over the SSOT [drift.lint] shell subjects: repo-wide at shell_severity, files changed since the ratchet base at shell_changed_severity; a missing tool fails closed.",
+      "related": [
+        "automation/lint-shell.sh",
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/miosd/src/drift/security.rs"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/sigpolicy.rs",
       "hint": "Asserts usr/lib/containers/policy.json is byte-identical to what [security.sigstore] projects, the regenerate-and-diff half of Law 8 that this surface never had.",
       "related": [
@@ -4940,63 +4858,10 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/ble.rs",
-      "hint": "BLE beaconing for offline local mesh bootstrap for mios-node (T-395 / AGY-1993).",
-      "related": [
-        "src/mios-rs/mios-node/src/crypto.rs",
-        "usr/libexec/mios/node/ble.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/buffer_pool.rs",
-      "hint": "Zero-copy network buffer pooling for mios-node frames (T-393 / AGY-1991).",
-      "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "usr/libexec/mios/node/buffer_pool.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/capabilities.rs",
-      "hint": "Edge node capability advertising in Announce frames for mios-node (T-394 / AGY-1992).",
-      "related": [
-        "src/mios-rs/mios-node/src/protocol.rs",
-        "usr/libexec/mios/node/capabilities.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/cgroups.rs",
-      "hint": "Dynamic CPU Core Pinning and Cgroup v2 limits controller for mios-node workers.",
-      "related": [
-        "src/mios-rs/mios-node/src/node.rs",
-        "usr/libexec/mios/node/cgroups.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "src/mios-rs/mios-node/src/crypto.rs",
       "hint": "Ed25519 mutual handshake, X25519 ECDH key exchange, HKDF-SHA256 key derivation, and ChaCha20-Poly1305 wire AEAD for mios-node.",
       "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "src/mios-rs/mios-node/src/protocol.rs",
+        "src/mios-rs/mios-node/src/wire.rs",
         "tests/test-node-mesh.py"
       ],
       "functions": [],
@@ -5005,10 +4870,17 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/executor.rs",
-      "hint": "Dual-tier task execution engine (Wasm sandbox & signed native modules) for mios-node.",
+      "path": "src/mios-rs/mios-node/src/device.rs",
+      "hint": "mios-node device layer: GPIO/I2C hardware abstraction with allowlists, capability advertising in Announce frames, and the /dev/watchdog integration (T-394).",
       "related": [
-        "src/mios-rs/mios-node/src/node.rs"
+        "src/mios-rs/mios-node/src/wire.rs",
+        "usr/libexec/mios/node/capabilities.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/exec.rs",
+        "usr/libexec/mios/node/hardware.py",
+        "usr/libexec/mios/node/wasm_sandbox.py",
+        "src/mios-rs/mios-node/src/node.rs",
+        "usr/libexec/mios/node/watchdog.py"
       ],
       "functions": [],
       "doc": null,
@@ -5016,12 +4888,13 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/hardware.rs",
-      "hint": "Hardware Abstraction Layer & Wasm host imports for GPIO and I2C with allowlist enforcement.",
+      "path": "src/mios-rs/mios-node/src/exec.rs",
+      "hint": "mios-node execution layer: the dual-tier Wasm/native task engine, the work-stealing offload scheduler and cgroup v2 core pinning and limits (T-392).",
       "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
-        "usr/libexec/mios/node/hardware.py",
-        "usr/libexec/mios/node/wasm_sandbox.py"
+        "src/mios-rs/mios-node/src/node.rs",
+        "usr/libexec/mios/node/cgroups.py",
+        "tests/test-node.py",
+        "usr/libexec/mios/node/scheduler.py"
       ],
       "functions": [],
       "doc": null,
@@ -5067,12 +4940,14 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/net.rs",
-      "hint": "Async Tokio TCP frame reader, writer, stream buffer manager, and network actor for mios-node.",
+      "path": "src/mios-rs/mios-node/src/mesh.rs",
+      "hint": "mios-node mesh transports: BLE offline bootstrap and the Tailscale/WireGuard overlay fallback when LAN broadcast is partitioned (T-395).",
       "related": [
-        "src/mios-rs/mios-node/src/protocol.rs",
-        "src/mios-rs/mios-node/src/lib.rs",
-        "tests/test-node-mesh.py"
+        "src/mios-rs/mios-node/src/crypto.rs",
+        "usr/libexec/mios/node/ble.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/heartbeat.rs",
+        "usr/libexec/mios/node/overlay.py"
       ],
       "functions": [],
       "doc": null,
@@ -5084,44 +4959,7 @@
       "hint": "Micro-node networking daemon, peer discovery, and gossip protocol manager.",
       "related": [
         "src/mios-rs/mios-node/src/main.rs",
-        "src/mios-rs/mios-node/src/protocol.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/overlay.rs",
-      "hint": "Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned (T-396 / AGY-1994).",
-      "related": [
-        "src/mios-rs/mios-node/src/heartbeat.rs",
-        "usr/libexec/mios/node/overlay.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/protocol.rs",
-      "hint": "16-byte fixed header binary wire protocol parser and generator for mios-node.",
-      "related": [
-        "src/mios-rs/mios-node/src/node.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/scheduler.rs",
-      "hint": "Task offloading priority queue with work-stealing scheduler for mios-node (T-392 / AGY-1990).",
-      "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
-        "usr/libexec/mios/node/scheduler.py",
-        "tests/test-node.py"
+        "src/mios-rs/mios-node/src/wire.rs"
       ],
       "functions": [],
       "doc": null,
@@ -5140,12 +4978,13 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/watchdog.rs",
-      "hint": "Hardware watchdog timer integration (/dev/watchdog) with safe 'V' magic close.",
+      "path": "src/mios-rs/mios-node/src/wire.rs",
+      "hint": "mios-node wire layer: the 16-byte-header binary frame protocol, the zero-copy frame buffer pool and the async Tokio TCP frame reader/writer and network actor (T-393).",
       "related": [
-        "src/mios-rs/mios-node/src/node.rs",
-        "usr/libexec/mios/node/watchdog.py",
-        "tests/test-node.py"
+        "usr/libexec/mios/node/buffer_pool.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/lib.rs",
+        "tests/test-node-mesh.py"
       ],
       "functions": [],
       "doc": null,
@@ -5153,14 +4992,15 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/tests/adversarial_m1_test.rs",
-      "hint": "Comprehensive adversarial stress tests for Milestone 1 components in mios-node.",
+      "path": "src/mios-rs/mios-node/tests/adversarial.rs",
+      "hint": "Adversarial and stress suites for mios-node milestones 1 and 2: crypto, hardware, cgroups, state sync, watchdog, scheduler, buffer pool, capabilities, BLE bootstrap and overlay.",
       "related": [
         "src/mios-rs/mios-node/src/crypto.rs",
-        "src/mios-rs/mios-node/src/hardware.rs",
-        "src/mios-rs/mios-node/src/cgroups.rs",
+        "src/mios-rs/mios-node/src/device.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "src/mios-rs/mios-node/src/state_sync.rs",
-        "src/mios-rs/mios-node/src/watchdog.rs"
+        "src/mios-rs/mios-node/src/wire.rs",
+        "src/mios-rs/mios-node/src/mesh.rs"
       ],
       "functions": [],
       "doc": null,
@@ -5168,81 +5008,11 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/tests/m1_stress_adversarial_test.rs",
-      "hint": "Milestone 1 Adversarial Empirical Stress Test Suite (T-389, T-390, T-391, T-400).",
-      "related": [
-        "src/mios-rs/mios-node/src/hardware.rs",
-        "src/mios-rs/mios-node/src/cgroups.rs",
-        "src/mios-rs/mios-node/src/state_sync.rs",
-        "src/mios-rs/mios-node/src/watchdog.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/m2_deep_adversarial_stress_test.rs",
-      "hint": "Deep adversarial stress tests and property fuzzers for Milestone 2 (T-392 through T-396).",
-      "related": [
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/mesh_m2_adversarial_test.rs",
-      "hint": "Comprehensive adversarial integration tests for Milestone 2 (T-392 through T-396).",
-      "related": [
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/mesh_m2_stress_challenger_test.rs",
-      "hint": "Milestone 2 Empirical Challenger Stress & Adversarial Test Suite.",
-      "related": [
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/node_mesh_test.rs",
-      "hint": "Integration and unit tests for mios-node wire protocol, dual-tier executor, and CRDT state sync.",
+      "path": "src/mios-rs/mios-node/tests/mesh.rs",
+      "hint": "Integration tests for the mios-node wire protocol, dual-tier executor and CRDT state sync, plus parity with the usr/libexec/mios/node Python twins (T-1188).",
       "related": [
         "src/mios-rs/mios-node/src/lib.rs",
-        "src/mios-rs/mios-node/src/node.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/parity_stubs_test.rs",
-      "hint": "Parity tests for mios-node Rust methods mirroring usr/libexec/mios/node/*.py twins (T-1188).",
-      "related": [
-        "src/mios-rs/mios-node/src/lib.rs",
+        "src/mios-rs/mios-node/src/node.rs",
         "usr/libexec/mios/node/"
       ],
       "functions": [],
@@ -5267,33 +5037,8 @@
       "path": "src/mios-rs/mios-probe/src/main.rs",
       "hint": "Entry point for mios-probe, the native host-readiness prober; resolves every threshold from mios.toml rather than from code.",
       "related": [
-        "src/mios-rs/mios-probe/src/probes.rs",
         "usr/share/mios/mios.toml",
-        "Justfile"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-probe/src/probes.rs",
-      "hint": "The two probe sets -- build-host readiness and host-install thresholds -- both resolved from mios.toml [preflight].",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "src/mios-rs/mios-probe/src/report.rs",
-        "Justfile"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-probe/src/report.rs",
-      "hint": "The probe report type and its two renderings: the human lines the shell script printed, and an OpenAI-format structured object.",
-      "related": [
-        "src/mios-rs/mios-probe/src/main.rs",
+        "Justfile",
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md"
       ],
       "functions": [],
@@ -5305,7 +5050,7 @@
       "path": "src/mios-rs/mios-probe/tests/probes.rs",
       "hint": "Integration tests for mios-probe: every threshold comes from SSOT, and an unreadable input never reads as ready.",
       "related": [
-        "src/mios-rs/mios-probe/src/probes.rs",
+        "src/mios-rs/mios-probe/src/main.rs",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
@@ -5325,33 +5070,11 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/src/cli/ai_fallback.rs",
-      "hint": "OpenAI-compatible /v1/chat/completions client fallback for interactive prompts.",
+      "path": "src/mios-rs/miosd/src/cli.rs",
+      "hint": "Entry dispatcher for mios CLI: the binary verb dispatcher, shell completions and the OpenAI-compatible /v1 chat fallback.",
       "related": [
         "usr/bin/mios",
-        "MIOS_AI_ENDPOINT"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/cli/completions.rs",
-      "hint": "Shell completion generator for mios CLI.",
-      "related": [
-        "usr/bin/mios"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/cli/dispatcher.rs",
-      "hint": "High-performance binary CLI dispatcher routing 33 known verbs with <5ms latency.",
-      "related": [
-        "usr/bin/mios",
+        "MIOS_AI_ENDPOINT",
         "usr/libexec/mios/"
       ],
       "functions": [],
@@ -5360,83 +5083,19 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/src/cli/mod.rs",
-      "hint": "Entry dispatcher for mios CLI.",
+      "path": "src/mios-rs/miosd/src/daemon.rs",
+      "hint": "Core async supervisor daemon engine for miosd: atomic state, backup scheduler, telemetry reader, theme watcher and hardware watchdog.",
       "related": [
-        "usr/bin/mios"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/backup.rs",
-      "hint": "Interval backup scheduler managing pgvector and config snapshots.",
-      "related": [
+        "usr/libexec/mios/mios-daemon",
+        "usr/lib/systemd/system/miosd.service",
         "tests/test-db.py",
-        "usr/lib/systemd/system/mios-backup-pgvector.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/mod.rs",
-      "hint": "Core async supervisor daemon engine for miosd.",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
-        "usr/lib/systemd/system/miosd.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/state.rs",
-      "hint": "Daemon state schema and atomic state writer for /var/lib/mios/daemon/state.json",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
-        "/var/lib/mios/daemon/state.json"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/telemetry.rs",
-      "hint": "Lightweight zero-allocation system telemetry reader for CPU, Memory, Load, and Disk.",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
+        "usr/lib/systemd/system/mios-backup-pgvector.service",
+        "/var/lib/mios/daemon/state.json",
         "/proc/stat",
         "/proc/meminfo",
-        "/proc/loadavg"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/theme.rs",
-      "hint": "Theme synchronization watcher checking /etc/mios and /usr/share/mios theme state.",
-      "related": [
+        "/proc/loadavg",
         "usr/libexec/mios/mios-sync-theme",
         "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/watchdog.rs",
-      "hint": "Watchdog integration checking /dev/watchdog and logging hardware status.",
-      "related": [
-        "usr/libexec/mios/mios-daemon"
       ],
       "functions": [],
       "doc": null,
@@ -5756,7 +5415,13 @@
       "path": "src/mios-rs/miosd/src/lib.rs",
       "hint": "Library module exports for miosd crate.",
       "related": [
-        "src/mios-rs/miosd/src/main.rs"
+        "src/mios-rs/miosd/src/main.rs",
+        "tools/native/mios-gen",
+        "automation/33-generate-quadlets.sh",
+        "usr/libexec/mios/mios-keyring-autounlock",
+        "usr/share/mios/mios.toml",
+        "usr/share/mios/configurator/mios.html",
+        "/usr/libexec/mios/mios-configurator-launch"
       ],
       "functions": [],
       "doc": null,
@@ -5768,55 +5433,7 @@
       "hint": "Entry point for the MiOS daemon native workspace (WS-LANG)",
       "related": [
         "Containerfile",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/native_generator.rs",
-      "hint": "Shared native generator dispatch for build verbs and read-only drift checks.",
-      "related": [
-        "tools/native/mios-gen",
-        "automation/33-generate-quadlets.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/secret.rs",
-      "hint": "Native Linux secret management, desktop prompts, Keyrings interface, and automated pipeline safety scanning for miosd.",
-      "related": [
-        "src/mios-rs/miosd/src/main.rs",
-        "usr/libexec/mios/mios-keyring-autounlock",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/server.rs",
-      "hint": "Lightweight, embedded HTTP loopback server hosting mios.html and SSOT /portal/config API.",
-      "related": [
-        "usr/share/mios/configurator/mios.html",
-        "/usr/libexec/mios/mios-configurator-launch",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/terminal_runtime.rs",
-      "hint": "Validate and repair the SSOT-selected tmux namespace using live peer credentials and inode descriptors; preserve running sessions.",
-      "related": [
+        "automation/98-drift-checks.sh",
         "usr/libexec/mios/mios-terminal",
         "usr/share/mios/windows/mios-native-client-setup.ps1"
       ],
@@ -5826,47 +5443,17 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/tests/build_progress.rs",
-      "hint": "Execute the real native progress CLI and build adapter against positive, missing, warning and swallowed-failure controls.",
+      "path": "src/mios-rs/miosd/tests/integration.rs",
+      "hint": "Integration tests for miosd: build progress CLI and adapter, drift-check registry, render-kargs unmanaged-karg preservation, and the resolver inline-table twin (Law 13).",
       "related": [
         "/usr/share/mios/templates/rust",
         "automation/build.sh",
-        "src/mios-rs/mios-build/src/progress.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/registry_integration.rs",
-      "hint": "Integration test suite for miosd drift check registry",
-      "related": [
-        "src/mios-rs/miosd/src/drift/mod.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/render_kargs.rs",
-      "hint": "Integration tests for `miosd render-kargs` -- the kernel command line is the highest-consequence projection in the build, so the unmanaged-karg preservation contract is pinned here.",
-      "related": [
+        "src/mios-rs/mios-build/src/progress.rs",
+        "src/mios-rs/miosd/src/drift/mod.rs",
         "src/mios-rs/miosd/src/main.rs",
         "automation/75-kargs-render.sh",
         "usr/lib/bootc/kargs.d",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/resolver_inline_twin.rs",
-      "hint": "Pins that miosd's resolver renders arrays of inline tables byte-equal to mios_toml.py's _toml_inline when built in THIS workspace, whose toml crate lays inline tables out differently (resolver twin, Law 13).",
-      "related": [
+        "usr/share/mios/mios.toml",
         "tools/native/mios-resolver/src/walk.rs",
         "usr/lib/mios/mios_toml.py",
         "tools/check-runtime.py"
@@ -5952,277 +5539,16 @@
     },
     {
       "path": "tests/golden/README.md",
-      "hint": "Golden-master CLI testing standards and Trycmd harness specifications (AGY-1067 / ADR-0021).",
+      "hint": "Golden-master CLI cases for the native mios-gen verbs (AGY-1067 / ADR-0021); every console block below is executed by tools/native/mios-gen/tests/golden.rs.",
       "related": [
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
         "docs/design/doc-rust-static-port.md",
-        "tests/run-suites.sh",
-        "tools/ci-suites.py"
+        "tools/native/mios-gen/tests/golden.rs",
+        "tests/golden/fastfetch/mock.jsonc"
       ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/adr-index/cmd.toml",
-      "hint": "Trycmd configuration for adr-index golden-master CLI tests (AGY-1067 / AGY-1089).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/ai-manifest/cmd.toml",
-      "hint": "Trycmd configuration for ai-manifest golden-master CLI tests (AGY-1067 / AGY-1102).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/bib-configs/cmd.toml",
-      "hint": "Trycmd configuration for bib-configs golden-master CLI tests (AGY-1067 / AGY-1107).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/btop-theme/cmd.toml",
-      "hint": "Trycmd configuration for render-btop-theme golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/cargo-manifests/cmd.toml",
-      "hint": "Trycmd configuration for cargo-manifests golden-master CLI tests (AGY-1067 / AGY-1108).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/compile-templates/cmd.toml",
-      "hint": "Trycmd configuration for compile-templates golden-master CLI tests (AGY-1067 / AGY-1109).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/cosign-policy/cmd.toml",
-      "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/egress-firewall/cmd.toml",
-      "hint": "Trycmd configuration for egress-firewall golden-master CLI tests (AGY-1067 / AGY-1082).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/fastfetch/cmd.toml",
-      "hint": "Trycmd configuration for render-fastfetch golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/gate-index/cmd.toml",
-      "hint": "Trycmd configuration for gate-index golden-master CLI tests (AGY-1067 / AGY-1088).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/metal-vs-hosted/cmd.toml",
-      "hint": "Trycmd configuration for metal-vs-hosted golden-master CLI tests (AGY-1067 / AGY-1089).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pipe-boundaries/cmd.toml",
-      "hint": "Trycmd configuration for pipe-boundaries golden-master CLI tests (AGY-1067 / AGY-1110).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pipeline-index/cmd.toml",
-      "hint": "Trycmd configuration for pipeline-index golden-master CLI tests (AGY-1067 / AGY-1088).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pod-quadlets/cmd.toml",
-      "hint": "Trycmd configuration for pod-quadlets golden-master CLI tests (AGY-1067 / AGY-1113).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-desktop/cmd.toml",
-      "hint": "Trycmd configuration for render-desktop golden-master CLI tests (AGY-1067 / AGY-1104).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-globals/cmd.toml",
-      "hint": "Trycmd configuration for render-globals golden-master CLI tests (AGY-1067 / AGY-1106).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-manpages/cmd.toml",
-      "hint": "Trycmd configuration for render-manpages golden-master CLI tests (AGY-1067 / AGY-1105).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-ports/cmd.toml",
-      "hint": "Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/roadmap-index/cmd.toml",
-      "hint": "trycmd case: mios-gen roadmap-index renders the ROADMAP index; the golden output beside it is the expected render.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/standardize-docs/cmd.toml",
-      "hint": "Trycmd configuration for standardize-docs golden-master CLI tests (AGY-1067 / AGY-1111).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/sync-wiki/cmd.toml",
-      "hint": "Trycmd configuration for sync-wiki golden-master CLI tests (AGY-1067 / AGY-1112).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/tmux-theme/cmd.toml",
-      "hint": "Trycmd configuration for render-tmux-theme golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -6430,235 +5756,10 @@
       "has_shebang": true
     },
     {
-      "path": "tests/templates/golden/adr.snap",
+      "path": "tests/templates/golden.snap",
       "hint": "Describe the key decision made in this ADR here.",
       "related": [
         "/usr/share/doc/mios/adr/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/automation-step.snap",
-      "hint": "Numbered automation step script executed in image builds or firstboot.",
-      "related": [
-        "/usr/share/mios/templates/automation-step"
-      ],
-      "functions": [
-        "run_step"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tests/templates/golden/bash-tool.snap",
-      "hint": "Describe the capability of this bash tool script here.",
-      "related": [
-        "/usr/share/mios/templates/bash-tool",
-        "/usr/share/mios/mios.toml"
-      ],
-      "functions": [
-        "main",
-        "parse_args",
-        "log_info",
-        "log_error"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tests/templates/golden/bash-verb.snap",
-      "hint": "Describe the capability of this bash verb script here.",
-      "related": [
-        "/usr/share/mios/templates/bash-verb",
-        "/usr/share/mios/mios.toml"
-      ],
-      "functions": [
-        "main",
-        "parse_args",
-        "log_info",
-        "log_error"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tests/templates/golden/bash.snap",
-      "hint": "Describe the helper shell script logic here.",
-      "related": [
-        "/usr/share/mios/templates/bash"
-      ],
-      "functions": [
-        "main"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tests/templates/golden/drift-check.snap",
-      "hint": "Drift check verifying static check for sample-test under the source-tree drift fitness-functions.",
-      "related": [
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [
-        "check_sample-test"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/markdown-doc.snap",
-      "hint": "Markdown documentation template.",
-      "related": [
-        "/usr/share/doc/mios/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/powershell.snap",
-      "hint": "PowerShell script for Windows provisioning or automation.",
-      "related": [
-        "C:\\mios-bootstrap\\src\\"
-      ],
-      "functions": [
-        "Get-Something"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/python-module.snap",
-      "hint": "Describe the module's behavior and capability here.",
-      "related": [
-        "/usr/lib/mios/agent-pipe/mios_pipe/sample-test.py",
-        "/usr/lib/mios/agent-pipe/test_mios_sample-test.py"
-      ],
-      "functions": [
-        "sample-test_helper"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/python-test.snap",
-      "hint": "Sibling unit test for the sample-test python module, ensuring compliance with drift-check 11.",
-      "related": [
-        "/usr/lib/mios/agent-pipe/mios_pipe/sample-test.py",
-        "/usr/lib/mios/agent-pipe/test_mios_sample-test.py"
-      ],
-      "functions": [
-        "TestSampleTest"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/python-tool.snap",
-      "hint": "Command-line tool/utility written in Python.",
-      "related": [
-        "/usr/share/mios/templates/python-tool"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tests/templates/golden/quadlet.snap",
-      "hint": "Describe the container's purpose and its generator relation here.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/roadmap-ws.snap",
-      "hint": "Describe the roadmap workstream tasks and progress here.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/roadmap.snap",
-      "hint": "Core development roadmap tracking all active and proposed workstreams.",
-      "related": [
-        "/usr/share/doc/mios/roadmap/"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/rust.snap",
-      "hint": "Rust module or source file implementing core logic.",
-      "related": [
-        "/usr/share/mios/templates/rust"
-      ],
-      "functions": [
-        "hello"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/systemd-unit.snap",
-      "hint": "systemd unit file for the mios-sample-test service.",
-      "related": [
-        "/usr/lib/systemd/system/mios-sample-test.service",
-        "/usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/toml-config.snap",
-      "hint": "TOML configuration file template.",
-      "related": [
-        "/usr/share/mios/templates/toml-config"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/typescript.snap",
-      "hint": "TypeScript tool or module.",
-      "related": [
-        "/usr/share/mios/templates/typescript"
-      ],
-      "functions": [
-        "run"
-      ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/templates/golden/yaml.snap",
-      "hint": "YAML configuration or deployment manifest.",
-      "related": [
-        "/usr/share/mios/templates/yaml"
       ],
       "functions": [],
       "doc": null,
@@ -7170,7 +6271,7 @@
       "path": "tests/test-configurator-server.sh",
       "hint": "Automated CI verification test suite for miosd embedded Rust SSOT configurator engine (mios.html & /portal/config).",
       "related": [
-        "src/mios-rs/miosd/src/server.rs",
+        "src/mios-rs/miosd/src/lib.rs",
         "usr/share/mios/configurator/mios.html",
         "usr/share/mios/mios.toml"
       ],
@@ -8061,7 +7162,7 @@
       "hint": "Test suite for T-398: Rust SSOT mios.toml validator (mios check / miosd check).",
       "related": [
         "usr/share/mios/mios.toml",
-        "src/mios-rs/mios-config/src/validator.rs"
+        "src/mios-rs/mios-config/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -8073,7 +7174,7 @@
       "hint": "Test suite for T-399: Compiled binary CLI dispatcher (/usr/bin/mios).",
       "related": [
         "usr/bin/mios",
-        "src/mios-rs/miosd/src/cli/"
+        "src/mios-rs/miosd/src/cli.rs"
       ],
       "functions": [],
       "doc": null,
@@ -8104,7 +7205,7 @@
       "path": "tests/test-miosd-secret.sh",
       "hint": "Verification test suite for miosd secret management, Linux native Keyrings, and pipeline credential scanner.",
       "related": [
-        "src/mios-rs/miosd/src/secret.rs",
+        "src/mios-rs/miosd/src/lib.rs",
         "src/mios-rs/miosd/src/main.rs",
         "usr/share/mios/mios.toml"
       ],
@@ -8118,7 +7219,7 @@
       "hint": "Test suite for T-397: Native Rust miosd daemon supervisor and state manager.",
       "related": [
         "usr/lib/systemd/system/miosd.service",
-        "src/mios-rs/miosd/src/daemon/"
+        "src/mios-rs/miosd/src/daemon.rs"
       ],
       "functions": [],
       "doc": null,
@@ -9720,7 +8821,7 @@
         "usr/share/mios/k3s",
         "usr/share/containers/systemd",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/ai_manifest.rs"
+        "tools/native/mios-gen/src/ai.rs"
       ],
       "functions": [
         "_emit_header",
@@ -10070,17 +9171,7 @@
         "etc/mios/ai/config.json",
         "usr/share/mios/ai/v1/config.json",
         "automation/98-drift-checks.sh",
-        "tools/sync-generated.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-ai-config/src/runtime.rs",
-      "hint": "Shared layered endpoint selection, OpenCode projection and bounded readiness probe; never starts inference or substitutes a model.",
-      "related": [
+        "tools/sync-generated.sh",
         "usr/libexec/mios/mios-mcp-server",
         "usr/share/mios/windows/mios-native-client-setup.ps1"
       ],
@@ -10270,39 +9361,15 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/adr_index.rs",
-      "hint": "SSOT projector and verifier for ADR.md breadcrumb index (ADR-0021 gen category).",
+      "path": "tools/native/mios-gen/src/ai.rs",
+      "hint": "SSOT projectors for the AI repository and tool manifests and for the agent-pipe module-boundary manifest (ADR-0021 gen category).",
       "related": [
-        "usr/share/doc/mios/adr/",
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/adr_index.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/ai_manifest.rs",
-      "hint": "SSOT projector and verifier for AI repository and tool manifests (ADR-0021 gen category).",
-      "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs",
         "automation/manifest.json",
         "tools/manifest.json",
-        "specs/manifest.json"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/bib_configs.rs",
-      "hint": "Native Rust projector for BIB artifact filesystem configurations (config/artifacts/*.toml).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "config/artifacts/bib.toml",
-        "config/artifacts/iso.toml"
+        "specs/manifest.json",
+        "usr/share/mios/pipe-boundaries.manifest.json",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10336,11 +9403,34 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/cargo_manifests.rs",
-      "hint": "Native Rust projector for tools/native/Cargo.toml workspace manifest (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/src/docs.rs",
+      "hint": "specs/ markdown standardizer and wiki/spec metadata sync: version and RAG timestamps injected from SSOT (ADR-0021 gen category).",
       "related": [
-        "tools/native/Cargo.toml",
+        "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md",
+        "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
+        "VERSION"
+      ],
+      "functions": [
+        "get_version",
+        "render_header",
+        "render_footer",
+        "extract_ai_hint",
+        "standardize_content",
+        "run_standardize_docs"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/src/image.rs",
+      "hint": "Projectors for build artifacts: BIB filesystem configs under config/artifacts/ and the tools/native workspace Cargo.toml (ADR-0021, Law 14).",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "config/artifacts/bib.toml",
+        "config/artifacts/iso.toml",
+        "tools/native/Cargo.toml",
         "tools/sync-generated.sh"
       ],
       "functions": [],
@@ -10349,27 +9439,18 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/fastfetch.rs",
-      "hint": "SSOT Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC (ADR-0021 gen category).",
+      "path": "tools/native/mios-gen/src/indexes.rs",
+      "hint": "Generators and validators for the repository's indexes: ADR.md, the ROADMAP.md index and metrics, and the drift-gate and build-pipeline TSVs under usr/share/mios/reference/ (ADR-0021 gen category).",
       "related": [
+        "usr/share/doc/mios/adr/",
         "usr/share/mios/mios.toml",
-        "usr/share/mios/fastfetch/config.jsonc",
-        "automation/98-drift-checks.sh"
+        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
+        "tools/native/mios-gen/src/main.rs",
+        "ROADMAP.md",
+        "tools/native/mios-gen/tests/docs.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/gate_index.rs",
-      "hint": "Generator and validator for usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tools/native/mios-gen/src/main.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10410,31 +9491,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/pipe_boundaries.rs",
-      "hint": "SSOT module-boundary manifest generator for the agent-pipe DI contract (ADR-0021 gen category).",
-      "related": [
-        "usr/share/mios/pipe-boundaries.manifest.json",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/pipeline_index.rs",
-      "hint": "Generator and validator for usr/share/mios/reference/pipeline-index.tsv from automation/[0-9][0-9]-*.sh and SSOT.",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tools/native/mios-gen/src/main.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/pod_quadlets.rs",
       "hint": "Generates systemd Quadlet files (.pod, .container, .network, .volume, .image) from mios.toml SSOT (WS-7 pods-as-SSOT).",
       "related": [],
@@ -10444,89 +9500,16 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/render_desktop.rs",
-      "hint": "Renders usr/share/applications/*.desktop files from SSOT [ports] and [desktop.launchers] table.",
+      "path": "tools/native/mios-gen/src/render.rs",
+      "hint": "The render-* projectors of mios-gen: .desktop launchers, automation/lib/globals.{sh,ps1} in full, man pages, and the [ports] table with its fallbacks, all from mios.toml (ADR-0021, Law 14).",
       "related": [
         "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
-        "automation/98-drift-checks.sh"
+        "automation/98-drift-checks.sh",
+        "automation/35-render-ports.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_globals.rs",
-      "hint": "Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "automation/lib/globals.ps1",
-        "tools/native/mios-gen/src/render_globals.rs"
-      ],
-      "functions": [
-        "_mios_resolve_version"
-      ],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_manpages.rs",
-      "hint": "Native Rust implementation of render-manpages SSOT projector (ADR-0021, Law 14).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/render_manpages.rs",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/render_ports.rs",
-      "hint": "SSOT projector and verifier for [ports] flat table and port fallbacks (ADR-0021 gen category).",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/render_ports.rs",
-        "automation/35-render-ports.sh",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/roadmap_index.rs",
-      "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14): validates the workstreams in ROADMAP.md and regenerates its TOC, Workstream Index, Status Rollup and Metrics table.",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "ROADMAP.md",
-        "tools/native/mios-gen/tests/roadmap_index.rs"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/standardize_docs.rs",
-      "hint": "SSOT projector and standardizer for specs/ markdown documentation (ADR-0021 gen category).",
-      "related": [
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
-      ],
-      "functions": [
-        "get_version",
-        "render_header",
-        "render_footer",
-        "extract_ai_hint",
-        "standardize_content",
-        "run_standardize_docs"
-      ],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10543,58 +9526,12 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/sync_wiki.rs",
-      "hint": "Synchronizes metadata in wiki and spec markdown files by injecting current version and RAG sync timestamps into JSON blocks.",
+      "path": "tools/native/mios-gen/src/terminal.rs",
+      "hint": "Terminal projections for mios-gen: the Fastfetch config and the tmux theme fixture with its layered --runtime render, all from SSOT (ADR-0021 gen category).",
       "related": [
-        "tools/native/mios-gen/src/main.rs",
         "usr/share/mios/mios.toml",
-        "VERSION"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_theme.rs",
-      "hint": "Build-time tmux fixture and runtime consumers share the native theme engine.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/adr_index.rs",
-      "hint": "Integration tests for mios-gen adr-index verb -- verifies ADR.md breadcrumb index generation, front-matter parsing, SSOT consistency, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/adr_index.rs",
-        "usr/share/doc/mios/adr/",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/ai_manifest.rs",
-      "hint": "Two-sided integration test suite for mios-gen ai-manifest (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/ai_manifest.rs"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/bib_configs.rs",
-      "hint": "Two-sided integration test suite for mios-gen bib-configs (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
+        "usr/share/mios/fastfetch/config.jsonc",
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10614,98 +9551,19 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/cargo_manifests.rs",
-      "hint": "Two-sided integration test suite for mios-gen cargo-manifests (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/tests/docs.rs",
+      "hint": "Two-sided integration tests for the mios-gen documentation verbs: adr-index, metal-vs-hosted, render-manpages, roadmap-index, standardize-docs and sync-wiki (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/cargo_manifests.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/cosign_policy.rs",
-      "hint": "Integration tests for mios-gen cosign-policy verb -- verifies byte-identical rendering, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/main.rs",
-        "usr/share/mios/mios.toml",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/egress_firewall.rs",
-      "hint": "Integration tests for mios-gen egress-firewall verb -- verifies mode rendering, user resolution, and nftables rule syntax.",
-      "related": [
-        "tools/native/mios-gen/src/main.rs",
-        "usr/share/mios/mios.toml",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/fastfetch.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-fastfetch (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/fastfetch.rs",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/gate_index.rs",
-      "hint": "Integration tests for mios-gen gate-index verb -- verifies TSV generation, ordinal numbering, --check verification, and negative controls.",
-      "related": [
-        "tools/native/mios-gen/src/gate_index.rs",
-        "automation/98-drift-checks.sh",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/host_tmux.rs",
-      "hint": "Real CLI checks prove host rendering merges vendor, host and user policy and rejects malformed effective values.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/metal_vs_hosted.rs",
-      "hint": "Integration tests for mios-gen metal-vs-hosted verb (T-1010, AGY-1089).",
-      "related": [
+        "tools/native/mios-gen/src/indexes.rs",
+        "usr/share/doc/mios/adr/",
+        "docs/design/doc-rust-static-port.md",
         "tools/native/mios-gen/src/metal_vs_hosted.rs",
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/pipe_boundaries.rs",
-      "hint": "Two-sided integration test suite for mios-gen pipe-boundaries (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/pipe_boundaries.rs",
+        "tools/native/mios-gen/src/render.rs",
         "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
+        "tests/drift-gate-negatives.sh",
+        "ROADMAP.md",
+        "tools/native/mios-gen/src/docs.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10713,34 +9571,11 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/pipeline_index.rs",
-      "hint": "Integration tests for mios-gen pipeline-index verb -- verifies TSV generation, NN space bounds, uniqueness, and --check verification.",
+      "path": "tools/native/mios-gen/tests/golden.rs",
+      "hint": "Executes every console case in tests/golden/README.md against the built mios-gen: exit code and combined output, line for line, with [..] and [CWD] (AGY-1067).",
       "related": [
-        "tools/native/mios-gen/src/pipeline_index.rs",
-        "docs/design/doc-rust-static-port.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/pod_quadlets.rs",
-      "hint": "Two-sided integration test suite for mios-gen pod-quadlets (ADR-0021, Law 6, Law 11, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/pod_quadlets.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/projection_evidence.rs",
-      "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
-      "related": [
+        "tests/golden/README.md",
+        "tests/golden/fastfetch/mock.jsonc",
         "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
@@ -10749,12 +9584,16 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/render_desktop.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-desktop (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/tests/image.rs",
+      "hint": "Two-sided integration tests for the mios-gen image and supply-chain verbs: bib-configs, cargo-manifests, cosign-policy, egress-firewall and pod-quadlets (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/render_desktop.rs",
+        "tools/native/mios-gen/src/image.rs",
         "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
+        "tests/drift-gate-negatives.sh",
+        "tools/native/mios-gen/src/main.rs",
+        "usr/share/mios/mios.toml",
+        "docs/design/doc-rust-static-port.md",
+        "tools/native/mios-gen/src/pod_quadlets.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10762,115 +9601,35 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/render_globals.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-globals (ADR-0021, Law 14).",
+      "path": "tools/native/mios-gen/tests/ssot.rs",
+      "hint": "Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/render_globals.rs",
+        "tools/native/mios-gen/src/ai.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_manpages.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-manpages (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/render_manpages.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/render_ports.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-ports (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/render_ports.rs",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/roadmap_index.rs",
-      "hint": "Two-sided integration tests for mios-gen roadmap-index (ADR-0021, Law 14), hermetic: each case runs on a fixture copy of ROADMAP.md, since checking the LIVE tree fails on any mid-edit copy and duplicates the drift gate.",
-      "related": [
-        "tools/native/mios-gen/src/roadmap_index.rs",
-        "ROADMAP.md",
-        "automation/98-drift-checks.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/standardize_docs.rs",
-      "hint": "Two-sided integration test suite for mios-gen standardize-docs (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/standardize_docs.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/sync.rs",
-      "hint": "Execute native sync against independent Git fixtures; prerequisite failures must preserve files and index.",
-      "related": [
+        "docs/design/doc-rust-static-port.md",
+        "tests/drift-gate-negatives.sh",
+        "tools/native/mios-gen/src/main.rs",
+        "tools/native/mios-gen/src/render.rs",
         "tools/native/mios-gen/src/sync.rs",
         "usr/share/mios/mios.toml"
       ],
       "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/sync_wiki.rs",
-      "hint": "Two-sided integration test suite for mios-gen sync-wiki (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/sync_wiki.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
-      ],
-      "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
-      "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
+      "path": "tools/native/mios-gen/tests/theme.rs",
+      "hint": "Two-sided integration tests for the mios-gen desktop and terminal verbs: render-fastfetch, render-desktop and render-tmux-theme with its host and runtime layers (ADR-0021, Law 14).",
       "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "tools/native/mios-gen/src/terminal.rs",
+        "automation/98-drift-checks.sh",
+        "tools/native/mios-gen/src/render.rs",
+        "tests/drift-gate-negatives.sh",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
         "usr/libexec/mios/mios-terminal"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/tests/tmux_theme.rs",
-      "hint": "Two-sided integration test suite for mios-gen render-tmux-theme (ADR-0021, Law 14).",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
-        "automation/98-drift-checks.sh",
-        "tests/drift-gate-negatives.sh"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10992,15 +9751,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-launch/src/monitor.rs",
-      "hint": "Monitor policy now lives in mios-service-core::launcher for both platform consumers.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-render-quadlets/Cargo.toml",
       "hint": "Cargo manifest for mios-render-quadlets -- the SSOT-driven replacement for stage 34's envsubst renderer.",
       "related": [
@@ -11052,91 +9802,19 @@
     },
     {
       "path": "tools/native/mios-resolver/src/emit.rs",
-      "hint": "Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression.",
+      "hint": "Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression -- and every emitter over it: shell, PowerShell, JSON, install.env, build and repos.",
       "related": [
         "tools/native/mios-ssot-walk",
-        "usr/lib/mios/mios_toml.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_build.rs",
-      "hint": "Validated native SSOT inputs for shared service-image builds on both platforms.",
-      "related": [
+        "usr/lib/mios/mios_toml.py",
         "usr/libexec/mios/57-mios-sys-build.sh",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_install_env.rs",
-      "hint": "install.env binding -- renders the KEY=value environment file consumed by Quadlets via EnvironmentFile.",
-      "related": [
+        "usr/share/mios/mios.toml",
         "/etc/mios/install.env",
-        "usr/share/containers/systemd"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_json.rs",
-      "hint": "JSON binding -- emits the merged SSOT table plus the resolved export map for the Python resolver shim to consume.",
-      "related": [
-        "usr/lib/mios/mios_toml.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_ps.rs",
-      "hint": "PowerShell binding -- renders the export map and palette as a dot-sourceable module of $script:MIOS_* assignments.",
-      "related": [
-        "automation/lib/globals.ps1"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_repos.rs",
-      "hint": "Native projection of required dependency repositories from layered SSOT.",
-      "related": [
+        "usr/share/containers/systemd",
+        "automation/lib/globals.ps1",
         "automation/06-enable-external-repos.sh",
-        "usr/share/mios/mios.toml [repos.external]"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_shell.rs",
-      "hint": "POSIX shell binding -- serializes the export map as shell-quoted export lines for userenv.sh to eval.",
-      "related": [
+        "usr/share/mios/mios.toml [repos.external]",
         "usr/lib/mios/userenv.sh",
         "tools/lib/userenv.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/error.rs",
-      "hint": "Resolver error surface -- thiserror enum with miette diagnostics so a bad layer or value points at its mios.toml source.",
-      "related": [
-        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -11173,7 +9851,8 @@
       "related": [
         "usr/lib/mios/mios_toml.py",
         "usr/lib/mios/userenv.sh",
-        "tools/native/mios-ssot-walk"
+        "tools/native/mios-ssot-walk",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -11197,17 +9876,6 @@
       "path": "tools/native/mios-resolver/src/merge.rs",
       "hint": "Rust module for merging TOML trees according to MiOS overlay semantics.",
       "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/model.rs",
-      "hint": "Typed model of the mios.toml tables the resolver deserializes ahead of the generic walk.",
-      "related": [
-        "usr/share/mios/mios.toml"
-      ],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -11256,36 +9924,15 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-resolver/tests/cli.rs",
-      "hint": "Integration snapshot tests for the mios-resolver emit bindings.",
+      "path": "tools/native/mios-resolver/tests/emit.rs",
+      "hint": "Integration tests for the mios-resolver emit bindings: characterization snapshots over vendor and host fixtures, and a proptest differential over arbitrary [ports] tables.",
       "related": [
-        "tools/native/mios-resolver/src/emit_shell.rs",
-        "tools/native/mios-resolver/src/emit_json.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/tests/differential.rs",
-      "hint": "Proptest differential test for mios-resolver -- asserts emit_json survives arbitrary valid [ports] tables and stack_id offsets.",
-      "related": [
-        "tools/native/mios-resolver/src/emit_json.rs",
+        "tools/native/mios-resolver/src/emit.rs",
         "tools/check-runtime.py"
       ],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/tests/fixtures/vendor_host.toml",
-      "hint": "Fixture overlay for mios-resolver characterization tests -- vendor + host.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -11323,20 +9970,11 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-service-core/src/host_tmux.rs",
-      "hint": "Native Windows tmux publication preserves operator configurations and backs up owned legacy projections.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-service-core/src/launcher.rs",
       "hint": "Shared native terminal policy and monitor layouts for Windows and Linux consumers.",
       "related": [
         "usr/share/mios/mios.toml",
-        "tools/native/mios-resolver/src/emit_json.rs"
+        "tools/native/mios-resolver/src/emit.rs"
       ],
       "functions": [],
       "doc": null,
@@ -11348,42 +9986,10 @@
       "hint": "Shared daemon, relay, and service helpers for MiOS native binaries.",
       "related": [
         "tools/native/Cargo.toml",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/process.rs",
-      "hint": "Process creation flags, hidden console configuration, and workspace locking.",
-      "related": [
-        "tools/native/mios-launch",
-        "tools/native/mios-agent-relay"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/socket.rs",
-      "hint": "Socket discovery, validation, and ownership verification routines.",
-      "related": [
-        "tools/native/mios-agent-relay",
-        "usr/libexec/mios/mios-mcp-server"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/src/ssot.rs",
-      "hint": "Dynamic SSOT resolution from usr/share/mios/mios.toml and environment overrides.",
-      "related": [
         "usr/share/mios/mios.toml",
+        "tools/native/mios-launch",
+        "tools/native/mios-agent-relay",
+        "usr/libexec/mios/mios-mcp-server",
         "tools/native/mios-resolver"
       ],
       "functions": [],
@@ -11406,30 +10012,11 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-service-core/tests/dashboard.rs",
-      "hint": "Adversarial native dashboard controls for full service coverage, layer mutations, narrow/Unicode layout and actual TCP reachability.",
+      "path": "tools/native/mios-service-core/tests/service_core.rs",
+      "hint": "Integration tests for mios-service-core: dashboard catalog, probe and layout controls, SSOT host tmux projection, and the shared SSOT, port and process helpers.",
       "related": [
         "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/tests/host_tmux.rs",
-      "hint": "Full SSOT host projection controls: overrides, unsupported fonts, rejected values, and operator-file preservation.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/tests/test_service_core.rs",
-      "hint": "Comprehensive unit tests for mios-service-core crate.",
-      "related": [
+        "tools/native/mios-service-core/src/dashboard.rs",
         "tools/native/mios-service-core",
         "usr/share/mios/mios.toml"
       ],
@@ -11880,35 +10467,8 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-wallpaperd/src/guiwatch.rs",
-      "hint": "GUI window watcher module for mios-wallpaperd.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-wallpaperd/src/host.rs",
-      "hint": "Wallpaper host window module running WebView behind Windows desktop icons.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-wallpaperd/src/main.rs",
       "hint": "Main entry point for mios-wallpaperd wallpaper daemon on Windows.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-wallpaperd/src/workerw.rs",
-      "hint": "WorkerW window attach module for embedding wallpaper behind Explorer desktop icons.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -12179,7 +10739,7 @@
       "path": "tools/test_generate-gate-index.py",
       "hint": "Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check.",
       "related": [
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -12191,8 +10751,8 @@
       "path": "tools/test_generator_check_agrees_with_write.py",
       "hint": "Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here.",
       "related": [
-        "tools/native/mios-gen/src/bib_configs.rs",
-        "tools/native/mios-gen/src/gate_index.rs",
+        "tools/native/mios-gen/src/image.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "automation/98-drift-checks.sh"
       ],
       "functions": [],
@@ -26862,7 +25422,7 @@
       "path": "usr/libexec/mios/node/cgroups.py",
       "hint": "Dynamic CPU Core Pinning and Cgroup v2 limits controller for mios-node workers.",
       "related": [
-        "src/mios-rs/mios-node/src/cgroups.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -26915,7 +25475,7 @@
       "hint": "Hardware Abstraction Layer & Wasm host imports for GPIO and I2C with allowlist enforcement.",
       "related": [
         "usr/libexec/mios/node/wasm_sandbox.py",
-        "src/mios-rs/mios-node/src/hardware.rs",
+        "src/mios-rs/mios-node/src/device.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -26940,7 +25500,7 @@
       "hint": "16-byte fixed binary wire protocol encoder, decoder, and opcode dispatcher for mios-node.",
       "related": [
         "usr/share/doc/mios/adr/0020-edge-mesh-binary-wire-protocol-and-dual-tier-sandboxing.md",
-        "src/mios-rs/mios-node/src/protocol.rs"
+        "src/mios-rs/mios-node/src/wire.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/node.md",
@@ -26999,7 +25559,7 @@
       "path": "usr/libexec/mios/node/wasm_sandbox.py",
       "hint": "Tier-1 Wasm sandbox runtime with fuel bounding, 64MB memory limit, and mios_sys_* host imports.",
       "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "tests/test-node.py",
         "usr/share/doc/mios/adr/0020-edge-node-mesh-protocol-and-dual-tier-execution.md"
       ],
@@ -27012,7 +25572,7 @@
       "path": "usr/libexec/mios/node/watchdog.py",
       "hint": "Hardware watchdog timer integration (/dev/watchdog) with safe 'V' magic close.",
       "related": [
-        "src/mios-rs/mios-node/src/watchdog.rs",
+        "src/mios-rs/mios-node/src/device.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -27024,8 +25584,7 @@
       "path": "usr/libexec/mios/node/wire.py",
       "hint": "16-byte fixed binary wire protocol encoder, decoder, async stream codec, and opcode dispatcher for mios-node.",
       "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "src/mios-rs/mios-node/src/protocol.rs",
+        "src/mios-rs/mios-node/src/wire.rs",
         "tests/test-node-mesh.py"
       ],
       "functions": [],
@@ -30598,7 +29157,7 @@
       "hint": "Guide to configuring Blink Shell on iOS (iPhone/iPad) and tmux for Shift+Tab and mobile terminal shortcut combos.",
       "related": [
         "/usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "/etc/tmux.conf"
       ],
       "functions": [],
@@ -33083,8 +31642,7 @@
         "usr/lib/mios/log.sh",
         "usr/share/mios/reference/drift-gate-index.tsv",
         "usr/share/mios/reference/pipeline-index.tsv",
-        "tools/native/mios-gen/src/gate_index.rs",
-        "tools/native/mios-gen/src/pipeline_index.rs",
+        "tools/native/mios-gen/src/indexes.rs",
         "usr/share/mios/mios.toml",
         "docs/design/doc-unified-pipeline.md"
       ],
@@ -35835,7 +34393,7 @@
       "hint": "MiOS Native Wayland Secret & Keyring Prompt Dialog for Quickshell.",
       "related": [
         "usr/share/mios/quickshell/Theme.qml",
-        "src/mios-rs/miosd/src/secret.rs"
+        "src/mios-rs/miosd/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -36502,7 +35060,7 @@
       "path": "usr/share/mios/tmux/blink-mobile-keys.tmux.conf",
       "hint": "Tmux key bindings and terminal capabilities for iOS Blink Shell, enabling Shift+Tab (backtab) and mobile shortcut combos.",
       "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
+        "tools/native/mios-gen/src/terminal.rs",
         "usr/share/doc/mios/guides/blink-tmux-mobile-keys.md"
       ],
       "functions": [],

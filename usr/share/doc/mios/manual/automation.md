@@ -1023,3 +1023,9 @@ misconfiguration, not a reason to lint nothing. Paths are repo-relative, so
 the pass runs from ROOT; a worktree's .git is a file, hence -e.
 
 <!-- mios-src:52cdadb2df41 from automation/lint-shell.sh:72-77 -->
+### These generators' Python twins were ported and deleted...
+
+These generators' Python twins were ported and deleted ([rust.categories.gen].replaces);
+a missing native binary is a violation, never a fallback to a script that no longer exists.
+
+<!-- mios-src:4836d6daebbb from automation/98-drift-checks.sh:128-129 -->

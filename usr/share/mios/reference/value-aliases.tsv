@@ -227,3 +227,4 @@ MIOS_BLADE_REQUIRES_K3S	MIOS_BLADE_REQUIRES_LLAMA_RPC_SERVER	keep-distinct	# eac
 MIOS_BLADE_REQUIRES_K3S	MIOS_BLADE_REQUIRES_MIOS_HEADSCALE	keep-distinct	# each unit's blade requirement class is its own placement decision; mios-headscale can move planes alone
 MIOS_AGENT_PIPE_NO_PROGRESS_WINDOW	MIOS_DEPLOY_FORMATS_VHDX_VM_GENERATION	keep-distinct	# turns before agent progress intervention vs the Hyper-V firmware generation; changing a progress budget cannot select a VM firmware interface
 MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY	MIOS_DEPLOY_FORMATS_VHDX_VM_PROCESSORS	keep-distinct	# gateway request workers vs virtual CPUs assigned to a boot-test VM; either workload can be resized independently
+MIOS_BUILD_RATCHET_MAX_PHASE_SCRIPTS	MIOS_LEGIBILITY_MAX_AUTOMATION_PHASES	derive	# both bound the same automation/NN-*.sh population; phase consolidation changes both together

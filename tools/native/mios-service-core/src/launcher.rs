@@ -1,5 +1,5 @@
 // AI-hint: Shared native terminal policy and monitor layouts for Windows and Linux consumers.
-// AI-related: usr/share/mios/mios.toml, tools/native/mios-resolver/src/emit_json.rs
+// AI-related: usr/share/mios/mios.toml, tools/native/mios-resolver/src/emit.rs
 use serde_json::Value;
 
 /// One validated terminal policy consumed by Linux and Windows launchers.

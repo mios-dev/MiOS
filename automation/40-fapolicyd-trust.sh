@@ -23,14 +23,6 @@ for _c in "${MIOS_MIOSD_BIN:-}" \
     if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
 done
 
-# `miosd harden` is one function serving BOTH this stage and 51: it rewrites
-# trust= (this stage's job) and enables usbguard/auditd/fapolicyd (51's). The
-# old leg ran it and then `exit 0`, which skipped the `systemctl enable` below.
-# That is not the same thing: miosd writes the multi-user.target.wants symlink
-# directly, while `systemctl enable` reads [Install] and honours whatever else
-# it declares. fapolicyd is not installed on the machine this was converted on,
-# so that equivalence could not be measured -- and an unmeasured equivalence is
-# not one. The enable stays exactly where it was, after either leg.
 if [[ -n "$_miosd" ]]; then
     "$_miosd" harden
     mios_ok "Fapolicyd trust configured via miosd"

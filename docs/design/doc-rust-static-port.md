@@ -221,7 +221,7 @@ red-baked the pipeline at 1m18s) burned a full CI cycle.
 
 ### 5.1 Worked example — porting `tools/generate-cosign-policy.py` (AGY-1080)
 
-1. Golden master: `tests/golden/cosign-policy/` gets `cmd.toml` fixtures for the real tree
+1. Golden master: `tests/golden/README.md` gets a `cosign-policy` console block for the real tree
    (positive: projected policy matches `usr/share/mios/policy/…`; negative: missing
    `[supply_chain.cosign]` key → the script's exact `FATAL` diagnostic, exit 2).
 2. `mios new rust-crate mios-cosign-policy` — or fold into `mios-gen` as a subcommand once

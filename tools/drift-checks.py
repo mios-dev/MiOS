@@ -162,7 +162,13 @@ def check_legibility_ratchet() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-        lim = (tomllib.load(fh).get("legibility") or {})
+        config = tomllib.load(fh)
+        lim = dict(config.get("legibility") or {})
+    phase_cap = config.get("build", {}).get("ratchet", {}).get("max_phase_scripts")
+    if type(phase_cap) is not int or phase_cap < 0:
+        print("mios.toml [build.ratchet].max_phase_scripts must be a nonnegative integer")
+        sys.exit(1)
+    lim["max_automation_phases"] = phase_cap
     if not lim:
         print("mios.toml [legibility] is absent -- the size of the deliverable is "
               "then bounded by nothing")

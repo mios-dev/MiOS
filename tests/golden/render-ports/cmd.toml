@@ -1,5 +1,0 @@
-# AI-hint: Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).
-# AI-related: usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, tests/golden/README.md
-
-bin.name = "mios-gen"
-args = ["render-ports"]

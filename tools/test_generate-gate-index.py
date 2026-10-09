@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check.
-# AI-related: tools/native/mios-gen/src/gate_index.rs, automation/98-drift-checks.sh
+# AI-related: tools/native/mios-gen/src/indexes.rs, automation/98-drift-checks.sh
 """Each case is a row the index must NOT emit.
 
 An index row is the only published description of a gate, so a row describing

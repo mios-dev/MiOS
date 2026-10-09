@@ -1,5 +1,0 @@
-```console
-$ mios-gen render-globals --check
-[render-globals] both resolvers match SSOT ([..] constants)
-
-```

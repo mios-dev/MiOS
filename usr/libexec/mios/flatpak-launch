@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # AI-hint: A robust wrapper for flatpak run that restores missing WSLg, Wayland, X11, and PulseAudio environment variables (DISPLAY, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS) lost during shell transitions like su, sudo, or nsenter; the launch is always DETACHED so its "dispatched" line is NOT a success confirmation -- the caller (mios-gui) does the authoritative new-window poll.
 # AI-related: /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-autocenter, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-as-operator, /usr/libexec/mios/mios-wsl-flatpak-heal, /etc/mios/flatpak-flags/, /usr/share/mios/flatpak-flags/, /etc/mios/wsl-distro, mios-autocenter
 # AI-functions: _mios_fire_autocenter, _q
@@ -150,6 +150,8 @@ if [ "$IS_WSL" = "1" ]; then
     [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
 
     if [ -z "${WSL_INTEROP:-}" ] || [ ! -S "${WSL_INTEROP:-/nonexistent}" ]; then
+        # Newest socket first: a glob cannot order by mtime.
+        # shellcheck disable=SC2045
         for _ix in $(ls -t /run/WSL/*_interop 2>/dev/null); do
             if [ -S "$_ix" ]; then
                 WSL_INTEROP="$_ix"

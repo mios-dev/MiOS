@@ -525,7 +525,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
     def test_f4_02_phase_count_within_ratchet_limit(self):
         """F4.2: Total phase script count complies with max_automation_phases limit."""
         ssot = load_ssot()
-        max_phases = ssot.get("legibility", {}).get("max_automation_phases", 85)
+        max_phases = ssot["build"]["ratchet"]["max_phase_scripts"]
         auto_dir = os.path.join(_ROOT, "automation")
         phase_count = len([fn for fn in os.listdir(auto_dir) if re.match(r"^\d{2}-.+\.sh$", fn)])
         self.assertLessEqual(phase_count, max_phases, f"Phase count {phase_count} exceeds limit {max_phases}")

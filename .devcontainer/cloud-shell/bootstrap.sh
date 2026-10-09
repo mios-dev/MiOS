@@ -453,9 +453,6 @@ oracle_podman_socket() {
     [[ -S "$socket" ]] || die "the podman API socket did not start: $socket"
 }
 
-# A Compute Engine VM running [image].ref as a privileged podman container that
-# boots its own systemd, with the cloud overlay mounted as its host drop-in. The
-# operator runs this with their own gcloud login; nothing here calls it implicitly.
 gce_up() {
     require_root_checkout
     command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed (https://cloud.google.com/sdk/docs/install)"

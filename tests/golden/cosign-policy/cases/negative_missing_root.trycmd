@@ -1,6 +1,0 @@
-```console
-$ mios-gen cosign-policy --root [..]/nonexistent --check
-? 1
-Error: generate-cosign-policy: [..] not found
-
-```

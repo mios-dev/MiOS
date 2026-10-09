@@ -1,5 +1,5 @@
-// AI-hint: Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression.
-// AI-related: tools/native/mios-ssot-walk, usr/lib/mios/mios_toml.py
+// AI-hint: Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression -- and every emitter over it: shell, PowerShell, JSON, install.env, build and repos.
+// AI-related: tools/native/mios-ssot-walk, usr/lib/mios/mios_toml.py, usr/libexec/mios/57-mios-sys-build.sh, usr/share/mios/mios.toml, /etc/mios/install.env, usr/share/containers/systemd, automation/lib/globals.ps1, automation/06-enable-external-repos.sh, usr/share/mios/mios.toml [repos.external], usr/lib/mios/userenv.sh, tools/lib/userenv.sh
 use mios_ssot_walk::{is_emit_keep_var, is_excluded_section, is_mostly_dead_section};
 use std::collections::BTreeMap;
 use toml::Value;
@@ -400,6 +400,458 @@ mod canonical_export_tests {
             assert_eq!(exports["MIOS_PGVECTOR_USER"], "database");
             assert_eq!(exports["MIOS_PG_USER"], "database");
             assert_eq!(exports["MIOS_SERVICES_PGVECTOR_USER"], "os-account");
+        }
+    }
+}
+
+pub mod emit_build {
+    use std::collections::BTreeSet;
+    use toml::Value;
+
+    pub fn emit_build_shell(merged: &Value, stack_offset: i64) -> Result<String, String> {
+        let mut packages = Vec::new();
+        let mut seen = BTreeSet::new();
+        for section in ["mcp", "agent_cli"] {
+            let values = merged
+                .get("packages")
+                .and_then(|v| v.get(section))
+                .and_then(|v| v.get("pkgs"))
+                .and_then(Value::as_array)
+                .ok_or_else(|| format!("SSOT packages.{section}.pkgs must be an array"))?;
+            for value in values {
+                let package = value
+                    .as_str()
+                    .filter(|s| !s.is_empty() && !s.chars().any(char::is_whitespace))
+                    .ok_or_else(|| {
+                        format!("SSOT packages.{section}.pkgs contains an invalid package")
+                    })?;
+                if seen.insert(package) {
+                    packages.push(package);
+                }
+            }
+        }
+        if packages.is_empty() {
+            return Err("SSOT service-base packages are empty".into());
+        }
+        let reference = merged
+            .get("build")
+            .and_then(|v| v.get("bake_refs"))
+            .and_then(|v| v.get("searxng"))
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or("SSOT build.bake_refs.searxng is empty")?;
+        let mut exports = crate::emit::build_exports_map(merged, stack_offset);
+        crate::emit::resolve_cross_references(&mut exports);
+        let mut output = format!(
+            "export MIOS_MCP_PACKAGES={}\nexport SEARXNG_REF={}\n",
+            crate::emit_shell::shlex_quote(&packages.join(" ")),
+            crate::emit_shell::shlex_quote(reference)
+        );
+        for key in [
+            "MIOS_SERVICES_PIPER_BASE",
+            "MIOS_SERVICES_PIPER_VERSION",
+            "MIOS_SERVICES_PIPER_VOICE",
+            "MIOS_SERVICES_PIPER_UID",
+            "MIOS_SERVICES_PIPER_GID",
+        ] {
+            let value = exports
+                .get(key)
+                .filter(|v| !v.is_empty())
+                .ok_or_else(|| format!("SSOT {key} is empty"))?;
+            output.push_str(&format!(
+                "export {key}={}\n",
+                crate::emit_shell::shlex_quote(value)
+            ));
+        }
+        Ok(output)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        fn fixture() -> Value {
+            "[packages.mcp]\npkgs=['python3','git']\n[packages.agent_cli]\npkgs=['git','tmux']\n[build.bake_refs]\nsearxng='custom'\n[env]\nMIOS_SERVICES_PIPER_BASE='base'\nMIOS_SERVICES_PIPER_VERSION='v1'\nMIOS_SERVICES_PIPER_VOICE='voice'\nMIOS_SERVICES_PIPER_UID='1000'\nMIOS_SERVICES_PIPER_GID='1000'".parse().unwrap()
+        }
+        #[test]
+        fn selections_are_deduplicated_and_shell_quoted() {
+            let mut data = fixture();
+            data["build"]["bake_refs"]["searxng"] =
+                Value::String("branch'; touch /tmp/control".into());
+            let text = emit_build_shell(&data, 0).unwrap();
+            assert!(text.contains("MIOS_MCP_PACKAGES='python3 git tmux'"));
+            assert!(text.contains("SEARXNG_REF='branch'\"'\"'; touch /tmp/control'"));
+        }
+        #[test]
+        fn missing_and_malformed_inputs_do_not_emit_partial_exports() {
+            let mut data = fixture();
+            data["packages"]["mcp"]["pkgs"] =
+                Value::Array(vec![Value::String("two packages".into())]);
+            assert!(emit_build_shell(&data, 0).is_err());
+            let mut data = fixture();
+            data["env"]["MIOS_SERVICES_PIPER_VOICE"] = Value::String(String::new());
+            assert!(emit_build_shell(&data, 0).is_err());
+        }
+    }
+}
+
+pub mod emit_install_env {
+    use std::path::Path;
+    use toml::Value;
+
+    use crate::emit::{build_exports_map, resolve_cross_references};
+
+    pub fn emit_install_env(
+        merged: &Value,
+        stack_offset: i64,
+        _ref_names_path: Option<&Path>,
+    ) -> String {
+        let mut exports = build_exports_map(merged, stack_offset);
+
+        // After the [env] merge, so an [env] value can both reference an
+        // exported key and be referenced by one. Unresolved values still carry
+        // `$` and are dropped by the bare-safe filter below (Law 10) -- which is
+        // exactly how MIOS_AI_ENDPOINT went missing before T-1060.
+        resolve_cross_references(&mut exports);
+
+        let mut lines = Vec::new();
+
+        for (k, v) in &exports {
+            if k.contains("SECRET") || k.contains("TOKEN") || k.contains("PASSWORD") {
+                continue;
+            }
+            if v.contains(' ') || v.contains('\n') || v.contains('$') {
+                continue;
+            }
+            lines.push(format!("{}={}", k, v));
+        }
+
+        lines.sort();
+        lines.join("\n") + "\n"
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_emit_install_env() {
+            let val: Value = toml::from_str(
+                r#"
+[identity]
+role = "mini"
+"#,
+            )
+            .unwrap();
+            let env_str = emit_install_env(&val, 0, None);
+            assert!(env_str.contains("MIOS_IDENTITY_ROLE=mini"));
+        }
+    }
+}
+
+pub mod emit_json {
+    use serde_json::{json, Value as JsonValue};
+    use toml::Value;
+
+    use crate::emit::{build_exports_map, resolve_cross_references};
+
+    pub fn emit_json(merged: &Value, stack_offset: i64) -> String {
+        // Nothing downstream of this JSON re-expands, so the cross-references
+        // are resolved here rather than shipped as text a consumer must parse.
+        let mut exports = build_exports_map(merged, stack_offset);
+        resolve_cross_references(&mut exports);
+        let merged_json: JsonValue = serde_json::to_value(merged).unwrap_or(json!({}));
+
+        let res = json!({
+            "merged": merged_json,
+            "exports": exports,
+        });
+
+        serde_json::to_string_pretty(&res).unwrap_or_else(|_| "{}".to_string()) + "\n"
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_emit_json() {
+            let val: Value = toml::from_str(
+                r#"
+[identity]
+role = "mini"
+"#,
+            )
+            .unwrap();
+            let j_str = emit_json(&val, 0);
+            let parsed: JsonValue = serde_json::from_str(&j_str).unwrap();
+            assert!(parsed.get("merged").is_some());
+            assert!(parsed.get("exports").is_some());
+        }
+    }
+}
+
+pub mod emit_ps {
+    use toml::Value;
+
+    use crate::emit::{build_exports_map, resolve_cross_references};
+    use crate::palette::resolve as resolve_palette;
+
+    pub fn emit_powershell(merged: &Value, stack_offset: i64) -> String {
+        // Emitted as '...' below, and a PowerShell single-quoted string does not
+        // interpolate either, so the same literal-export defect applies here.
+        let mut exports = build_exports_map(merged, stack_offset);
+        resolve_cross_references(&mut exports);
+        let palette = resolve_palette(merged);
+
+        let mut lines = Vec::new();
+        lines.push(
+            "# Generated by mios-resolver --emit=powershell - DO NOT EDIT DIRECTLY".to_string(),
+        );
+        lines.push("# SSOT values derived from mios.toml layers".to_string());
+        lines.push("".to_string());
+
+        for (k, v) in &exports {
+            let escaped = v.replace('\'', "''");
+            lines.push(format!(
+                "$script:{} = if ($env:{}) {{ $env:{} }} else {{ '{}' }}",
+                k, k, k, escaped
+            ));
+        }
+
+        for (k, v) in &palette {
+            let key_name = format!("MIOS_COLOR_{}", k.to_uppercase());
+            if !exports.contains_key(&key_name) {
+                let escaped = v.replace('\'', "''");
+                lines.push(format!(
+                    "$script:{} = if ($env:{}) {{ $env:{} }} else {{ '{}' }}",
+                    key_name, key_name, key_name, escaped
+                ));
+            }
+        }
+
+        lines.join("\n") + "\n"
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// A PowerShell single-quoted string does not interpolate, so an
+        /// unresolved ${MIOS_*} would be assigned as literal text.
+        #[test]
+        fn test_cross_reference_is_resolved_not_quoted_literal() {
+            let val: Value = toml::from_str(
+                r#"
+[ports]
+agent_pipe = 8700
+
+[ai]
+endpoint = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
+"#,
+            )
+            .unwrap();
+            let out = emit_powershell(&val, 0);
+            assert!(
+                out.contains("else { 'http://localhost:8700/v1' }"),
+                "expected the resolved literal, got:\n{out}"
+            );
+            assert!(!out.contains("${MIOS_PORTS_AGENT_PIPE}"));
+        }
+
+        #[test]
+        fn test_emit_powershell() {
+            let val: Value = toml::from_str(
+                r#"
+[ports]
+vllm = 8000
+"#,
+            )
+            .unwrap();
+            let ps = emit_powershell(&val, 0);
+            assert!(ps.contains("$script:MIOS_PORTS_VLLM = if ($env:MIOS_PORTS_VLLM) { $env:MIOS_PORTS_VLLM } else { '8000' }"));
+        }
+    }
+}
+
+pub mod emit_repos {
+    use toml::Value;
+
+    pub fn emit_repos(merged: &Value) -> Result<String, String> {
+        let repos = merged
+            .get("repos")
+            .and_then(|v| v.get("external"))
+            .and_then(Value::as_table)
+            .ok_or("SSOT repos.external must be a table")?;
+        let mut result =
+            String::from("# Generated by native mios-resolver from layered mios.toml.\n");
+        for (id, data) in repos {
+            if id.is_empty()
+                || !id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+            {
+                return Err("Invalid external repository identifier".into());
+            }
+            let enabled = data
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .ok_or_else(|| format!("repos.external.{id}.enabled must be a boolean"))?;
+            if !enabled {
+                continue;
+            }
+            let text = |key: &str| -> Result<&str, String> {
+                data.get(key)
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty() && !s.chars().any(char::is_control))
+                    .ok_or_else(|| format!("Invalid repos.external.{id}.{key}"))
+            };
+            let name = text("name")?;
+            let baseurl = text("baseurl")?;
+            let gpgkey = text("gpgkey")?;
+            if !baseurl.starts_with("https://")
+                || !gpgkey.starts_with("https://")
+                || baseurl.contains(char::is_whitespace)
+                || gpgkey.contains(char::is_whitespace)
+            {
+                return Err(format!(
+                    "repos.external.{id} requires HTTPS baseurl and gpgkey"
+                ));
+            }
+            result.push_str(&format!("\n[mios-{id}]\nname={name}\nbaseurl={baseurl}\ngpgkey={gpgkey}\nenabled=1\ngpgcheck=1\nskip_if_unavailable=False\n"));
+        }
+        Ok(result)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn projects_operator_url_and_rejects_injected_ini_sections() {
+            let mut data: Value = "[repos.external.hyprland]\nenabled=true\nname='Hyprland'\nbaseurl='https://example.test/fedora-$releasever-$basearch/'\ngpgkey='https://example.test/pubkey.gpg'".parse().unwrap();
+            let output = emit_repos(&data).unwrap();
+            assert!(output.contains("baseurl=https://example.test/fedora-$releasever-$basearch/"));
+            assert!(output.contains("gpgcheck=1\nskip_if_unavailable=False"));
+            data["repos"]["external"]["hyprland"]["name"] =
+                Value::String("good\n[evil]\ngpgcheck=0".into());
+            assert!(emit_repos(&data).is_err());
+        }
+        #[test]
+        fn disabled_repo_is_omitted_and_insecure_enabled_repo_rejected() {
+            let mut data: Value = "[repos.external.custom]\nenabled=false".parse().unwrap();
+            assert!(!emit_repos(&data).unwrap().contains("[mios-custom]"));
+            data["repos"]["external"]["custom"]["enabled"] = Value::Boolean(true);
+            assert!(emit_repos(&data).is_err());
+        }
+    }
+}
+
+pub mod emit_shell {
+    use std::fs;
+    use std::path::Path;
+    use toml::Value;
+
+    use crate::emit::{build_exports_map, resolve_cross_references};
+
+    pub fn shlex_quote(s: &str) -> String {
+        if s.is_empty() {
+            return "''".to_string();
+        }
+        if s.chars().all(|c| {
+            matches!(c,
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | ':' | '/' | '@')
+        }) {
+            return s.to_string();
+        }
+        format!("'{}'", s.replace('\'', "'\"'\"'"))
+    }
+
+    pub fn emit_shell(merged: &Value, stack_offset: i64, ref_names_path: Option<&Path>) -> String {
+        let mut exports = build_exports_map(merged, stack_offset);
+
+        if !exports.contains_key("MIOS_PG_BIND_ADDR") {
+            let is_loopback = exports
+                .get("MIOS_PGVECTOR_LISTEN_LOOPBACK")
+                .map(|s| s == "true" || s == "1")
+                .unwrap_or(true);
+            exports.insert(
+                "MIOS_PG_BIND_ADDR".to_string(),
+                if is_loopback { "127.0.0.1" } else { "0.0.0.0" }.to_string(),
+            );
+        }
+
+        // shlex_quote single-quotes anything containing `$`, and bash does not
+        // expand inside single quotes -- so a live ${MIOS_*} reference here is
+        // exported as literal text, never as its value. Nor is there anything to
+        // expand against: these lines are sorted alphabetically, not
+        // topologically, so a referent may be defined after its referrer. Unlike
+        // automation/lib/globals.sh, which splices and topologically sorts, this
+        // binding also exports unconditionally, so it never offered the
+        // "pre-exported value wins" property that a live reference would serve.
+        // Resolving here is what makes userenv.sh's native tier agree with its
+        // Python fallback.
+        resolve_cross_references(&mut exports);
+
+        let mut lines = Vec::new();
+        for (k, v) in &exports {
+            lines.push(format!("export {}={}", k, shlex_quote(v)));
+        }
+
+        // Referenced names passthrough
+        if let Some(ref_path) = ref_names_path {
+            if ref_path.exists() {
+                if let Ok(content) = fs::read_to_string(ref_path) {
+                    for line in content.lines() {
+                        let name = line.trim();
+                        if !name.is_empty() && !exports.contains_key(name) {
+                            lines.push(format!("export {}=\"${{{}:-}}\"", name, name));
+                        }
+                    }
+                }
+            }
+        }
+
+        lines.sort();
+        lines.join("\n") + "\n"
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_shlex_quote() {
+            assert_eq!(shlex_quote("simple"), "simple");
+            assert_eq!(shlex_quote("with space"), "'with space'");
+            assert_eq!(shlex_quote("don't"), "'don'\"'\"'t'");
+            assert_eq!(shlex_quote(""), "''");
+        }
+
+        /// shlex_quote single-quotes any value containing `$`, and bash does not
+        /// expand inside single quotes. userenv.sh evals this output in its primary
+        /// tier, so a value that still carried `${MIOS_PORTS_AGENT_PIPE}` here was
+        /// exported to consumers verbatim, as that literal text.
+        #[test]
+        fn test_cross_reference_is_resolved_not_quoted_literal() {
+            let val: Value = toml::from_str(
+                r#"
+[ports]
+agent_pipe = 8700
+
+[ai]
+endpoint = "http://localhost:${MIOS_PORTS_AGENT_PIPE}/v1"
+"#,
+            )
+            .unwrap();
+            let out = emit_shell(&val, 0, None);
+            let line = out
+                .lines()
+                .find(|l| l.starts_with("export MIOS_AI_ENDPOINT="))
+                .expect("MIOS_AI_ENDPOINT is emitted");
+            assert_eq!(line, "export MIOS_AI_ENDPOINT=http://localhost:8700/v1");
+            assert!(
+                !out.contains("${MIOS_PORTS_AGENT_PIPE}"),
+                "a single-quoted ${{...}} is exported as literal text, not expanded"
+            );
         }
     }
 }
