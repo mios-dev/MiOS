@@ -5814,3 +5814,14 @@ Runtime controls (firstboot across boots, EROFS in the journal) need a booted
 systemd host and are not run by this file.
 
 <!-- mios-src:328a6be60a7a from usr/libexec/mios/test_mios_unit_hardening.py:4-24 -->
+### 'MiOS' Headscale mesh VPN coordinator first-boot config...
+
+'MiOS' Headscale mesh VPN coordinator first-boot config generator.
+
+Writes /etc/headscale/config.yaml from the [headscale] + [metal.mesh] + [ports] SSOT in
+mios.toml (layered: vendor /usr/share/mios/mios.toml < host /etc/mios/mios.toml).
+
+Idempotent + non-destructive: if the config file already exists it does NOTHING
+(Headscale state/sqlite remains preserved across runs). Pass --force to regenerate.
+
+<!-- mios-src:a32618333bfe from usr/libexec/mios/mios-headscale-firstboot:4-11 -->

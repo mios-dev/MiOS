@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3841,
-  "total_metadata_entries": 3148,
-  "total_hints": 3138,
+  "total_files_scanned": 3843,
+  "total_metadata_entries": 3151,
+  "total_hints": 3141,
   "total_functions_indexed": 1469,
-  "total_related_links": 5227,
+  "total_related_links": 5231,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -3068,6 +3068,15 @@
       "has_shebang": false
     },
     {
+      "path": "etc/btop/themes/mios.theme",
+      "hint": "btop theme projected by native build and runtime renderers from the layered mios.toml palette.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "etc/chrony.conf",
       "hint": "NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.",
       "related": [],
@@ -4473,6 +4482,30 @@
         "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/gate_registry.rs",
+      "hint": "Verifies gate definitions, bounded main registrations and drift-tool references without mutating sources.",
+      "related": [
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/host_parity.rs",
+      "hint": "Checks declared and tracked generator sources for non-portable fnmatch usage; unreadable inputs fail.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
       "doc": null,
@@ -36406,7 +36439,7 @@
     },
     {
       "path": "usr/share/mios/theme/templates/btop-mios.theme.tmpl",
-      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
+      "hint": "btop theme projected by native build and runtime renderers from the layered mios.toml palette.",
       "related": [],
       "functions": [],
       "doc": null,
