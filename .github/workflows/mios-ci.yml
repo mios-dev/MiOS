@@ -426,3 +426,110 @@ jobs:
 
       - name: Image runs and carries the MiOS components
         run: bash ./tests/bake-smoke.sh mios:smoke
+
+  # The disk formats [ci.artifacts] opts in. None by default, so until the
+  # operator turns one on this job is the whole cost.
+  artifact-plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      formats: ${{ steps.plan.outputs.formats }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read the opted-in disk formats
+        id: plan
+        run: |
+          set -euo pipefail
+          formats="$(python3 -c 'import json,tomllib; a=tomllib.load(open("usr/share/mios/mios.toml","rb"))["ci"].get("artifacts") or {}; print(json.dumps(sorted(k for k, v in a.items() if v is True)))')"
+          echo "formats=${formats}" >> "$GITHUB_OUTPUT"
+          echo "Disk formats to build and boot: ${formats}"
+
+  # Builds each opted-in disk from an image this job bakes and boots it under
+  # QEMU, running [testing.boot]'s probes over SSH. Only the serial log is
+  # uploaded: a VHDX exceeds GitHub's 2 GiB asset and GHCR's 10 GB layer limits.
+  artifact-boot:
+    needs: artifact-plan
+    if: needs.artifact-plan.outputs.formats != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        format: ${{ fromJSON(needs.artifact-plan.outputs.formats) }}
+    env:
+      MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free the runner disk for the image and the disk
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Provision podman, QEMU and Secure Boot firmware
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y podman qemu-system-x86 ovmf openssh-client
+          source ./tools/lib/ci-runtime.sh
+          mios_ci_prepare_storage
+          echo "$GH_TOKEN" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # Hosted Linux runners expose KVM; the boot test runs unprivileged.
+          sudo chmod 0666 /dev/kvm
+
+      - name: Build miosd
+        run: cargo build --locked --release --manifest-path ./src/mios-rs/Cargo.toml -p miosd
+
+      - name: Bake the image the disk is made from
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="$(./usr/libexec/mios/mios-toml-get --vendor image base)"
+          LOCAL_TAG="$(./usr/libexec/mios/mios-toml-get --vendor image local_tag)"
+          [[ -n "$BASE_IMAGE" && -n "$LOCAL_TAG" ]] || { echo "::error::SSOT image.base or image.local_tag is empty" >&2; exit 1; }
+          sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add all \
+              --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+              --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+              --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t "$LOCAL_TAG" -f Containerfile .
+
+      - name: Mint a throwaway login for the boot test
+        # The build refuses a disk no credential opens; this key exists only for
+        # this job. The variable's name is [deploy.identity].ssh_key_env.
+        run: |
+          set -euo pipefail
+          ssh-keygen -q -t ed25519 -N '' -C mios-ci-boot -f "${RUNNER_TEMP}/boot-key"
+          key_env="$(python3 -c 'import tomllib; print(tomllib.load(open("usr/share/mios/mios.toml","rb"))["deploy"]["identity"]["ssh_key_env"])')"
+          echo "${key_env}=$(cat "${RUNNER_TEMP}/boot-key.pub")" >> "$GITHUB_ENV"
+
+      - name: Build the ${{ matrix.format }} disk
+        run: |
+          set -euo pipefail
+          sudo -E ./src/mios-rs/target/release/miosd artifact-build "${{ matrix.format }}" \
+              --root . --output "/mnt/artifacts/${{ matrix.format }}"
+          ls -la "/mnt/artifacts/${{ matrix.format }}"
+
+      - name: Boot the ${{ matrix.format }} disk headless
+        run: |
+          set -euo pipefail
+          disk="$(find "/mnt/artifacts/${{ matrix.format }}" -maxdepth 2 -type f -name "*.${{ matrix.format }}" | head -n 1)"
+          [[ -n "$disk" ]] || { echo "::error::no .${{ matrix.format }} disk was built" >&2; exit 1; }
+          ./src/mios-rs/target/release/miosd artifact-boot-test "${{ matrix.format }}" --root . \
+              --disk "$disk" --identity "${RUNNER_TEMP}/boot-key" \
+              --serial-log "${RUNNER_TEMP}/boot-serial.log"
+
+      - name: Keep the boot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-serial-${{ matrix.format }}
+          path: ${{ runner.temp }}/boot-serial.log
+          if-no-files-found: ignore
