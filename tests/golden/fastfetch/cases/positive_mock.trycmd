@@ -1,5 +1,0 @@
-```console
-$ mios-gen render-fastfetch --mock
-[fastfetch] SUCCESS: Generated Fastfetch config (106 lines, 1766 bytes)
-
-```

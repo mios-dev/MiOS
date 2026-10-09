@@ -1,5 +1,0 @@
-# AI-hint: Trycmd configuration for standardize-docs golden-master CLI tests (AGY-1067 / AGY-1111).
-# AI-related: usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, tests/golden/README.md
-
-bin.name = "mios-gen"
-args = ["standardize-docs"]

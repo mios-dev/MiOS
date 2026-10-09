@@ -1,6 +1,0 @@
-```console
-$ mios-gen cargo-manifests --root [CWD]/nonexistent --check
-? 1
-[generate-cargo-manifests] FAIL: no crate directory under [..]nonexistent[..]tools[..]native, so the projection would empty the workspace
-
-```

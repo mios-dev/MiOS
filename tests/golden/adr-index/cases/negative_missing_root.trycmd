@@ -1,6 +1,0 @@
-```console
-$ mios-gen adr-index --root [..]/nonexistent --check
-? 1
-VIOLATION: no ADR front-matter collected under usr/share/doc/mios/adr/ -- ADR.md cannot be verified
-
-```

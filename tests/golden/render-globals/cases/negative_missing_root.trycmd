@@ -1,6 +1,0 @@
-```console
-$ mios-gen render-globals --root [CWD]/nonexistent --check
-? 1
-Error: generate-render-globals: render-globals: [..]nonexistent[..]mios.toml does not exist
-
-```

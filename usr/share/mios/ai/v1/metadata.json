@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3780,
+  "total_metadata_entries": 3127,
+  "total_hints": 3117,
   "total_functions_indexed": 1469,
-  "total_related_links": 5223,
+  "total_related_links": 5184,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -3050,6 +3050,15 @@
       "has_shebang": false
     },
     {
+      "path": "docs/research/upstream-prior-art-gaps-2026-10.md",
+      "hint": "Prioritised upstream prior-art gap brief for MiOS across six lanes (AI plane, configurator, image pipeline, supply chain, bare metal/fleet, dev/cloud/WSL), with repo evidence and SSOT-shaped fixes.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "etc/btop/btop.conf",
       "hint": "GENERATED btop config -- do NOT hand-edit. Projected from the mios.toml [btop] SSOT by mios-theme-render (surface \"btop-conf\" -> etc/btop/btop.conf), the SAME way [colors] projects into themes/mios.theme.",
       "related": [],
@@ -5885,277 +5894,16 @@
     },
     {
       "path": "tests/golden/README.md",
-      "hint": "Golden-master CLI testing standards and Trycmd harness specifications (AGY-1067 / ADR-0021).",
+      "hint": "Golden-master CLI cases for the native mios-gen verbs (AGY-1067 / ADR-0021); every console block below is executed by tools/native/mios-gen/tests/golden.rs.",
       "related": [
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
         "docs/design/doc-rust-static-port.md",
-        "tests/run-suites.sh",
-        "tools/ci-suites.py"
+        "tools/native/mios-gen/tests/golden.rs",
+        "tests/golden/fastfetch/mock.jsonc"
       ],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/adr-index/cmd.toml",
-      "hint": "Trycmd configuration for adr-index golden-master CLI tests (AGY-1067 / AGY-1089).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/ai-manifest/cmd.toml",
-      "hint": "Trycmd configuration for ai-manifest golden-master CLI tests (AGY-1067 / AGY-1102).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/bib-configs/cmd.toml",
-      "hint": "Trycmd configuration for bib-configs golden-master CLI tests (AGY-1067 / AGY-1107).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/btop-theme/cmd.toml",
-      "hint": "Trycmd configuration for render-btop-theme golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/cargo-manifests/cmd.toml",
-      "hint": "Trycmd configuration for cargo-manifests golden-master CLI tests (AGY-1067 / AGY-1108).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/compile-templates/cmd.toml",
-      "hint": "Trycmd configuration for compile-templates golden-master CLI tests (AGY-1067 / AGY-1109).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/cosign-policy/cmd.toml",
-      "hint": "Trycmd configuration for cosign-policy golden-master CLI tests (AGY-1067 / AGY-1080).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/egress-firewall/cmd.toml",
-      "hint": "Trycmd configuration for egress-firewall golden-master CLI tests (AGY-1067 / AGY-1082).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/fastfetch/cmd.toml",
-      "hint": "Trycmd configuration for render-fastfetch golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/gate-index/cmd.toml",
-      "hint": "Trycmd configuration for gate-index golden-master CLI tests (AGY-1067 / AGY-1088).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/metal-vs-hosted/cmd.toml",
-      "hint": "Trycmd configuration for metal-vs-hosted golden-master CLI tests (AGY-1067 / AGY-1089).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pipe-boundaries/cmd.toml",
-      "hint": "Trycmd configuration for pipe-boundaries golden-master CLI tests (AGY-1067 / AGY-1110).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pipeline-index/cmd.toml",
-      "hint": "Trycmd configuration for pipeline-index golden-master CLI tests (AGY-1067 / AGY-1088).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/pod-quadlets/cmd.toml",
-      "hint": "Trycmd configuration for pod-quadlets golden-master CLI tests (AGY-1067 / AGY-1113).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-desktop/cmd.toml",
-      "hint": "Trycmd configuration for render-desktop golden-master CLI tests (AGY-1067 / AGY-1104).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-globals/cmd.toml",
-      "hint": "Trycmd configuration for render-globals golden-master CLI tests (AGY-1067 / AGY-1106).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-manpages/cmd.toml",
-      "hint": "Trycmd configuration for render-manpages golden-master CLI tests (AGY-1067 / AGY-1105).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/render-ports/cmd.toml",
-      "hint": "Trycmd configuration for render-ports golden-master CLI tests (AGY-1067 / AGY-1103).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/roadmap-index/cmd.toml",
-      "hint": "trycmd case: mios-gen roadmap-index renders the ROADMAP index; the golden output beside it is the expected render.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/standardize-docs/cmd.toml",
-      "hint": "Trycmd configuration for standardize-docs golden-master CLI tests (AGY-1067 / AGY-1111).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/sync-wiki/cmd.toml",
-      "hint": "Trycmd configuration for sync-wiki golden-master CLI tests (AGY-1067 / AGY-1112).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "tests/golden/tmux-theme/cmd.toml",
-      "hint": "Trycmd configuration for render-tmux-theme golden-master CLI tests (ADR-0021).",
-      "related": [
-        "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
-        "tests/golden/README.md"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -10661,6 +10409,19 @@
         "tools/native/mios-gen/src/gate_index.rs",
         "automation/98-drift-checks.sh",
         "docs/design/doc-rust-static-port.md"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-gen/tests/golden.rs",
+      "hint": "Executes every console case in tests/golden/README.md against the built mios-gen: exit code and combined output, line for line, with [..] and [CWD] (AGY-1067).",
+      "related": [
+        "tests/golden/README.md",
+        "tests/golden/fastfetch/mock.jsonc",
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,

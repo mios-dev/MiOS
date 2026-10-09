@@ -1,6 +1,0 @@
-```console
-$ mios-gen ai-manifest --root [CWD]/nonexistent --check
-? 1
-Error: generate-ai-manifest: Repository root not found: [..]nonexistent
-
-```
