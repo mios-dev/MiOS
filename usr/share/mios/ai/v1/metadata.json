@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3723,
-  "total_metadata_entries": 3071,
-  "total_hints": 3061,
+  "total_files_scanned": 3715,
+  "total_metadata_entries": 3063,
+  "total_hints": 3053,
   "total_functions_indexed": 1453,
-  "total_related_links": 5114,
+  "total_related_links": 5108,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5202,33 +5202,11 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/src/cli/ai_fallback.rs",
-      "hint": "OpenAI-compatible /v1/chat/completions client fallback for interactive prompts.",
+      "path": "src/mios-rs/miosd/src/cli.rs",
+      "hint": "Entry dispatcher for mios CLI: the binary verb dispatcher, shell completions and the OpenAI-compatible /v1 chat fallback.",
       "related": [
         "usr/bin/mios",
-        "MIOS_AI_ENDPOINT"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/cli/completions.rs",
-      "hint": "Shell completion generator for mios CLI.",
-      "related": [
-        "usr/bin/mios"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/cli/dispatcher.rs",
-      "hint": "High-performance binary CLI dispatcher routing 33 known verbs with <5ms latency.",
-      "related": [
-        "usr/bin/mios",
+        "MIOS_AI_ENDPOINT",
         "usr/libexec/mios/"
       ],
       "functions": [],
@@ -5237,83 +5215,19 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/src/cli/mod.rs",
-      "hint": "Entry dispatcher for mios CLI.",
+      "path": "src/mios-rs/miosd/src/daemon.rs",
+      "hint": "Core async supervisor daemon engine for miosd: atomic state, backup scheduler, telemetry reader, theme watcher and hardware watchdog.",
       "related": [
-        "usr/bin/mios"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/backup.rs",
-      "hint": "Interval backup scheduler managing pgvector and config snapshots.",
-      "related": [
+        "usr/libexec/mios/mios-daemon",
+        "usr/lib/systemd/system/miosd.service",
         "tests/test-db.py",
-        "usr/lib/systemd/system/mios-backup-pgvector.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/mod.rs",
-      "hint": "Core async supervisor daemon engine for miosd.",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
-        "usr/lib/systemd/system/miosd.service"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/state.rs",
-      "hint": "Daemon state schema and atomic state writer for /var/lib/mios/daemon/state.json",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
-        "/var/lib/mios/daemon/state.json"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/telemetry.rs",
-      "hint": "Lightweight zero-allocation system telemetry reader for CPU, Memory, Load, and Disk.",
-      "related": [
-        "usr/libexec/mios/mios-daemon",
+        "usr/lib/systemd/system/mios-backup-pgvector.service",
+        "/var/lib/mios/daemon/state.json",
         "/proc/stat",
         "/proc/meminfo",
-        "/proc/loadavg"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/theme.rs",
-      "hint": "Theme synchronization watcher checking /etc/mios and /usr/share/mios theme state.",
-      "related": [
+        "/proc/loadavg",
         "usr/libexec/mios/mios-sync-theme",
         "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/src/daemon/watchdog.rs",
-      "hint": "Watchdog integration checking /dev/watchdog and logging hardware status.",
-      "related": [
-        "usr/libexec/mios/mios-daemon"
       ],
       "functions": [],
       "doc": null,
@@ -7434,7 +7348,7 @@
       "hint": "Test suite for T-399: Compiled binary CLI dispatcher (/usr/bin/mios).",
       "related": [
         "usr/bin/mios",
-        "src/mios-rs/miosd/src/cli/"
+        "src/mios-rs/miosd/src/cli.rs"
       ],
       "functions": [],
       "doc": null,
@@ -7479,7 +7393,7 @@
       "hint": "Test suite for T-397: Native Rust miosd daemon supervisor and state manager.",
       "related": [
         "usr/lib/systemd/system/miosd.service",
-        "src/mios-rs/miosd/src/daemon/"
+        "src/mios-rs/miosd/src/daemon.rs"
       ],
       "functions": [],
       "doc": null,
