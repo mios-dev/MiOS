@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3741,
-  "total_metadata_entries": 3089,
-  "total_hints": 3079,
+  "total_files_scanned": 3730,
+  "total_metadata_entries": 3078,
+  "total_hints": 3068,
   "total_functions_indexed": 1453,
-  "total_related_links": 5142,
+  "total_related_links": 5126,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -5095,38 +5095,14 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/tests/adversarial_m1_test.rs",
-      "hint": "Comprehensive adversarial stress tests for Milestone 1 components in mios-node.",
+      "path": "src/mios-rs/mios-node/tests/adversarial.rs",
+      "hint": "Adversarial and stress suites for mios-node milestones 1 and 2: crypto, hardware, cgroups, state sync, watchdog, scheduler, buffer pool, capabilities, BLE bootstrap and overlay.",
       "related": [
         "src/mios-rs/mios-node/src/crypto.rs",
         "src/mios-rs/mios-node/src/hardware.rs",
         "src/mios-rs/mios-node/src/cgroups.rs",
         "src/mios-rs/mios-node/src/state_sync.rs",
-        "src/mios-rs/mios-node/src/watchdog.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/m1_stress_adversarial_test.rs",
-      "hint": "Milestone 1 Adversarial Empirical Stress Test Suite (T-389, T-390, T-391, T-400).",
-      "related": [
-        "src/mios-rs/mios-node/src/hardware.rs",
-        "src/mios-rs/mios-node/src/cgroups.rs",
-        "src/mios-rs/mios-node/src/state_sync.rs",
-        "src/mios-rs/mios-node/src/watchdog.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/m2_deep_adversarial_stress_test.rs",
-      "hint": "Deep adversarial stress tests and property fuzzers for Milestone 2 (T-392 through T-396).",
-      "related": [
+        "src/mios-rs/mios-node/src/watchdog.rs",
         "src/mios-rs/mios-node/src/scheduler.rs",
         "src/mios-rs/mios-node/src/buffer_pool.rs",
         "src/mios-rs/mios-node/src/capabilities.rs",
@@ -5139,52 +5115,11 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/tests/mesh_m2_adversarial_test.rs",
-      "hint": "Comprehensive adversarial integration tests for Milestone 2 (T-392 through T-396).",
-      "related": [
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/mesh_m2_stress_challenger_test.rs",
-      "hint": "Milestone 2 Empirical Challenger Stress & Adversarial Test Suite.",
-      "related": [
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/node_mesh_test.rs",
-      "hint": "Integration and unit tests for mios-node wire protocol, dual-tier executor, and CRDT state sync.",
+      "path": "src/mios-rs/mios-node/tests/mesh.rs",
+      "hint": "Integration tests for the mios-node wire protocol, dual-tier executor and CRDT state sync, plus parity with the usr/libexec/mios/node Python twins (T-1188).",
       "related": [
         "src/mios-rs/mios-node/src/lib.rs",
-        "src/mios-rs/mios-node/src/node.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/tests/parity_stubs_test.rs",
-      "hint": "Parity tests for mios-node Rust methods mirroring usr/libexec/mios/node/*.py twins (T-1188).",
-      "related": [
-        "src/mios-rs/mios-node/src/lib.rs",
+        "src/mios-rs/mios-node/src/node.rs",
         "usr/libexec/mios/node/"
       ],
       "functions": [],
@@ -5768,47 +5703,17 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/miosd/tests/build_progress.rs",
-      "hint": "Execute the real native progress CLI and build adapter against positive, missing, warning and swallowed-failure controls.",
+      "path": "src/mios-rs/miosd/tests/integration.rs",
+      "hint": "Integration tests for miosd: build progress CLI and adapter, drift-check registry, render-kargs unmanaged-karg preservation, and the resolver inline-table twin (Law 13).",
       "related": [
         "/usr/share/mios/templates/rust",
         "automation/build.sh",
-        "src/mios-rs/mios-build/src/progress.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/registry_integration.rs",
-      "hint": "Integration test suite for miosd drift check registry",
-      "related": [
-        "src/mios-rs/miosd/src/drift/mod.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/render_kargs.rs",
-      "hint": "Integration tests for `miosd render-kargs` -- the kernel command line is the highest-consequence projection in the build, so the unmanaged-karg preservation contract is pinned here.",
-      "related": [
+        "src/mios-rs/mios-build/src/progress.rs",
+        "src/mios-rs/miosd/src/drift/mod.rs",
         "src/mios-rs/miosd/src/main.rs",
         "automation/75-kargs-render.sh",
         "usr/lib/bootc/kargs.d",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/miosd/tests/resolver_inline_twin.rs",
-      "hint": "Pins that miosd's resolver renders arrays of inline tables byte-equal to mios_toml.py's _toml_inline when built in THIS workspace, whose toml crate lays inline tables out differently (resolver twin, Law 13).",
-      "related": [
+        "usr/share/mios/mios.toml",
         "tools/native/mios-resolver/src/walk.rs",
         "usr/lib/mios/mios_toml.py",
         "tools/check-runtime.py"
@@ -10562,21 +10467,10 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-resolver/tests/cli.rs",
-      "hint": "Integration snapshot tests for the mios-resolver emit bindings.",
+      "path": "tools/native/mios-resolver/tests/emit.rs",
+      "hint": "Integration tests for the mios-resolver emit bindings: characterization snapshots over vendor and host fixtures, and a proptest differential over arbitrary [ports] tables.",
       "related": [
         "tools/native/mios-resolver/src/emit_shell.rs",
-        "tools/native/mios-resolver/src/emit_json.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/tests/differential.rs",
-      "hint": "Proptest differential test for mios-resolver -- asserts emit_json survives arbitrary valid [ports] tables and stack_id offsets.",
-      "related": [
         "tools/native/mios-resolver/src/emit_json.rs",
         "tools/check-runtime.py"
       ],
@@ -10712,30 +10606,11 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-service-core/tests/dashboard.rs",
-      "hint": "Adversarial native dashboard controls for full service coverage, layer mutations, narrow/Unicode layout and actual TCP reachability.",
+      "path": "tools/native/mios-service-core/tests/service_core.rs",
+      "hint": "Integration tests for mios-service-core: dashboard catalog, probe and layout controls, SSOT host tmux projection, and the shared SSOT, port and process helpers.",
       "related": [
         "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/tests/host_tmux.rs",
-      "hint": "Full SSOT host projection controls: overrides, unsupported fonts, rejected values, and operator-file preservation.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-service-core/tests/test_service_core.rs",
-      "hint": "Comprehensive unit tests for mios-service-core crate.",
-      "related": [
+        "tools/native/mios-service-core/src/dashboard.rs",
         "tools/native/mios-service-core",
         "usr/share/mios/mios.toml"
       ],
