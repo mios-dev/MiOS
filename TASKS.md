@@ -18,10 +18,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 |---|---|
 | pending | 1612 |
 | in_progress | 47 |
-| completed | 1812 |
+| completed | 1824 |
 | incomplete | 21 |
 | cancelled | 16 |
-| total | 3508 |
+| total | 3520 |
 
 0 record(s) carry at least one override.
 
@@ -444,6 +444,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `T-1135` Define MIOS_PORTS_MCP for mcp-server-runner (unbound variable under set -u) -- in_progress · owner claude-code · P1 · size S
 - `T-1140` Provision persistent speech model storage before its service starts -- in_progress · owner claude-code · P1 · size S
 - `T-1213` MiOS-MCP runs out of the box in every image: executable relay, no port literals, no retired-port peer, started by the dev/cloud lifecycle (WS-AI | P1 | S) -- pending · P1 · size S
+- `T-1216` Heavy lane loads real weights with tool calling; pgvector and the firstboot model resolve (WS-AI | P0 | S) -- completed · P0 · size S
 
 ## WS-AIOS
 
@@ -561,6 +562,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-285` Retry-wrap the three `git clone`s in sys/Containerfile (clone-flake hardening) -- completed · P2 · size S
 - `AGY-286` Retry the Firecrawl pnpm registry ops and degrade `--frozen-lockfile` to a warned unfrozen install -- completed · P2 · size S · depends_on AGY-285
 - `AGY-287` One consolidated static "bake network-op discipline" test + per-invariant negative fixtures -- completed · P2 · size M · depends_on AGY-274
+- `T-1225` Bake-plan checks grade the tree under test and follow the engine selector; one btop projection; manual ch11 ToC (WS-BAKE | P1 | S) -- completed · P1 · size S
 
 ## WS-BAKE-HARDEN
 
@@ -692,6 +694,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1621` Sync the bootstrap repo at build time, not by hand -- completed · P0 · size M
 - `T-1194` Stop the bootstrap promote from writing the vendor tier (WS-BOOTSTRAP | P0 | M) -- pending · P0 · size M · depends_on T-1196
 - `T-1209` Bootstrap profile becomes a sparse host-tier delta (WS-BOOTSTRAP | P3 | M) -- pending · P3 · size M · depends_on T-1196, T-1194
+- `T-1226` Law 15 mirror: mios-bootstrap carries the PR #61 integration surfaces (WS-BOOTSTRAP | P1 | S) -- completed · P1 · size S
 
 ## WS-BUILD
 
@@ -1390,6 +1393,8 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1889` Documents describe checks by ordinal in prose that the index renumbers -- completed · P2 · size S · depends_on AGY-1817
 - `AGY-1890` The finalization plan's P0 items have no completion evidence -- completed · P1 · size M · depends_on AGY-1881
 - `AGY-1934` The finalization plan and this register are not cross-linked -- pending · P3 · size S · depends_on AGY-1890
+- `T-1221` Docs ratchet honest and at 0: native comment lexer matches its oracle, stale-ref axis resolves, 207 blocks harvested, 16 AI-hint headers within the cap (WS-DOCS | P1 | M) -- completed · P1 · size M
+- `T-1227` Upstream prior-art gap brief across six lanes; GOALS corrected from it (WS-DOCS | P1 | S) -- completed · P1 · size S
 
 ## WS-DOCS-ADR
 
@@ -1584,6 +1589,10 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-446` Add a pre-commit hook that regenerates projections when `mios.toml` changes -- completed · P2 · size S · depends_on AGY-445
 - `AGY-447` Add negative tests for every check introduced in this batch -- completed · P3 · size S · depends_on AGY-429
 - `AGY-1298` Add a Law-15 byte-parity drift-check for the PS files shared by mios.git and mios-bootstrap.git -- completed · P1 · size M
+- `T-1218` Task store, doc port scheme and build-tool dispatch gates green on PR #61 (WS-DRIFT | P1 | S) -- completed · P1 · size S
+- `T-1222` Four blind drift gates made able to fail; six stale negatives assert the current contract (WS-DRIFT | P1 | M) -- completed · P1 · size M
+- `T-1223` The drift gate is read-only; dead-lane and read-only negatives; one phase ceiling (WS-DRIFT | P1 | S) -- completed · P1 · size S
+- `T-1224` Law 8 gates describe the native tree: projection registry, coverage and host parity name the mios-gen modules (WS-DRIFT | P1 | M) -- completed · P1 · size M
 
 ## WS-DRIFTRUST
 
@@ -1963,6 +1972,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1438` Execute the staged, lossless-gated alias RETIREMENT waves that actually shrink the 2523-key namespace -- pending · P2 · size XL
 - `AGY-1439` Map and guardrail the ~738 direct os.environ['MIOS_*'] short-alias reads in the Python consumers -- pending · P3 · size L
 - `AGY-1440` Generate naming-unification.md FROM the derivation table so the human-facing key registry stops being hand-maintained -- pending · P3 · size S
+- `T-1219` Law 9: [headscale] and [aliases] restatements collapsed; the value-dup ledger records only groups that exist (WS-GUP | P1 | S) -- completed · P1 · size S
 
 ## WS-GUP2-VERSION
 
@@ -2392,6 +2402,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 
 - `AGY-247` MCP tools/list pagination: follow nextCursor instead of registering page 1 only -- completed · P1 · size S
 - `AGY-248` Single-source the MCP protocol_version across consume side, published server and SSOT -- completed · P2 · size S
+- `T-1217` test_mios_mcp_aio is green in the CI container: tmux bridge keeps LC_CTYPE, terminal namespace check runs only where it applies, two stale contracts updated (WS-MCP | P1 | S) -- completed · P1 · size S
 
 ## WS-MDRIVE
 
@@ -3729,6 +3740,7 @@ Each line between the markers that starts with `{` is one override: a JSON objec
 - `AGY-1558` Characterization golden for mios-sync-theme (check-25 [colors] -> surfaces projection) before its port -- pending · P2 · size M
 - `AGY-1559` Characterization golden locking mios-env-snapshot root-path/PID/timestamp normalization -- pending · P1 · size M
 - `AGY-1560` Extend the sibling-test ratchet from agent-pipe to `tools/*.py` and `usr/libexec/mios/*.py` via a shrink-only grandfather baseline -- pending · P2 · size M
+- `T-1220` Module test coverage is native and honest; six modules get real tests; socket suites hermetic; static-linkage audit folded into mios-gate (WS-TESTGOV | P1 | M) -- completed · P1 · size M
 
 ## WS-THESIS
 
