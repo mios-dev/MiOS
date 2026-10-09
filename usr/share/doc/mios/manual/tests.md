@@ -725,3 +725,336 @@ image's own kernel is the input). A suite that cannot run its live tier exits
 77, which fails unless [ci.tool_skips] registers it: provide the tool here.
 
 <!-- mios-src:da7776b618c7 from usr/share/mios/mios.toml:12330-12335 -->
+### names-registry.py is deleted (AGY-1073); the probe plants...
+
+names-registry.py is deleted (AGY-1073); the probe plants the idiom in
+any discovered generator instead of sed-replacing an idiom the victim
+may not carry.
+
+<!-- mios-src:7c2f7be82948 from tests/drift-gate-negatives.sh:4320-4322 -->
+
+### Empirical Adversarial Stress Test Suite for MiOS iGPU...
+
+Empirical Adversarial Stress Test Suite for MiOS iGPU Inference Lane & RPC Compute Fabric.
+
+Executes adversarial challenges across four core dimensions:
+  1. Challenge 1: Localhost isolation & binding.
+     - Live port 8540 detection & stale service audit.
+     - Rejection of non-localhost connections.
+     - Closed port handling & socket reconnection resilience.
+  2. Challenge 2: Protocol payload stress.
+     - Malformed JSON bodies, syntax errors, raw binary garbage.
+     - Missing fields (model, messages), empty prompts, empty arrays.
+     - Non-existent models, out-of-range temperatures.
+     - Server survivability after adversarial fault injection.
+  3. Challenge 3: Hardware routing integrity.
+     - DirectX UserGpuPreferences registry verification (GpuPreference=1;).
+     - Adversarial regex matrix for Vulkan device enumeration (AMD vs NVIDIA).
+     - Live Vulkan device enumeration check.
+     - RTX 4090 dGPU VRAM isolation check via nvidia-smi.
+  4. Challenge 4: RPC fallback & Vulkan cooperative matrix handling.
+     - Enforcement of GGML_VK_DISABLE_COOPMAT=1.
+     - Vulkan matrix cores verification on AMD Radeon (matrix cores: none).
+     - Raw TCP wire protocol fuzzing & malformed RPC handshake.
+     - Coordinator --rpc and --tensor-split configuration validation.
+
+<!-- mios-src:274b29b90bec from tests/test-adversarial-igpu-rpc.py:5-27 -->
+
+### Each consumer runs from a copy whose absolute state paths...
+
+Each consumer runs from a copy whose absolute state paths point into a temp
+dir, with network and package tools replaced by stubs that log their calls. The
+SSOT values come from the real resolver (usr/libexec/mios/mios-toml-get) reading
+the checkout's vendor mios.toml plus a host drop-in dir, so the chain under test
+is the one a cloud deployment runs: render -> drop-in -> merge -> gate.
+
+<!-- mios-src:3bcdcac19bdb from tests/test-cloud-overlay.py:5-9 -->
+
+### The dev container IS [image].ref: its Containerfile adds...
+
+The dev container IS [image].ref: its Containerfile adds wiring only, so every
+    component it used to install by hand must come from the OS image pipeline.
+
+<!-- mios-src:ca1f418e9b60 from tests/test-code-server-bake.py:341-342 -->
+
+### Comprehensive 4-Tier E2E Test Suite for MiOS iGPU Inference...
+
+Comprehensive 4-Tier E2E Test Suite for MiOS iGPU Inference Lane & RPC Compute Fabric.
+
+Tiers:
+  Tier 1: Feature Coverage (F1..F7, >=5 tests each = 35 tests)
+  Tier 2: Boundary & Corner Cases (F1..F7, >=5 tests each = 35 tests)
+  Tier 3: Pairwise Combinatorial Interactions (8 tests)
+  Tier 4: Real-World Application Scenarios (5 scenarios)
+Total: 83 test cases.
+
+<!-- mios-src:4d9375571593 from tests/test-igpu-rpc-rust-e2e.py:5-13 -->
+
+### F2: Pure Localhost Binding & Law 5 Standardization
+
+--- F2: Pure Localhost Binding & Law 5 Standardization ---
+
+<!-- mios-src:f4e184efc690 from tests/test-igpu-rpc-rust-e2e.py:392-392 -->
+
+### Validates the security invariant that targets must strictly...
+
+Validates the security invariant that targets must strictly reside within
+        the dedicated management subnet 10.200.0.0/16 or 127.0.0.1 for testing.
+        Public IPs and non-management networks must be unconditionally rejected.
+
+<!-- mios-src:74b768327f19 from tests/test-ipkvm-manager.py:127-131 -->
+
+### Validates authentication enforcement
+
+Validates authentication enforcement: unauthenticated requests without token
+        must be rejected unless in dry-run mode with explicit bypass (--allow-unauthenticated).
+
+<!-- mios-src:faa49a38b130 from tests/test-ipkvm-manager.py:173-176 -->
+
+### The path-derived naming (MIOS_<TABLE>_<KEY>) made...
+
+The path-derived naming (MIOS_<TABLE>_<KEY>) made MIOS_URLS_<KEY> the
+canonical name and left MIOS_<KEY>_URL an accepted INPUT alias. Decision
+1's invariant survives the rename: one address, one name its consumers
+read. Both spellings having readers is the second scheme it forbids.
+
+<!-- mios-src:ce6a9eea8e3c from tests/test-offload-overlay.py:171-174 -->
+
+### searxng and forge consumers moved to the canonical...
+
+searxng and forge consumers moved to the canonical spelling; a reader
+going back to the alias -- or to a hand-composed address -- fails here.
+If this fails, revisit ADR-0016 Decision 1 rather than deleting it.
+
+<!-- mios-src:aa4dafff1bc3 from tests/test-offload-overlay.py:182-184 -->
+
+### Entrypoint shim
+
+Entrypoint shim: delegates to the canonical consolidated suite.
+
+This filename stays because it is an externally referenced entrypoint
+(registered in ``[ci.tiers] unit`` in usr/share/mios/mios.toml and mirrored in
+usr/share/mios/ai/v1/metadata.json), but ALL refine guard coverage --
+including this file's former live chat-promotion smoke cases
+("mios-open-url https://www.wikipedia.org", "https://example.com",
+"git status") -- now lives once, losslessly, in
+``tests/test-refine-guards.py``, which exercises the REAL production
+``refine_intent`` (imported from ``usr/lib/mios/agent-pipe/mios_refine.py``)
+rather than an inline copy.
+
+Running this shim == running the canonical suite (offline deterministic
+guards verified; live integration tests SKIP explicitly unless
+``MIOS_REFINE_LIVE_ENDPOINT`` is set).
+
+<!-- mios-src:9e94a75ddae3 from tests/test-refine-guard.py:4-19 -->
+
+### Refine post-parse guard suite (canonical, consolidated)....
+
+Refine post-parse guard suite (canonical, consolidated).
+
+Covers the REAL production guard -- ``refine_intent`` imported from its real
+module path (``usr/lib/mios/agent-pipe/mios_refine.py`` re-exporting
+``mios_pipe/routing/refine.py``) -- NOT any inline copy of its logic.
+
+Two layers, honestly separated:
+
+* Deterministic offline tests drive the real ``refine_intent`` through a
+  canned OpenAI-compatible transport (the stub recipe the upstream unit suite
+  ``test_mios_refine.py`` uses), so they need NO live model endpoint. They
+  prove positive and negative controls for every guard: chat-promotion for
+  actionable text, long-prompt promotion, short-dispatch passthrough,
+  wordy-arg (arg-shape) demotion, multi_task shape repair, and
+  malformed/failure behavior (backend error, unparseable prose, empty
+  content -> None, never a fabricated result).
+
+* Live integration tests (3, named ``test_live_*``) exercise the deployed
+  stack through ``server.refine_intent`` (the traced production entrypoint).
+  They are OPT-IN via ``MIOS_REFINE_LIVE_ENDPOINT``. When that env var is
+  absent they SKIP explicitly -- under pytest as a reported skip, standalone
+  as a printed ``[SKIP]`` line that is never counted as a passed check.
+
+Standalone entrypoint (run-suites.sh unit tier)::
+
+    python3 tests/test-refine-guards.py      # pass=N skip=M fail=K summary
+
+History: this file consolidated (losslessly) the former
+tests/test-refine-guards.py (3 cases) and tests/test-refine-guard.py
+(3 chat-promotion smoke cases). The old case 3 validated an INLINE COPY of
+the wordy-arg guard instead of the production function -- that defect is
+fixed here by driving the real ``refine_intent`` with the forged envelope.
+
+<!-- mios-src:0c5b20cb9280 from tests/test-refine-guards.py:4-36 -->
+
+### Positive control
+
+Positive control: a binary payload compressed by the production encoder
+        must be a genuine Zstandard frame decodable by an INDEPENDENT decoder
+        (zstd CLI when installed, otherwise the python zstandard module) and
+        must round-trip byte-for-byte.
+
+<!-- mios-src:7a90f183cc31 from tests/test-storage.py:237-242 -->
+
+### Negative control
+
+Negative control: when the located encoder binary exits non-zero, the
+        operation must fail with ZstdCompressionError (no silent fallback to a
+        fake frame). Uses the real Python interpreter as a failing "zstd" binary:
+        it rejects zstd-style flags and exits with status 2.
+
+<!-- mios-src:c7d295e00992 from tests/test-storage.py:387-392 -->
+
+### Negative control
+
+Negative control: corrupted, garbage, and mislabeled (zlib-with-zstd-magic)
+        payloads must be rejected by the restore path, and a corrupted remote store
+        chunk must fail verify_remote_manifest.
+
+<!-- mios-src:cc942d15ffcc from tests/test-storage.py:427-431 -->
+
+### Harness self-proof
+
+Harness self-proof: a PLANTED invalid frame (exactly the shape the old
+        defect produced: zlib bytes behind a zstd magic prefix) MUST fail the
+        independent round-trip decoder and the production restore consumer.
+        If this test ever passes silently, the round-trip harness is broken.
+
+<!-- mios-src:8cb1ef5b66d7 from tests/test-storage.py:489-494 -->
+
+### Validates magic packet byte construction
+
+Validates magic packet byte construction:
+          - assert length == 108 bytes
+          - starts with 6x 0xFF (b'\xff' * 6)
+          - contains 16x MAC address (mac_bytes * 16)
+          - ends with 6x SecureON password payload (secureon_bytes)
+
+<!-- mios-src:d6049d6609aa from tests/test-wol-proxy.py:70-76 -->
+
+### Adversarial Empirical Challenge Suite for MiOS Gateway...
+
+Adversarial Empirical Challenge Suite for MiOS Gateway Context Budgeting & Tool Deduplication.
+Empirically stress tests:
+- 50,000 token massive prompts (single message, 100 turns, giant system, unicode)
+- 193 tools request handling, tool cap suppression, and schema resilience
+- tool_choice: "none" stripping with 169 tools (0 tool tokens in backend dispatch)
+- Client tools matching MiOS verbs or exceeding DEFAULT_TOOL_CAP suppressing _mios_sel
+- Empty and malformed request bodies (HTTP 400 verification and crash resilience)
+- Context pruning reducing >32k payloads safely below 32,768 without HTTP 400
+
+<!-- mios-src:ee6262ade3e4 from tests/test_adversarial_gateway_stress.py:3-12 -->
+
+### Adversarial stress harness for mios-hardcode-lint (T-1161...
+
+Adversarial stress harness for mios-hardcode-lint (T-1161 parity and defect detection).
+
+Executes four targeted challenge dimensions:
+1. Header crash-risks (stranded BOMs at various offsets, shebang displacements).
+2. Date attribution in string literals vs values (multiline, raw, docstrings, markdown URLs).
+3. IP address heuristics (IPv4 edge cases, CIDR boundaries, IPv6, port syntaxes).
+4. Error behavior & filesystem corner cases (non-existent paths, empty dirs, binary files, syntax errors).
+
+<!-- mios-src:1ec904076385 from tests/test_adversarial_hardcode_lint.py:4-11 -->
+
+### This tree's mios-hardcode-lint, else the installed one. The...
+
+This tree's mios-hardcode-lint, else the installed one.
+
+    The native engine writes release builds under the SSOT target triple
+    ([build.native.linux].targets / [build.native.windows].target); a plain
+    cargo build writes target/{release,debug}. The native install puts the
+    binary on PATH, which is what CI has after its native stage.
+
+<!-- mios-src:fbad487a5a81 from tests/test_adversarial_hardcode_lint.py:39-45 -->
+
+### Step 4
+
+Step 4: ADVERSARIAL INJECTION & HOSTILE STRINGS:
+- Injection of Rich markup tags: '[bold red]PWNED[/bold red]', '[[brackets]]', '[/]'
+- Injection of Rich closing tags in identity: '[/cyan]pane:bad'
+- Unicode and emoji: '💥 rm -rf / ; ⚡ <xml>'
+- String PID, 0 PID, negative PID
+- Empty cmd and empty identity
+
+<!-- mios-src:545cf678124d from tests/test_adversarial_m2_monitor_tui.py:222-227 -->
+
+### Comprehensive Empirical Adversarial Challenge Suite for...
+
+Comprehensive Empirical Adversarial Challenge Suite for Milestone M3:
+R4 Agent-Pipe Gateway Context Budgeting & Tool De-duplication.
+
+Adversarial Stress Test Matrix:
+1. Tool Choice 'none' Casing & Edge Cases:
+   - 'none', 'NONE', ' None ', 'None', '	
+ NONE 
+' -> STRIPPED (0 tool tokens)
+   - '', None, 'auto', 'AUTO', 'required' -> RETAINED (Negative controls)
+   - Object/dict tool_choice: {'type': 'function', 'function': {'name': 'none'}} -> RETAINED
+2. Client Supplying 150+ Tools:
+   - 175 client tools supplied -> _mios_sel is empty ([])
+   - 175 client tools with 35 duplicates -> deduplicated to 140 unique tools, 0 duplicate schemas
+3. Collision with MiOS Verbs:
+   - Client supplies tools overlapping with MiOS verbs ('run_command', 'read_file', 'app_search')
+   - Client supplies only 2 tools matching verbs (< DEFAULT_TOOL_CAP) -> _mios_sel is still suppressed
+   - Injected verbs with same name filtered by client_names and seen_names
+4. Two-Sided Negative Control:
+   - tool_choice: 'auto' does NOT strip tools
+   - tool_choice omitted does NOT strip tools
+5. Relay and Streaming Relay Ingress:
+   - _client_tools_relay and _client_tools_stream_relay strip tools on case-insensitive 'none'
+
+<!-- mios-src:4b277c1d6660 from tests/test_adversarial_m3_challenger.py:3-24 -->
+
+### Comprehensive 4-Tier E2E Test Suite for MiOS Gateway...
+
+Comprehensive 4-Tier E2E Test Suite for MiOS Gateway, Wallpaper & Rust Consolidation.
+
+Tiers:
+  Tier 1: Feature Coverage (F1..F13, >=5 tests each = 65 tests)
+  Tier 2: Boundary & Corner Cases (B1..B13, >=5 tests each = 65 tests)
+  Tier 3: Pairwise Combinatorial Interactions (10 tests)
+  Tier 4: Real-World Application Scenarios (5 scenarios)
+Total: 145 test cases.
+
+<!-- mios-src:d1639dc8aebb from tests/test_gateway_wallpaper_rust_e2e.py:5-13 -->
+
+### Executable model of the MiOS Gateway Ingress & Token...
+
+Executable model of the MiOS Gateway Ingress & Token Budgeting contract.
+    
+    Implements F1-F4 specification rules:
+    - F1: When tool_choice == 'none', strips tools and tool_choice from payload.
+    - F2: Evaluates _has_client_tools as False when tool_choice == 'none'.
+    - F3: Suppresses _mios_sel when caller tools >= DEFAULT_TOOL_CAP (24) or caller tools match MiOS verbs.
+    - F4: Enforces 32,768 context limit, prunes stale tool results, compacts messages, clamps max_tokens.
+
+<!-- mios-src:b1792f2f9f42 from tests/test_gateway_wallpaper_rust_e2e.py:81-88 -->
+
+### Comprehensive parity and two-sided verification test suite...
+
+Comprehensive parity and two-sided verification test suite for mios-hardcode-lint.
+
+Validates the full behavioral contract of Architectural Law 7 (NO-HARDCODE enforcement):
+- CLI invocation, arguments, exit codes, and stdout/stderr formatting.
+- Date detection in Python comments, module/function/class docstrings, and string literal prose.
+- Legitimate date value exemptions (leading quote, slugs, URLs).
+- Header crash-risks (stranded UTF-8 BOM in .ps1, shebang line displacement in .sh).
+- Routable IP detection vs private/loopback/CGNAT exemptions.
+- Port literal detection vs bracketed/arithmetic/URL exemptions.
+- SSOT allowlist integration from usr/share/mios/mios.toml.
+- GENERATED file banner exemption.
+- Ventoy plaintext credential detection.
+- Parity between Python oracle and compiled Rust static binary.
+
+<!-- mios-src:d769f8940ee2 from tests/test_hardcode_lint_parity.py:5-18 -->
+
+### Comprehensive 4-tier E2E test suite for MiOS Native Static...
+
+Comprehensive 4-tier E2E test suite for MiOS Native Static Binaries Hardening and Consolidation.
+
+Tier 1: Feature Coverage (F1..F10, >=5 tests each = 50 tests)
+Tier 2: Boundary & Corner Cases (F1..F10, >=5 tests each = 50 tests)
+Tier 3: Pairwise Combinatorial Interactions (10 tests)
+Tier 4: Real-World Application Scenarios (5 tests)
+Total: 115 test cases.
+
+<!-- mios-src:290289b062ae from tests/test_native_static_hardening_e2e.py:5-12 -->

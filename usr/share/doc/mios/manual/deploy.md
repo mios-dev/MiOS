@@ -135,3 +135,78 @@ Provisions removable USB media with a hybrid GPT/MBR partition layout:
 Enforces strict safety invariants preventing inadvertent wiping of internal or OS drives.
 
 <!-- mios-src:0ff462459357 from usr/libexec/mios/deploy/usb_format.py:5-16 -->
+
+### Live-profile-only unit -- shipped ONLY inside...
+
+Live-profile-only unit -- shipped ONLY inside MiOS-Live-Chat.iso's exported
+rootfs via automation/build/live-chat-fetch.sh + the config/live-profile
+overlay copy in automation/build/live-iso.sh. A real `bootc install` never
+carries this file (a bundled multi-hundred-MB GGUF has no business on
+every real MiOS disk -- W10 design S1 step 3).
+/usr/lib/systemd/system/mios-live-chat-server.service
+
+<!-- mios-src:d9e5817ff290 from docs/agy/w10-live-boot/g1__config__live-profile__usr__lib__systemd__system__mios-live-chat-server.service:1-6 -->
+
+### [cat.live_chat] -- W10: zero-install live-USB-to-AI-chat...
+
+----------------------------------------------------------------------------
+[cat.live_chat] -- W10: zero-install live-USB-to-AI-chat (bootc-live-squashfs).
+Reuses [llamacpp].bake_models -- NO third model pin. model/model_fallback are
+short keys into that CSV (dest filename = "<key>.gguf"). Threaded through
+MiOS-Cat.bat's SSOT-map (see docs/agy/impl-mios-cat-live-boot.md and the W10
+design doc) and consumed by automation/build/live-chat-fetch.sh +
+usr/libexec/mios/mios-live-chat-{select-model,serve}.
+----------------------------------------------------------------------------
+
+<!-- mios-src:8edda225a6f8 from docs/agy/w10-live-boot/g1__mios.toml:18-25 -->
+
+### [cat.live_chat] -- W10: zero-install live-USB-to-AI-chat...
+
+[cat.live_chat] -- W10: zero-install live-USB-to-AI-chat (bootc-live-squashfs).
+Both models are keys into [llamacpp].bake_models -- no new model pin here.
+live_chat_port intentionally mirrors [ports].hermes (8642, "canonical /v1"):
+in the live/ephemeral session nothing else is running, so llama-server binds
+the canonical AI port directly instead of going through agent_pipe/hermes.
+Keys are flat/unique (live_chat_*) so MiOS-Cat.bat's single-pass regex SSOT
+loader can pull them without colliding with the many other model=/port=
+keys elsewhere in this file.
+
+<!-- mios-src:177447984c2b from docs/agy/w10-live-boot/g3__C____MiOS__mios.toml:23-30 -->
+
+### [cat.live_chat] -- W10: zero-install live-USB-to-AI-chat...
+
+[cat.live_chat] -- W10: zero-install live-USB-to-AI-chat (bootc-live-squashfs).
+Live-boot mechanism derives directly from localhost/mios:latest (the same
+bootc OCI image `bootc install` writes to disk) via dracut dmsquash-live --
+same rootfs, same [colors]/SSOT projection, no second OS definition. Both
+models below are keys into [llamacpp].bake_models (line ~5783) -- no new
+model pin here. live_chat_port mirrors [ports].hermes (8642, "canonical
+/v1"): nothing else runs in the live session, so llama-server binds the
+canonical AI port directly instead of going through agent_pipe/hermes.
+Keys are flat/unique (live_chat_*) so MiOS-Cat.bat's single-pass regex SSOT
+loader can read them without colliding with the many other model=/port=
+keys elsewhere in this file (that loader is NOT table-scoped).
+
+<!-- mios-src:7e60af3e8309 from docs/agy/w10-live-boot/g3__C____MiOS__usr__share__mios__mios.toml:32-42 -->
+
+### [cat.live_chat] -- W10: zero-install live-USB-to-AI-chat...
+
+----------------------------------------------------------------------------
+[cat.live_chat] -- W10: zero-install live-USB-to-AI-chat (bootc-live-squashfs).
+Consumed by MiOS-Cat.bat's live_chat_* staging block + :build_live_chat_iso.
+Both models are keys into [llamacpp].bake_models -- no new model pin here.
+Keys are flat/unique (live_chat_*) so the single-pass regex SSOT loader in
+MiOS-Cat.bat can read them without colliding with the many other model=/
+port= keys elsewhere in this file (the loader is NOT table-scoped -- it
+greps the whole file for the FIRST `key = "value"` match).
+----------------------------------------------------------------------------
+
+<!-- mios-src:10aee412f81d from docs/agy/w10-live-boot/g3__C____mios-bootstrap__mios.toml:16-24 -->
+### This CLI's flags as `mios-install disk` flags. --force used...
+
+This CLI's flags as `mios-install disk` flags.
+
+    --force used to confirm the erase as well; it still does (--yes), and
+    otherwise only skips the UEFI check. A boot disk is always refused.
+
+<!-- mios-src:bd8e3dfec622 from usr/libexec/mios/deploy/baremetal_install.py:25-29 -->

@@ -841,3 +841,44 @@ and does its own heavy-lane inference, so it never relays back to agent-pipe.
     scan is profile-scoped (only --all crosses profiles, which is not used).
 
 <!-- mios-src:7e38508e9639 from usr/lib/systemd/system/hermes-worker.service:4-16 -->
+### SSOT chain
+
+SSOT chain: every operator-tunable knob sources from mios.toml via
+/etc/profile.d/mios-env.sh, which exports MIOS_* into the service
+environment. The service code reads MIOS_PORTS_AGENT_PIPE +
+MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
+
+<!-- mios-src:b10e4274c620 from usr/lib/systemd/system/mios-agent-pipe.service:36-39 -->
+
+### SSOT env
+
+SSOT env: MIOS_PGVECTOR_USER / MIOS_PGVECTOR_DB / MIOS_PORTS_PGVECTOR / MIOS_PG_BACKUP_*
+all flow from mios.toml [pgvector] -> userenv.sh. '-' = tolerate absence
+(degrade-open to the inline defaults below).
+
+<!-- mios-src:ee5005149fcb from usr/lib/systemd/system/mios-pgvector-backup.service:15-17 -->
+
+### R6: real readiness gate -- block ExecStart until pgvector...
+
+R6: real readiness gate -- block ExecStart until pgvector actually answers so a
+cold DB no longer produces a permanent 'failed' unit. NO `|| true`: this must
+FAIL (and drive the bounded Restart below) until PG is up. ${MIOS_PORTS_PGVECTOR}
+expands from the EnvironmentFile above; /usr/bin/pg_isready ships with the
+postgresql client (absolute path -- PATH is not guaranteed in the unit context).
+
+<!-- mios-src:89b2d8d93c05 from usr/lib/systemd/system/mios-sys-env-refresh.service:31-35 -->
+### Probe the live environment (launchable apps + stack...
+
+Probe the live environment (launchable apps + stack services + loaded models +
+host HW) and UPSERT the shared `sys_env:current` row so EVERY agent reads a
+current snapshot from the DB -- the env analogue of mios-podman-ps (dashboard)
+and the daemon's directory_entry cache. Read-only probe; the only write is the
+pgvector cache row. operator 2026-05-23: "probe systems/environment live +
+store/update a mios-sys-env database".
+systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
+LITERAL "${VAR:-default}" text, which mios-pg-query then int()s ->
+ValueError -> "pgvector upsert failed" on every run. Source install.env instead
+so MIOS_PORTS_PGVECTOR holds the real port; mios-pg-query reads it directly
+(its own fallback is MIOS_PG_PORT or MIOS_PORTS_PGVECTOR or 5432).
+
+<!-- mios-src:f9af4b2f62dc from usr/lib/systemd/system/mios-sys-env-refresh.service:19-29 -->
