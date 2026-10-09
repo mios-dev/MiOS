@@ -179,6 +179,25 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
             finally:
                 await other.close()
 
+    async def test_coerced_utf8_locale_reaches_the_upstream_slot_registry(self):
+        # tmux picks a UTF-8 client from LC_ALL, LC_CTYPE or LANG. Python's
+        # C-locale coercion exports only LC_CTYPE; without it upstream's tab-
+        # separated registry scan reads "_" and every isolated slot vanishes.
+        with patch.dict(os.environ, {"LC_CTYPE": "C.UTF-8"}):
+            for key in ("LANG", "LC_ALL"):
+                os.environ.pop(key, None)
+            other = relay._TmuxBridge(CONFIG)
+            try:
+                await other.start()
+                opened = await other.call("mios_tmux_write_to_display", {"text": "LOCALE-REGISTRY", "slot": 5})
+                self.assertFalse(opened.is_error, opened)
+                self.assertIn(5, [row["slot"] for row in payload(await other.call("mios_tmux_list_slots", {}))])
+                captured = await other.call("mios_tmux_capture_pane", {"slot": 5})
+                self.assertFalse(captured.is_error, captured)
+                self.assertIn("LOCALE-REGISTRY", captured.content[0].text)
+            finally:
+                await other.close()
+
     async def test_parallel_slots_are_independent(self):
         results = await asyncio.gather(self.execute("sleep 1; printf SLOT1", slot=1),
                                        self.execute("printf SLOT2", slot=2))
@@ -595,8 +614,9 @@ class TestMcpAio(unittest.IsolatedAsyncioTestCase):
                 other = relay._TmuxBridge(CONFIG)
                 try:
                     await other.start()
+                    # The pattern matches printed output only, never the echoed command line.
                     busy = await other.call("mios_tmux_start_and_watch", {
-                        "slot": 1, "command": "printf 'DEVLOOP-PLANTED-BUSY\\n'; sleep 30",
+                        "slot": 1, "command": "printf 'DEVLOOP-PLANTED-%s\\n' BUSY; sleep 30",
                         "pattern": "DEVLOOP-PLANTED-BUSY", "timeout": 5})
                     self.assertFalse(busy.model_dump(by_alias=True).get("isError"), busy)
                     with self.assertRaisesRegex(ValueError, "busy"):
