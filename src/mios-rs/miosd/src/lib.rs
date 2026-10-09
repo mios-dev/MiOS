@@ -459,13 +459,12 @@ pub mod secret {
             std::env::set_var("XDG_RUNTIME_DIR", tmp.path());
 
             let res_set = set("test-service", "my-api-key", "super-secret-token-123");
-            assert!(res_set.is_ok(), "set should succeed: {:?}", res_set);
+            assert!(res_set.is_ok(), "secret storage should succeed");
 
             let res_get = get("test-service", "my-api-key");
-            assert_eq!(
-                res_get.unwrap(),
-                "super-secret-token-123",
-                "retrieved secret should match"
+            assert!(
+                res_get.is_ok_and(|value| value == "super-secret-token-123"),
+                "retrieved secret should match without logging its contents"
             );
 
             if let Some(r) = old_run {

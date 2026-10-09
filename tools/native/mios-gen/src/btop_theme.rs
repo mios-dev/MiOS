@@ -9,8 +9,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const DEFAULT_THEME_PATH: &str = "etc/btop/themes/mios.theme";
-
 #[derive(Debug, Clone)]
 pub struct BtopThemeEngine {
     pub palette: BTreeMap<String, String>,
@@ -60,105 +58,34 @@ impl BtopThemeEngine {
         Ok(Self { palette })
     }
 
-    pub fn build_theme_mapping(&self) -> BTreeMap<String, String> {
-        let p = &self.palette;
-        let get = |k: &str, def: &str| p.get(k).cloned().unwrap_or_else(|| def.to_string());
-
-        let bg = get("bg", "#282262");
-        let fg = get("fg", "#E7DFD3");
-        let accent = get("accent", "#1A407F");
-        let cursor = get("cursor", "#F35C15");
-        let success = get("success", "#3E7765");
-        let warning = get("warning", "#F35C15");
-        let error = get("error", "#DC271B");
-        let muted = get("muted", "#948E8E");
-        let subtle = get("subtle", "#B7C9D7");
-        let cyan = get("ansi_12_bright_blue", "#3D6BA8");
-
-        let mut m = BTreeMap::new();
-        // Main UI
-        m.insert("main_bg".to_string(), bg);
-        m.insert("main_fg".to_string(), fg.clone());
-        m.insert("title".to_string(), fg.clone());
-        m.insert("hi_fg".to_string(), cursor.clone());
-        m.insert("selected_bg".to_string(), accent.clone());
-        m.insert("selected_fg".to_string(), fg);
-        m.insert("inactive_fg".to_string(), muted.clone());
-        m.insert("graph_text".to_string(), subtle.clone());
-        m.insert("meter_bg".to_string(), muted.clone());
-        m.insert("proc_misc".to_string(), subtle.clone());
-
-        // Box outlines
-        m.insert("cpu_box".to_string(), accent.clone());
-        m.insert("mem_box".to_string(), accent.clone());
-        m.insert("net_box".to_string(), accent.clone());
-        m.insert("proc_box".to_string(), accent.clone());
-        m.insert("div_line".to_string(), muted);
-
-        // Temperature gradient (Cool -> Warm -> Hot)
-        m.insert("temp_start".to_string(), success.clone());
-        m.insert("temp_mid".to_string(), warning.clone());
-        m.insert("temp_end".to_string(), error.clone());
-
-        // CPU gradient
-        m.insert("cpu_start".to_string(), success.clone());
-        m.insert("cpu_mid".to_string(), warning.clone());
-        m.insert("cpu_end".to_string(), error.clone());
-
-        // Memory gradients
-        m.insert("free_start".to_string(), success.clone());
-        m.insert("free_mid".to_string(), subtle.clone());
-        m.insert("free_end".to_string(), cyan.clone());
-
-        m.insert("cached_start".to_string(), accent.clone());
-        m.insert("cached_mid".to_string(), cyan.clone());
-        m.insert("cached_end".to_string(), subtle.clone());
-
-        m.insert("available_start".to_string(), success.clone());
-        m.insert("available_mid".to_string(), subtle.clone());
-        m.insert("available_end".to_string(), cyan.clone());
-
-        m.insert("used_start".to_string(), warning.clone());
-        m.insert("used_mid".to_string(), cursor.clone());
-        m.insert("used_end".to_string(), error.clone());
-
-        // Network gradients
-        m.insert("download_start".to_string(), cyan);
-        m.insert("download_mid".to_string(), accent);
-        m.insert("download_end".to_string(), subtle);
-
-        m.insert("upload_start".to_string(), cursor);
-        m.insert("upload_mid".to_string(), warning.clone());
-        m.insert("upload_end".to_string(), error.clone());
-
-        // Process meters
-        m.insert("process_start".to_string(), success);
-        m.insert("process_mid".to_string(), warning);
-        m.insert("process_end".to_string(), error);
-
-        m
-    }
-
-    pub fn render_theme_text(&self) -> String {
-        let mapping = self.build_theme_mapping();
-        let mut lines = vec![
-            "# MiOS Btop System Monitor Theme".to_string(),
-            "# Generated automatically from mios.toml [colors] SSOT".to_string(),
-            "# Do NOT edit directly; regenerate using `mios-gen render-btop-theme`".to_string(),
-            "".to_string(),
-        ];
-
-        for (k, v) in mapping {
-            lines.push(format!("theme[{k}]=\"{v}\""));
+    pub fn render_theme_text(&self, template: &str) -> Result<String, String> {
+        let token = Regex::new(r"@MIOS:([a-z0-9_.-]+)@")
+            .map_err(|e| format!("Failed to compile theme token matcher: {e}"))?;
+        let mut rendered = String::with_capacity(template.len());
+        let mut offset = 0;
+        for capture in token.captures_iter(template) {
+            let matched = capture.get(0).ok_or("Missing theme token match")?;
+            let name = &capture[1];
+            let value = self
+                .palette
+                .get(name)
+                .ok_or_else(|| format!("Unknown btop theme color token @MIOS:{name}@"))?;
+            rendered.push_str(&template[offset..matched.start()]);
+            rendered.push_str(value);
+            offset = matched.end();
         }
-        lines.push("".to_string());
-        lines.join("\n")
+        rendered.push_str(&template[offset..]);
+        if rendered.contains("@MIOS:") {
+            return Err("Malformed btop theme token".to_string());
+        }
+        Self::validate_theme_content(&rendered).map_err(|errors| errors.join("; "))?;
+        Ok(rendered)
     }
 
     pub fn validate_theme_content(content: &str) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
         let mut found_keys = BTreeSet::new();
-        let line_re = Regex::new(r#"^theme\[([a-zA-Z0-9_]+)\]\s*=\s*"([^"]*)""#)
+        let line_re = Regex::new(r#"^theme\[([a-zA-Z0-9_]+)\]\s*=\s*"([^"]*)"\s*$"#)
             .map_err(|e| vec![format!("Failed to compile theme validator: {e}")])?;
         let hex_re = Regex::new(r"^#[0-9a-fA-F]{6}$")
             .map_err(|e| vec![format!("Failed to compile color validator: {e}")])?;
@@ -178,7 +105,9 @@ impl BtopThemeEngine {
                     .get(2)
                     .ok_or_else(|| vec!["Theme validator did not capture a value".to_string()])?
                     .as_str();
-                found_keys.insert(key.to_string());
+                if !found_keys.insert(key.to_string()) {
+                    errors.push(format!("Line {}: duplicate theme key '{key}'", idx + 1));
+                }
 
                 // Value may be empty string for transparency or valid #rrggbb hex
                 if !hex_val.is_empty() && !hex_re.is_match(hex_val) {
@@ -225,21 +154,28 @@ pub fn run_render_btop_theme(
     check: bool,
     out_path: Option<&Path>,
 ) -> Result<RenderBtopThemeResult, String> {
-    let toml_path = root.join("usr/share/mios/mios.toml");
-    let toml_str = fs::read_to_string(&toml_path)
-        .map_err(|e| format!("Failed to read {}: {}", toml_path.display(), e))?;
-
-    let doc: toml::Value = toml_str
-        .parse()
-        .map_err(|e| format!("Failed to parse {}: {}", toml_path.display(), e))?;
-
+    let doc = mios_resolver::resolve_merged(Some(root), false).map_err(|e| e.to_string())?;
+    let surface = doc
+        .get("dotfiles")
+        .and_then(|v| v.get("registry"))
+        .and_then(|v| v.get("btop"))
+        .ok_or("Missing [dotfiles.registry.btop] in layered mios.toml")?;
+    let declared_path = |key: &str| -> Result<PathBuf, String> {
+        let path = surface
+            .get(key)
+            .and_then(|v| v.as_str())
+            .filter(|path| !path.is_empty())
+            .ok_or_else(|| format!("Missing [dotfiles.registry.btop].{key}"))?;
+        Ok(root.join(path))
+    };
+    let template_path = declared_path("template")?;
+    let template = fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read {}: {e}", template_path.display()))?;
     let engine = BtopThemeEngine::from_toml(&doc)?;
-    let rendered = engine.render_theme_text();
-
-    let target_path = if let Some(p) = out_path {
-        p.to_path_buf()
-    } else {
-        root.join(DEFAULT_THEME_PATH)
+    let rendered = engine.render_theme_text(&template)?;
+    let target_path = match out_path {
+        Some(path) => path.to_path_buf(),
+        None => declared_path("target")?,
     };
 
     if check {
@@ -271,6 +207,9 @@ pub fn run_render_btop_theme(
         status: "success".to_string(),
         target: target_path,
         theme_len: rendered.len(),
-        keys_count: engine.build_theme_mapping().len(),
+        keys_count: rendered
+            .lines()
+            .filter(|line| line.trim_start().starts_with("theme["))
+            .count(),
     })
 }

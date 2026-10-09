@@ -1,5 +1,5 @@
 // AI-hint: Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.
-// AI-related: tools/native/generate-names-registry/src/main.rs, tools/native/mios-gen/src/names_registry.rs
+// AI-related: tools/native/generate-names-registry/src/main.rs, tools/native/mios-gen/src/lib.rs
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -125,4 +125,25 @@ fn mios_drift_root_wins_over_the_working_directory() {
     let out = shim(&tree.0, Some(&elsewhere.0));
     assert!(!out.status.success());
     assert_eq!(fs::read_to_string(tree.0.join(NAMES)).unwrap(), before);
+}
+
+/// --check is the gate's entry: it names a drifted artefact and writes nothing.
+#[test]
+fn check_mode_reports_drift_without_writing() {
+    let tree = tree();
+    assert!(shim(&tree.0, Some(&tree.0)).status.success());
+    let check = |root: &Path| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_generate-names-registry"));
+        command
+            .arg("--check")
+            .env("MIOS_DRIFT_ROOT", root)
+            .output()
+            .unwrap()
+    };
+    assert!(check(&tree.0).status.success());
+    fs::write(tree.0.join(NAMES), "planted\n").unwrap();
+    let out = check(&tree.0);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains(NAMES));
+    assert_eq!(fs::read_to_string(tree.0.join(NAMES)).unwrap(), "planted\n");
 }

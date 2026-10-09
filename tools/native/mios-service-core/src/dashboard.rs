@@ -1,5 +1,5 @@
 // AI-hint: Shared Linux and Windows dashboard projects every SSOT metric and categorized endpoint without clipping or a fixed service roster.
-// AI-related: /usr/share/mios/templates/rust, usr/share/mios/mios.toml, tools/native/mios-gen/src/terminal.rs
+// AI-related: /usr/share/mios/templates/rust, usr/share/mios/mios.toml, tools/native/mios-gen/src/main.rs
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};

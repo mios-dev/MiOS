@@ -1,6 +1,6 @@
 // AI-hint: Two-sided integration tests for the mios-gen SSOT projection verbs: ai-manifest, gate-index, pipe-boundaries, pipeline-index, projection-evidence, render-globals, render-ports and sync (ADR-0021, Law 14).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: tools/native/mios-gen/src/ai.rs, tools/native/mios-gen/src/indexes.rs, automation/98-drift-checks.sh, docs/design/doc-rust-static-port.md, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/projection_evidence.rs, tools/native/mios-gen/src/render.rs, tools/native/mios-gen/src/sync.rs, usr/share/mios/mios.toml
+// AI-related: tools/native/mios-gen/src/ai.rs, tools/native/mios-gen/src/indexes.rs, automation/98-drift-checks.sh, docs/design/doc-rust-static-port.md, tests/drift-gate-negatives.sh, tools/native/mios-gen/src/main.rs, tools/native/mios-gen/src/render.rs, tools/native/mios-gen/src/sync.rs, usr/share/mios/mios.toml
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -213,6 +213,9 @@ main() {
     check_alpha
     check_beta
 }
+check_alias() {
+    check_alpha
+}
 "#;
         fs::write(auto_dir.join("98-drift-checks.sh"), script_content).unwrap();
 
@@ -275,6 +278,42 @@ main() {
         assert_eq!(out.status.code(), Some(1));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("main() function not found"));
+    }
+
+    #[test]
+    fn invalid_main_preserves_existing_index() {
+        let _tree = super::tree_lock();
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("automation")).unwrap();
+        fs::create_dir_all(dir.path().join("usr/share/mios/reference")).unwrap();
+        let script = dir.path().join("automation/98-drift-checks.sh");
+        let index = dir
+            .path()
+            .join("usr/share/mios/reference/drift-gate-index.tsv");
+        fs::write(&index, "previous index\n").unwrap();
+        for (source, error) in [
+            (
+                "main() {\n check_alpha\n check_alpha\n}\n",
+                "Duplicate check_* functions found in main(): check_alpha",
+            ),
+            (
+                "main() {\n}\ncheck_alias() {\n check_alpha\n}\n",
+                "No check_*",
+            ),
+            ("main() {\n check_alpha\n", "not closed"),
+        ] {
+            fs::write(&script, source).unwrap();
+            let output = Command::new(bin())
+                .arg("gate-index")
+                .arg("--root")
+                .arg(dir.path())
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(1));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains(error), "{stderr}");
+            assert_eq!(fs::read_to_string(&index).unwrap(), "previous index\n");
+        }
     }
 }
 

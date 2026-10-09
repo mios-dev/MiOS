@@ -1,101 +1,6 @@
-// AI-hint: Terminal projections for mios-gen: the native dashboard, the Fastfetch config, and the tmux theme fixture plus its layered --runtime render, all from SSOT (ADR-0021 gen category).
+// AI-hint: Terminal projections for mios-gen: the Fastfetch config and the tmux theme fixture with its layered --runtime render, all from SSOT (ADR-0021 gen category).
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: /usr/share/mios/templates/rust, usr/share/mios/mios.toml, usr/share/mios/fastfetch/config.jsonc, automation/98-drift-checks.sh, usr/lib/mios/mios_toml.py, usr/libexec/mios/ux/theme_sync.py, etc/profile.d/mios-prompt.sh, usr/libexec/mios/mios-terminal
-
-pub mod dashboard {
-    use serde_json::Value;
-    use std::io::Read;
-    use std::path::Path;
-    use std::process::Command;
-    use std::time::Duration;
-
-    fn facts(timeout: Duration) -> Result<Value, String> {
-        let mut command = Command::new("fastfetch");
-        command.args([
-            "--config",
-            "none",
-            "--format",
-            "json",
-            "--structure",
-            "Title:OS:Kernel:Uptime:CPU:GPU:Memory:Swap:Disk:Shell:Host:TerminalFont:DateTime",
-        ]);
-        let output = mios_service_core::process::output_timeout(&mut command, timeout)?;
-        if !output.status.success() {
-            return Err(format!(
-                "fastfetch exited unsuccessfully: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        serde_json::from_slice(&output.stdout)
-            .map_err(|e| format!("Invalid structured fastfetch facts: {e}"))
-    }
-
-    pub fn run(
-        root: &Path,
-        resolved_stdin: bool,
-        width: Option<usize>,
-        no_probe: bool,
-        json: bool,
-        facts_file: Option<&Path>,
-    ) -> Result<String, String> {
-        let doc: Value = if resolved_stdin {
-            let mut bytes = Vec::new();
-            std::io::stdin()
-                .take(8 * 1024 * 1024 + 1)
-                .read_to_end(&mut bytes)
-                .map_err(|e| format!("Resolver input: {e}"))?;
-            if bytes.len() > 8 * 1024 * 1024 {
-                return Err("Resolver input exceeds 8 MiB".into());
-            }
-            let input: Value = serde_json::from_slice(&bytes)
-                .map_err(|e| format!("Invalid resolver JSON: {e}"))?;
-            input
-                .get("merged")
-                .cloned()
-                .ok_or("Native resolver JSON omitted merged SSOT")?
-        } else {
-            serde_json::to_value(
-                mios_resolver::resolve_merged(Some(root), false).map_err(|e| e.to_string())?,
-            )
-            .map_err(|e| e.to_string())?
-        };
-        let width = width
-            .or_else(|| std::env::var("COLUMNS").ok().and_then(|v| v.parse().ok()))
-            .or_else(|| {
-                doc["terminal"]["cols"]
-                    .as_u64()
-                    .and_then(|v| usize::try_from(v).ok())
-            })
-            .ok_or("Missing SSOT terminal.cols")?;
-        let timeout = mios_service_core::dashboard::milliseconds(&doc, "facts_timeout_ms")?;
-        let mut endpoints = mios_service_core::dashboard::catalog(&doc)?;
-        if !no_probe {
-            mios_service_core::dashboard::probe(
-                &mut endpoints,
-                mios_service_core::dashboard::milliseconds(&doc, "probe_timeout_ms")?,
-            )?;
-        }
-        let facts = if let Some(path) = facts_file {
-            serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("Invalid facts input: {e}"))?
-        } else {
-            match facts(timeout) {
-                Ok(facts) => facts,
-                Err(error) => {
-                    eprintln!("[dashboard] {error}; hardware facts unavailable");
-                    Value::Array(Vec::new())
-                }
-            }
-        };
-        if json {
-            // Validate render inputs even for the machine-readable parity surface.
-            mios_service_core::dashboard::render(&doc, &facts, &endpoints, width)?;
-            serde_json::to_string_pretty(&serde_json::json!({"schema":"mios.dashboard.v1", "metrics":mios_service_core::dashboard::metrics(&doc, &facts)?, "endpoints":endpoints})).map_err(|e| e.to_string())
-        } else {
-            mios_service_core::dashboard::render(&doc, &facts, &endpoints, width)
-        }
-    }
-}
+// AI-related: usr/share/mios/mios.toml, usr/share/mios/fastfetch/config.jsonc, automation/98-drift-checks.sh
 
 pub mod fastfetch {
     #![forbid(unsafe_code)]
@@ -433,329 +338,6 @@ pub mod fastfetch {
     }
 }
 
-pub mod tmux_runtime {
-    #![forbid(unsafe_code)]
-
-    use crate::tmux_theme::{is_remote_terminal, TmuxThemeEngine};
-    use std::env;
-    use std::fs;
-    use std::io::Write;
-    use std::path::{Path, PathBuf};
-    use std::process::Command;
-
-    const KEYS_PATH: &str = "usr/share/mios/tmux/mios-keys.tmux.conf";
-
-    fn env_nonempty(key: &str) -> Option<String> {
-        env::var(key).ok().filter(|v| !v.trim().is_empty())
-    }
-
-    /// Sorted `*.toml` drop-ins of `dir` (systemd `.d` ordering by basename).
-    fn fragments(dir: &Path) -> Vec<PathBuf> {
-        let mut out: Vec<PathBuf> = match fs::read_dir(dir) {
-            Ok(rd) => rd
-                .filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| p.is_file() && p.extension().map(|x| x == "toml").unwrap_or(false))
-                .collect(),
-            Err(_) => Vec::new(),
-        };
-        out.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-        out
-    }
-
-    /// Layer paths, lowest precedence first (mirrors `mios_toml.layer_paths`):
-    /// tier-major vendor < host < user, each tier's monolith then its `mios.d/*.toml`.
-    pub fn layer_paths(root: &Path) -> Vec<PathBuf> {
-        let toml_root = env_nonempty("MIOS_TOML_ROOT");
-        let vendor = env_nonempty("MIOS_VENDOR_TOML")
-            .or_else(|| env_nonempty("MIOS_TOML"))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                if let Some(r) = &toml_root {
-                    Path::new(r).join("usr/share/mios/mios.toml")
-                } else if Path::new("/usr/share/mios/mios.toml").exists() {
-                    PathBuf::from("/usr/share/mios/mios.toml")
-                } else {
-                    root.join("usr/share/mios/mios.toml")
-                }
-            });
-        let host = PathBuf::from(
-            env::var("MIOS_HOST_TOML").unwrap_or_else(|_| "/etc/mios/mios.toml".to_string()),
-        );
-        let user = env_nonempty("MIOS_USER_TOML")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                let cfg = env_nonempty("XDG_CONFIG_HOME")
-                    .map(PathBuf::from)
-                    .or_else(|| {
-                        env_nonempty("HOME")
-                            .or_else(|| env_nonempty("USERPROFILE"))
-                            .map(|h| Path::new(&h).join(".config"))
-                    })
-                    .unwrap_or_else(|| PathBuf::from(".config"));
-                cfg.join("mios/mios.toml")
-            });
-        let vendor_d = env_nonempty("MIOS_VENDOR_TOML_D")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| match &toml_root {
-                Some(r) => Path::new(r).join("usr/lib/mios/mios.d"),
-                None => PathBuf::from("/usr/lib/mios/mios.d"),
-            });
-        let host_d = env_nonempty("MIOS_HOST_TOML_D")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| host.parent().unwrap_or(Path::new("")).join("mios.d"));
-        let user_d = env_nonempty("MIOS_USER_TOML_D")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| user.parent().unwrap_or(Path::new("")).join("mios.d"));
-
-        let mut layers = vec![vendor];
-        layers.extend(fragments(&vendor_d));
-        layers.push(host);
-        layers.extend(fragments(&host_d));
-        layers.push(user);
-        layers.extend(fragments(&user_d));
-        layers
-    }
-
-    /// Recursive merge: later wins; an empty string never overrides a non-empty value below it.
-    pub fn deep_merge(dst: &mut toml::Value, src: toml::Value) {
-        match (dst, src) {
-            (toml::Value::Table(d), toml::Value::Table(s)) => {
-                for (k, v) in s {
-                    match d.get_mut(&k) {
-                        Some(existing) if existing.is_table() && v.is_table() => {
-                            deep_merge(existing, v)
-                        }
-                        Some(existing) => {
-                            let empty = v.as_str().map(|x| x.is_empty()).unwrap_or(false);
-                            let below_set = !matches!(existing.as_str(), Some("") | None);
-                            if !(empty && below_set) {
-                                *existing = v;
-                            }
-                        }
-                        None => {
-                            d.insert(k, v);
-                        }
-                    }
-                }
-            }
-            (d, s) => *d = s,
-        }
-    }
-
-    /// Full layered SSOT. The vendor tier is mandatory; a missing or unreadable host/user
-    /// overlay is skipped (a broken overlay must not crash a reader, as in `mios_toml`).
-    pub fn load_layered(root: &Path) -> Result<toml::Value, String> {
-        let layers = layer_paths(root);
-        let vendor = &layers[0];
-        if !vendor.is_file() {
-            return Err(format!("Missing SSOT toml file: {}", vendor.display()));
-        }
-        let mut merged = toml::Value::Table(toml::map::Map::new());
-        for (i, path) in layers.iter().enumerate() {
-            if !path.is_file() {
-                continue;
-            }
-            let parsed = fs::read_to_string(path)
-                .map_err(|e| e.to_string())
-                .and_then(|s| s.parse::<toml::Value>().map_err(|e| e.to_string()));
-            match parsed {
-                Ok(v) => deep_merge(&mut merged, v),
-                Err(e) if i == 0 => {
-                    return Err(format!(
-                        "Failed to load vendor SSOT {}: {}",
-                        path.display(),
-                        e
-                    ))
-                }
-                Err(_) => {}
-            }
-        }
-        Ok(merged)
-    }
-
-    fn exe_name(base: &str) -> String {
-        if cfg!(windows) {
-            format!("{base}.exe")
-        } else {
-            base.to_string()
-        }
-    }
-
-    fn find_unit_gen(root: &Path) -> Option<PathBuf> {
-        let name = exe_name("mios-unit-gen");
-        let mut cands: Vec<PathBuf> = Vec::new();
-        if let Some(p) = env_nonempty("MIOS_UNIT_GEN") {
-            cands.push(PathBuf::from(p));
-        }
-        if let Ok(me) = env::current_exe() {
-            if let Some(dir) = me.parent() {
-                cands.push(dir.join(&name));
-            }
-        }
-        for profile in ["release", "debug"] {
-            cands.push(root.join("tools/native/target").join(profile).join(&name));
-        }
-        cands.push(PathBuf::from("/usr/libexec/mios").join(&name));
-        cands.into_iter().find(|p| p.is_file())
-    }
-
-    fn find_theme_sync(root: &Path) -> Option<PathBuf> {
-        let mut cands: Vec<PathBuf> = Vec::new();
-        if let Some(p) = env_nonempty("MIOS_THEME_SYNC") {
-            cands.push(PathBuf::from(p));
-        }
-        cands.push(root.join("usr/libexec/mios/ux/theme_sync.py"));
-        cands.push(PathBuf::from("/usr/libexec/mios/ux/theme_sync.py"));
-        cands.into_iter().find(|p| p.is_file())
-    }
-
-    /// Create the projection directory 0700, refuse symlinks and (on Linux) directories
-    /// the caller does not own. `/proc/self` is owned by the process uid, which gives a
-    /// safe-Rust `getuid()` without `unsafe`.
-    fn prepare_dir(dir: &Path) -> Result<(), String> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
-            let mut b = fs::DirBuilder::new();
-            b.recursive(true).mode(0o700);
-            b.create(dir)
-                .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-            let meta = fs::symlink_metadata(dir).map_err(|e| e.to_string())?;
-            if meta.file_type().is_symlink() || !meta.is_dir() {
-                return Err("tmux projection directory must be a real directory".to_string());
-            }
-            if let Ok(me) = fs::metadata("/proc/self") {
-                if meta.uid() != me.uid() {
-                    return Err("tmux projection directory must belong to the caller".to_string());
-                }
-            }
-            let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
-        }
-        #[cfg(not(unix))]
-        {
-            fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-        }
-        Ok(())
-    }
-
-    fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
-        let tmp = path.with_extension("tmp-mios");
-        {
-            let mut f = fs::File::create(&tmp).map_err(|e| format!("{}: {e}", tmp.display()))?;
-            f.write_all(text.as_bytes())
-                .map_err(|e| format!("{}: {e}", tmp.display()))?;
-        }
-        fs::rename(&tmp, path).map_err(|e| {
-            let _ = fs::remove_file(&tmp);
-            format!("{}: {e}", path.display())
-        })
-    }
-
-    fn render_keys(root: &Path, dir: &Path, merged: &toml::Value) -> Result<String, String> {
-        let kb = merged
-            .get("keybindings")
-            .ok_or_else(|| "Missing [keybindings] section in layered SSOT".to_string())?;
-        let unit_gen = find_unit_gen(root)
-            .ok_or_else(|| "mios-unit-gen not found (set MIOS_UNIT_GEN or build it)".to_string())?;
-        let src = dir.join(".keybindings.in.json");
-        let payload = serde_json::json!({ "keybindings": kb });
-        fs::write(&src, payload.to_string()).map_err(|e| format!("{}: {e}", src.display()))?;
-        let out = Command::new(&unit_gen)
-            .args(["keybindings", "--from-json"])
-            .arg(&src)
-            .arg("--emit-json")
-            .output();
-        let _ = fs::remove_file(&src);
-        let out = out.map_err(|e| format!("{}: {e}", unit_gen.display()))?;
-        if !out.status.success() {
-            return Err(format!(
-                "mios-unit-gen keybindings failed: {}",
-                String::from_utf8_lossy(&out.stderr).trim()
-            ));
-        }
-        let parsed: serde_json::Value = serde_json::from_slice(&out.stdout)
-            .map_err(|e| format!("mios-unit-gen keybindings emitted invalid JSON: {e}"))?;
-        parsed
-            .get(KEYS_PATH)
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| format!("mios-unit-gen keybindings output lacks {KEYS_PATH}"))
-    }
-
-    fn render_prompt(root: &Path) -> Result<String, String> {
-        let script = find_theme_sync(root)
-            .ok_or_else(|| "theme_sync.py not found (set MIOS_THEME_SYNC)".to_string())?;
-        let interpreters: &[&str] = if cfg!(windows) {
-            &["python", "python3"]
-        } else {
-            &["python3", "python"]
-        };
-        let mut last_err = String::from("no python interpreter found");
-        for py in interpreters {
-            let mut cmd = Command::new(py);
-            cmd.arg(&script).arg("--render-prompt");
-            if is_remote_terminal() {
-                cmd.arg("--remote");
-            }
-            match cmd.output() {
-                Ok(o) if o.status.success() => {
-                    return String::from_utf8(o.stdout)
-                        .map_err(|e| format!("prompt renderer emitted non-UTF-8: {e}"))
-                }
-                Ok(o) => {
-                    return Err(format!(
-                        "prompt renderer failed: {}",
-                        String::from_utf8_lossy(&o.stderr).trim()
-                    ))
-                }
-                Err(e) => last_err = format!("{py}: {e}"),
-            }
-        }
-        Err(last_err)
-    }
-
-    /// Project `tmux.conf` (theme + keybindings) and `mios.omp.json` from all SSOT tiers
-    /// into `dir`. Nothing is written until every artifact has rendered, so a failed
-    /// render never leaves a half-projected directory.
-    pub fn project_runtime(root: &Path, dir: &Path) -> Result<(), String> {
-        let merged = load_layered(root)?;
-        let theme = TmuxThemeEngine::from_toml(&merged, None, None)?.generate_config()?;
-        prepare_dir(dir)?;
-        let keys = render_keys(root, dir, &merged)?;
-        let omp = render_prompt(root)?;
-        let tmux_conf = format!("{theme}\n{keys}");
-        write_atomic(&dir.join("mios.omp.json"), &omp)?;
-        write_atomic(&dir.join("tmux.conf"), &tmux_conf)?;
-        Ok(())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        fn parse(s: &str) -> toml::Value {
-            s.parse().unwrap()
-        }
-
-        #[test]
-        fn higher_layer_wins_and_tables_merge() {
-            let mut d = parse("[a]\nx = 1\ny = 2\n");
-            deep_merge(&mut d, parse("[a]\ny = 3\n[b]\nz = 4\n"));
-            assert_eq!(d["a"]["x"].as_integer(), Some(1));
-            assert_eq!(d["a"]["y"].as_integer(), Some(3));
-            assert_eq!(d["b"]["z"].as_integer(), Some(4));
-        }
-
-        #[test]
-        fn empty_string_never_overrides_set_value() {
-            let mut d = parse("[a]\nk = \"keep\"\nn = \"\"\n");
-            deep_merge(&mut d, parse("[a]\nk = \"\"\nn = \"fill\"\n"));
-            assert_eq!(d["a"]["k"].as_str(), Some("keep"));
-            assert_eq!(d["a"]["n"].as_str(), Some("fill"));
-        }
-    }
-}
-
 pub mod tmux_theme {
     pub use mios_service_core::tmux_theme::{is_remote_terminal, TmuxThemeEngine};
     use std::fs;
@@ -837,5 +419,334 @@ pub mod tmux_theme {
             config_lines,
             output_path: Some(target_path),
         })
+    }
+
+    // `render-tmux-theme --runtime DIR`: tmux.conf and mios.omp.json for a caller-owned directory, from every SSOT tier.
+    pub mod tmux_runtime {
+        #![forbid(unsafe_code)]
+
+        use super::{is_remote_terminal, TmuxThemeEngine};
+        use std::env;
+        use std::fs;
+        use std::io::Write;
+        use std::path::{Path, PathBuf};
+        use std::process::Command;
+
+        const KEYS_PATH: &str = "usr/share/mios/tmux/mios-keys.tmux.conf";
+
+        fn env_nonempty(key: &str) -> Option<String> {
+            env::var(key).ok().filter(|v| !v.trim().is_empty())
+        }
+
+        /// Sorted `*.toml` drop-ins of `dir` (systemd `.d` ordering by basename).
+        fn fragments(dir: &Path) -> Vec<PathBuf> {
+            let mut out: Vec<PathBuf> = match fs::read_dir(dir) {
+                Ok(rd) => rd
+                    .filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| p.is_file() && p.extension().map(|x| x == "toml").unwrap_or(false))
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
+            out.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+            out
+        }
+
+        /// Layer paths, lowest precedence first (mirrors `mios_toml.layer_paths`):
+        /// tier-major vendor < host < user, each tier's monolith then its `mios.d/*.toml`.
+        pub fn layer_paths(root: &Path) -> Vec<PathBuf> {
+            let toml_root = env_nonempty("MIOS_TOML_ROOT");
+            let vendor = env_nonempty("MIOS_VENDOR_TOML")
+                .or_else(|| env_nonempty("MIOS_TOML"))
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    if let Some(r) = &toml_root {
+                        Path::new(r).join("usr/share/mios/mios.toml")
+                    } else if Path::new("/usr/share/mios/mios.toml").exists() {
+                        PathBuf::from("/usr/share/mios/mios.toml")
+                    } else {
+                        root.join("usr/share/mios/mios.toml")
+                    }
+                });
+            let host = PathBuf::from(
+                env::var("MIOS_HOST_TOML").unwrap_or_else(|_| "/etc/mios/mios.toml".to_string()),
+            );
+            let user = env_nonempty("MIOS_USER_TOML")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    let cfg = env_nonempty("XDG_CONFIG_HOME")
+                        .map(PathBuf::from)
+                        .or_else(|| {
+                            env_nonempty("HOME")
+                                .or_else(|| env_nonempty("USERPROFILE"))
+                                .map(|h| Path::new(&h).join(".config"))
+                        })
+                        .unwrap_or_else(|| PathBuf::from(".config"));
+                    cfg.join("mios/mios.toml")
+                });
+            let vendor_d = env_nonempty("MIOS_VENDOR_TOML_D")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| match &toml_root {
+                    Some(r) => Path::new(r).join("usr/lib/mios/mios.d"),
+                    None => PathBuf::from("/usr/lib/mios/mios.d"),
+                });
+            let host_d = env_nonempty("MIOS_HOST_TOML_D")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| host.parent().unwrap_or(Path::new("")).join("mios.d"));
+            let user_d = env_nonempty("MIOS_USER_TOML_D")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| user.parent().unwrap_or(Path::new("")).join("mios.d"));
+
+            let mut layers = vec![vendor];
+            layers.extend(fragments(&vendor_d));
+            layers.push(host);
+            layers.extend(fragments(&host_d));
+            layers.push(user);
+            layers.extend(fragments(&user_d));
+            layers
+        }
+
+        /// Recursive merge: later wins; an empty string never overrides a non-empty value below it.
+        pub fn deep_merge(dst: &mut toml::Value, src: toml::Value) {
+            match (dst, src) {
+                (toml::Value::Table(d), toml::Value::Table(s)) => {
+                    for (k, v) in s {
+                        match d.get_mut(&k) {
+                            Some(existing) if existing.is_table() && v.is_table() => {
+                                deep_merge(existing, v)
+                            }
+                            Some(existing) => {
+                                let empty = v.as_str().map(|x| x.is_empty()).unwrap_or(false);
+                                let below_set = !matches!(existing.as_str(), Some("") | None);
+                                if !(empty && below_set) {
+                                    *existing = v;
+                                }
+                            }
+                            None => {
+                                d.insert(k, v);
+                            }
+                        }
+                    }
+                }
+                (d, s) => *d = s,
+            }
+        }
+
+        /// Full layered SSOT. The vendor tier is mandatory; a missing or unreadable host/user
+        /// overlay is skipped (a broken overlay must not crash a reader, as in `mios_toml`).
+        pub fn load_layered(root: &Path) -> Result<toml::Value, String> {
+            let layers = layer_paths(root);
+            let vendor = &layers[0];
+            if !vendor.is_file() {
+                return Err(format!("Missing SSOT toml file: {}", vendor.display()));
+            }
+            let mut merged = toml::Value::Table(toml::map::Map::new());
+            for (i, path) in layers.iter().enumerate() {
+                if !path.is_file() {
+                    continue;
+                }
+                let parsed = fs::read_to_string(path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|s| s.parse::<toml::Value>().map_err(|e| e.to_string()));
+                match parsed {
+                    Ok(v) => deep_merge(&mut merged, v),
+                    Err(e) if i == 0 => {
+                        return Err(format!(
+                            "Failed to load vendor SSOT {}: {}",
+                            path.display(),
+                            e
+                        ))
+                    }
+                    Err(_) => {}
+                }
+            }
+            Ok(merged)
+        }
+
+        fn exe_name(base: &str) -> String {
+            if cfg!(windows) {
+                format!("{base}.exe")
+            } else {
+                base.to_string()
+            }
+        }
+
+        fn find_unit_gen(root: &Path) -> Option<PathBuf> {
+            let name = exe_name("mios-unit-gen");
+            let mut cands: Vec<PathBuf> = Vec::new();
+            if let Some(p) = env_nonempty("MIOS_UNIT_GEN") {
+                cands.push(PathBuf::from(p));
+            }
+            if let Ok(me) = env::current_exe() {
+                if let Some(dir) = me.parent() {
+                    cands.push(dir.join(&name));
+                }
+            }
+            for profile in ["release", "debug"] {
+                cands.push(root.join("tools/native/target").join(profile).join(&name));
+            }
+            cands.push(PathBuf::from("/usr/libexec/mios").join(&name));
+            cands.into_iter().find(|p| p.is_file())
+        }
+
+        fn find_theme_sync(root: &Path) -> Option<PathBuf> {
+            let mut cands: Vec<PathBuf> = Vec::new();
+            if let Some(p) = env_nonempty("MIOS_THEME_SYNC") {
+                cands.push(PathBuf::from(p));
+            }
+            cands.push(root.join("usr/libexec/mios/ux/theme_sync.py"));
+            cands.push(PathBuf::from("/usr/libexec/mios/ux/theme_sync.py"));
+            cands.into_iter().find(|p| p.is_file())
+        }
+
+        /// Create the projection directory 0700, refuse symlinks and (on Linux) directories
+        /// the caller does not own. `/proc/self` is owned by the process uid, which gives a
+        /// safe-Rust `getuid()` without `unsafe`.
+        fn prepare_dir(dir: &Path) -> Result<(), String> {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+                let mut b = fs::DirBuilder::new();
+                b.recursive(true).mode(0o700);
+                b.create(dir)
+                    .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+                let meta = fs::symlink_metadata(dir).map_err(|e| e.to_string())?;
+                if meta.file_type().is_symlink() || !meta.is_dir() {
+                    return Err("tmux projection directory must be a real directory".to_string());
+                }
+                if let Ok(me) = fs::metadata("/proc/self") {
+                    if meta.uid() != me.uid() {
+                        return Err(
+                            "tmux projection directory must belong to the caller".to_string()
+                        );
+                    }
+                }
+                let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+            }
+            #[cfg(not(unix))]
+            {
+                fs::create_dir_all(dir)
+                    .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+            }
+            Ok(())
+        }
+
+        fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+            let tmp = path.with_extension("tmp-mios");
+            {
+                let mut f =
+                    fs::File::create(&tmp).map_err(|e| format!("{}: {e}", tmp.display()))?;
+                f.write_all(text.as_bytes())
+                    .map_err(|e| format!("{}: {e}", tmp.display()))?;
+            }
+            fs::rename(&tmp, path).map_err(|e| {
+                let _ = fs::remove_file(&tmp);
+                format!("{}: {e}", path.display())
+            })
+        }
+
+        fn render_keys(root: &Path, dir: &Path, merged: &toml::Value) -> Result<String, String> {
+            let kb = merged
+                .get("keybindings")
+                .ok_or_else(|| "Missing [keybindings] section in layered SSOT".to_string())?;
+            let unit_gen = find_unit_gen(root).ok_or_else(|| {
+                "mios-unit-gen not found (set MIOS_UNIT_GEN or build it)".to_string()
+            })?;
+            let src = dir.join(".keybindings.in.json");
+            let payload = serde_json::json!({ "keybindings": kb });
+            fs::write(&src, payload.to_string()).map_err(|e| format!("{}: {e}", src.display()))?;
+            let out = Command::new(&unit_gen)
+                .args(["keybindings", "--from-json"])
+                .arg(&src)
+                .arg("--emit-json")
+                .output();
+            let _ = fs::remove_file(&src);
+            let out = out.map_err(|e| format!("{}: {e}", unit_gen.display()))?;
+            if !out.status.success() {
+                return Err(format!(
+                    "mios-unit-gen keybindings failed: {}",
+                    String::from_utf8_lossy(&out.stderr).trim()
+                ));
+            }
+            let parsed: serde_json::Value = serde_json::from_slice(&out.stdout)
+                .map_err(|e| format!("mios-unit-gen keybindings emitted invalid JSON: {e}"))?;
+            parsed
+                .get(KEYS_PATH)
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| format!("mios-unit-gen keybindings output lacks {KEYS_PATH}"))
+        }
+
+        fn render_prompt(root: &Path) -> Result<String, String> {
+            let script = find_theme_sync(root)
+                .ok_or_else(|| "theme_sync.py not found (set MIOS_THEME_SYNC)".to_string())?;
+            let interpreters: &[&str] = if cfg!(windows) {
+                &["python", "python3"]
+            } else {
+                &["python3", "python"]
+            };
+            let mut last_err = String::from("no python interpreter found");
+            for py in interpreters {
+                let mut cmd = Command::new(py);
+                cmd.arg(&script).arg("--render-prompt");
+                if is_remote_terminal() {
+                    cmd.arg("--remote");
+                }
+                match cmd.output() {
+                    Ok(o) if o.status.success() => {
+                        return String::from_utf8(o.stdout)
+                            .map_err(|e| format!("prompt renderer emitted non-UTF-8: {e}"))
+                    }
+                    Ok(o) => {
+                        return Err(format!(
+                            "prompt renderer failed: {}",
+                            String::from_utf8_lossy(&o.stderr).trim()
+                        ))
+                    }
+                    Err(e) => last_err = format!("{py}: {e}"),
+                }
+            }
+            Err(last_err)
+        }
+
+        /// Project `tmux.conf` (theme + keybindings) and `mios.omp.json` from all SSOT tiers
+        /// into `dir`. Nothing is written until every artifact has rendered, so a failed
+        /// render never leaves a half-projected directory.
+        pub fn project_runtime(root: &Path, dir: &Path) -> Result<(), String> {
+            let merged = load_layered(root)?;
+            let theme = TmuxThemeEngine::from_toml(&merged, None, None)?.generate_config()?;
+            prepare_dir(dir)?;
+            let keys = render_keys(root, dir, &merged)?;
+            let omp = render_prompt(root)?;
+            let tmux_conf = format!("{theme}\n{keys}");
+            write_atomic(&dir.join("mios.omp.json"), &omp)?;
+            write_atomic(&dir.join("tmux.conf"), &tmux_conf)?;
+            Ok(())
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+
+            fn parse(s: &str) -> toml::Value {
+                s.parse().unwrap()
+            }
+
+            #[test]
+            fn higher_layer_wins_and_tables_merge() {
+                let mut d = parse("[a]\nx = 1\ny = 2\n");
+                deep_merge(&mut d, parse("[a]\ny = 3\n[b]\nz = 4\n"));
+                assert_eq!(d["a"]["x"].as_integer(), Some(1));
+                assert_eq!(d["a"]["y"].as_integer(), Some(3));
+                assert_eq!(d["b"]["z"].as_integer(), Some(4));
+            }
+
+            #[test]
+            fn empty_string_never_overrides_set_value() {
+                let mut d = parse("[a]\nk = \"keep\"\nn = \"\"\n");
+                deep_merge(&mut d, parse("[a]\nk = \"\"\nn = \"fill\"\n"));
+                assert_eq!(d["a"]["k"].as_str(), Some("keep"));
+                assert_eq!(d["a"]["n"].as_str(), Some("fill"));
+            }
+        }
     }
 }

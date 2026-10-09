@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: The one MiOS cloud-environment script: runs the devcontainer ([image].ref plus wiring) under podman or docker for Claude Code cloud, Codex cloud and Cloud Shell, creates a GCE VM, preflights disk, pulls in the background and applies the [deployment.cloud] overlay.
+# AI-hint: The one MiOS cloud-environment script: runs the devcontainer ([image].ref plus wiring) under podman or docker for Claude Code cloud, Codex cloud and Cloud Shell, creates a GCE VM, preflights disk, pulls and applies the [deployment.cloud] overlay.
 # AI-related: .devcontainer/Containerfile, .devcontainer/devcontainer.json, .devcontainer/artifact-builder/devcontainer.json, .devcontainer/cloud-shell/claude-code-cloud.sh, .devcontainer/cloud-shell/codex-cloud.sh, usr/share/mios/mios.toml
 # AI-functions: main, preflight, pull_image, status, up, enter, overlay, gce_up, claude_code, codex
 #

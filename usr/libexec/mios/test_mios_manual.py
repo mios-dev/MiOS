@@ -17,7 +17,7 @@ class TestMiosManualComments(unittest.TestCase):
     def setUpClass(cls):
         cls.merged = mios_toml.load_merged()
         cls.policy = Policy.from_toml(cls.merged)
-        cls.refidx = RefIndex.build(ROOT)
+        cls.refidx = RefIndex(ROOT)  # class fixtures; staleness is test_mios_comments'
 
     def _make_block(self, path="test.py", text="test comment", start_line=1, lines=1, words=2,
                     attach="pre-code", kind="line", style="#", anchor_code="x = 1", in_header=False):
