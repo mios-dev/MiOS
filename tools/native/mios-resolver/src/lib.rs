@@ -1,21 +1,123 @@
 // AI-hint: Crate root for mios-resolver -- the native layered mios.toml resolver that subsumes mios_toml.py / userenv.sh / globals.ps1.
-// AI-related: usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, tools/native/mios-ssot-walk
+// AI-related: usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, tools/native/mios-ssot-walk, usr/share/mios/mios.toml
 pub mod names;
 // Public compatibility path; all name definitions live in the same module.
 pub use names as aliases;
 pub mod db_overlay;
 pub mod emit;
-pub mod emit_build;
-pub mod emit_install_env;
-pub mod emit_json;
-pub mod emit_ps;
-pub mod emit_repos;
-pub mod emit_shell;
-pub mod error;
+pub use emit::{emit_build, emit_install_env, emit_json, emit_ps, emit_repos, emit_shell};
+pub mod error {
+    use miette::Diagnostic;
+    use thiserror::Error;
+
+    #[derive(Error, Debug, Diagnostic)]
+    pub enum ResolverError {
+        #[error("Failed to parse TOML layer at {path}: {source}")]
+        #[diagnostic(
+            code(mios_resolver::layer_parse),
+            help("Check TOML syntax in layer file")
+        )]
+        LayerParse {
+            path: String,
+            #[source]
+            source: toml::de::Error,
+        },
+
+        #[error("Type shape or schema mismatch: {msg}")]
+        #[diagnostic(code(mios_resolver::type_shape))]
+        TypeShape { msg: String },
+
+        #[error("Missing expected configuration layer: {path}")]
+        #[diagnostic(code(mios_resolver::missing_layer))]
+        MissingLayer { path: String },
+
+        #[error("Invalid hex color format: '{value}' under [colors].{key}")]
+        #[diagnostic(
+            code(mios_resolver::invalid_color_hex),
+            help("Colors must be valid 6-digit or 3-digit hex strings (e.g. #FFFFFF or #FFF)")
+        )]
+        InvalidColorHex { key: String, value: String },
+
+        #[error("Invalid non-integer port specification under [ports].{key}: '{value}'")]
+        #[diagnostic(
+            code(mios_resolver::invalid_port),
+            help("Port values must be valid 16-bit unsigned integers between 1 and 65535")
+        )]
+        InvalidPortValue { key: String, value: String },
+    }
+}
 pub mod expand;
 pub mod layers;
 pub mod merge;
-pub mod model;
+pub mod model {
+    use serde::{Deserialize, Serialize};
+    use std::collections::HashMap;
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct IdentityConfig {
+        pub username: Option<String>,
+        pub hostname: Option<String>,
+        pub domain: Option<String>,
+        pub email: Option<String>,
+        pub role: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct LocaleConfig {
+        pub lang: Option<String>,
+        pub timezone: Option<String>,
+        pub keymap: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct PortsConfig {
+        pub stack_id: Option<i32>,
+        pub vllm: Option<u16>,
+        pub sglang: Option<u16>,
+        pub searxng: Option<u16>,
+        pub crawl4ai: Option<u16>,
+        pub firecrawl: Option<u16>,
+        pub open_webui: Option<u16>,
+        pub guacamole_web: Option<u16>,
+        pub pgvector: Option<u16>,
+        pub agent_pipe: Option<u16>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct ImageConfig {
+        pub name: Option<String>,
+        pub tag: Option<String>,
+        pub base: Option<String>,
+        pub sidecars: Option<HashMap<String, String>>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct AiConfig {
+        pub model: Option<String>,
+        pub embed_model: Option<String>,
+        pub endpoint: Option<String>,
+        pub ram_floor_gb: Option<u32>,
+        pub dir: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct NetworkConfig {
+        pub listen_host: Option<String>,
+        pub loopback_host: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct MiosModel {
+        pub identity: Option<IdentityConfig>,
+        pub locale: Option<LocaleConfig>,
+        pub ports: Option<PortsConfig>,
+        pub colors: Option<HashMap<String, String>>,
+        pub image: Option<ImageConfig>,
+        pub ai: Option<AiConfig>,
+        pub network: Option<NetworkConfig>,
+        pub env: Option<HashMap<String, String>>,
+    }
+}
 pub mod palette;
 pub mod ports;
 pub mod walk;

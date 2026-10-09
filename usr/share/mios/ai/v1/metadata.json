@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3715,
-  "total_metadata_entries": 3063,
-  "total_hints": 3053,
+  "total_files_scanned": 3707,
+  "total_metadata_entries": 3055,
+  "total_hints": 3045,
   "total_functions_indexed": 1453,
-  "total_related_links": 5108,
+  "total_related_links": 5105,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -10098,91 +10098,19 @@
     },
     {
       "path": "tools/native/mios-resolver/src/emit.rs",
-      "hint": "Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression.",
+      "hint": "Canonical export-map builder -- combines walked canonical keys with legacy aliases and applies WALK_MOSTLY_DEAD suppression -- and every emitter over it: shell, PowerShell, JSON, install.env, build and repos.",
       "related": [
         "tools/native/mios-ssot-walk",
-        "usr/lib/mios/mios_toml.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_build.rs",
-      "hint": "Validated native SSOT inputs for shared service-image builds on both platforms.",
-      "related": [
+        "usr/lib/mios/mios_toml.py",
         "usr/libexec/mios/57-mios-sys-build.sh",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_install_env.rs",
-      "hint": "install.env binding -- renders the KEY=value environment file consumed by Quadlets via EnvironmentFile.",
-      "related": [
+        "usr/share/mios/mios.toml",
         "/etc/mios/install.env",
-        "usr/share/containers/systemd"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_json.rs",
-      "hint": "JSON binding -- emits the merged SSOT table plus the resolved export map for the Python resolver shim to consume.",
-      "related": [
-        "usr/lib/mios/mios_toml.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_ps.rs",
-      "hint": "PowerShell binding -- renders the export map and palette as a dot-sourceable module of $script:MIOS_* assignments.",
-      "related": [
-        "automation/lib/globals.ps1"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_repos.rs",
-      "hint": "Native projection of required dependency repositories from layered SSOT.",
-      "related": [
+        "usr/share/containers/systemd",
+        "automation/lib/globals.ps1",
         "automation/06-enable-external-repos.sh",
-        "usr/share/mios/mios.toml [repos.external]"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/emit_shell.rs",
-      "hint": "POSIX shell binding -- serializes the export map as shell-quoted export lines for userenv.sh to eval.",
-      "related": [
+        "usr/share/mios/mios.toml [repos.external]",
         "usr/lib/mios/userenv.sh",
         "tools/lib/userenv.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/error.rs",
-      "hint": "Resolver error surface -- thiserror enum with miette diagnostics so a bad layer or value points at its mios.toml source.",
-      "related": [
-        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -10219,7 +10147,8 @@
       "related": [
         "usr/lib/mios/mios_toml.py",
         "usr/lib/mios/userenv.sh",
-        "tools/native/mios-ssot-walk"
+        "tools/native/mios-ssot-walk",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -10243,17 +10172,6 @@
       "path": "tools/native/mios-resolver/src/merge.rs",
       "hint": "Rust module for merging TOML trees according to MiOS overlay semantics.",
       "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-resolver/src/model.rs",
-      "hint": "Typed model of the mios.toml tables the resolver deserializes ahead of the generic walk.",
-      "related": [
-        "usr/share/mios/mios.toml"
-      ],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10305,8 +10223,7 @@
       "path": "tools/native/mios-resolver/tests/emit.rs",
       "hint": "Integration tests for the mios-resolver emit bindings: characterization snapshots over vendor and host fixtures, and a proptest differential over arbitrary [ports] tables.",
       "related": [
-        "tools/native/mios-resolver/src/emit_shell.rs",
-        "tools/native/mios-resolver/src/emit_json.rs",
+        "tools/native/mios-resolver/src/emit.rs",
         "tools/check-runtime.py"
       ],
       "functions": [],
@@ -10371,7 +10288,7 @@
       "hint": "Shared native terminal policy and monitor layouts for Windows and Linux consumers.",
       "related": [
         "usr/share/mios/mios.toml",
-        "tools/native/mios-resolver/src/emit_json.rs"
+        "tools/native/mios-resolver/src/emit.rs"
       ],
       "functions": [],
       "doc": null,

@@ -1,5 +1,5 @@
 // AI-hint: Integration tests for the mios-resolver emit bindings: characterization snapshots over vendor and host fixtures, and a proptest differential over arbitrary [ports] tables.
-// AI-related: tools/native/mios-resolver/src/emit_shell.rs, tools/native/mios-resolver/src/emit_json.rs, tools/check-runtime.py
+// AI-related: tools/native/mios-resolver/src/emit.rs, tools/check-runtime.py
 
 mod cli {
     use mios_resolver::emit_json::emit_json;
