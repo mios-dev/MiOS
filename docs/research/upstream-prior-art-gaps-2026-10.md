@@ -19,6 +19,11 @@
   - Upstream facts carry a version or date.
   - Claims the lanes could not confirm from a primary source are listed in §7.
 
+> **Operator rulings take precedence (2026-10-09).** The operator answered 20 spec questions; see `.devloop/GOALS.md` → "Operator rulings, 2026-10-09". Where a ruling differs from a recommendation below, the ruling wins:
+> - **P0-3 / P0-8:** sidecars are physically baked in the full image only, and cloud/dev images skip the bake (ruling Q1), instead of logically bound images everywhere.
+> - **P1-24:** only the tiny LFM2 model is baked (Q2).
+> - **P1-4:** the password `mios` is kept but ships expired (Q5).
+
 ## 0. Already fixed on the integration branch
 
 These three were verified and fixed in commits `8a2fc64e` and `f8701d7e`, then regenerated and committed:
