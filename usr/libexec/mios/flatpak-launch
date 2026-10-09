@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: A robust wrapper for flatpak run that restores missing WSLg, Wayland, X11, and PulseAudio environment variables (DISPLAY, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS) lost during shell transitions like su, sudo, or nsenter; the launch is always DETACHED so its "dispatched" line is NOT a success confirmation -- the caller (mios-gui) does the authoritative new-window poll.
+# AI-hint: Restores WSLg/Wayland/X11/PulseAudio variables lost across su/sudo/nsenter, then runs flatpak detached. Dispatch is not success; mios-gui polls for a new window.
 # AI-related: /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-autocenter, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-as-operator, /usr/libexec/mios/mios-wsl-flatpak-heal, /etc/mios/flatpak-flags/, /usr/share/mios/flatpak-flags/, /etc/mios/wsl-distro, mios-autocenter
 # AI-functions: _mios_fire_autocenter, _q
 

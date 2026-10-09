@@ -297,7 +297,8 @@ _HEREDOC = re.compile(r"(?<!\S)<<-?\s*(?P<tag>'[A-Za-z_][A-Za-z0-9_]*'"
                       r'|"[A-Za-z_][A-Za-z0-9_]*"'
                       r"|[A-Za-z_][A-Za-z0-9_]*)")
 _MARKER = re.compile(r"^\s*(?:#+|//+|;+|--|<!--|\*|/\*)\s?")
-_END_MARKER = re.compile(r"\s*(?:-->|\*/)\s*$")
+_HTML_END = re.compile(r"--!?>")
+_END_MARKER = re.compile(r"\s*(?:--!?>|\*/)\s*$")
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./:-]*")
 
 _STYLE_BY_EXT = {
@@ -442,7 +443,7 @@ def _lex_generic(path: str, src: str, style: str) -> list[Block]:
         if style == "<!--":
             if not in_block and s.startswith("<!--"):
                 in_block, block_start, block_lines = True, i, [_strip(raw)]
-                if "-->" in s:
+                if _HTML_END.search(s):
                     in_block = False
                     out.append(_mk(path, block_start, i, "blockcomment", style,
                                    block_lines, "file-header" if i <= 3 else "orphan",
@@ -450,7 +451,7 @@ def _lex_generic(path: str, src: str, style: str) -> list[Block]:
                 continue
             if in_block:
                 block_lines.append(_strip(raw))
-                if "-->" in s:
+                if _HTML_END.search(s):
                     in_block = False
                     out.append(_mk(path, block_start, i, "blockcomment", style,
                                    block_lines,

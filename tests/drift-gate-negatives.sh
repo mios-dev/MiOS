@@ -5213,50 +5213,19 @@ test_legibility_ratchet() {
 }
 
 test_resolver_differential_parity() {
-    log "Testing check_resolver_differential_parity"
-    # Hide EVERY candidate, not just the first: breaking after one left the debug
-    # build in place on a tree that has both, so the refusal below never ran.
-    # The check also probes two absolute paths this test cannot move aside.
-    local abs_c
-    for abs_c in /usr/libexec/mios/mios-resolver /usr/bin/mios-resolver; do
-        if [ -f "$abs_c" ]; then
-            log "check_resolver_differential_parity: $abs_c is installed and outside the tree; refusal path not provable here"
-            return 0
-        fi
-    done
-    local bin="" b hidden=()
-    for b in "${ROOT}/tools/native/target/release/mios-resolver" \
-             "${ROOT}/tools/native/target/release/mios-resolver.exe" \
-             "${ROOT}/tools/native/target/debug/mios-resolver" \
-             "${ROOT}/tools/native/target/debug/mios-resolver.exe"; do
-        if [ -f "$b" ]; then
-            [ -z "$bin" ] && bin="$b"
-            mv "$b" "${b}.negtest"
-            hidden+=("$b")
-        fi
-    done
-    # ${a[@]+...} keeps the empty-array expansion safe under `set -u` on bash < 4.4.
-    _rdp_restore() { local h; for h in ${hidden[@]+"${hidden[@]}"}; do [ -f "${h}.negtest" ] && mv "${h}.negtest" "$h"; done; return 0; }
-
-    # The failure path is assertable either way: with no binary the Python and
-    # Rust resolvers were never compared, so REQUIRE_TOOLS=1 must refuse rather
-    # than print an advisory skip.
-    if MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_resolver_differential_parity; then
-        _rdp_restore
-        unset -f _rdp_restore
-        die "check_resolver_differential_parity passed with no resolver binary under REQUIRE_TOOLS=1"
-    fi
-    _rdp_restore
-    unset -f _rdp_restore
-
-    if [ -z "$bin" ]; then
-        # Without a binary there is no parity to restore TO. Saying so is
-        # honest; silently asserting success here would be the vacuous pass this
-        # suite exists to catch.
-        log "check_resolver_differential_parity: refusal path proven; parity path needs a built mios-resolver (CI builds it)"
-        return 0
-    fi
-    MIOS_DRIFT_REQUIRE_TOOLS=0 _neg_gate check_resolver_differential_parity         || die "check_resolver_differential_parity failed after restoration"
+    log "Testing resolver parity with a configured catalog"
+    MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_resolver_differential_parity \
+        || die "resolver parity baseline failed"
+    local missing out rc=0
+    missing="$(mktemp -d)" || die "cannot make missing-tool catalog"
+    out="$(MIOS_NATIVE_BIN_DIR="$missing" MIOS_DRIFT_REQUIRE_TOOLS=1 \
+        bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_differential_parity 2>&1)" || rc=$?
+    rmdir "$missing" || die "missing-tool catalog was unexpectedly written"
+    [ "$rc" -ne 0 ] || die "resolver parity accepted a missing configured resolver"
+    grep -q 'configured resolver is missing' <<< "$out" \
+        || die "resolver parity failed for a different reason: $out"
+    MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_resolver_differential_parity \
+        || die "resolver parity failed after restoring the configured catalog"
     log "check_resolver_differential_parity negative test passed"
 }
 

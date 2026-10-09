@@ -161,6 +161,19 @@ def test_lexer():
     b = blk("same text here")
     check("hash-normalised", a.sha12, b.sha12)
 
+def test_html_endings():
+    for end in ("-->", "--!>"):
+        check("html-strip-" + end, mc._strip("<!-- comment " + end), "comment")
+        blocks = mc._lex_generic("x.md", "<!-- first " + end + "\ntext\n<!-- second " + end + "\n", "<!--")
+        check("html-count-" + end, len(blocks), 2)
+        check("html-bound-" + end, (blocks[0].start_line, blocks[0].end_line), (1, 1))
+        check("html-following-" + end, blocks[1].text, "second")
+    blocks = mc._lex_generic("x.md", "<!-- first --!\nsecond --!>\ntext\n", "<!--")
+    check("html-incomplete-does-not-close", len(blocks), 1)
+    check("html-multiline-end", blocks[0].end_line, 2)
+    check("html-incomplete-is-content", "first --!" in blocks[0].text, True)
+
+
 def test_landing_ratio(p: mc.Policy) -> None:
     """Guards mios-manual landed(), which raised AttributeError without it."""
     check("landing-ratio-present", hasattr(p, "landing_min_word_ratio"), True)
@@ -176,6 +189,7 @@ def main() -> int:
     test_stale(p)
     test_heredoc()
     test_lexer()
+    test_html_endings()
     test_landing_ratio(p)
     print(f"[test_mios_comments] {PASSED} passed, {len(FAILED)} failed")
     for f in FAILED:
