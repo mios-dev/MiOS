@@ -76,3 +76,29 @@ falls back to software LUKS2 AES-XTS-512 with TPM 2.0 (PCR 7+11) binding, and ap
 MiOS standard GPT partitioning layouts (ESP, Root, Userspace, DB/Ceph).
 
 <!-- mios-src:5174fc9d7b9a from usr/libexec/mios/storage/opal_luks_partition.py:4-10 -->
+### Compresses bytes into a genuine Zstandard frame using the...
+
+Compresses bytes into a genuine Zstandard frame using the zstd CLI or the
+    python zstandard module.
+
+    Raises:
+        ValueError: when the compression level is outside 1-22.
+        ZstdCompressionError: when an encoder subprocess fails or emits bytes
+            that are not a valid Zstandard frame.
+        ZstdUnavailableError: when neither real encoder is available. There is
+            deliberately no zlib fallback: every payload labeled .chunk.zst must
+            be decodable by an independent Zstandard implementation.
+
+<!-- mios-src:c196a677f75b from usr/libexec/mios/storage/mios-backup-remote:196-207 -->
+
+### Restore-side consumer
+
+Restore-side consumer: decompresses a Zstandard frame produced by
+    compress_data_zstd using the zstd CLI or the python zstandard module.
+
+    Raises:
+        ZstdDecompressionError: when the payload is not a Zstandard frame or
+            fails integrity decode (corruption, truncation, mislabeled data).
+        ZstdUnavailableError: when neither real decoder is available.
+
+<!-- mios-src:3576549edf8e from usr/libexec/mios/storage/mios-backup-remote:251-259 -->

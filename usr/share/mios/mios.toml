@@ -11977,9 +11977,7 @@ exempt = [
   # Verb backends: requires verb backend implementation mapper.
   "check_verb_backends",
   # Static linkage: requires built Linux musl ELF binaries.
-  "check_static_linkage",
-  # Comment lex equivalence: requires comment lexing equivalence parser.
-  "check_comment_lex_equivalence"
+  "check_static_linkage"
 ]
 
 # ----------------------------------------------------------------------------

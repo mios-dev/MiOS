@@ -99,8 +99,9 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      \x20      mios-gate image-equivalence --root DIR --profile P [--ssot FILE] [--allow-tree-only]\n\
                      \x20      mios-gate static-linkage [--root DIR] [--format text|json] [--binary PATH] [--arch ARCH] [--census]\n\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
-                             doc-refs-resolve, drift-stubs, gate-registry, generator-host-parity, image-equivalence, image-freshness,\n\
-                             module-test-coverage, negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
+                             doc-refs-headers, doc-refs-resolve, drift-stubs, gate-registry, generator-host-parity,\n\
+                             image-equivalence, image-freshness, module-test-coverage, negative-coverage,\n\
+                             no-inert-ssot-tables, profile-integrity,\n\
                              phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
@@ -218,6 +219,7 @@ fn main() -> ExitCode {
         "build-tool-dispatch" => dispatch::check(&root),
         "canonical-bools" => canonical_bools::check(&root),
         "credential-literals" => credentials::check(&root),
+        "doc-refs-headers" => doc_refs::headers(&root),
         "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),
         "gate-registry" => gate_registry::check(&root),

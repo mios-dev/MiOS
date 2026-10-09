@@ -435,16 +435,14 @@ fn with_rename_hint(root: &Path, finding: &str) -> String {
     }
 }
 
-pub fn check(root: &Path) -> Report {
-    let Some(re) = Res::new() else {
-        return cannot_run("the reference patterns did not compile");
-    };
+/// What both entry points read from [docs]: the ceiling and the allowlist.
+fn docs_policy(root: &Path) -> Result<(i64, Vec<String>), String> {
     let ssot = root.join(SSOT);
     let Ok(text) = std::fs::read_to_string(&ssot) else {
-        return cannot_run(format!("{} is unreadable", ssot.display()));
+        return Err(format!("{} is unreadable", ssot.display()));
     };
     let Ok(data) = text.parse::<toml::Value>() else {
-        return cannot_run(format!("{} did not parse", ssot.display()));
+        return Err(format!("{} did not parse", ssot.display()));
     };
     let docs = data.get("docs").and_then(|d| d.as_table());
     let max_stale = docs
@@ -461,6 +459,80 @@ pub fn check(root: &Path) -> Report {
                 .collect()
         })
         .unwrap_or_default();
+    Ok((max_stale, allowlist))
+}
+
+/// Every path one file's AI-related/AI-doc headers name that does not resolve.
+fn header_stale(root: &Path, dir: &Path, body: &str, re: &Res, allow: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for c in re.header.captures_iter(body) {
+        let raw = c
+            .get(1)
+            .or_else(|| c.get(2))
+            .map(|m| m.as_str())
+            .unwrap_or("");
+        for tok in raw.split(',') {
+            let t = clean(tok, re);
+            if header_ref_is_path(&t) && !is_allowlisted(&t, allow) && !resolves(root, dir, &t) {
+                out.push(t);
+            }
+        }
+    }
+    out
+}
+
+/// `doc-refs-headers`: every unresolved header path as `rel<TAB>target`, with
+/// no baseline, so the comment census can mark the blocks that name one (R7).
+pub fn headers(root: &Path) -> Report {
+    const NAME: &str = "doc-refs-headers";
+    let named = |mut r: Report| {
+        r.check = NAME.to_string();
+        r
+    };
+    let Some(re) = Res::new() else {
+        return named(cannot_run("the reference patterns did not compile"));
+    };
+    let allowlist = match docs_policy(root) {
+        Ok((_, a)) => a,
+        Err(why) => return named(cannot_run(why)),
+    };
+    // The doc-refs-resolve corpus, so the two verdicts can never disagree.
+    let Some(files) = corpus(root) else {
+        return named(cannot_run("git ls-files failed, so no file was scanned"));
+    };
+    if files.is_empty() {
+        return named(cannot_run(
+            "the tracked corpus is empty, so this check proved nothing",
+        ));
+    }
+    let mut findings = Vec::new();
+    for rel in &files {
+        let fpath = root.join(rel);
+        let dir = fpath.parent().unwrap_or(root).to_path_buf();
+        let body = match std::fs::read(&fpath) {
+            Ok(b) => String::from_utf8_lossy(&b).into_owned(),
+            Err(e) => return named(cannot_run(format!("{rel} is unreadable: {e}"))),
+        };
+        for t in header_stale(root, &dir, &body, &re, &allowlist) {
+            findings.push(format!("{rel}\t{t}"));
+        }
+    }
+    let summary = format!(
+        "{} unresolved AI header reference(s) across {} tracked file(s)",
+        findings.len(),
+        files.len()
+    );
+    named(report(findings.is_empty(), summary, findings))
+}
+
+pub fn check(root: &Path) -> Report {
+    let Some(re) = Res::new() else {
+        return cannot_run("the reference patterns did not compile");
+    };
+    let (max_stale, allowlist) = match docs_policy(root) {
+        Ok(p) => p,
+        Err(why) => return cannot_run(why),
+    };
 
     let Some(files) = corpus(root) else {
         return cannot_run("git ls-files failed, so no file was scanned");
@@ -484,24 +556,8 @@ pub fn check(root: &Path) -> Report {
                 continue;
             }
         };
-        for c in re.header.captures_iter(&body) {
-            let raw = c
-                .get(1)
-                .or_else(|| c.get(2))
-                .map(|m| m.as_str())
-                .unwrap_or("");
-            for tok in raw.split(',') {
-                let t = clean(tok, &re);
-                if !header_ref_is_path(&t) {
-                    continue;
-                }
-                if is_allowlisted(&t, &allowlist) {
-                    continue;
-                }
-                if !resolves(root, &dir, &t) {
-                    stale.push(format!("{rel}: {t}"));
-                }
-            }
+        for t in header_stale(root, &dir, &body, &re, &allowlist) {
+            stale.push(format!("{rel}: {t}"));
         }
         if base.ends_with(".md") {
             for c in re.link.captures_iter(&body) {
@@ -722,6 +778,41 @@ mod tests {
             "the finding must name the missing target: {:?}",
             rep.findings
         );
+    }
+
+    #[test]
+    fn headers_lists_every_unresolved_header() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(
+            r.join("a.py"),
+            "# AI-related: a.py, tools/gone.py
+",
+        );
+        let _ = fs::write(
+            r.join("b.sh"),
+            "# AI-doc: tools/also-gone.sh
+",
+        );
+        track(r);
+        let rep = headers(r);
+        assert_eq!(rep.check, "doc-refs-headers");
+        assert!(!rep.ok, "unresolved headers must be listed");
+        assert_eq!(
+            rep.findings,
+            ["a.py	tools/gone.py", "b.sh	tools/also-gone.sh"]
+        );
+        let _ = fs::write(
+            r.join("a.py"),
+            "# AI-related: a.py
+",
+        );
+        let _ = fs::write(
+            r.join("b.sh"),
+            "true
+",
+        );
+        assert!(headers(r).ok, "resolving headers must list nothing");
     }
 
     #[test]

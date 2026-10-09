@@ -4182,7 +4182,11 @@ def check_docs_ratchet() -> int:
         print("\n".join(viol))
         return 1
 
-    refindex = mc.RefIndex.build(root)
+    try:
+        refindex = mc.RefIndex.build(root)
+    except RuntimeError as e:
+        print("stale references were not measured, so that ceiling proves nothing: %s" % e)
+        return 1
     ledger_path = os.path.join(root, "usr/share/mios/reference/manual-corpus.tsv")
     rows = {}
     if os.path.isfile(ledger_path):
