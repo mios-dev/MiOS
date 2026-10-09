@@ -3026,6 +3026,13 @@ check_repo_partition_label_ssot() {
     fi
 }
 
+check_artifact_recipes() {
+    echo "[98-drift-checks] no artifact recipe carries a placeholder or a committed credential; disks get the operator's at build time (Law 11)"
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_artifact_recipes could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"; return; }
+    "$bin" artifact-recipes --root "$ROOT" || \
+        _violation "an artifact recipe carries a placeholder or a committed credential -- disks get theirs from miosd artifact-build (Law 11)"
+}
+
 check_bib_single_config_invariant() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
@@ -4033,6 +4040,7 @@ main() {
     check_bib_configs_projection
     check_repo_partition_label_ssot
     check_bib_single_config_invariant
+    check_artifact_recipes
     check_build_artifacts_output_dir
     check_win11_vm_template_xml
     check_ipa_enroll_projection

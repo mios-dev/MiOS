@@ -1536,6 +1536,7 @@ def check_negative_test_coverage() -> int:
         "check_bib_configs_projection",
         "check_repo_partition_label_ssot",
         "check_bib_single_config_invariant",
+        "check_artifact_recipes",
         "check_build_artifacts_output_dir",
         "check_win11_vm_template_xml",
         "check_ipa_enroll_projection",
