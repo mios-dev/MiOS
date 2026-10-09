@@ -1,4 +1,4 @@
-// AI-hint: Asserts [rust.categories] SSOT registry integrity on both layers -- the crate layer (every category has a valid owner, destination binary, install_dir and role; every crate exists on disk; every disk crate is registered) and the script layer (scope globs claim every universe script for exactly one porting category or an exempt-with-reason category; replaces= entries are really deleted; unowned scripts sit under the shrink-only max_unowned ceiling).
+// AI-hint: Asserts [rust.categories] SSOT registry integrity on both layers: crates (owner, binary, install_dir, role; on disk and registered) and scripts (each universe script claimed by exactly one category, replaces= deleted, unowned under max_unowned).
 // AI-related: usr/share/mios/mios.toml, usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md, docs/design/doc-rust-static-port.md, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
 
 use crate::Report;

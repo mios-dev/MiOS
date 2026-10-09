@@ -218,8 +218,24 @@ class MockLlamaServerHandler(BaseHTTPRequestHandler):
 LIVE_IGPU_ENDPOINT = "http://127.0.0.1:8540"
 
 
+def setUpModule():
+    """The suite talks to in-process servers on 127.0.0.1; a sandbox that
+    refuses loopback sockets skips it instead of failing it."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+    except OSError as exc:
+        raise unittest.SkipTest(f"loopback sockets unavailable: {exc}") from exc
+
+
 def is_live_igpu_endpoint_available(url: str = LIVE_IGPU_ENDPOINT) -> bool:
-    """Probes if the live MiOS iGPU service is answering on localhost:8540."""
+    """Probes if the live MiOS iGPU service is answering on localhost:8540.
+
+    Opt-in (MIOS_TEST_LIVE=1). Without it the suite stays hermetic and runs
+    against its ephemeral mock, whatever happens to listen on this machine;
+    with it, a live service that answers becomes the system under test."""
+    if os.environ.get("MIOS_TEST_LIVE") != "1":
+        return False
     try:
         req = urllib.request.Request(f"{url}/health")
         with urllib.request.urlopen(req, timeout=1.5) as resp:

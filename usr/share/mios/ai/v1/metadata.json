@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3840,
-  "total_metadata_entries": 3147,
-  "total_hints": 3137,
+  "total_files_scanned": 3838,
+  "total_metadata_entries": 3146,
+  "total_hints": 3136,
   "total_functions_indexed": 1469,
-  "total_related_links": 5221,
+  "total_related_links": 5228,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -73,7 +73,7 @@
     },
     {
       "path": ".devcontainer/cloud-shell/bootstrap.sh",
-      "hint": "The one MiOS cloud-environment script: runs the devcontainer ([image].ref plus wiring) under podman or docker for Claude Code cloud, Codex cloud and Cloud Shell, creates a GCE VM, preflights disk, pulls in the background and applies the [deployment.cloud] overlay.",
+      "hint": "The one MiOS cloud-environment script: runs the devcontainer ([image].ref plus wiring) under podman or docker for Claude Code cloud, Codex cloud and Cloud Shell, creates a GCE VM, preflights disk, pulls and applies the [deployment.cloud] overlay.",
       "related": [
         ".devcontainer/Containerfile",
         ".devcontainer/devcontainer.json",
@@ -2019,7 +2019,7 @@
       "path": "automation/mios-motd",
       "hint": "Compatibility login entrypoint delegates the complete layered SSOT dashboard to the same native Linux/Windows engine.",
       "related": [
-        "tools/native/mios-gen/src/dashboard.rs",
+        "tools/native/mios-gen/src/main.rs",
         "etc/profile.d/zz-mios-motd.sh"
       ],
       "functions": [],
@@ -2400,24 +2400,6 @@
       "has_shebang": false
     },
     {
-      "path": "config/artifacts/qcow2.toml",
-      "hint": "Defines the bootc-image-builder configuration for generating QCOW2 disk images, specifying user credentials, kernel boot parameters, and filesystem partition sizes...",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "config/artifacts/vhdx.toml",
-      "hint": "Defines the VHDX disk image configuration for Hyper-V targets, specifying user credentials, kernel boot parameters (iommu/nouveau), and filesystem partition sizes f...",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "config/artifacts/wsl2.toml",
       "hint": "Defines the WSL2-specific artifact configuration for the MiOS build system, specifying user account defaults and kernel parameters for the `wsl --import` workflow.",
       "related": [],
@@ -2546,7 +2528,7 @@
     },
     {
       "path": "docs/agy/w10-live-boot/live-chat.toml",
-      "hint": "Build-mechanics config for automation/build/live-iso.sh (W10 --",
+      "hint": "Build-mechanics config for automation/build/live-iso.sh, the W10 MiOS-Cat zero-install live-USB-to-AI-chat leg: dracut/xorriso plumbing of this build leg, not operator SSOT and not a bootc-image-builder customization file.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -2567,7 +2549,7 @@
     },
     {
       "path": "docs/agy/w10-live-boot/overlay/etc/systemd/system/getty@tty1.service.d/override.conf",
-      "hint": "W10 live-chat leg. Replaces tty1's login shell with the chat",
+      "hint": "W10 live-chat leg: tty1 runs the chat client in place of a login shell, so no bare shell is ever reachable on this console. Injected only by automation/build/live-iso.sh; never present on a real install.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -3064,6 +3046,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/btop.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "etc/btop/themes/mios.theme",
+      "hint": "btop theme projected by native build and runtime renderers from the layered mios.toml palette.",
+      "related": [],
+      "functions": [],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -4261,6 +4252,21 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-build/src/artifacts.rs",
+      "hint": "Renders a disk artifact's bootc-image-builder config from the layered SSOT, builds and converts it, and boot-tests it under QEMU; the credential is the operator's, never a recipe's.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "config/artifacts/iso.toml",
+        "Justfile",
+        "src/mios-rs/miosd/src/main.rs",
+        ".github/workflows/mios-ci.yml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-build/src/images.rs",
       "hint": "Build the operator's current source tree using SSOT image targets and verify installed runtime commands; never fetch, reset or reap it.",
       "related": [
@@ -4426,6 +4432,20 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/artifact_recipes.rs",
+      "hint": "Fails when a committed artifact recipe carries a placeholder or a credential; a disk's credential is rendered from the operator at build time by miosd artifact-build, never stored in a recipe.",
+      "related": [
+        "config/artifacts/",
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/canonical_bools.rs",
       "hint": "Asserts [verbs.*] boolean fields carry canonical TOML booleans, not stringly-typed lookalikes -- hidden, sensitive, params[].required, and params[].default (when type=boolean) must parse as real bools.",
       "related": [
@@ -4473,6 +4493,30 @@
         "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
         "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/gate_registry.rs",
+      "hint": "Verifies gate definitions, bounded main registrations and drift-tool references without mutating sources.",
+      "related": [
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/src/host_parity.rs",
+      "hint": "Checks declared and tracked generator sources for non-portable fnmatch usage; unreadable inputs fail.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "automation/98-drift-checks.sh"
       ],
       "functions": [],
       "doc": null,
@@ -4549,8 +4593,22 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/module_tests.rs",
+      "hint": "Asserts every agent-pipe module is NAMED by a unit test (imported, loaded by file, or reached through its re-export shim), and every tools/ and libexec Python module has a sibling test that names it or sits in the shrink-only grandfather ledger.",
+      "related": [
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh",
+        "usr/share/mios/reference/python-untested-baseline.txt",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/negative_coverage.rs",
-      "hint": "Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this gate is what keeps the phantom population at zero.",
+      "hint": "Asserts every drift check dispatched from main() has a negative test in tests/drift-gate-negatives.sh or sits in the [testing.negative_coverage_exempt] register -- a gate that cannot fail is a phantom, and this keeps phantoms at zero.",
       "related": [
         "automation/98-drift-checks.sh",
         "automation/98-drift-checks.sh",
@@ -4659,7 +4717,7 @@
     },
     {
       "path": "src/mios-rs/mios-gate/src/rust_categories.rs",
-      "hint": "Asserts [rust.categories] SSOT registry integrity on both layers -- the crate layer (every category has a valid owner, destination binary, install_dir and role; every crate exists on disk; every disk crate is registered) and the script layer (scope globs claim every universe script for exactly one porting category or an exempt-with-reason category; replaces= entries are really deleted; unowned scripts sit under the shrink-only max_unowned ceiling).",
+      "hint": "Asserts [rust.categories] SSOT registry integrity on both layers: crates (owner, binary, install_dir, role; on disk and registered) and scripts (each universe script claimed by exactly one category, replaces= deleted, unowned under max_unowned).",
       "related": [
         "usr/share/mios/mios.toml",
         "usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md",
@@ -4688,7 +4746,7 @@
     },
     {
       "path": "src/mios-rs/mios-gate/src/static_linkage.rs",
-      "hint": "Static linkage verification gate for mios-gate: asserts absence of PT_INTERP and DT_NEEDED on Linux native binaries per Law 14 (WS-LANG / ADR-0011 / ADR-0021).",
+      "hint": "Static linkage gate for mios-gate: asserts no PT_INTERP or DT_NEEDED on Linux native binaries (Law 14, ADR-0021); --census adds the SHA-256 and dependency inventory.",
       "related": [
         "src/mios-rs/mios-gate/src/main.rs",
         "usr/share/mios/mios.toml",
@@ -7053,7 +7111,7 @@
     },
     {
       "path": "tests/test-cloud-overlay.py",
-      "hint": "Two-sided tests for the cloud/container overlay: bootstrap.sh renders [deployment.cloud.overlay] as a host drop-in, the layered resolver merges it, and the first-boot model pullers and the runtime flatpak installer then do nothing; without it they pull and install as before.",
+      "hint": "Two-sided tests for the cloud/container overlay: bootstrap.sh renders [deployment.cloud.overlay] as a host drop-in, the resolver merges it, and the first-boot model pullers and flatpak installer then do nothing; without it they run as before.",
       "related": [
         ".devcontainer/cloud-shell/bootstrap.sh",
         "usr/share/mios/mios.toml",
@@ -9438,15 +9496,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/audit-static-linkage.py",
-      "hint": "Audits ELF headers of compiled Linux binaries across tools/native and src/mios-rs, asserting static linkage (absence of PT_INTERP and DT_NEEDED).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/check-build-urls.sh",
       "hint": "Non-build-blocking pre-flight URL liveness probe for build-time assets.",
       "related": [],
@@ -9466,7 +9515,7 @@
     },
     {
       "path": "tools/check-ovmf-enrollment.sh",
-      "hint": "Diagnoses Secure Boot OVMF enrollment by CONTENT, not filenames: parses every OVMF_VARS varstore under /usr/share (raw and qcow2) with the bounded EDK2 variable-store parser and reports which are enrolled (live PK/KEK/db signature lists + SecureBootEnable) versus blank, plus which CODE images are merely Secure Boot capable. Sources tools/find-ovmf-firmware.sh for the shared verification library; never modifies firmware, NVRAM, or VM state.",
+      "hint": "Diagnoses Secure Boot OVMF enrollment by CONTENT, not filenames: parses every OVMF_VARS varstore under /usr/share (raw and qcow2) and reports enrolled versus blank, plus which CODE images are Secure Boot capable. Read-only.",
       "related": [
         "find-ovmf-firmware.sh",
         "get-secureboot-ovmf.sh",
@@ -9599,7 +9648,7 @@
     },
     {
       "path": "tools/find-ovmf-firmware.sh",
-      "hint": "Shared OVMF firmware library + discovery UI. Scans /usr/share for OVMF CODE/VARS pairs, proves Secure Boot capability and key enrollment from firmware content (validated qemu firmware descriptors and a bounded EDK2 varstore parser) instead of filenames, and rejects incompatible CODE/VARS pairs (cross-build, size, or format mismatch). tools/get-secureboot-ovmf.sh, tools/check-ovmf-enrollment.sh and tools/fix-ovmf-enrollment.sh source this file; run directly for the discovery report.",
+      "hint": "Shared OVMF firmware library + discovery UI: finds OVMF CODE/VARS pairs under /usr/share, proves Secure Boot capability and enrollment from content (qemu descriptors, bounded EDK2 varstore parser) and rejects incompatible pairs.",
       "related": [],
       "functions": [
         "find_vars_for_code",
@@ -9620,7 +9669,7 @@
     },
     {
       "path": "tools/fix-ovmf-enrollment.sh",
-      "hint": "Root-gated repair that ensures a content-verified ENROLLED OVMF varstore exists: verifies current state with the bounded EDK2 variable-store parser, then either copies the distro-provided enrolled VARS, enrolls a fresh copy of the same-build blank template with virt-fw-vars --enroll-redhat, or fetches current edk2-ovmf via dnf download - every artifact is content-verified and pair-checked before install; never overwrites existing firmware, never touches /var/lib/libvirt/qemu/nvram or live VM state.",
+      "hint": "Root-gated repair that ensures a content-verified ENROLLED OVMF varstore exists: copies the distro's enrolled VARS, enrolls a same-build blank template, or fetches edk2-ovmf; never overwrites firmware or touches live NVRAM.",
       "related": [
         "find-ovmf-firmware.sh",
         "check-ovmf-enrollment.sh",
@@ -9683,7 +9732,7 @@
     },
     {
       "path": "tools/get-secureboot-ovmf.sh",
-      "hint": "Locates enrolled OVMF Secure Boot varstores by CONTENT verification (the bounded EDK2 variable-store parser) across all known layouts (/usr/share/edk2/ovmf Fedora, /usr/share/edk2/x64 kraxel, /usr/share/OVMF symlinks), checks the CODE/VARS pair against qemu firmware descriptors, and offers a verification-gated repair menu - never installing a blank or unverified varstore, never overwriting existing files, and never touching live NVRAM.",
+      "hint": "Locates enrolled OVMF Secure Boot varstores by CONTENT (bounded EDK2 variable-store parser) across all known layouts, checks each CODE/VARS pair against qemu firmware descriptors and offers a verification-gated repair menu.",
       "related": [
         "find-ovmf-firmware.sh",
         "check-ovmf-enrollment.sh",
@@ -9967,7 +10016,7 @@
       "hint": "Two-sided test of the generate-names-registry shim: it resolves the root (MIOS_DRIFT_ROOT, else the working directory), projects the names registry there, and fails without writing when the root has no SSOT.",
       "related": [
         "tools/native/generate-names-registry/src/main.rs",
-        "tools/native/mios-gen/src/names_registry.rs"
+        "tools/native/mios-gen/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10300,18 +10349,6 @@
       "has_shebang": false
     },
     {
-      "path": "tools/native/mios-gen/src/dashboard.rs",
-      "hint": "Native runtime dashboard adapter resolves six-tier SSOT once and renders structured host facts through the shared cross-platform engine.",
-      "related": [
-        "/usr/share/mios/templates/rust",
-        "tools/native/mios-service-core/src/dashboard.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "tools/native/mios-gen/src/fastfetch.rs",
       "hint": "SSOT Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC (ADR-0021 gen category).",
       "related": [
@@ -10338,7 +10375,7 @@
     },
     {
       "path": "tools/native/mios-gen/src/lib.rs",
-      "hint": "Shared generator implementations used by unified verbs and installed compatibility commands.",
+      "hint": "mios-gen library: the names-registry generator (check 30) and the bootstrap mirror, shared with generate-names-registry and the mios-gen CLI.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -10367,15 +10404,6 @@
         "usr/share/mios/mios.toml",
         "tools/native/mios-gen/src/metal_vs_hosted.rs"
       ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/names_registry.rs",
-      "hint": "Rust SSOT names registry generator (check 30 generator).",
-      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "slash",
@@ -10412,18 +10440,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/projection_evidence.rs",
-      "hint": "Native projection diagnostics render tracked working bytes privately without restoring or writing caller files.",
-      "related": [
-        "automation/98-drift-checks.sh",
-        "tools/native/mios-gen/tests/projection_evidence.rs"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10484,11 +10500,11 @@
     },
     {
       "path": "tools/native/mios-gen/src/roadmap_index.rs",
-      "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14)",
+      "hint": "Rust native implementation of roadmap-index (ADR-0021, Law 14): validates the workstreams in ROADMAP.md and regenerates its TOC, Workstream Index, Status Rollup and Metrics table.",
       "related": [
         "usr/share/mios/mios.toml",
         "ROADMAP.md",
-        "tools/roadmap-index.py"
+        "tools/native/mios-gen/tests/roadmap_index.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10536,21 +10552,6 @@
       ],
       "functions": [],
       "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "tools/native/mios-gen/src/tmux_runtime.rs",
-      "hint": "Native `render-tmux-theme --runtime DIR` -- projects a caller-owned tmux.conf (layered theme + keybindings) and mios.omp.json from ALL SSOT tiers (vendor < host < user). Replaces the `--runtime` mode of the deleted tmux_theme.py (Phase 3.18 regression fix).",
-      "related": [
-        "tools/native/mios-gen/src/tmux_theme.rs",
-        "usr/lib/mios/mios_toml.py",
-        "usr/libexec/mios/ux/theme_sync.py",
-        "etc/profile.d/mios-prompt.sh",
-        "usr/libexec/mios/mios-terminal"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
       "comment_style": "slash",
       "has_shebang": false
     },
@@ -10740,7 +10741,7 @@
       "path": "tools/native/mios-gen/tests/projection_evidence.rs",
       "hint": "Native isolated projection evidence rejects bad roots and escaping inputs while preserving dirty caller bytes.",
       "related": [
-        "tools/native/mios-gen/src/projection_evidence.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -10800,7 +10801,7 @@
     },
     {
       "path": "tools/native/mios-gen/tests/roadmap_index.rs",
-      "hint": "Two-sided integration test suite for mios-gen roadmap-index (ADR-0021, Law 14) -- hermetic: every case runs against a fixture copy of ROADMAP.md, because a test that checks the LIVE tree's sync state fails on any mid-edit working copy and duplicates what the drift gate already asserts.",
+      "hint": "Two-sided integration tests for mios-gen roadmap-index (ADR-0021, Law 14), hermetic: each case runs on a fixture copy of ROADMAP.md, since checking the LIVE tree fails on any mid-edit copy and duplicates the drift gate.",
       "related": [
         "tools/native/mios-gen/src/roadmap_index.rs",
         "ROADMAP.md",
@@ -10853,7 +10854,7 @@
       "path": "tools/native/mios-gen/tests/tmux_runtime.rs",
       "hint": "Two-sided integration tests for `mios-gen render-tmux-theme --runtime DIR` (Phase 3.18 regression fix: layered runtime projection that the deleted tmux_theme.py provided).",
       "related": [
-        "tools/native/mios-gen/src/tmux_runtime.rs",
+        "tools/native/mios-gen/src/tmux_theme.rs",
         "usr/libexec/mios/ux/theme_sync.py",
         "etc/profile.d/mios-prompt.sh",
         "usr/libexec/mios/mios-terminal"
@@ -11314,7 +11315,7 @@
       "related": [
         "/usr/share/mios/templates/rust",
         "usr/share/mios/mios.toml",
-        "tools/native/mios-gen/src/dashboard.rs"
+        "tools/native/mios-gen/src/main.rs"
       ],
       "functions": [],
       "doc": null,
@@ -24381,7 +24382,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-gpu-passthrough",
-      "hint": "Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map the GPU vendors declared in mios.toml [gpu.cdi] onto background AI service Quadlets (mios-llm-light, the vLLM/SGLang heavy lane) based on detected hardware; holds no vendor literal of its own.",
+      "hint": "Syncs Quadlet configs with live CDI specs in /run/cdi/, mapping the GPU vendors declared in mios.toml [gpu.cdi] onto the background AI service Quadlets (mios-llm-light, the vLLM/SGLang heavy lane) per detected hardware; no vendor literal.",
       "related": [
         "/usr/libexec/mios/mios-gpu-passthrough",
         "/usr/libexec/mios/mios-toml-get",
@@ -24457,7 +24458,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-hardcode-lint",
-      "hint": "Enforcement gate for the NO-HARDCODE law (Architectural Law 7). Read-only repo scan that FAILS on three regression classes the law forbids: (1) a literal date/timestamp or dated attribution in COMMENT or DOCSTRING text (timeless-comment rule -- comments must describe the WHY abstractly, not pin code to a frozen history); (2) a dated attribution baked into a .py STRING LITERAL's prose -- a date inside served CSS/JS-comment text or inside a system-prompt string -- which the #-comment scan never sees; and (3) AI-Hint header crash-risks (a UTF-8 BOM not at byte 0, or a header placed above a shebang) that break the install/CI parse. Comment- and value-aware: .py uses tokenize + AST docstrings + a string-token scan that flags only a whitespace-led (prose) date and EXEMPTS a date used as a VALUE -- a quote-led/standalone protocol-version or config literal, or one glued into a URL/slug/identifier token; other files use quote-aware comment detection, so legitimate date CONFIG VALUES are never flagged -- only doc/comment/attribution text. Mirrors the 98-drift-checks fitness-function pattern (exit 1 on violation, MIOS_HARDCODE_LINT_SOFT=1 for advisory). Pairs with the surface-parity + module-boundary gates as the offline LAW gate.",
+      "hint": "Read-only enforcement gate for the NO-HARDCODE law (Law 7): fails on a date or dated attribution in comments, docstrings or .py string prose, and on AI-hint header crash-risks (a BOM not at byte 0, a header above a shebang).",
       "related": [
         "../../../automation/98-drift-checks.sh",
         "../../share/mios/mios.toml",
@@ -24921,7 +24922,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-manual",
-      "hint": "The generative documentation CLI. Builds the comment corpus ledger that makes \"this comment's knowledge landed in a doc\" a machine-checkable fact, and reports the census that drives the documentation ratchet. Only `prune` edits source, and only where the landing predicate proves the knowledge is already in a doc.",
+      "hint": "The generative documentation CLI: builds the comment corpus ledger that makes \"this comment's knowledge landed in a doc\" machine-checkable and reports the census behind the documentation ratchet. Only `prune` edits source, only for landed knowledge.",
       "related": [
         "usr/lib/mios/mios_comments.py",
         "usr/share/mios/reference/manual-corpus.tsv",
@@ -29424,7 +29425,7 @@
       "hint": "Deploy the universal MiOS image as a Hyper-V Gen 2 VM booting a .vhdx on M: cut by bootc install/BIB, because the installer factory-populates /var + /var/home that a raw podman-export skips \u2014 read before building a run-off-M: deployment or touching the Ceph/VM bootstrap gates.",
       "related": [
         "Justfile vhdx target",
-        "config/artifacts/vhdx.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
         "usr/lib/bootc/kargs.d/10-mios-console.toml",
         "usr/lib/systemd/system/var-home.mount",
         "usr/lib/systemd/system/ceph-bootstrap.service",
@@ -33018,9 +33019,8 @@
         "usr/share/mios/ventoy/mios-kickstart.cfg",
         "config/artifacts/bib.toml",
         "config/artifacts/iso.toml",
-        "config/artifacts/qcow2.toml",
-        "config/artifacts/vhdx.toml",
         "config/artifacts/wsl2.toml",
+        "src/mios-rs/mios-build/src/artifacts.rs",
         "Justfile",
         "automation/98-drift-checks.sh",
         "usr/share/mios/mios.toml ([deployment] [deploy.artifacts] [field])",
@@ -36389,7 +36389,7 @@
     },
     {
       "path": "usr/share/mios/theme/templates/btop-mios.theme.tmpl",
-      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
+      "hint": "btop theme projected by native build and runtime renderers from the layered mios.toml palette.",
       "related": [],
       "functions": [],
       "doc": null,

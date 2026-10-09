@@ -95,3 +95,16 @@ Enforces strict state directory isolation (never sharing state between VM instan
 state retention across bootc OS updates adhering to Architectural Invariant 1 (/var persists by default).
 
 <!-- mios-src:cf2acdc0ea80 from usr/libexec/mios/virt/vtpm_provision.py:4-10 -->
+### mios_microvm.py — T-733 / T-806 WS-VFIO SquashFS template...
+
+mios_microvm.py — T-733 / T-806 WS-VFIO
+SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay
+and Virtio-PMEM direct DAX memory storage manager for ephemeral microVM sandboxes.
+
+Exports compressed base rootfs SquashFS image over local Unix domain socket
+using qemu-nbd --socket=/run/mios/nbd.sock --read-only.
+Launches Cloud-Hypervisor microVM attaching virtual block device mapped to NBD socket;
+in guest initramfs, mounts NBD read-only and overlays tmpfs RAM upperdir.
+Enables massive concurrency (>100 VMs sharing a single 800MB template) with sub-15ms boot.
+
+<!-- mios-src:24eb45761e96 from usr/libexec/mios/virt/mios_microvm.py:5-15 -->

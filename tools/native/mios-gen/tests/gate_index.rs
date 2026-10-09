@@ -30,6 +30,9 @@ main() {
     check_alpha
     check_beta
 }
+check_alias() {
+    check_alpha
+}
 "#;
     fs::write(auto_dir.join("98-drift-checks.sh"), script_content).unwrap();
 
@@ -91,4 +94,39 @@ fn test_missing_main_fails() {
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("main() function not found"));
+}
+
+#[test]
+fn invalid_main_preserves_existing_index() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir_all(dir.path().join("automation")).unwrap();
+    fs::create_dir_all(dir.path().join("usr/share/mios/reference")).unwrap();
+    let script = dir.path().join("automation/98-drift-checks.sh");
+    let index = dir
+        .path()
+        .join("usr/share/mios/reference/drift-gate-index.tsv");
+    fs::write(&index, "previous index\n").unwrap();
+    for (source, error) in [
+        (
+            "main() {\n check_alpha\n check_alpha\n}\n",
+            "Duplicate check_* functions found in main(): check_alpha",
+        ),
+        (
+            "main() {\n}\ncheck_alias() {\n check_alpha\n}\n",
+            "No check_*",
+        ),
+        ("main() {\n check_alpha\n", "not closed"),
+    ] {
+        fs::write(&script, source).unwrap();
+        let output = Command::new(bin())
+            .arg("gate-index")
+            .arg("--root")
+            .arg(dir.path())
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(error), "{stderr}");
+        assert_eq!(fs::read_to_string(&index).unwrap(), "previous index\n");
+    }
 }

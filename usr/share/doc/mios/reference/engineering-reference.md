@@ -140,8 +140,8 @@ identifier used in paths, env vars, package names, and code.
 │   │                              #   profilers, etc.)
 │   └── windows/                   # Windows-specific helpers
 ├── config/
-│   ├── artifacts/                 # BIB configs (bib.toml, iso.toml, qcow2.toml,
-│   │                              #   vhdx.toml, wsl2.toml)
+│   ├── artifacts/                 # BIB recipes (bib.toml, iso.toml, wsl2.toml);
+│   │                              #   qcow2/vhdx rendered by miosd artifact-build
 │   └── bootstrap/bootstrap.ps1    # Windows bootstrap PS1
 ├── Containerfile                  # OCI build entry (single-stage + ctx scratch)
 ├── Justfile                       # Linux build orchestrator

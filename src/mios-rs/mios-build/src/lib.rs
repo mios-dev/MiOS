@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub mod artifacts;
 pub mod images;
 pub mod native_build;
 pub mod progress;

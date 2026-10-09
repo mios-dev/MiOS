@@ -184,3 +184,13 @@ Inspects incoming model weight format (Marlin, AWQ, GPTQ, GGUF) and GPU hardware
 architecture, dynamically binding the fastest engine for >3.5x token decoding speedup.
 
 <!-- mios-src:6d563434f774 from usr/libexec/mios/ai/quant_dispatch.py:4-10 -->
+### Synthetic Training Q&A Data Pipeline (T-383 / AGY-1981)...
+
+Synthetic Training Q&A Data Pipeline (T-383 / AGY-1981)
+
+Harvests architectural chapters, user guides, manual pages, and ADRs from `/usr/share/doc/mios/`
+including its `adr/` records, performs hierarchical markdown parsing with context preservation, synthesizes
+multi-turn reasoning and domain-specific Q&A pairs for `mios-opencode` fine-tuning,
+enforces secret/token redaction (Rule 14), and emits JSONL datasets to `/var/lib/mios/ai/dataset/`.
+
+<!-- mios-src:e3fc2c98b972 from usr/libexec/mios/ai/synthetic_qa.py:4-11 -->

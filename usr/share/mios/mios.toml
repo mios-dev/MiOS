@@ -2414,42 +2414,50 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-manual", check = "check_manual_generated", output = "usr/share/doc/mios/ (MIOS-GEN marker interiors)" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_comment_landing", output = "usr/share/doc/mios/ (harvested passages + mios-src anchors)" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_desktop_launchers", output = "usr/share/applications/*.desktop" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_ai_manifests_fresh", output = "automation/manifest.json" },
+  { generator = "tools/native/mios-gen/src/render_desktop.rs", check = "check_desktop_launchers", output = "usr/share/applications/*.desktop" },
+  { generator = "tools/native/mios-gen/src/ai_manifest.rs", check = "check_ai_manifests_fresh", output = "automation/manifest.json" },
   { generator = "usr/libexec/mios/mios-ai-metadata.py", check = "check_ai_metadata_fresh", output = "usr/share/mios/ai/v1/metadata.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
-  { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
+  { generator = "tools/native/mios-gen/src/pod_quadlets.rs", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
+  { generator = "tools/native/mios-gen/src/render_globals.rs", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_adr_index", output = "ADR.md" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_roadmap_index", output = "ROADMAP.md" },
+  { generator = "tools/native/mios-gen/src/adr_index.rs", check = "check_adr_index", output = "ADR.md" },
+  { generator = "tools/native/mios-gen/src/roadmap_index.rs", check = "check_roadmap_index", output = "ROADMAP.md" },
   { generator = "tools/native/mios-bake-plan/src/main.rs", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
+  { generator = "tools/native/mios-gen/src/bib_configs.rs", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
+  { generator = "tools/native/mios-gen/src/cargo_manifests.rs", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
   { generator = "tools/native/mios-gen/src/main.rs", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
+  { generator = "tools/native/mios-gen/src/gate_index.rs", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
+  { generator = "tools/native/mios-gen/src/pipe_boundaries.rs", check = "check_pipe_boundaries", output = "usr/share/mios/pipe-boundaries.manifest.json" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_bootc_install_projection", output = "usr/lib/bootc/install/00-mios.toml, usr/lib/repart.d/50-root.conf" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
+  { generator = "tools/native/mios-gen/src/metal_vs_hosted.rs", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
   { generator = "tools/native/generate-names-registry/src/main.rs", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
+  { generator = "tools/native/mios-gen/src/pipeline_index.rs", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/native/mios-gen/src/render_manpages.rs", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-task/src/overrides.rs", check = "check_task_store", output = "TASKS.md (rendered from tasks.jsonl)" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/mios-ai-config/src/main.rs", check = "check_ai_config_projection", output = "etc/mios/ai/config.json, usr/share/mios/ai/v1/config.json" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
+  { generator = "tools/native/mios-gen/src/render_ports.rs", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
   { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
   { generator = "usr/libexec/mios/desktop/gpu_terminal.py", check = "check_edge_generators", output = "etc/skel/.config/alacritty/alacritty.toml" },
   { generator = "usr/libexec/mios/win/wt_profile_inject.py", check = "check_edge_generators", output = "usr/share/mios/wsl/terminal-profile.json" },
-  { generator = "tools/native/mios-gen/src/main.rs", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
+  { generator = "tools/native/mios-gen/src/tmux_theme.rs", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
   { generator = "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py", check = "check_edge_generators", output = "usr/share/mios/theme/fixtures/edge/portal-term.css, usr/share/mios/theme/fixtures/edge/ttyd-page.json" },
   { generator = "tools/native/mios-edge-status/src/main.rs", check = "check_edge_status", output = "stdout (one reach line per [theme.edge.reach] key)" },
+  { generator = "tools/native/mios-gen/src/tmux_theme.rs", check = "check_tmux_theme", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
+  { generator = "tools/native/mios-gen/src/btop_theme.rs", check = "check_btop_theme", output = "etc/btop/themes/mios.theme" },
+  { generator = "tools/native/mios-gen/src/fastfetch.rs", check = "check_fastfetch", output = "tests/golden/fastfetch/mock.jsonc" },
+  { generator = "tools/native/mios-gen/src/lib.rs", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
+  { generator = "tools/native/mios-gen/src/standardize_docs.rs", check = "check_standardize_docs", output = "specs/ (standardized header and footer of every spec page)" },
+  { generator = "tools/native/mios-gen/src/sync_wiki.rs", check = "check_sync_wiki", output = "README.md, specs/Home.md, usr/share/mios/ai/INDEX.md and the specs/ pages that embed version metadata" },
+  { generator = "tools/native/mios-gen/src/bootstrap_sync.rs", check = "check_bootstrap_sync", output = "the [bootstrap.sync] mirror files in mios-bootstrap" },
+  { generator = "tools/native/mios-gen/src/sync.rs", check = "check_resolved_env_lossless", output = "usr/share/mios/reference/env-baseline.txt" },
 ]
 
 # The scope this registry is measured against. `mios-gate projection-coverage`
@@ -2458,7 +2466,19 @@ surfaces = [
 # `check_projection_registry` (forward only) never asked. Single `*`, final
 # path segment only; a pattern the matcher cannot express is a hard error, not
 # a silent widening.
-generator_globs = ["tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py"]
+generator_globs = [
+  "tools/generate-*.py", "tools/render-*.py", "tools/gen-*.py",
+  "tools/native/mios-gen/src/*.rs",
+  "tools/native/mios-unit-gen/src/lib*.rs",
+  "tools/native/mios-bake-plan/src/main*.rs",
+  "tools/native/generate-names-registry/src/main*.rs",
+  "tools/native/mios-task/src/overrides*.rs",
+  "tools/native/mios-size-ceiling/src/main*.rs",
+  "tools/native/mios-toolchain-pin/src/main*.rs",
+  "tools/native/mios-ai-config/src/main*.rs",
+  "tools/native/xtask/src/main*.rs",
+  "tools/native/mios-edge-status/src/main*.rs",
+]
 
 # Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
 # then with the reason spelled out -- a bare name would make this a count.
@@ -8862,7 +8882,7 @@ http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
 [quadlets.scope]
-# Units tools/generate-pod-quadlets.py writes under users/ (podman's user Quadlet
+# Units mios-gen pod-quadlets writes under users/ (podman's user Quadlet
 # search path) instead of the system directory: they run rootless under each
 # login user's systemd. Everything not listed is a system unit.
 user = ["mios-sunshine"]
@@ -11793,6 +11813,31 @@ THP            = ""                        # Transparent Huge Pages configuratio
 # floor below this, and a caller SSOT whose value sits below the image's own.
 min_smoke_components = 24
 
+# `miosd artifact-boot-test <format>` (P1-1): QEMU boots the disk read-only in
+# its [deploy.formats.<f>.vm] shape, waits for SSH with the build's key, then
+# runs each probe in the guest. A failing probe, no SSH within `timeout`, or an
+# early QEMU exit (-no-reboot catches a greenboot rollback) fails the test.
+[testing.boot]
+timeout  = "30m"
+# Secure Boot needs SMM, which KVM nested under Hyper-V (WSL2, so MiOS-DEV)
+# cannot enter ("KVM: entry failed"); false boots such a host without it.
+secure_boot = true
+# The first present entry whose secure_boot matches. The Secure Boot stores
+# enroll Microsoft's UEFI CA, the trust the Hyper-V template names.
+firmware = [
+  { code = "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd", secure_boot = true },          # Debian, Ubuntu: ovmf
+  { code = "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd", secure_boot = true },  # Fedora: edk2-ovmf
+  { code = "/usr/share/OVMF/OVMF_CODE_4M.fd", vars = "/usr/share/OVMF/OVMF_VARS_4M.fd", secure_boot = false },
+  { code = "/usr/share/edk2/ovmf/OVMF_CODE.fd", vars = "/usr/share/edk2/ovmf/OVMF_VARS.fd", secure_boot = false },
+]
+probes = [
+  # Waits out startup, then requires the multi-user target.
+  "systemctl is-system-running --wait >/dev/null; systemctl is-active multi-user.target",
+  # greenboot's verdict on this boot: active only when every required.d check passed.
+  "systemctl is-active greenboot-healthcheck.service",
+  "sudo -n bootc status",
+]
+
 # What every MiOS image holds, whatever its profile (T-1171). The top-level
 # lists are the floor. sections.<s>, phases.<p> and profiles.<q> add probes
 # only when the asserted profile selects that [packages] section, registered
@@ -11954,9 +11999,7 @@ exempt = [
   # Verb backends: requires verb backend implementation mapper.
   "check_verb_backends",
   # Static linkage: requires built Linux musl ELF binaries.
-  "check_static_linkage",
-  # Comment lex equivalence: requires comment lexing equivalence parser.
-  "check_comment_lex_equivalence"
+  "check_static_linkage"
 ]
 
 # ----------------------------------------------------------------------------
@@ -12055,7 +12098,6 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # divergence set is a shrink-only 12 that a thirteenth key breaches
 # (check_resolver_differential_parity). Law 13 costs a shape here.
 [drift.generated_ceilings]
-"build.ratchet.max_phase_scripts" = "Phase scripts expanded during Phase 2 build features; ceiling raised to 79 to match verified phase scripts on disk (T-515, T-497, T-509)"
 "build.rechunk_max_layers" = "OCI layer ceiling for hhd-dev/rechunk; trades layer count against pull size and rebuild caching, so it is an operator-tunable budget rather than a shrink-only code-debt ratchet (T-1071)"
 "legibility.max_tracked_mb" = "emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable's size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)"
 "legibility.max_tracked_files" = "Re-baselined to 3662 following approved merges on main (T-1104..T-1111, manual corpus, devcontainer, artifacts; ADR-0026 task store, operator-approved 2026-09-26)"
@@ -12226,9 +12268,6 @@ list = [
   { ordinal = "98", name = "drift-checks", script = "98-drift-checks.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "99", name = "postcheck", script = "99-postcheck.sh", fatal = true, apply_class = "containerfile" }
 ]
-
-[build.ratchet]
-max_phase_scripts = 79   # +1: 55-native-build.sh, +kdump-config, +dns-config, +export-sbom, +composefs-seal
 
 # ----------------------------------------------------------------------------
 # [templates.placeholders] -- Unified SSOT token vocabulary for scaffolding
@@ -12541,13 +12580,8 @@ link_base = "repo"
 # forward by the index deriver instead.
 enable   = true
 dest_dir = "usr/share/doc/mios/manual"
-# Areas never distilled: their comments are the operator-facing documentation
-# where they sit, or they are generated artifacts.
-skip_globs = [
-  "usr/share/mios/mios.toml",
-  "tools/native/mios-unit-gen/tests/golden/*",
-  "usr/share/doc/*",
-]
+# No skip list: [docs].blocklist_globs is the one exclusion, so distill lands
+# every block the narrative ratchet counts.
 
 [docs.sanitize]
 # Applied to every scraped comment before it reaches a doc. Order matters:
@@ -12778,7 +12812,7 @@ max_libexec_verbs     = 312  # verbs only; retired flight-control.sh, mios-dashb
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 81101   # T-1009 unit 2: canonical-bools strangled to mios-gate (-47).
+max_tooling_python_lines = 80483   # module-test-coverage + static-linkage census folded into mios-gate (-618).
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
@@ -12817,6 +12851,12 @@ max_leaked_fixtures = 0
 # 48 -> 47: four new two-sided tests, less five the tightened
 # argument-position coverage predicate correctly re-counted.
 max_checks_without_negative = 44
+
+[ci.artifacts]
+# Disk formats the artifact-boot job (.github/workflows/mios-ci.yml) builds and
+# boots on every run: a second image build, a BIB run and a QEMU boot, about an
+# hour each, so every format starts off. Outside the drift-gate tiers.
+vhdx = false
 
 [ci.python]
 # Installed on a runner before the unit tier.
@@ -13328,25 +13368,50 @@ gui     = "full desktop session"
 artifacts = ["usb-installer/*.iso"]
 status  = "partial"
 
+# Rendered per build by `miosd artifact-build qcow2`, like vhdx below.
 [deploy.formats.qcow2]
 title   = "QEMU disk"
 summary = "a virtual machine disk for libvirt, QEMU and the cloud images built from it"
 target  = "qcow2"
-recipe  = "config/artifacts/qcow2.toml"
+recipe  = ""
 medium  = "virtual machine"
 gui     = "full desktop session"
 artifacts = ["qcow2/qcow2/*.qcow2", "qcow2/*.qcow2"]
 status  = "shipping"
 
+# Hyper-V disk: BIB's VHD (bib_type, gated by [deployment].target_vhd) converted
+# to a `subformat` VHDX, its config rendered per build by `miosd artifact-build`.
+# Never published (GitHub assets stop at 2 GiB a file, GHCR at 10 GB a layer):
+# build it from the published digest, usr/share/doc/mios/upstream/deploy-targets.md.
 [deploy.formats.vhdx]
 title   = "Hyper-V disk"
 summary = "a virtual machine disk for Hyper-V and Windows virtualisation"
 target  = "vhdx"
-recipe  = "config/artifacts/vhdx.toml"
+recipe  = ""
 medium  = "virtual machine"
 gui     = "full desktop session"
-artifacts = ["vhdx/*.vhdx", "vhdx/vpc/*.vhd", "vhdx/*.vhd"]
+bib_type  = "vhd"
+subformat = "dynamic"
+artifacts = ["vhdx/*.vhdx"]
 status  = "shipping"
+
+# The Hyper-V virtual machine the disk is made for. New-VM and Set-VMFirmware
+# read it as written (usr/share/doc/mios/upstream/deploy-targets.md); the CI
+# boot test ([ci.artifacts], [testing.boot]) runs the same shape under QEMU.
+[deploy.formats.vhdx.vm]
+# A bootc disk is UEFI and GPT, which only a Generation 2 VM boots.
+generation           = 2
+# Fedora's shim is signed by the Microsoft UEFI CA, not the Windows CA, so Secure
+# Boot needs this template rather than Hyper-V's default (MicrosoftWindows).
+secure_boot_template = "MicrosoftUEFICertificateAuthority"
+processors           = 4
+# PowerShell's form, as New-VM -MemoryStartupBytes reads it; never below
+# [preflight].min_ram_gb, which miosd enforces.
+memory               = "8GB"
+# Fixed: GPU partitioning (GPU-PV) and the AI plane's model memory want it static.
+dynamic_memory       = false
+# Hyper-V's built-in NAT switch.
+switch               = "Default Switch"
 
 [deploy.formats.wsl2]
 title   = "WSL distribution"
@@ -13371,6 +13436,14 @@ status  = "partial"
 # and none of those is as small as four mebibytes, so a file under this floor
 # is a truncated or empty write rather than a smaller build.
 min_bytes = 4194304
+
+# A disk's credential, never stored here and never defaulted: `miosd
+# artifact-build` reads these environment variables, then [auth] in the layered
+# mios.toml (password_hash under password_policy "hashed", existing_ssh_key under
+# ssh_key_action "existing"), and refuses a disk none of them opens (P1-4).
+[deploy.identity]
+password_hash_env = "MIOS_USER_PASSWORD_HASH"   # `openssl passwd -6`; the console login
+ssh_key_env       = "MIOS_SSH_PUBKEY"
 
 # [rust] -- what the Rust layer's green actually covers.
 #
