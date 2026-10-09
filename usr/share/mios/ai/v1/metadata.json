@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3700,
-  "total_metadata_entries": 3048,
-  "total_hints": 3038,
+  "total_files_scanned": 3693,
+  "total_metadata_entries": 3042,
+  "total_hints": 3032,
   "total_functions_indexed": 1453,
-  "total_related_links": 5098,
+  "total_related_links": 5084,
   "entries": [
     {
       "path": ".agents/COORDINATION.md",
@@ -3068,6 +3068,15 @@
       "has_shebang": false
     },
     {
+      "path": "etc/btop/themes/mios.theme",
+      "hint": "btop color theme template; mios-dotfiles-render fills its tokens from mios.toml [colors] into etc/btop/themes/mios.theme.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "etc/chrony.conf",
       "hint": "NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.",
       "related": [],
@@ -4870,63 +4879,10 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/ble.rs",
-      "hint": "BLE beaconing for offline local mesh bootstrap for mios-node (T-395 / AGY-1993).",
-      "related": [
-        "src/mios-rs/mios-node/src/crypto.rs",
-        "usr/libexec/mios/node/ble.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/buffer_pool.rs",
-      "hint": "Zero-copy network buffer pooling for mios-node frames (T-393 / AGY-1991).",
-      "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "usr/libexec/mios/node/buffer_pool.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/capabilities.rs",
-      "hint": "Edge node capability advertising in Announce frames for mios-node (T-394 / AGY-1992).",
-      "related": [
-        "src/mios-rs/mios-node/src/protocol.rs",
-        "usr/libexec/mios/node/capabilities.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/cgroups.rs",
-      "hint": "Dynamic CPU Core Pinning and Cgroup v2 limits controller for mios-node workers.",
-      "related": [
-        "src/mios-rs/mios-node/src/node.rs",
-        "usr/libexec/mios/node/cgroups.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
       "path": "src/mios-rs/mios-node/src/crypto.rs",
       "hint": "Ed25519 mutual handshake, X25519 ECDH key exchange, HKDF-SHA256 key derivation, and ChaCha20-Poly1305 wire AEAD for mios-node.",
       "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "src/mios-rs/mios-node/src/protocol.rs",
+        "src/mios-rs/mios-node/src/wire.rs",
         "tests/test-node-mesh.py"
       ],
       "functions": [],
@@ -4935,10 +4891,17 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/executor.rs",
-      "hint": "Dual-tier task execution engine (Wasm sandbox & signed native modules) for mios-node.",
+      "path": "src/mios-rs/mios-node/src/device.rs",
+      "hint": "mios-node device layer: GPIO/I2C hardware abstraction with allowlists, capability advertising in Announce frames, and the /dev/watchdog integration (T-394).",
       "related": [
-        "src/mios-rs/mios-node/src/node.rs"
+        "src/mios-rs/mios-node/src/wire.rs",
+        "usr/libexec/mios/node/capabilities.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/exec.rs",
+        "usr/libexec/mios/node/hardware.py",
+        "usr/libexec/mios/node/wasm_sandbox.py",
+        "src/mios-rs/mios-node/src/node.rs",
+        "usr/libexec/mios/node/watchdog.py"
       ],
       "functions": [],
       "doc": null,
@@ -4946,12 +4909,13 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/hardware.rs",
-      "hint": "Hardware Abstraction Layer & Wasm host imports for GPIO and I2C with allowlist enforcement.",
+      "path": "src/mios-rs/mios-node/src/exec.rs",
+      "hint": "mios-node execution layer: the dual-tier Wasm/native task engine, the work-stealing offload scheduler and cgroup v2 core pinning and limits (T-392).",
       "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
-        "usr/libexec/mios/node/hardware.py",
-        "usr/libexec/mios/node/wasm_sandbox.py"
+        "src/mios-rs/mios-node/src/node.rs",
+        "usr/libexec/mios/node/cgroups.py",
+        "tests/test-node.py",
+        "usr/libexec/mios/node/scheduler.py"
       ],
       "functions": [],
       "doc": null,
@@ -4997,12 +4961,14 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/net.rs",
-      "hint": "Async Tokio TCP frame reader, writer, stream buffer manager, and network actor for mios-node.",
+      "path": "src/mios-rs/mios-node/src/mesh.rs",
+      "hint": "mios-node mesh transports: BLE offline bootstrap and the Tailscale/WireGuard overlay fallback when LAN broadcast is partitioned (T-395).",
       "related": [
-        "src/mios-rs/mios-node/src/protocol.rs",
-        "src/mios-rs/mios-node/src/lib.rs",
-        "tests/test-node-mesh.py"
+        "src/mios-rs/mios-node/src/crypto.rs",
+        "usr/libexec/mios/node/ble.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/heartbeat.rs",
+        "usr/libexec/mios/node/overlay.py"
       ],
       "functions": [],
       "doc": null,
@@ -5014,44 +4980,7 @@
       "hint": "Micro-node networking daemon, peer discovery, and gossip protocol manager.",
       "related": [
         "src/mios-rs/mios-node/src/main.rs",
-        "src/mios-rs/mios-node/src/protocol.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/overlay.rs",
-      "hint": "Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned (T-396 / AGY-1994).",
-      "related": [
-        "src/mios-rs/mios-node/src/heartbeat.rs",
-        "usr/libexec/mios/node/overlay.py",
-        "tests/test-node.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/protocol.rs",
-      "hint": "16-byte fixed header binary wire protocol parser and generator for mios-node.",
-      "related": [
-        "src/mios-rs/mios-node/src/node.rs"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "slash",
-      "has_shebang": false
-    },
-    {
-      "path": "src/mios-rs/mios-node/src/scheduler.rs",
-      "hint": "Task offloading priority queue with work-stealing scheduler for mios-node (T-392 / AGY-1990).",
-      "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
-        "usr/libexec/mios/node/scheduler.py",
-        "tests/test-node.py"
+        "src/mios-rs/mios-node/src/wire.rs"
       ],
       "functions": [],
       "doc": null,
@@ -5070,12 +4999,13 @@
       "has_shebang": false
     },
     {
-      "path": "src/mios-rs/mios-node/src/watchdog.rs",
-      "hint": "Hardware watchdog timer integration (/dev/watchdog) with safe 'V' magic close.",
+      "path": "src/mios-rs/mios-node/src/wire.rs",
+      "hint": "mios-node wire layer: the 16-byte-header binary frame protocol, the zero-copy frame buffer pool and the async Tokio TCP frame reader/writer and network actor (T-393).",
       "related": [
-        "src/mios-rs/mios-node/src/node.rs",
-        "usr/libexec/mios/node/watchdog.py",
-        "tests/test-node.py"
+        "usr/libexec/mios/node/buffer_pool.py",
+        "tests/test-node.py",
+        "src/mios-rs/mios-node/src/lib.rs",
+        "tests/test-node-mesh.py"
       ],
       "functions": [],
       "doc": null,
@@ -5087,15 +5017,11 @@
       "hint": "Adversarial and stress suites for mios-node milestones 1 and 2: crypto, hardware, cgroups, state sync, watchdog, scheduler, buffer pool, capabilities, BLE bootstrap and overlay.",
       "related": [
         "src/mios-rs/mios-node/src/crypto.rs",
-        "src/mios-rs/mios-node/src/hardware.rs",
-        "src/mios-rs/mios-node/src/cgroups.rs",
+        "src/mios-rs/mios-node/src/device.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "src/mios-rs/mios-node/src/state_sync.rs",
-        "src/mios-rs/mios-node/src/watchdog.rs",
-        "src/mios-rs/mios-node/src/scheduler.rs",
-        "src/mios-rs/mios-node/src/buffer_pool.rs",
-        "src/mios-rs/mios-node/src/capabilities.rs",
-        "src/mios-rs/mios-node/src/ble.rs",
-        "src/mios-rs/mios-node/src/overlay.rs"
+        "src/mios-rs/mios-node/src/wire.rs",
+        "src/mios-rs/mios-node/src/mesh.rs"
       ],
       "functions": [],
       "doc": null,
@@ -25721,7 +25647,7 @@
       "path": "usr/libexec/mios/node/cgroups.py",
       "hint": "Dynamic CPU Core Pinning and Cgroup v2 limits controller for mios-node workers.",
       "related": [
-        "src/mios-rs/mios-node/src/cgroups.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -25774,7 +25700,7 @@
       "hint": "Hardware Abstraction Layer & Wasm host imports for GPIO and I2C with allowlist enforcement.",
       "related": [
         "usr/libexec/mios/node/wasm_sandbox.py",
-        "src/mios-rs/mios-node/src/hardware.rs",
+        "src/mios-rs/mios-node/src/device.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -25799,7 +25725,7 @@
       "hint": "16-byte fixed binary wire protocol encoder, decoder, and opcode dispatcher for mios-node.",
       "related": [
         "usr/share/doc/mios/adr/0020-edge-mesh-binary-wire-protocol-and-dual-tier-sandboxing.md",
-        "src/mios-rs/mios-node/src/protocol.rs"
+        "src/mios-rs/mios-node/src/wire.rs"
       ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/node.md",
@@ -25858,7 +25784,7 @@
       "path": "usr/libexec/mios/node/wasm_sandbox.py",
       "hint": "Tier-1 Wasm sandbox runtime with fuel bounding, 64MB memory limit, and mios_sys_* host imports.",
       "related": [
-        "src/mios-rs/mios-node/src/executor.rs",
+        "src/mios-rs/mios-node/src/exec.rs",
         "tests/test-node.py",
         "usr/share/doc/mios/adr/0020-edge-node-mesh-protocol-and-dual-tier-execution.md"
       ],
@@ -25871,7 +25797,7 @@
       "path": "usr/libexec/mios/node/watchdog.py",
       "hint": "Hardware watchdog timer integration (/dev/watchdog) with safe 'V' magic close.",
       "related": [
-        "src/mios-rs/mios-node/src/watchdog.rs",
+        "src/mios-rs/mios-node/src/device.rs",
         "tests/test-node.py"
       ],
       "functions": [],
@@ -25883,8 +25809,7 @@
       "path": "usr/libexec/mios/node/wire.py",
       "hint": "16-byte fixed binary wire protocol encoder, decoder, async stream codec, and opcode dispatcher for mios-node.",
       "related": [
-        "src/mios-rs/mios-node/src/net.rs",
-        "src/mios-rs/mios-node/src/protocol.rs",
+        "src/mios-rs/mios-node/src/wire.rs",
         "tests/test-node-mesh.py"
       ],
       "functions": [],

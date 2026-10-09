@@ -1,5 +1,5 @@
 // AI-hint: Adversarial and stress suites for mios-node milestones 1 and 2: crypto, hardware, cgroups, state sync, watchdog, scheduler, buffer pool, capabilities, BLE bootstrap and overlay.
-// AI-related: src/mios-rs/mios-node/src/crypto.rs, src/mios-rs/mios-node/src/hardware.rs, src/mios-rs/mios-node/src/cgroups.rs, src/mios-rs/mios-node/src/state_sync.rs, src/mios-rs/mios-node/src/watchdog.rs, src/mios-rs/mios-node/src/scheduler.rs, src/mios-rs/mios-node/src/buffer_pool.rs, src/mios-rs/mios-node/src/capabilities.rs, src/mios-rs/mios-node/src/ble.rs, src/mios-rs/mios-node/src/overlay.rs
+// AI-related: src/mios-rs/mios-node/src/crypto.rs, src/mios-rs/mios-node/src/device.rs, src/mios-rs/mios-node/src/exec.rs, src/mios-rs/mios-node/src/state_sync.rs, src/mios-rs/mios-node/src/wire.rs, src/mios-rs/mios-node/src/mesh.rs
 
 use std::sync::{Mutex, MutexGuard};
 
