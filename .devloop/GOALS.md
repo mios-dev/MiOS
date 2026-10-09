@@ -131,18 +131,35 @@ passes on the real tree or system) and a negative control (a planted defect make
     - tasks: the M7 epic in `tasks.jsonl`.
   - **Model (operator, 2026-10-09):**
     - L0 is the hardware.
-    - L1 is SystemRescue running from RAM: the admin plane. Its interface is the MiOS-tmux / mios
-      monitor TUI. Remote admins reach it by IP-KVM over the separate `wg-ipkvm` mesh.
+    - L1 is SystemRescue running from RAM: the admin plane.
+      - Its interface is the tmux TUI desktop: tmux-os / MiOS-tmux, plus the Python and Rust MiOS TUIs.
+      - Remote admins reach it by IP-KVM over the separate `wg-ipkvm` mesh.
+      - **GPU mode** (resolves D5):
+        - attended, the default: L1 keeps the iGPU for the TUI console, and the seat takes a second
+          GPU or an iGPU virtual function;
+        - headless: L1 has no local console and is administered by SSH or serial on the admin mesh.
+          The iGPU passes to the seat `mios`, the dGPU goes to the dGPU VM, and Looking Glass carries
+          frames between them.
     - L2 holds sibling VMs on L1:
       - one or more MiOS VMs, counted by hardware pressure; one of them is the users' graphical seat
         `mios`, with Looking Glass, kvmfr and Sunshine on the seat GPU;
-      - `mios-xbox`, with the dGPU over one VFIO hop, plus its own WSL2 MiOS.
+      - `mios-xbox`, with the dGPU over one VFIO hop. It hosts Quadlets through its WSL2 MiOS.
+      - Each MiOS VM can run nested MiOS containers: full images under podman `--systemd=always`,
+        counted by hardware pressure. They share the VM's GPUs through CDI, which is how a single-dGPU
+        host runs several MiOS images.
     - L3 is Quadlets.
-      - Every MiOS image is full and equivalent, so any L2 can host any Quadlet.
-      - There is exactly one live instance per Quadlet across the fleet. The other copies are paused
-        standbys that take over on failure.
+      - Every MiOS image is full and equivalent, so any L2 MiOS (a VM, a nested container, or the WSL2
+        MiOS) can host any Quadlet.
+      - There is exactly one live instance per Quadlet across the fleet, counting VMs and nested
+        containers. The other copies are paused standbys that take over on failure.
       - SSOT-listed core services may be promoted from L3 into an L2 image.
     - MiOS self-hosts its forge, build, signing, updates, mesh, storage, orchestration and AI plane.
+  - **Hardware floor for an L1 host:**
+    - a CPU with an iGPU, in both modes: the L1 console in attended mode, the seat GPU in headless
+      mode;
+    - an IOMMU that isolates each GPU passed through;
+    - a dGPU;
+    - in attended mode, a seat GPU: a second discrete GPU, or an SR-IOV virtual function of the iGPU.
   - **Phases.** "+" is the positive control (must pass); "-" is the planted defect (must fail).
     - **F0, decisions.**
       - D1 is resolved: siblings.
@@ -150,10 +167,9 @@ passes on the real tree or system) and a negative control (a planted defect make
         (bootc MiOS as its own L1)? The operator has said MiOS can be its own L1; whether both ship,
         and which is the default, is open.
       - D3: should MiOS adopt Tetragon?
-      - D5: where does the seat GPU come from: the iGPU by VFIO, an SR-IOV virtual function, or a
-        second card? The answer also decides L1's local-console display.
+      - D5 is resolved by mode: attended (the default) or headless, as in the model above.
       - +: each decision task records the ruling.
-      - -: while a decision is pending, `mios-task ready` does not list the tasks that depend on it.
+      - -: closing a decision task without the ruling as evidence is refused.
     - **F1, L1 image.**
       - AC: `miosd artifact-build field-hypervisor` builds an SRM-customized SystemRescue ISO from a
         new `[field.hypervisor]` table:
@@ -175,26 +191,48 @@ passes on the real tree or system) and a negative control (a planted defect make
       - +: from an admin-mesh peer the TUI answers; from the blade mesh it is unreachable.
       - -: a route between the meshes, or an L2 address on `wg-ipkvm`, fails the isolation check.
     - **F4, early VFIO.**
-      - AC: the dGPU and the seat GPU are chosen by class selectors in `[metal.gpu]`. The initcpio hook,
-        the `modprobe.d` softdeps and the kernel arguments are all rendered from those selectors.
+      - AC:
+        - a mode key in `[metal]`, beside `dgpumode`, selects attended or headless, and L1 applies it
+          at boot;
+        - the dGPU and the seat GPU are chosen by class selectors in `[metal.gpu]`. In attended mode
+          every selector excludes the iGPU's physical function; in headless mode the iGPU is
+          selectable for the seat only;
+        - the initcpio hook, the `modprobe.d` softdeps and the kernel arguments are all rendered from
+          those selectors.
       - +: in a QEMU test with an emulated device, the device is bound to vfio-pci before its driver
-        loads.
-      - -: a PCI address literal in SSOT fails `check_metal_vfio`.
+        loads. In attended mode the iGPU keeps its driver; headless renders an iGPU VFIO binding for
+        `mios` and no L1 console.
+      - -: each of these fails:
+        - a PCI address literal in SSOT (`check_metal_vfio`);
+        - an attended-mode selector that matches the iGPU;
+        - a host with no iGPU, in either mode, failing at install.
     - **F5, L2 MiOS VMs.**
       - AC:
         - `[blade.mediator]` declares the VM shape and the VM-count policy, within
           `[metal].guest_cpu_percent` and `guest_ram_percent`;
         - libvirt domains are generated from SSOT;
-        - management binds a `[ports]` key on the blade mesh only.
-      - +: the domains regenerate with no diff, and the seat VM boots the published qcow2.
-      - -: a VM count whose shape exceeds the guest budget fails, and so does `0.0.0.0` in a
-        management bind.
+        - management binds a `[ports]` key on the blade mesh only;
+        - each MiOS VM runs nested MiOS containers from the full image, counted by hardware pressure;
+        - the containers share the VM's GPUs through CDI, with per-container VRAM budgets from SSOT.
+          The existing keys to build on are `[ai.vllm].gpu_util`, `[ai.sglang].mem_fraction` and
+          `[ai.host_thresholds].max_vram_percent`.
+      - +: the domains regenerate with no diff; the seat VM boots the published qcow2; two nested
+        containers serve GPU lanes on one dGPU within their budgets.
+      - -: each of these fails:
+        - a VM count whose shape exceeds the guest budget;
+        - `0.0.0.0` in a management bind;
+        - a nested container started from a non-full image;
+        - VRAM budgets on one GPU summing above 100%.
     - **F6, GPU arbiter.**
-      - AC: a native state machine (AI → draining → released → gaming → returning). It uses vLLM sleep
-        mode, a vsock request to L1, and light-lane failover.
+      - AC:
+        - a native state machine (AI → draining → released → gaming → returning);
+        - it uses vLLM sleep mode and a vsock request to L1;
+        - `/v1` fails over to lanes off the dGPU;
+        - the drain covers every GPU user in the VM and in every nested container.
       - +: the full cycle runs green against mocked sysfs, QMP and `/v1`.
       - -: a planted rebind failure must roll back to the AI lane, never leave the dGPU unattached, and
-        never attach it to two guests.
+        never attach it to two guests. A nested container still holding a CUDA context must block the
+        hand-off and trigger a rollback.
     - **F7, seat sessions.**
       - AC:
         - Looking Glass runs across the siblings through an IVSHMEM file on L1, whose size comes from

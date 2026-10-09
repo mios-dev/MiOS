@@ -4,8 +4,8 @@
 
 A blade boots a RAM-resident SystemRescue hypervisor from the MiOS-Field USB. That hypervisor is the
 admin plane. It runs sibling VMs: MiOS VMs, one of which is the users' graphical seat, and `mios-xbox`,
-the Windows gaming VM. Services run as Quadlets, with exactly one live instance of each anywhere in the
-fleet.
+the Windows gaming VM. A MiOS VM can run nested MiOS containers, which share its GPUs. Services run as
+Quadlets, with exactly one live instance of each anywhere in the fleet.
 
 - **Status:** design for milestone M7 in `.devloop/GOALS.md`. The work is tracked under the M7 epic in
   `tasks.jsonl`.
@@ -22,10 +22,10 @@ fleet.
 
 | Layer | What it is | Who uses it |
 |---|---|---|
-| **L0** | The hardware: CPU, RAM, the discrete GPU (dGPU), the seat GPU, NICs, the IP-KVM. | — |
-| **L1** | SystemRescue running from RAM (`copytoram`): the admin hypervisor. The installed alternative is MiOS-Metal (decision D2). | Admins only |
-| **L2** | Sibling VMs on L1: one or more MiOS VMs (one of them the seat VM `mios`), and `mios-xbox`. | Users (the seat VM); gamers (`mios-xbox`) |
-| **L3** | Quadlets: the services and servers. Any MiOS on L2 can host them, including the WSL2 MiOS inside `mios-xbox`. | Users and agents, through the services |
+| **L0** | The hardware: a CPU with an iGPU, RAM, the discrete GPU (dGPU), the seat GPU, NICs, the IP-KVM. | — |
+| **L1** | SystemRescue running from RAM (`copytoram`): the admin hypervisor. Its local console runs on the iGPU. The installed alternative is MiOS-Metal (decision D2). | Admins only |
+| **L2** | Sibling VMs on L1: one or more MiOS VMs (one of them the seat VM `mios`), and `mios-xbox`. Each MiOS VM can run nested MiOS containers. | Users (the seat VM); gamers (`mios-xbox`) |
+| **L3** | Quadlets: the services and servers. Any MiOS on L2 can host them: a MiOS VM, a nested MiOS container, or the WSL2 MiOS inside `mios-xbox`. | Users and agents, through the services |
 
 The spec's earlier names map as follows: Tier 1 is L1. Tier 2 is the L2 seat VM `mios`. The Tier 3
 "MiOS services" are L3 Quadlets. The Tier 3 "MiOS-Xbox" is the L2 sibling `mios-xbox`.
@@ -36,25 +36,56 @@ The spec's earlier names map as follows: Tier 1 is L1. Tier 2 is the L2 seat VM 
 2. **L1 is the admin plane.** Local admins use it directly. Remote admins reach it through IP-KVMs
    (PiKVM) on the separate admin mesh, `[management_mesh]` (`wg-ipkvm`). That mesh is never folded
    into Headscale.
-3. **L1 has a TUI.** MiOS-tmux plus the mios monitor, shipped as static Rust inside the SystemRescue
-   module (SRM). It starts VMs, attaches to them and consoles into them. No user session runs on L1.
-4. **The L2 VMs are siblings on L1** (decision D1). `mios-xbox` is not nested inside `mios`.
-5. **Every MiOS VM runs a full, equivalent MiOS image**, and every image carries the full set of
-   Quadlets and embedded layers. This includes the WSL2 MiOS inside `mios-xbox`. Any L2 can therefore
-   take over any service.
-6. **One live instance per Quadlet.** Across L2 and the fleet, each Quadlet has exactly one live
-   instance. Every other copy is paused as a standby, and a paused copy takes over on failure, either
-   locally or on a remote blade.
-7. **Core services may be promoted.** A core service or module may move up a layer, from an L3
+3. **L1 has a TUI.** Its desktop is tmux: tmux-os / MiOS-tmux, plus the Python and Rust MiOS TUIs such
+   as the mios monitor, shipped as static Rust inside the SystemRescue module (SRM). It starts VMs,
+   attaches to them and consoles into them. No user session runs on L1. The same tmux TUI desktop is
+   to run in every MiOS image; that consolidation is its own epic.
+4. **L1 requires an iGPU, and the GPU mode decides who uses it.** This resolves decision D5 (Atlas
+   Figure 8b, <https://claude.ai/artifact/3NcyFYkcsskVpfp4KurUoA#gpumode>).
+   - **Attended mode, the default:**
+     - the iGPU drives L1's local console, the tmux TUI desktop, and L1 keeps its physical function;
+     - the seat takes a second discrete GPU, or an SR-IOV virtual function of the iGPU.
+   - **Headless mode:**
+     - L1 has no local console and is administered over the admin mesh, by SSH or serial;
+     - the iGPU passes through to the seat VM `mios`;
+     - the dGPU goes to the dGPU VM: `mios-xbox`, or a MiOS AI VM through the arbiter;
+     - Looking Glass carries frames between the two VMs.
+   - A CPU with an iGPU is the floor for an L1 host in both modes.
+5. **The L2 VMs are siblings on L1** (decision D1). `mios-xbox` is not nested inside `mios`.
+6. **Every MiOS VM runs a full, equivalent MiOS image**, and every image carries the full set of
+   Quadlets and embedded layers. This includes the WSL2 MiOS inside `mios-xbox`, through which
+   `mios-xbox` hosts Quadlets. Any L2 can therefore take over any service.
+7. **One live instance per Quadlet.** Across L2 and the fleet, each Quadlet has exactly one live
+   instance; this counts VMs and nested containers alike. Every other copy is paused as a standby, and
+   a paused copy takes over on failure, either locally or on a remote blade.
+8. **Core services may be promoted.** A core service or module may move up a layer, from an L3
    Quadlet to a native unit of an L2 full image. Only services on an SSOT-declared list may do this.
-8. **Hardware pressure sets the VM count.** The number of MiOS VMs on L2 follows CPU, RAM and GPU
+9. **Hardware pressure sets the VM count.** The number of MiOS VMs on L2 follows CPU, RAM and GPU
    headroom.
-9. **MiOS is self-hostable.** It hosts its own Forgejo (git, OCI registry and CI runner), builds
-   itself, signs and publishes locally, and `bootc`-upgrades every MiOS it runs. It also hosts
-   Headscale, CephFS, k3s and the AI plane. No external service is required. MiOS can also be its own
-   L1 (MiOS-Metal, decision D2).
+10. **L2 MiOS VMs host nested MiOS containers** (Atlas Map 1b,
+    <https://claude.ai/artifact/3NcyFYkcsskVpfp4KurUoA#nested>).
+    - Each one is a full, equivalent MiOS image, run as a systemd container under podman
+      (`--systemd=always`), the shape the cloud `gce-up` path already uses.
+    - Their count follows hardware pressure.
+    - They share the VM's GPUs through CDI. That is how a single-dGPU host runs several MiOS images,
+      since VFIO gives a whole dGPU to one VM. A multi-GPU host can instead give each MiOS VM its own
+      card.
+11. **MiOS is self-hostable.** It hosts its own Forgejo (git, OCI registry and CI runner), builds
+    itself, signs and publishes locally, and `bootc`-upgrades every MiOS it runs. It also hosts
+    Headscale, CephFS, k3s and the AI plane. No external service is required. MiOS can also be its own
+    L1 (MiOS-Metal, decision D2).
 
 ## 2. Components
+
+**L0: hardware requirements for an L1 host**
+- **A CPU with an iGPU**, in both modes. In attended mode it runs the L1 console; in headless mode it
+  is the seat GPU.
+- **An IOMMU** (VT-d or AMD-Vi), with IOMMU groups that isolate each GPU passed through.
+- **A dGPU**, for the heavy inference lane and `mios-xbox`.
+- **A seat GPU.** In attended mode this is a second discrete GPU, or an SR-IOV virtual function of the
+  iGPU where the hardware supports one. In headless mode it is the iGPU.
+- **The rest:** RAM and CPU inside the `[metal]` guest budget, and at least
+  `[blade.hardware].min_interfaces` NICs.
 
 **L1: admin hypervisor (MiOS-Field live)**
 - **Base:** SystemRescue, version floating with an SSOT floor (13.02, linux 6.18.41 at the time of
@@ -65,6 +96,12 @@ The spec's earlier names map as follows: Tier 1 is L1. Tier 2 is the L2 seat VM 
 - **Kernel arguments:** rendered from `[metal.gpu]`. They are the IOMMU switches, the vfio-pci claim
   for the dGPU by class selector, `kvm.ignore_msrs`, and nested virtualization. Nesting is needed
   because the WSL2 MiOS inside `mios-xbox` is a Hyper-V VM inside a KVM guest.
+- **The GPU mode.** A key in `[metal]`, beside `dgpumode` and `bind_dgpu_vfio`, selects attended or
+  headless, and L1 applies it at boot.
+  - In attended mode, every passthrough selector in `[metal.gpu]` excludes the iGPU's physical
+    function.
+  - In headless mode, the iGPU is selectable for the seat VM only, and L1 starts no local console.
+  - A selector that breaks the mode's rule fails, and so does a host with no iGPU.
 - **ACS override:** `pcie_acs_override` defeats IOMMU group isolation. It is a per-box opt-in in SSOT,
   never a default.
 - **Early VFIO:** an initcpio hook, `driver_override`, and `modprobe.d` softdeps that load vfio-pci
@@ -79,13 +116,28 @@ The spec's earlier names map as follows: Tier 1 is L1. Tier 2 is the L2 seat VM 
   guest budget stays `[metal].guest_cpu_percent` and `guest_ram_percent`; `[blade.mediator]` divides
   that budget and does not restate it.
 - **Seat VM:**
-  - the desktop on the seat GPU (decision D5);
+  - the desktop on the seat GPU, which depends on the GPU mode;
   - the Looking Glass client and kvmfr (`automation/68-bake-kvmfr.sh`,
     `automation/69-bake-lookingglass-client.sh`);
   - Sunshine (`mios-sunshine.container`);
   - the ttyd and Hermes dashboard consoles;
   - the Headscale client;
   - the guest half of the GPU arbiter.
+
+**Nested MiOS containers (inside each L2 MiOS VM)**
+- **Runtime:** the full MiOS image, started under podman with `--systemd=always`, with its Quadlets
+  embedded. A container from any image other than the full one is refused.
+- **Count:** set by hardware pressure, from the same `[blade.mediator]` policy as the VM count.
+- **GPU sharing:** the VM's GPUs reach the containers through CDI.
+- **VRAM budgets** come from SSOT. The keys that already exist are:
+  - per engine: `[ai.vllm].gpu_util` and `[ai.sglang].mem_fraction`;
+  - per host: `[ai.host_thresholds].max_vram_percent`.
+
+  A per-container share is added beside the policy, and each container's engine flags are rendered
+  from its share. A gate fails when the shares on one GPU sum above 100%.
+- **Paused GPU standbys:** a frozen process can keep a CUDA context, so the gate counts any paused copy
+  that still holds one. A standby releases its GPU memory before it is paused, for example with vLLM
+  sleep.
 
 **L2 `mios-xbox`**
 - **Image:** Windows 11 LTSC from UUP Dump with DISM, the MiOS-Xbox builder path.
@@ -116,7 +168,12 @@ The spec's earlier names map as follows: Tier 1 is L1. Tier 2 is the L2 seat VM 
 - **At boot:** L1 binds the dGPU to vfio-pci, by class selector.
 - **Holders:** it is attached by one VFIO hop to exactly one L2 at a time. That is the MiOS VM running
   the heavy inference lane, or `mios-xbox` while a game runs.
+- **Sharing:** inside the MiOS VM that holds it, the nested MiOS containers share the dGPU through CDI.
+  A multi-GPU host can give each MiOS VM its own card instead.
 - **The seat GPU** goes to the seat VM and never moves.
+  - In attended mode it is a second discrete GPU or an SR-IOV virtual function of the iGPU, and the
+    iGPU's physical function stays on L1 for the console.
+  - In headless mode it is the iGPU itself.
 
 **Frames.**
 1. In `mios-xbox`, the Looking Glass host app writes frames to an IVSHMEM device.
@@ -148,15 +205,20 @@ It needs no `[ports]` key: `[ports].arbiter` (8760) is the policy arbiter, a dif
 
 | State | Entered when | The arbiter does | On failure |
 |---|---|---|---|
-| AI | Boot, or a return completes | The dGPU sits in the MiOS VM; `llm-heavy` holds it through CDI | — |
-| Draining | A gaming request | vLLM sleep mode (`/sleep`); agent-pipe routes `/v1` to `[ports].llm_light` (8500) | Wake and stay in AI |
-| Released | The drain completes | Unbind the guest driver; L1 detaches the device from the MiOS VM | Re-attach, rebind, wake → AI |
+| AI | Boot, or a return completes | The dGPU sits in the MiOS VM; its GPU lanes, in the VM or its nested containers, hold it through CDI | — |
+| Draining | A gaming request | Drain every GPU user in the VM and in every nested container (vLLM `/sleep`, then stop or release the rest); agent-pipe routes `/v1` to lanes off the dGPU | Wake and stay in AI |
+| Released | No process in the VM or its nested containers holds a CUDA context | Unbind the guest driver; L1 detaches the device from the MiOS VM | Re-attach, rebind, wake → AI |
 | Gaming | The detach completes | L1 attaches the device to `mios-xbox` and starts or hot-plugs the guest | Detach, re-attach to the MiOS VM → AI |
 | Returning | The guest exits or is stopped | Detach from `mios-xbox`, attach to the MiOS VM, rebind, `/wake_up`, restore `[ports].llm_heavy` (8520) routing | Retry once, then leave the dGPU on vfio-pci in L1 and raise an alert |
 
-Two invariants hold throughout:
+Three rules hold throughout:
 - No transition leaves the dGPU attached to two guests.
-- No transition leaves `/v1` unanswered: the light lane serves throughout.
+- A container that still holds a CUDA context blocks the hand-off, and the arbiter rolls back.
+- No transition leaves `/v1` unanswered.
+  - While the dGPU is away, `/v1` is served by lanes that do not use it.
+  - `[ports].cpu_node` (8510) is the gaming-immune CPU lane.
+  - `[ports].llm_light` (8500) qualifies only when it runs on another GPU, because its image is
+    CUDA-built.
 
 Running `llm-heavy` inside the WSL2 MiOS of `mios-xbox` while a game runs is co-tenancy. It is not part
 of this machine.
@@ -168,12 +230,13 @@ of this machine.
 | Seat | A local user | none | The seat VM desktop on the seat GPU, with `mios-xbox` in a Looking Glass window |
 | Stream | A remote user | Blade mesh | Sunshine in the seat VM, encoding on the seat GPU, to Moonlight |
 | Consoles | A user or an agent | Blade mesh, HTTPS | `[ports].ttyd_bash` (8310), `[ports].ttyd_powershell` (8320), `[ports].hermes_dashboard` (8210) |
-| Local admin | An admin at the box | none | The L1 TUI |
-| Remote admin | An admin | Admin mesh | The IP-KVM (power, virtual media, pre-boot video), then the L1 TUI over SSH |
+| Local admin | An admin at the box (attended mode) | none | The L1 TUI on the iGPU console |
+| Remote admin | An admin | Admin mesh | The IP-KVM (power, virtual media, and in attended mode the console video), or the L1 TUI over SSH or serial |
 
-Once every GPU is bound to vfio-pci, L1 has no display of its own. The L1 TUI must therefore stay
-reachable over SSH on the admin mesh and over a serial console. The display that serves the local
-console is part of decision D5.
+- **Attended mode:** the L1 console is the tmux TUI desktop on the iGPU. The IP-KVM captures that
+  output, so remote admins see the same TUI, and SSH on the admin mesh reaches it as well.
+- **Headless mode:** L1 has no local console. Admins use SSH or serial on the admin mesh, and the
+  IP-KVM still gives power and virtual media.
 
 ## 6. Fleet, mobility and self-hosting
 
@@ -189,7 +252,8 @@ The values live in `[blades]` (fleet size), `[blade.archetypes]`, `[blade.placem
 **The roster.** The spec's blades B0–B5 are one example at `[blades].max_nodes`. Each blade's role is an
 archetype, and the per-blade assignment is operator data.
 
-**The single-live lease.** For Quadlets, use a k3s Lease (coordination.k8s.io) per Quadlet:
+**The single-live lease.** For Quadlets, use a k3s Lease (coordination.k8s.io) per Quadlet. It
+applies fleet-wide, across VMs and nested containers alike:
 - Under ADR-0017 D1, k3s owns containers. A Lease is only a lock, so Pacemaker stays with VMs.
 - The holder runs and the other copies stay paused.
 - A holder that cannot renew pauses itself before the lease expires.
@@ -241,6 +305,7 @@ eBPF enforcement with Tetragon is decision D3.
 | `vfio-pci.ids=10de:2484,10de:228b`, `0000:01:00.0` | These come from `[metal.gpu]` class selectors, and every consumer is rendered from them (Law 7). |
 | LocalAI; `management_listen = "0.0.0.0:8642"` | LocalAI was removed, and the AI plane is OpenAI `/v1` only. 8642 is allocated to `[ports].field_live_chat` (8642), though unbound. Management binds a `[ports]` key on the blade mesh, never `0.0.0.0`. |
 | `[ports].arbiter` (8760) for the GPU arbiter | That key is the policy arbiter. The GPU arbiter uses vsock and a local socket, with no port. |
+| While gaming, route AI requests to the light lane | `llm-light` is CUDA-built, so on a single-dGPU host it drains too. `/v1` goes to lanes off the dGPU, such as `[ports].cpu_node` (8510). |
 | B1 compute on :8780 | That is `[ports].opencode_gateway` (8780), a loopback `/v1` shim, not a compute port. |
 | `[blade.placement]` holds CPUs/NUMA/RAM; `[blade.reconcile]` holds auto-start/GPU policy | Both tables exist with other meanings: scheduler routing, and partition rules. The VM shape goes in a new `[blade.mediator]`. |
 | Sunshine encodes with NVENC | It encodes on the seat GPU, never on the guest's dGPU. |
@@ -267,12 +332,11 @@ eBPF enforcement with Tetragon is decision D3.
   - Options: adopt it on L1 and the L2 MiOS VMs; adopt it on L2 only; defer it.
   - Evidence: an existing Tetragon task in `tasks.jsonl`, and
     [eBPF semantic enforcement](../../usr/share/doc/mios/concepts/ebpf-semantic-enforcement.md).
-- **D5, seat GPU source.** Where does the seat VM's GPU come from?
-  - Options:
-    - the iGPU passed through VFIO, which leaves L1 no display;
-    - an SR-IOV virtual function (Intel Xe iGPUs);
-    - a second discrete card.
-  - The answer also decides the L1 local-console display.
+- **D5, seat GPU source. Resolved by mode** (operator, 2026-10-09; Atlas Figure 8b).
+  - **Attended, the default:** L1 keeps the iGPU for its console. The seat takes a second discrete GPU,
+    or an SR-IOV virtual function of the iGPU where the hardware supports one.
+  - **Headless:** the iGPU passes through to the seat, and L1 is administered over the admin mesh.
+  - Both modes need an iGPU. Sunshine encodes on whichever GPU the seat holds.
 - **D4** is not carried in this roadmap.
 
 ## 9. Phases (milestone M7)
@@ -282,13 +346,13 @@ planted-defect control.
 
 | Phase | Deliverable | Today |
 |---|---|---|
-| F0 | Decisions D1 (resolved), D2, D3, D5 | — |
+| F0 | Decisions D1 and D5 (resolved), D2, D3 | — |
 | F1 | **L1 image:** `[field.hypervisor]` plus `miosd artifact-build field-hypervisor`, driving `sysrescue-customize --auto`; the version floats with an SSOT floor; the SHA-256 is recorded in the SBOM; a QEMU boot test (kvm and vfio loaded, libvirtd active, checksum passing). Plus the static Rust admin TUI in the SRM. | `miosd artifact-build` for bootc-image-builder formats |
 | F2 | **MiOS-Field integration:** the version floor from SSOT in the launchers; the hypervisor Ventoy entry rendered from SSOT and mirrored to mios-bootstrap (Law 15) | the launchers, `[field.sysrescue]`, the SystemRescue GRUB entry |
 | F3 | **Admin plane:** L1 joins `wg-ipkvm` at boot; the TUI is reachable only there; IP-KVMs are declared per blade; no route between the meshes | `[management_mesh]`; the IP-KVM task, reopened |
-| F4 | **Early VFIO on L1:** class selectors; the initcpio hook, `modprobe.d` softdeps and kernel arguments, all rendered | `[metal.gpu]`; `mios-metal-vfio-gen` only echoes variables |
-| F5 | **L2 MiOS VMs:** `[blade.mediator]`; libvirt domains generated from SSOT; the seat on the seat GPU; the VM count from hardware pressure | the qcow2 artifact path |
-| F6 | **GPU arbiter:** the section 4 state machine, native, tested with mocked sysfs and QMP | `[metal.gpu].arbitration` |
+| F4 | **Early VFIO on L1:** the attended/headless mode key in `[metal]`, applied at boot; class selectors that follow it (attended excludes the iGPU, headless gives it to the seat); the initcpio hook, `modprobe.d` softdeps and kernel arguments, all rendered; a host without an iGPU fails the hardware floor | `[metal]`, `[metal.gpu]`; `mios-metal-vfio-gen` only echoes variables |
+| F5 | **L2 MiOS VMs:** `[blade.mediator]`; libvirt domains generated from SSOT; the seat on the seat GPU; the VM count from hardware pressure; nested MiOS containers sharing GPUs through CDI, with VRAM budgets from SSOT | the qcow2 artifact path; the `gce-up` systemd-container shape |
+| F6 | **GPU arbiter:** the section 4 state machine, native, tested with mocked sysfs and QMP; it drains every nested container before a hand-off | `[metal.gpu].arbitration` |
 | F7 | **Seat sessions:** Looking Glass across siblings; Sunshine on the seat GPU; consoles on the blade mesh only | the kvmfr and Looking Glass bakes, ttyd, Sunshine |
 | F8 | **`mios-xbox` and L3:** the Windows sibling; Quadlet placement and local moves; the single-live lease and its gate; core promotion | the MiOS-Xbox builders |
 | F9 | **Fleet:** the flightpath; egress gateways; reconcile tests; the sandbox ladder; an offline self-hosted blade | ADR-0016/0017, `[blade.*]`, Forgejo |
