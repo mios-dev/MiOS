@@ -1,6 +1,6 @@
-// AI-hint: SSOT btop theme renderer mapping exact RGB hex colors from mios.toml [colors] (ADR-0021 gen category).
+// AI-hint: Native btop theme projector: renders the [dotfiles.registry.btop] template through mios.toml tokens, byte-identical to mios-dotfiles-render, so the theme has one source.
 // AI-doc: usr/share/doc/mios/manual/tools.md
-// AI-related: usr/share/mios/mios.toml, etc/btop/themes/mios.theme, automation/98-drift-checks.sh
+// AI-related: usr/share/mios/mios.toml, usr/share/mios/theme/templates/btop-mios.theme.tmpl, usr/libexec/mios/mios-dotfiles-render, etc/btop/themes/mios.theme, automation/98-drift-checks.sh
 
 #![forbid(unsafe_code)]
 
@@ -9,12 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const DEFAULT_THEME_PATH: &str = "etc/btop/themes/mios.theme";
-
-#[derive(Debug, Clone)]
-pub struct BtopThemeEngine {
-    pub palette: BTreeMap<String, String>,
-}
+/// The `[dotfiles.registry.<surface>]` entry this renderer projects.
+const SURFACE: &str = "btop";
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -25,162 +21,116 @@ pub struct RenderBtopThemeResult {
     pub keys_count: usize,
 }
 
-impl BtopThemeEngine {
-    pub fn from_toml(doc: &toml::Value) -> Result<Self, String> {
-        let colors_tbl = doc
-            .get("colors")
-            .and_then(|v| v.as_table())
-            .ok_or_else(|| "Missing [colors] section in mios.toml".to_string())?;
+/// A TOML scalar as the conf surfaces spell it: bools capitalised (btop's
+/// on-disk form), everything else verbatim. Tables and arrays are not tokens.
+fn fmt_conf(v: &toml::Value) -> Option<String> {
+    match v {
+        toml::Value::Boolean(b) => Some(if *b { "True" } else { "False" }.to_string()),
+        toml::Value::String(s) => Some(s.clone()),
+        toml::Value::Integer(i) => Some(i.to_string()),
+        toml::Value::Float(f) => Some(f.to_string()),
+        toml::Value::Datetime(d) => Some(d.to_string()),
+        toml::Value::Array(_) | toml::Value::Table(_) => None,
+    }
+}
 
-        let hex_re = Regex::new(r"^#[0-9a-fA-F]{6}$")
-            .map_err(|e| format!("Failed to compile color validator: {e}"))?;
-        let mut palette = BTreeMap::new();
-        for (k, v) in colors_tbl {
-            if let Some(s) = v.as_str() {
-                if !hex_re.is_match(s) {
-                    return Err(format!("[colors].{k}: expected #rrggbb"));
+fn walk<'a>(doc: &'a toml::Value, dotted: &str) -> Option<&'a toml::Value> {
+    dotted.split('.').try_fold(doc, |cur, part| cur.get(part))
+}
+
+/// The token map mios-dotfiles-render builds for a surface: every `[colors]`
+/// key, then `<section>_<key>` for the flat scalars of `[identity]` and of the
+/// surface's own `section`, when it names one.
+fn resolved_tokens(doc: &toml::Value, section: Option<&str>) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    if let Some(colors) = doc.get("colors").and_then(toml::Value::as_table) {
+        for (k, v) in colors {
+            if let Some(s) = fmt_conf(v) {
+                out.insert(k.clone(), s);
+            }
+        }
+    }
+    for sec in std::iter::once("identity").chain(section) {
+        if let Some(t) = walk(doc, sec).and_then(toml::Value::as_table) {
+            for (k, v) in t {
+                if let Some(s) = fmt_conf(v) {
+                    out.insert(format!("{sec}_{k}"), s);
                 }
-                palette.insert(k.clone(), s.to_string());
-            } else {
-                return Err(format!("[colors].{k}: expected #rrggbb string"));
             }
         }
+    }
+    out
+}
 
-        // Validate mandatory colors
-        for required in &[
-            "bg", "fg", "accent", "cursor", "success", "warning", "error", "muted", "subtle",
-        ] {
-            if !palette.contains_key(*required) {
-                return Err(format!(
-                    "Missing required color [colors].{required} in mios.toml"
-                ));
-            }
+/// A token outside the map: a dotted SSOT path, else `<section>_<key>` split
+/// at each underscore in turn -- the same fallback mios-dotfiles-render uses.
+fn arbitrary_token(doc: &toml::Value, tok: &str) -> Option<String> {
+    if let Some(v) = walk(doc, tok).and_then(fmt_conf) {
+        return Some(v);
+    }
+    let parts: Vec<&str> = tok.split('_').collect();
+    (1..parts.len()).find_map(|i| {
+        let path = format!("{}.{}", parts[..i].join("_"), parts[i..].join("_"));
+        walk(doc, &path).and_then(fmt_conf)
+    })
+}
+
+/// Substitute every `@MIOS:<token>@` sentinel; an unknown token is an error,
+/// never a literal left in the projected file.
+pub fn render_tokens(
+    template: &str,
+    doc: &toml::Value,
+    section: Option<&str>,
+) -> Result<String, String> {
+    let sentinel = Regex::new(r"@MIOS:([a-z0-9_.-]+)@")
+        .map_err(|e| format!("Failed to compile token pattern: {e}"))?;
+    let resolved = resolved_tokens(doc, section);
+    let mut unknown = BTreeSet::new();
+    let out = sentinel.replace_all(template, |caps: &regex::Captures| {
+        let tok = &caps[1];
+        resolved
+            .get(tok)
+            .cloned()
+            .or_else(|| arbitrary_token(doc, tok))
+            .unwrap_or_else(|| {
+                unknown.insert(tok.to_string());
+                caps[0].to_string()
+            })
+    });
+    if unknown.is_empty() {
+        Ok(out.into_owned())
+    } else {
+        Err(format!(
+            "unknown theme/dotfile token(s) {} (not in [colors] or an SSOT key)",
+            unknown
+                .iter()
+                .map(|t| format!("@MIOS:{t}@"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))
+    }
+}
+
+/// Every non-comment line is `theme[key]="#rrggbb"` (or `""`, transparent),
+/// and the slots btop cannot draw without are present.
+pub fn validate_theme_content(content: &str) -> Result<usize, Vec<String>> {
+    let mut errors = Vec::new();
+    let mut found_keys = BTreeSet::new();
+    let line_re = Regex::new(r#"^theme\[([a-zA-Z0-9_]+)\]\s*=\s*"([^"]*)""#)
+        .map_err(|e| vec![format!("Failed to compile theme validator: {e}")])?;
+    let hex_re = Regex::new(r"^#[0-9a-fA-F]{6}$")
+        .map_err(|e| vec![format!("Failed to compile color validator: {e}")])?;
+
+    for (idx, raw_line) in content.lines().enumerate() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
         }
-
-        Ok(Self { palette })
-    }
-
-    pub fn build_theme_mapping(&self) -> BTreeMap<String, String> {
-        let p = &self.palette;
-        let get = |k: &str, def: &str| p.get(k).cloned().unwrap_or_else(|| def.to_string());
-
-        let bg = get("bg", "#282262");
-        let fg = get("fg", "#E7DFD3");
-        let accent = get("accent", "#1A407F");
-        let cursor = get("cursor", "#F35C15");
-        let success = get("success", "#3E7765");
-        let warning = get("warning", "#F35C15");
-        let error = get("error", "#DC271B");
-        let muted = get("muted", "#948E8E");
-        let subtle = get("subtle", "#B7C9D7");
-        let cyan = get("ansi_12_bright_blue", "#3D6BA8");
-
-        let mut m = BTreeMap::new();
-        // Main UI
-        m.insert("main_bg".to_string(), bg);
-        m.insert("main_fg".to_string(), fg.clone());
-        m.insert("title".to_string(), fg.clone());
-        m.insert("hi_fg".to_string(), cursor.clone());
-        m.insert("selected_bg".to_string(), accent.clone());
-        m.insert("selected_fg".to_string(), fg);
-        m.insert("inactive_fg".to_string(), muted.clone());
-        m.insert("graph_text".to_string(), subtle.clone());
-        m.insert("meter_bg".to_string(), muted.clone());
-        m.insert("proc_misc".to_string(), subtle.clone());
-
-        // Box outlines
-        m.insert("cpu_box".to_string(), accent.clone());
-        m.insert("mem_box".to_string(), accent.clone());
-        m.insert("net_box".to_string(), accent.clone());
-        m.insert("proc_box".to_string(), accent.clone());
-        m.insert("div_line".to_string(), muted);
-
-        // Temperature gradient (Cool -> Warm -> Hot)
-        m.insert("temp_start".to_string(), success.clone());
-        m.insert("temp_mid".to_string(), warning.clone());
-        m.insert("temp_end".to_string(), error.clone());
-
-        // CPU gradient
-        m.insert("cpu_start".to_string(), success.clone());
-        m.insert("cpu_mid".to_string(), warning.clone());
-        m.insert("cpu_end".to_string(), error.clone());
-
-        // Memory gradients
-        m.insert("free_start".to_string(), success.clone());
-        m.insert("free_mid".to_string(), subtle.clone());
-        m.insert("free_end".to_string(), cyan.clone());
-
-        m.insert("cached_start".to_string(), accent.clone());
-        m.insert("cached_mid".to_string(), cyan.clone());
-        m.insert("cached_end".to_string(), subtle.clone());
-
-        m.insert("available_start".to_string(), success.clone());
-        m.insert("available_mid".to_string(), subtle.clone());
-        m.insert("available_end".to_string(), cyan.clone());
-
-        m.insert("used_start".to_string(), warning.clone());
-        m.insert("used_mid".to_string(), cursor.clone());
-        m.insert("used_end".to_string(), error.clone());
-
-        // Network gradients
-        m.insert("download_start".to_string(), cyan);
-        m.insert("download_mid".to_string(), accent);
-        m.insert("download_end".to_string(), subtle);
-
-        m.insert("upload_start".to_string(), cursor);
-        m.insert("upload_mid".to_string(), warning.clone());
-        m.insert("upload_end".to_string(), error.clone());
-
-        // Process meters
-        m.insert("process_start".to_string(), success);
-        m.insert("process_mid".to_string(), warning);
-        m.insert("process_end".to_string(), error);
-
-        m
-    }
-
-    pub fn render_theme_text(&self) -> String {
-        let mapping = self.build_theme_mapping();
-        let mut lines = vec![
-            "# MiOS Btop System Monitor Theme".to_string(),
-            "# Generated automatically from mios.toml [colors] SSOT".to_string(),
-            "# Do NOT edit directly; regenerate using `mios-gen render-btop-theme`".to_string(),
-            "".to_string(),
-        ];
-
-        for (k, v) in mapping {
-            lines.push(format!("theme[{k}]=\"{v}\""));
-        }
-        lines.push("".to_string());
-        lines.join("\n")
-    }
-
-    pub fn validate_theme_content(content: &str) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
-        let mut found_keys = BTreeSet::new();
-        let line_re = Regex::new(r#"^theme\[([a-zA-Z0-9_]+)\]\s*=\s*"([^"]*)""#)
-            .map_err(|e| vec![format!("Failed to compile theme validator: {e}")])?;
-        let hex_re = Regex::new(r"^#[0-9a-fA-F]{6}$")
-            .map_err(|e| vec![format!("Failed to compile color validator: {e}")])?;
-
-        for (idx, raw_line) in content.lines().enumerate() {
-            let line = raw_line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            if let Some(caps) = line_re.captures(line) {
-                let key = caps
-                    .get(1)
-                    .ok_or_else(|| vec!["Theme validator did not capture a key".to_string()])?
-                    .as_str();
-                let hex_val = caps
-                    .get(2)
-                    .ok_or_else(|| vec!["Theme validator did not capture a value".to_string()])?
-                    .as_str();
+        match line_re.captures(line) {
+            Some(caps) => {
+                let key = caps.get(1).map_or("", |m| m.as_str());
+                let hex_val = caps.get(2).map_or("", |m| m.as_str());
                 found_keys.insert(key.to_string());
-
-                // Value may be empty string for transparency or valid #rrggbb hex
                 if !hex_val.is_empty() && !hex_re.is_match(hex_val) {
                     errors.push(format!(
                         "Line {}: Invalid hex color '{}' for key '{}'",
@@ -189,35 +139,41 @@ impl BtopThemeEngine {
                         key
                     ));
                 }
-            } else {
-                errors.push(format!(
-                    "Line {}: Invalid syntax format: '{}'",
-                    idx + 1,
-                    line
-                ));
             }
-        }
-
-        let required = [
-            "main_bg",
-            "main_fg",
-            "cpu_box",
-            "mem_box",
-            "temp_start",
-            "cpu_start",
-        ];
-        for req in &required {
-            if !found_keys.contains(*req) {
-                errors.push(format!("Missing required btop theme key: '{req}'"));
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
+            None => errors.push(format!(
+                "Line {}: Invalid syntax format: '{}'",
+                idx + 1,
+                line
+            )),
         }
     }
+
+    for req in [
+        "main_bg",
+        "main_fg",
+        "cpu_box",
+        "mem_box",
+        "temp_start",
+        "cpu_start",
+    ] {
+        if !found_keys.contains(req) {
+            errors.push(format!("Missing required btop theme key: '{req}'"));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(found_keys.len())
+    } else {
+        Err(errors)
+    }
+}
+
+fn registry_str<'a>(entry: &'a toml::Value, key: &str) -> Result<&'a str, String> {
+    entry
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| format!("[dotfiles.registry.{SURFACE}].{key} is missing or empty"))
 }
 
 pub fn run_render_btop_theme(
@@ -228,18 +184,33 @@ pub fn run_render_btop_theme(
     let toml_path = root.join("usr/share/mios/mios.toml");
     let toml_str = fs::read_to_string(&toml_path)
         .map_err(|e| format!("Failed to read {}: {}", toml_path.display(), e))?;
-
     let doc: toml::Value = toml_str
         .parse()
         .map_err(|e| format!("Failed to parse {}: {}", toml_path.display(), e))?;
 
-    let engine = BtopThemeEngine::from_toml(&doc)?;
-    let rendered = engine.render_theme_text();
+    let entry = walk(&doc, &format!("dotfiles.registry.{SURFACE}"))
+        .ok_or_else(|| format!("mios.toml declares no [dotfiles.registry.{SURFACE}]"))?;
+    let template_rel = registry_str(entry, "template")?;
+    let target_rel = registry_str(entry, "target")?;
+    let section = entry.get("section").and_then(toml::Value::as_str);
 
-    let target_path = if let Some(p) = out_path {
-        p.to_path_buf()
-    } else {
-        root.join(DEFAULT_THEME_PATH)
+    let template_path = root.join(template_rel);
+    let template = fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read {}: {}", template_path.display(), e))?;
+    let rendered = render_tokens(&template, &doc, section)?;
+    // The projection itself must be a theme btop can load, so a template edit
+    // that breaks the format fails here rather than on someone's desktop.
+    let keys_count = validate_theme_content(&rendered).map_err(|errs| {
+        format!(
+            "{} does not render a valid btop theme: {}",
+            template_rel,
+            errs.join("; ")
+        )
+    })?;
+
+    let target_path = match out_path {
+        Some(p) => p.to_path_buf(),
+        None => root.join(target_rel),
     };
 
     if check {
@@ -251,11 +222,12 @@ pub fn run_render_btop_theme(
         }
         let disk_content = fs::read_to_string(&target_path)
             .map_err(|e| format!("Failed to read {}: {}", target_path.display(), e))?;
-        BtopThemeEngine::validate_theme_content(&disk_content).map_err(|errs| errs.join("; "))?;
+        validate_theme_content(&disk_content).map_err(|errs| errs.join("; "))?;
         if disk_content.replace("\r\n", "\n") != rendered.replace("\r\n", "\n") {
             return Err(format!(
-                "btop theme drifted from SSOT projection at {}",
-                target_path.display()
+                "btop theme drifted from SSOT projection at {} (template {})",
+                target_path.display(),
+                template_rel
             ));
         }
     } else {
@@ -271,6 +243,41 @@ pub fn run_render_btop_theme(
         status: "success".to_string(),
         target: target_path,
         theme_len: rendered.len(),
-        keys_count: engine.build_theme_mapping().len(),
+        keys_count,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn doc() -> toml::Value {
+        "[colors]\naccent = \"#1A407F\"\n[identity]\nusername = \"mios\"\n[btop]\nshown = true\n"
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn tokens_resolve_from_colors_identity_and_dotted_paths() {
+        let d = doc();
+        let out = render_tokens(
+            "a=@MIOS:accent@ u=@MIOS:identity_username@ s=@MIOS:btop.shown@ t=@MIOS:btop_shown@",
+            &d,
+            None,
+        )
+        .unwrap();
+        assert_eq!(out, "a=#1A407F u=mios s=True t=True");
+    }
+
+    #[test]
+    fn an_unknown_token_is_an_error_not_a_literal() {
+        let err = render_tokens("x=@MIOS:nope@", &doc(), None).unwrap_err();
+        assert!(err.contains("@MIOS:nope@"), "{err}");
+    }
+
+    #[test]
+    fn a_projection_missing_a_required_slot_is_invalid() {
+        let errs = validate_theme_content("theme[main_bg]=\"\"\n").unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("main_fg")), "{errs:?}");
+    }
 }
