@@ -947,19 +947,24 @@ class TestDesktopMcp(unittest.IsolatedAsyncioTestCase):
             cells = {r[0]: list(map(int, r[1:])) for r in rows}
             self.assertEqual(len(rows), 2 if expected != "desktop" else 5)
             if expected != "desktop":
-                active = receipt['active']
+                active, observer = receipt['active'], receipt["observer"]
+                # One SSOT split for the Linux workspace and the Windows host
+                # profile ([terminal.monitor] split_*): portrait stacks the
+                # monitor ABOVE the head; compact landscape puts the head on
+                # the LEFT and the monitor on the right.
                 if expected == 'portrait':
+                    self.assertEqual(cells[observer][0:2], [0, 0])
                     self.assertEqual(cells[active][0], 0)
-                    self.assertEqual(cells[active][1], 0)
-                    self.assertEqual(cells[receipt["observer"]][0], 0)
-                    self.assertGreater(cells[receipt["observer"]][1], cells[active][3])
+                    self.assertGreater(cells[active][1], cells[observer][3])
+                    self.assertEqual(cells[observer][3] > cells[active][3],
+                                     CONFIG["workspace"]["portrait_observer_percent"] > 50)
                     self.assertGreaterEqual(cells[active][3], min(CONFIG["workspace"]["minimum_head_rows"], height - 4))
                 else:
-                    self.assertEqual(cells[receipt["observer"]][0], 0)
-                    self.assertEqual(cells[receipt["observer"]][1], 0)
-                    self.assertEqual(cells[active][1], 0)
-                    self.assertGreater(cells[active][0], cells[receipt["observer"]][2])
+                    self.assertEqual(cells[active][0:2], [0, 0])
+                    self.assertEqual(cells[observer][1], 0)
+                    self.assertGreater(cells[observer][0], cells[active][2])
                     self.assertEqual(cells[active][3], height)
+                    self.assertEqual(cells[observer][3], height)
                 hidden = await bridge.call('mios_tmux_execute_command', {'slot': 2, 'command': 'printf COMPACT-SLOT-RECEIPT'})
                 self.assertFalse(hidden.is_error, hidden)
                 self.assertEqual(payload(hidden)['exitCode'], 0)
