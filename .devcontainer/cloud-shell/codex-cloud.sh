@@ -21,7 +21,7 @@ mios_checkout() {
             && { (cd "$c" && pwd -P); return 0; }
     done
     install -d -m 0755 "$(dirname "$cache")"
-    git clone --depth 1 --branch "${MIOS_REF:-main}" "${MIOS_REPO:-https://github.com/mios-dev/MiOS.git}" "$cache"
+    git clone --depth 1 --branch "${MIOS_DEPLOYMENT_CLOUD_SOURCE_REF:-main}" "${MIOS_REPO:-https://github.com/mios-dev/MiOS.git}" "$cache"
     chown -R "${MIOS_UID:-1000}:${MIOS_GID:-1000}" "$cache"
     printf '%s\n' "$cache"
 }

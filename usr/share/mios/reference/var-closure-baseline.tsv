@@ -305,7 +305,7 @@ MIOS_POLICIES	automation/38-selinux.sh:45
 MIOS_PORT	tools/drift-checks.py:2377
 MIOS_PORT_GUACAMOLE_WEB	usr/libexec/mios/Setup-MiOSLanPortProxy.ps1:38
 MIOS_PORT_HERMES_WORKER	usr/share/mios/k3s/generated/mios-ai.yaml:195
-MIOS_PORT_LLM_HEAVY	usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py:327
+MIOS_RATCHET_BASE	CI-supplied verified comparison commit; automation/lint-shell.sh
 MIOS_PORT_OWUI	usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:671
 MIOS_PRINCIPAL_BIND_MODE	usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py:450
 MIOS_PRIORITY_QUEUE	usr/lib/mios/agent-pipe/server.py:543

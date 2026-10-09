@@ -355,9 +355,9 @@ class TestDevImageWiring(unittest.TestCase):
             "an install": cf + "RUN dnf install -y htop\n",
             "a hand-built code-server": cf + "RUN rpm -Uvh https://example.invalid/code-server-4.0.0-amd64.rpm\n",
             "a toolchain": cf + "RUN rustup-init -y\n",
-            "a hardcoded image": cf.replace("FROM ${MIOS_IMAGE}", "FROM " + self.ref),
-            "the CI harness": cf.replace("FROM ${MIOS_IMAGE}", "FROM ghcr.io/mios-dev/machine-os:6.1"),
-            "a stale default": cf.replace("MIOS_IMAGE=" + self.ref, "MIOS_IMAGE=ghcr.io/mios-dev/mios:0.2.4"),
+            "a hardcoded image": cf.replace("FROM ${MIOS_IMAGE_REF}", "FROM " + self.ref),
+            "the CI harness": cf.replace("FROM ${MIOS_IMAGE_REF}", "FROM ghcr.io/mios-dev/machine-os:6.1"),
+            "a stale default": cf.replace("MIOS_IMAGE_REF=" + self.ref, "MIOS_IMAGE_REF=ghcr.io/mios-dev/mios:0.2.4"),
             "files from the context": cf + "COPY usr/ /usr/\n",
         }
         for name, text in mutants.items():

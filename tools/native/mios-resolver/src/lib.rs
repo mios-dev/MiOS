@@ -60,8 +60,7 @@ pub fn resolve_merged(root_dir: Option<&Path>, db_overlay: bool) -> Result<Value
 /// derived the same way resolve_merged derives them, so a derived value the
 /// configurator echoes back is not frozen into the user tier.
 pub fn resolve_below_user(root_dir: Option<&Path>) -> Result<Value, ResolverError> {
-    let mut merged =
-        layers::merge_layer_files(&layers::resolve_layer_paths_below_user(root_dir))?;
+    let mut merged = layers::merge_layer_files(&layers::resolve_layer_paths_below_user(root_dir))?;
     ports::derive_ports(&mut merged);
     Ok(merged)
 }

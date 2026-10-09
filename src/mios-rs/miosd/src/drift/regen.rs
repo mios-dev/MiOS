@@ -144,6 +144,10 @@ fn diff_tree(committed: &Path, rendered: &Path) -> Vec<String> {
 /// Select an executable for the running platform, never a Windows PE on Linux.
 pub fn resolve_native_generator(ctx: &DriftCtx, name: &str) -> Option<std::path::PathBuf> {
     let executable = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+    if let Some(directory) = env::var_os("MIOS_NATIVE_BIN_DIR") {
+        let path = std::path::PathBuf::from(directory).join(&executable);
+        return path.is_file().then_some(path);
+    }
     let mut candidates = ["tools/native/target/release", "tools/native/target/debug"]
         .map(|dir| ctx.root.join(dir).join(&executable))
         .to_vec();

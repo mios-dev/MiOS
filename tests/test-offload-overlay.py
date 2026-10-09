@@ -48,6 +48,14 @@ _PROBE = (
 def _resolve(host_toml=None, vendor_only=False) -> dict:
     env = dict(os.environ)
     env.pop("MIOS_PROBE_VENDOR", None)
+    # All six tiers belong to this fixture; installed /usr data and a running
+    # database must never decide the source-checkout's overlay assertions.
+    env.update(MIOS_TOML_ROOT=_ROOT,
+               MIOS_VENDOR_TOML=os.path.join(_ROOT, "usr/share/mios/mios.toml"),
+               MIOS_VENDOR_TOML_D=os.path.join(_ROOT, "usr/lib/mios/mios.d"),
+               MIOS_HOST_TOML_D=os.path.join(_ROOT, ".absent-host.d"),
+               MIOS_USER_TOML_D=os.path.join(_ROOT, ".absent-user.d"),
+               MIOS_DB_AUTHORITATIVE="0")
     if vendor_only:
         env["MIOS_PROBE_VENDOR"] = "1"
     if host_toml:

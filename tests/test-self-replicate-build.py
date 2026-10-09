@@ -40,8 +40,11 @@ def test_build_context_preserves_tracked_sources():
     assert restore in recipe, "partial image context must restore omitted tracked consumers"
     assert recipe.index(restore) < recipe.index("miosd drift-check"), "restore sources before evaluating drift"
     runner = (root / "automation/build.sh").read_text()
-    completed = next(line for line in runner.splitlines() if line.startswith("CONTAINERFILE_SCRIPTS="))
-    assert "55-native-build.sh" in completed, "reuse rust-builder outputs when restored sources are present"
+    completed = re.search(r'case " \$_name " in\n.*?\n    esac', runner, re.S)
+    assert completed, "the phase runner must identify stages already completed by Containerfile"
+    probe = 'for _name in 55-native-build.sh new-phase.sh; do\n' + completed.group() + '\nprintf "%s\\n" "$_name"\ndone\n'
+    selected = subprocess.run(["bash", "-euc", probe], capture_output=True, text=True, check=True)
+    assert selected.stdout.splitlines() == ["new-phase.sh"], "reuse native outputs while retaining later phases"
     assert "MIOS_NATIVE_INSTALL_ROOT=/out bash /build/automation/55-native-build.sh" in recipe, "native compilation must precede the image bake"
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory)

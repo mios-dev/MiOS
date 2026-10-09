@@ -263,7 +263,7 @@ health_checks() (
     }
     missing=''
     ledger || exit 1
-    [[ ${#FAIL_LOG[@]} -eq 0 ]] || exit 1
+    [[ ${#FAIL_LOG[@]} -eq 0 && $SCRIPT_COUNT -eq 1 && ${#WARN_LOG[@]} -eq 0 && ${#WARNED_JSON[@]} -eq 0 && ${PHASE_FATAL[package-health]} == true ]] || exit 1
     missing=kernel-core
     if ledger; then exit 1; fi
     [[ ${#FAIL_LOG[@]} -eq 1 && "${FAIL_LOG[0]}" == "package-health: exit=1" ]] || exit 1

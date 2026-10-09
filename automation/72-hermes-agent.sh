@@ -3,6 +3,7 @@
 # AI-hint: Installs the unified Hermes-Agent and opencode components into the MiOS agent plane, configuring the shared Python venv, sy...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null  # Resolve the repository or installed FHS logging library.
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {

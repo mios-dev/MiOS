@@ -48,7 +48,7 @@ mios_resolve_python() {
 
 # Scrub ambient MIOS_* environment variables to prevent host leakage
 mios_scrub_env() {
-    local preserve_regex='^(MIOS_DRIFT_ROOT|MIOS_DRIFT_CHECK_ROOT|MIOS_THEME_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_AI_AGENT_VENV|MIOS_PYTHON_BIN|MIOS_BOOTSTRAP_ROOT|MIOS_TEST_PODMAN_BIN)$'
+    local preserve_regex='^(MIOS_DRIFT_ROOT|MIOS_DRIFT_CHECK_ROOT|MIOS_DRIFT_REQUIRE_TOOLS|MIOS_RATCHET_BASE|MIOS_NATIVE_BIN_DIR|MIOS_THEME_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_AI_AGENT_VENV|MIOS_PYTHON_BIN|MIOS_BOOTSTRAP_ROOT|MIOS_TEST_PODMAN_BIN)$'
     for var in $(compgen -v MIOS_); do
         if [[ ! "$var" =~ $preserve_regex ]]; then
             unset "$var"

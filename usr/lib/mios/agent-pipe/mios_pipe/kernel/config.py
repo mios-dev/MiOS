@@ -13,9 +13,9 @@ def _toml_section(section: str) -> dict:
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
         import sys
-        lib_path = "/usr/lib/mios"
-        if not os.path.exists(lib_path):
-            lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        # Resolve beside this module so a checkout cannot import an older
+        # installed DB/TOML implementation merely because the host has MiOS.
+        lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         if lib_path not in sys.path:
             sys.path.insert(0, lib_path)
         import mios_db_config
@@ -56,9 +56,9 @@ def _dispatch_toml() -> dict:
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
         import sys
-        lib_path = "/usr/lib/mios"
-        if not os.path.exists(lib_path):
-            lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        # Resolve beside this module so a checkout cannot import an older
+        # installed DB/TOML implementation merely because the host has MiOS.
+        lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         if lib_path not in sys.path:
             sys.path.insert(0, lib_path)
         import mios_db_config

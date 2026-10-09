@@ -26,6 +26,19 @@ fn exe(name: &str) -> String {
 /// mios-unit-gen is a sibling workspace member the projector shells to; build it once
 /// if the workspace has not produced it yet so the positive control is never skipped.
 fn unit_gen() -> PathBuf {
+    // Cargo places integration-test executables under <profile>/deps, next to
+    // the binaries it built. This follows --target-dir/CARGO_TARGET_DIR and
+    // cross-target profiles without guessing a checkout-local target tree.
+    let profile = std::env::current_exe()
+        .expect("integration test executable")
+        .parent()
+        .and_then(Path::parent)
+        .expect("Cargo profile directory")
+        .to_path_buf();
+    let sibling = profile.join(exe("mios-unit-gen"));
+    if sibling.is_file() {
+        return sibling;
+    }
     let native = repo_root().join("tools/native");
     let found = |p: &PathBuf| p.is_file();
     for profile in ["debug", "release"] {
@@ -43,7 +56,7 @@ fn unit_gen() -> PathBuf {
         .status()
         .expect("spawn cargo build -p mios-unit-gen");
     assert!(status.success(), "building mios-unit-gen failed");
-    let p = native.join("target/debug").join(exe("mios-unit-gen"));
+    let p = sibling;
     assert!(p.is_file(), "mios-unit-gen missing after build");
     p
 }

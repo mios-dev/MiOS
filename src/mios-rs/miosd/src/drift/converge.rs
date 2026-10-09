@@ -152,7 +152,12 @@ fn heavy_engine_lanes(
 ) -> usize {
     let mut lanes = 0;
     for kind in ["containers", "images"] {
-        for (name, spec) in doc.get(kind).and_then(toml::Value::as_table).into_iter().flatten() {
+        for (name, spec) in doc
+            .get(kind)
+            .and_then(toml::Value::as_table)
+            .into_iter()
+            .flatten()
+        {
             let Some(engines) = spec.get("engine").and_then(toml::Value::as_table) else {
                 continue;
             };
@@ -417,23 +422,41 @@ mod tests {
         write(
             root,
             SSOT,
-            &format!("{}{LANE}", CONVERGE.replace("/var/lib/mios/history/", "/mnt/ceph/tenants/a/")),
+            &format!(
+                "{}{LANE}",
+                CONVERGE.replace("/var/lib/mios/history/", "/mnt/ceph/tenants/a/")
+            ),
         )?;
         assert!(converge(&ctx).is_err_and(|e| e
             .contains("mios.toml:7: [converge.memory].cold_storage_dir")
             && e.contains("tenants mount")));
-        write(root, SSOT, &format!("{}{LANE}", CONVERGE.replace("= 90", "= 0")))?;
+        write(
+            root,
+            SSOT,
+            &format!("{}{LANE}", CONVERGE.replace("= 90", "= 0")),
+        )?;
         assert!(converge(&ctx)
             .is_err_and(|e| e.contains("mios.toml:8:") && e.contains("integer >= 1, got 0")));
-        write(root, SSOT, &format!("{}{LANE}", CONVERGE.replace("= 90", "= \"90\"")))?;
+        write(
+            root,
+            SSOT,
+            &format!("{}{LANE}", CONVERGE.replace("= 90", "= \"90\"")),
+        )?;
         assert!(converge(&ctx).is_err_and(|e| e.contains("cold_retention_days must be an integer")));
-        write(root, SSOT, &format!("{}{LANE}", CONVERGE.replace("= 10", "= 20")))?;
+        write(
+            root,
+            SSOT,
+            &format!("{}{LANE}", CONVERGE.replace("= 10", "= 20")),
+        )?;
         assert!(converge(&ctx)
             .is_err_and(|e| e.contains("mios.toml:9:") && e.contains("1..19, got 20")));
         write(
             root,
             SSOT,
-            &format!("{}{LANE}", CONVERGE.replace("runtime_lora = false", "runtime_lora = \"no\"")),
+            &format!(
+                "{}{LANE}",
+                CONVERGE.replace("runtime_lora = false", "runtime_lora = \"no\"")
+            ),
         )?;
         assert!(converge(&ctx).is_err_and(|e| e.contains("must be a boolean")));
         Ok(())
@@ -450,9 +473,14 @@ mod tests {
         write(root, SSOT, &format!("{sglang}{LANE}"))?;
         assert!(converge(&ctx).is_ok());
         // An engine no overlay declares fails, naming the ones that exist.
-        write(root, SSOT, &format!("{}{LANE}", CONVERGE.replace("\"vllm\"", "\"tgi\"")))?;
-        assert!(converge(&ctx).is_err_and(|e| e.contains("mios.toml:2: [ai].heavy_engine = \"tgi\"")
-            && e.contains("[containers.mios-llm-heavy.engine] (declared: sglang, vllm)")));
+        write(
+            root,
+            SSOT,
+            &format!("{}{LANE}", CONVERGE.replace("\"vllm\"", "\"tgi\"")),
+        )?;
+        assert!(converge(&ctx)
+            .is_err_and(|e| e.contains("mios.toml:2: [ai].heavy_engine = \"tgi\"")
+                && e.contains("[containers.mios-llm-heavy.engine] (declared: sglang, vllm)")));
         // A selector no lane reads is a dead key.
         write(root, SSOT, CONVERGE)?;
         assert!(converge(&ctx).is_err_and(|e| e.contains("[ai].heavy_engine selects nothing")));
@@ -474,7 +502,10 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let root = temp.path();
         let ctx = DriftCtx::new(root.into(), false);
-        let config = CONVERGE.replace("sqlite_vec_enable = false", "sqlite_vec_enable = true");
+        let config = format!(
+            "{}{LANE}",
+            CONVERGE.replace("sqlite_vec_enable = false", "sqlite_vec_enable = true")
+        );
         write(root, SSOT, &config)?;
         assert!(
             converge(&ctx).is_err_and(|e| e.contains("packages.ai.python_requirements is missing"))
@@ -488,7 +519,7 @@ mod tests {
             "# sqlite-vec\nfastapi\nsqlite-vecx\n",
         )?;
         assert!(converge(&ctx).is_err_and(|e| e.contains(
-            "mios.toml:4: [converge.memory].sqlite_vec_enable = true but no package set"
+            "mios.toml:6: [converge.memory].sqlite_vec_enable = true but no package set"
         )));
         write(
             root,

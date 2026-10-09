@@ -16,6 +16,7 @@ mod inert_tables;
 mod laws;
 mod negative_coverage;
 mod phases;
+mod powershell;
 mod profiles;
 mod projreg;
 mod protected_refs;
@@ -97,7 +98,7 @@ const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\
                      checks: artifact, build-tool-dispatch, canonical-bools, credential-literals,\n\
                              doc-refs-resolve, drift-stubs, image-equivalence, image-freshness,\n\
                              negative-coverage, no-inert-ssot-tables, profile-integrity,\n\
-                             phase-registry, projection-coverage, protected-refs,\n\
+                             phase-registry, powershell-parse, powershell-analyze, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, rust-categories, signature-policy,\n\
                              static-linkage, version-literals-ssot\n";
 
@@ -215,6 +216,8 @@ fn main() -> ExitCode {
         "negative-coverage" => negative_coverage::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),
+        "powershell-parse" => powershell::check(&root, false),
+        "powershell-analyze" => powershell::check(&root, true),
         "profile-integrity" => profiles::check(&root),
         "projection-coverage" => projreg::check(&root),
         "protected-refs" => protected_refs::check(&root),

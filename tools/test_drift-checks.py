@@ -85,9 +85,10 @@ class TestExtractedChecks(unittest.TestCase):
         with open(os.path.join(_ROOT, "automation/98-drift-checks.sh"), encoding="utf-8", errors="replace") as fh:
             gate = fh.read()
         for name in MOD.SUBCOMMANDS:
-            self.assertIn("tools/drift-checks.py %s" % name, gate,
-                          "check_%s no longer dispatches to the module"
-                          % name.replace("-", "_"))
+            pattern = r'tools/drift-checks\.py["\x27]?\s+' + re.escape(name) + r'(?=[\s"\x27)]|$)'
+            self.assertRegex(gate, pattern,
+                             "check_%s no longer dispatches to the module"
+                             % name.replace("-", "_"))
 
 
 # A checkout that never had a file is a skip; a TRACKED file that has gone

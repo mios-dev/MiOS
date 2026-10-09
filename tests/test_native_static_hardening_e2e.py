@@ -798,13 +798,20 @@ class TestTier1FeatureCoverage(unittest.TestCase):
             full = os.path.join(_ROOT, f)
             self.assertTrue(os.path.isfile(full), f"Mirrored file {f} missing from MiOS")
 
-    def test_f9_03_build_mios_ps1_gnullvm_parity(self):
-        """F9.3: build-mios.ps1 gnullvm detection logic exists and is consistent."""
-        script = os.path.join(_ROOT, "build-mios.ps1")
-        if os.path.isfile(script):
-            with open(script, "r", encoding="utf-8", errors="replace") as fh:
-                content = fh.read()
-            self.assertIn("gnullvm", content.lower())
+    def test_f9_03_windows_native_catalog_parity(self):
+        """F9.3: Windows artifacts come from the native SSOT catalog."""
+        binary = os.environ.get("MIOS_MIOSD_BIN") or shutil.which("miosd")
+        self.assertTrue(binary, "native miosd is required to verify the Windows catalog")
+        result = subprocess.run([binary, "native-targets", "--root", _ROOT,
+                                 "--platform", "windows", "--json"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertTrue(plan, "an empty Windows catalog proves nothing")
+        self.assertEqual({entry["platform"] for entry in plan}, {"windows"})
+        self.assertIn("mios-wallpaperd", {entry["binary"] for entry in plan})
+        content = Path(_ROOT, "build-mios.ps1").read_text(encoding="utf-8")
+        self.assertIn("native-windows-build", content)
+        self.assertIn("native-artifact-check", content)
 
     def test_f9_04_sync_generated_script_exists(self):
         """F9.4: Native plan is read-only and execution projects the selected root."""

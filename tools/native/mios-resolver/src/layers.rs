@@ -231,9 +231,7 @@ impl Provider for Layered {
 
 /// A figment over `paths`, merged by `merge_layer_files`.
 pub fn figment_of<P: AsRef<Path>>(paths: &[P]) -> Figment {
-    Figment::from(Layered(
-        merge_layer_files(paths).map_err(|e| e.to_string()),
-    ))
+    Figment::from(Layered(merge_layer_files(paths).map_err(|e| e.to_string())))
 }
 
 pub fn create_figment(root_dir: Option<&Path>) -> Figment {
@@ -341,7 +339,10 @@ mod tests {
             "[ai]\nendpoint = \"\"\nmodel = \"b\"\n",
         ]);
         let merged: toml::Value = figment_of(&paths).extract().unwrap();
-        assert_eq!(merged["ai"]["endpoint"].as_str(), Some("http://localhost:8642/v1"));
+        assert_eq!(
+            merged["ai"]["endpoint"].as_str(),
+            Some("http://localhost:8642/v1")
+        );
         assert_eq!(merged["ai"]["model"].as_str(), Some("b"));
         // A non-empty higher tier still wins, and an empty value with nothing
         // below it is kept rather than dropped.
@@ -350,7 +351,10 @@ mod tests {
             "[ai]\nendpoint = \"http://blade:8700/v1\"\nextra = \"\"\n",
         ]);
         let merged = merge_layer_files(&paths).unwrap();
-        assert_eq!(merged["ai"]["endpoint"].as_str(), Some("http://blade:8700/v1"));
+        assert_eq!(
+            merged["ai"]["endpoint"].as_str(),
+            Some("http://blade:8700/v1")
+        );
         assert_eq!(merged["ai"]["extra"].as_str(), Some(""));
     }
 

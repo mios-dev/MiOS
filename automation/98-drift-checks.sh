@@ -98,6 +98,10 @@ _need_python() {
 }
 
 _gate_bin() {
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        native_bin mios-gate
+        return $?
+    fi
     # Folded from 13 copies.  ONE resolution order for the native gate, because
     # a copy that forgot the debug path made check_version_ssot violate
     # unconditionally in CI (which builds `cargo build -p mios-gate`, debug).
@@ -114,6 +118,10 @@ _gate_bin() {
 }
 
 _unit_gen_bin() {
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        native_bin mios-unit-gen
+        return $?
+    fi
     local c
     for c in \
              "$ROOT/tools/native/target/release/mios-unit-gen" \
@@ -130,6 +138,12 @@ native_bin() {
     local name="$1" override="${2:-}" suffix candidate
     local suffixes=("" ".exe")
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe" "");; esac
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        candidate="$MIOS_NATIVE_BIN_DIR/$name${suffixes[0]}"
+        [[ -x "$candidate" ]] || return 1
+        printf '%s' "$candidate"
+        return 0
+    fi
     if [[ -n "$override" && -x "$override" ]]; then
         printf '%s' "$override"
         return 0

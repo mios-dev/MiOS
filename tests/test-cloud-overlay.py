@@ -244,7 +244,7 @@ class TestCloudScripts(unittest.TestCase):
         line = "min_free_gb   = 80"
         self.assertEqual(1, text.count(line))
         env = dict(os.environ, PATH=os.path.join(tmp, "bin") + os.pathsep + os.environ["PATH"],
-                   MIOS_CLOUD_RUNTIME="podman", MIOS_CLOUD_STATE=os.path.join(tmp, "state"))
+                   MIOS_DEPLOYMENT_CLOUD_RUNTIME="podman", MIOS_DEPLOYMENT_CLOUD_STATE_DIRECTORY=os.path.join(tmp, "state"))
         env.pop("MIOS_TOML_ROOT", None)
         for want, rc in ((999999, 1), (0, 0)):
             with self.subTest(want=want):

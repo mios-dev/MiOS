@@ -15,7 +15,7 @@
 # cannot arrive in that window, so it is pulled in the background and
 # `mios-dev` reports its progress until it is in.
 
-# The session's MiOS checkout, else a clone of MIOS_REPO at MIOS_REF.
+# The session's MiOS checkout, else a clone of MIOS_REPO at MIOS_DEPLOYMENT_CLOUD_SOURCE_REF.
 mios_checkout() {
     local c cache=/opt/mios-cloud/src/MiOS
     for c in "${MIOS_ROOT:-}" "$PWD" /home/*/MiOS /root/MiOS /workspace/MiOS "$cache"; do
@@ -23,7 +23,7 @@ mios_checkout() {
             && { printf '%s\n' "$c"; return 0; }
     done
     mkdir -p "$(dirname "$cache")" || return 1
-    git clone -q --depth 1 --branch "${MIOS_REF:-main}" "${MIOS_REPO:-https://github.com/mios-dev/MiOS}" "$cache" \
+    git clone -q --depth 1 --branch "${MIOS_DEPLOYMENT_CLOUD_SOURCE_REF:-main}" "${MIOS_REPO:-https://github.com/mios-dev/MiOS}" "$cache" \
         && printf '%s\n' "$cache"
 }
 
@@ -46,7 +46,9 @@ main() {
     fi
 
     root="$(mios_checkout)" || { echo "[mios-cloud] no MiOS checkout and the clone failed; no MiOS container this session"; return 0; }
-    timeout "${MIOS_SETUP_BUDGET_S:-240}" bash "$root/.devcontainer/cloud-shell/bootstrap.sh" claude-code \
+    local budget
+    budget="${MIOS_DEPLOYMENT_CLOUD_SETUP_BUDGET_S:-$(MIOS_TOML_ROOT="$root" python3 "$root/usr/libexec/mios/mios-toml-get" deployment.cloud setup_budget_s)}"
+    timeout "$budget" bash "$root/.devcontainer/cloud-shell/bootstrap.sh" claude-code \
         || echo "[mios-cloud] MiOS provisioning did not finish; run: bash $root/.devcontainer/cloud-shell/bootstrap.sh claude-code"
 }
 

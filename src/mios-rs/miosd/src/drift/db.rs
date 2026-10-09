@@ -541,15 +541,12 @@ fn entries(value: Option<&Value>) -> BTreeMap<&str, &Value> {
 }
 
 fn show(value: Option<&Value>) -> String {
-    let text = value.map_or_else(
+    // Any scalar or nested table may contain an operator credential. Report
+    // presence/type, never serialize the value into build logs or telemetry.
+    value.map_or_else(
         || "absent".to_owned(),
-        |v| serde_json::to_string(v).unwrap_or_else(|_| v.to_string()),
-    );
-    if text.chars().count() > 160 {
-        format!("{}...", text.chars().take(160).collect::<String>())
-    } else {
-        text
-    }
+        |v| format!("{} (value withheld)", v.type_str()),
+    )
 }
 
 /// Python truthiness, which the seeder's `or`/`bool()` coercions apply.
@@ -576,7 +573,7 @@ fn py_int(value: Option<&Value>) -> Result<i64, String> {
         Some(Value::String(s)) => s
             .trim()
             .parse()
-            .map_err(|e| format!("{s:?} is not an integer: {e}")),
+            .map_err(|_| "string is not an integer (value withheld)".to_owned()),
         other => Err(format!("{} is not an integer", show(other))),
     }
 }
@@ -664,17 +661,6 @@ fn domains(root: &Value, side: &str) -> Result<Domains, String> {
     Ok(out)
 }
 
-fn tail(bytes: &[u8]) -> String {
-    let text = String::from_utf8_lossy(bytes);
-    let lines: Vec<&str> = text.lines().collect();
-    lines
-        .iter()
-        .skip(lines.len().saturating_sub(20))
-        .copied()
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// Seed the SSOT into an in-memory database with seed-db-config.py, materialize
 /// it back with materialize-config-toml.py, and require the result to equal the
 /// SSOT for every config_kv scope, for routing.domains (via domain_verb) and for
@@ -684,8 +670,13 @@ fn tail(bytes: &[u8]) -> String {
 /// that silently skips one at runtime is caught) plus any scope it actually
 /// wrote (so nothing seeded goes uncompared).
 fn projection(ctx: &DriftCtx) -> audit::Audit {
-    let doc = audit::ssot(ctx)?;
     let text = audit::read(&ctx.root, SSOT)?;
+    let doc: Value = text.parse().map_err(|e: toml::de::Error| {
+        format!(
+            "{SSOT}: invalid TOML at byte range {:?} (values withheld)",
+            e.span()
+        )
+    })?;
     let python = interpreter(&doc)?;
     let seed = required(ctx, SEED, "the db seeder script")?;
     let materialize = required(ctx, MATERIALIZE, "the DB->TOML materializer")?;
@@ -716,26 +707,33 @@ fn projection(ctx: &DriftCtx) -> audit::Audit {
         .map_err(|e| {
             format!("Required Python interpreter {python} (SSOT drift.lint.python): {e}")
         })?;
-    let log = tail(&output.stderr);
+    // Seeder/materializer exceptions, stderr and TOML parse snippets can echo
+    // arbitrary SSOT values. Keep the failing component and exit status only.
+    let log = format!("{} stderr byte(s) withheld", output.stderr.len());
     if !output.status.success() {
         return Err(format!("DB round-trip harness {}:\n{log}", output.status));
     }
-    let receipt: Receipt = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("DB round-trip harness: invalid receipt: {e}\n{log}"))?;
-    if let Some(error) = receipt.seed {
+    let receipt: Receipt = serde_json::from_slice(&output.stdout).map_err(|e| {
+        format!(
+            "DB round-trip harness: invalid receipt at line {}, column {} (values withheld)\n{log}",
+            e.line(),
+            e.column()
+        )
+    })?;
+    if receipt.seed.is_some() {
         return Err(format!(
-            "{SEED}: seeding the in-memory database failed: {error}\n{log}"
+            "{SEED}: seeding the in-memory database failed (diagnostic values withheld)\n{log}"
         ));
     }
-    if let Some(error) = receipt.materialize {
+    if receipt.materialize.is_some() {
         return Err(format!(
-            "{MATERIALIZE}: materializing from the seeded database failed: {error}\n{log}"
+            "{MATERIALIZE}: materializing from the seeded database failed (diagnostic values withheld)\n{log}"
         ));
     }
     let mat: Value = receipt
         .toml
         .parse()
-        .map_err(|e| format!("{MATERIALIZE}: the materialized TOML does not parse: {e}"))?;
+        .map_err(|e: toml::de::Error| format!("{MATERIALIZE}: the materialized TOML does not parse at byte range {:?} (values withheld)", e.span()))?;
     let mut scopes: BTreeSet<&str> = entries(Some(&doc))
         .into_iter()
         .filter(|(name, value)| value.is_table() && listed.contains(name))
@@ -1026,6 +1024,50 @@ for s, t in out.items():
 
     #[cfg(unix)]
     #[test]
+    fn projection_diagnostics_do_not_disclose_operator_values(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        const SECRET: &str = "synthetic-private-roundtrip-sentinel";
+        let config = format!(
+            "{PROJECTION_SSOT}\n[auth]\npassword='{SECRET}'\n[auth.nested]\napi_key='{SECRET}'\n"
+        );
+        let (temp, ctx) = fixture(&config)?;
+        let seed = temp.path().join(SEED);
+        let materialize = temp.path().join(MATERIALIZE);
+        let seeder = PROJECTION_SEED.replace(
+            "{\"ports\", \"routing\"}",
+            "{\"ports\", \"routing\", \"auth\"}",
+        );
+        std::fs::write(&seed, &seeder)?;
+        std::fs::write(&materialize, PROJECTION_MATERIALIZE)?;
+        let drift = projection(&ctx)
+            .err()
+            .ok_or("the unseeded auth scope must fail")?;
+        assert!(
+            drift.contains("[auth].password") && drift.contains("[auth].nested"),
+            "{drift}"
+        );
+        assert!(!drift.contains(SECRET), "operator values must be withheld");
+        std::fs::write(&seed, format!("{seeder}\nraise RuntimeError('{SECRET}')\n"))?;
+        let failure = projection(&ctx)
+            .err()
+            .ok_or("the broken seeder must fail")?;
+        assert!(failure.contains("seeding the in-memory database failed"));
+        assert!(
+            !failure.contains(SECRET),
+            "exception diagnostics must be withheld"
+        );
+        std::fs::write(
+            temp.path().join(SSOT),
+            format!("[auth]\npassword = {SECRET}\n"),
+        )?;
+        let invalid = projection(&ctx).err().ok_or("malformed SSOT must fail")?;
+        assert!(invalid.contains("invalid TOML at byte range"));
+        assert!(!invalid.contains(SECRET), "parse snippets must be withheld");
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn projection_round_trips_through_the_scripts_and_catches_loss_without_vendor_backfill(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let (temp, ctx) = fixture(PROJECTION_SSOT)?;
@@ -1046,7 +1088,7 @@ for s, t in out.items():
                 "if k not in (\"domains\", \"ratio\"):",
             ),
         )?;
-        assert!(projection(&ctx).is_err_and(|e| e.contains("mios.toml:3: [ports].ratio is not lossless through config_kv: SSOT 0.5 -> materialized absent")));
+        assert!(projection(&ctx).is_err_and(|e| e.contains("mios.toml:3: [ports].ratio is not lossless through config_kv: SSOT float (value withheld) -> materialized absent")));
         // A seeder that skips a whole allowlisted section at runtime is caught too.
         std::fs::write(
             &seed,
@@ -1056,7 +1098,7 @@ for s, t in out.items():
             ),
         )?;
         assert!(projection(&ctx).is_err_and(|e| e.contains(
-            "[ports].web is not lossless through config_kv: SSOT 8080 -> materialized absent"
+            "[ports].web is not lossless through config_kv: SSOT integer (value withheld) -> materialized absent"
         )));
         // A materializer that falls back to the vendor file is refused, not trusted.
         std::fs::write(&seed, PROJECTION_SEED)?;
@@ -1075,7 +1117,7 @@ for s, t in out.items():
         )?;
         assert!(
             projection(&ctx).is_err_and(|e| e.contains("verbs.fetch.aliases is not lossless")
-                && e.contains("SSOT [\"get\"] -> materialized absent"))
+                && e.contains("SSOT array (value withheld) -> materialized absent"))
         );
         // A domain verb that is not a seeded verb is dropped by domain_verb.
         std::fs::write(&materialize, PROJECTION_MATERIALIZE)?;
@@ -1092,7 +1134,8 @@ for s, t in out.items():
             "_CANONICAL_SECTIONS = {'ports'}\nimport sys\nsys.exit(3)\n",
         )?;
         assert!(projection(&ctx)
-            .is_err_and(|e| e.contains("seeding the in-memory database failed: exit status 3")));
+            .is_err_and(|e| e
+                .contains("seeding the in-memory database failed (diagnostic values withheld)")));
         std::fs::write(&seed, "pass\n")?;
         assert!(projection(&ctx).is_err_and(|e| e.contains("_CANONICAL_SECTIONS is absent")));
         std::fs::write(&seed, "_CANONICAL_SECTIONS = {'retired'}\n")?;

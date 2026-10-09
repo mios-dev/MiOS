@@ -1907,7 +1907,7 @@ build_args = { BASE_IMAGE = "image.base" }
 [build.images.devcontainer]
 containerfile = ".devcontainer/Containerfile"
 tag_key = "image.dev_local_tag"
-build_args = { MIOS_IMAGE = "image.local_tag" }
+build_args = { MIOS_IMAGE_REF = "image.local_tag" }
 
 # Native executable roles are distinct; libraries remain shared workspace code.
 # Category membership and installation are consumed by miosd native-targets.
@@ -2022,14 +2022,10 @@ unreachable = []
 # Shrink-only, and set to the measured count so the next untagged file
 # fails the gate. At 130 against an actual 42 it had 88 files of slack
 # and could not catch a regression until 88 files had degraded.
-# 155 = files that must stay header-free, measured when check_hint_coverage went
-# native: agent-harness prompts (.agents, commands, .claude/commands,
-# .github/agents, .mios, .prompt.MD), vendored upstream files and extensions,
-# generator outputs (globals, names registry, env baseline, TASKS.md), snapshot
-# fixtures, JSON templates, applied SQL migrations, the Law 15 mirrored
-# .devcontainer/Containerfile and verbatim reference snippets. Every
-# hand-written source is tagged; the check fails above AND below this number.
-max_untagged = 155
+# Header-free prompts, fixtures, vendored files and generated artifacts are
+# excluded by the native classifier. The remaining taggable source census
+# leaves one untagged file; the check fails above AND below this number.
+max_untagged = 1
 max_unconforming = 0
 
 # Hint length cap. Was hardcoded 260 in mios-ai-tag, where it also silently
@@ -6422,6 +6418,11 @@ target_pxe_tar_xz   = false  # PXE network boot tarball
 # the layered resolver merges over the vendor SSOT, turning off the heavy runtime
 # model pulls, runtime desktop installs and the desktop session.
 [deployment.cloud]
+state_directory = ""
+runtime         = ""
+builder         = 1
+source_ref      = "main"
+setup_budget_s  = 240
 dropin        = "/etc/mios/mios.d/50-cloud.toml"
 # Free space the container store needs before pulling [image].ref: ~23 GB of
 # compressed layers unpack to ~49 GB, with headroom. A nested `podman build` of the
@@ -6442,6 +6443,7 @@ type = "headless"
 # podman container booting its own systemd. The boot disk holds the image and a
 # nested build; Ubuntu LTS ships the guest agent that runs the startup script.
 [deployment.cloud.gce]
+project        = ""
 instance       = "mios"
 zone           = "us-central1-a"
 machine_type   = "n2-standard-8"
@@ -12839,6 +12841,11 @@ requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 # Only what no requirements file claims: pyflakes backs lint-python.sh's
 # undefined-name pass.
 packages = ["pyflakes"]
+
+[ci.powershell.modules]
+# CI provisions exact verified module releases before the read-only native lint gates.
+PSScriptAnalyzer = "1.25.0"
+Pester = "6.0.1"
 
 [ci.fedora]
 # The lean CI harness: the drift-gate job runs in this container, the podman

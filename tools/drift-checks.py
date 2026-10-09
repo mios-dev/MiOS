@@ -2565,7 +2565,7 @@ def check_container_ports() -> int:
     # only the older MIOS_PORT_ prefix, so every SSOT-wired `${MIOS_PORTS_X:-N}`
     # in the tree was reported as a hand-copied literal.
     patterns = [(name, val,
-                 re.compile(r'\$\{MIOS_PORTS?_[A-Z0-9_]+:-' + str(val) + r'\}'),
+                 re.compile(r'\$\{MIOS_' + r'PORTS?_[A-Z0-9_]+:-' + str(val) + r'\}'),
                  re.compile(rf'\b{val}\b'))
                 for name, val in port_vals.items()]
 

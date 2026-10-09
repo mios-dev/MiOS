@@ -13,8 +13,8 @@
 #
 # `miosd image-build` ([build.images.devcontainer].build_args) passes the image it
 # has just built, [image].local_tag, so a local build layers on current source.
-ARG MIOS_IMAGE=ghcr.io/mios-dev/mios:latest
-FROM ${MIOS_IMAGE}
+ARG MIOS_IMAGE_REF=ghcr.io/mios-dev/mios:latest
+FROM ${MIOS_IMAGE_REF}
 
 # A container never boots: create the ostree /var link targets (/home, /root,
 # /opt, /srv, /mnt, /usr/local) and the home of the image's own [identity] user,

@@ -21,6 +21,18 @@ from unittest import mock
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
+def workflow_script(name):
+    workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
+    block = workflow.split(f"      - name: {name}\n", 1)[1].split("        run: |\n", 1)[1]
+    lines = []
+    for line in block.splitlines():
+        if line.strip() and not line.startswith("          "):
+            break
+        lines.append(line[10:])
+    if not any(line.strip() for line in lines):
+        raise AssertionError(f"Workflow step has no executable body: {name}")
+    return "\n".join(lines)
+
 def _load():
     spec = importlib.util.spec_from_file_location(
         "ci_suites", os.path.join(_HERE, "ci-suites.py"))
@@ -202,10 +214,7 @@ class TestFedoraProvisioning(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "POSIX provisioning shell control")
     def test_empty_repos_skip_repo_install_and_packages_still_install(self):
-        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
-        block = workflow.split("      - name: Provision the analysis toolchain\n", 1)[1]
-        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
-        script = "\n".join(line[10:] for line in block.splitlines())
+        script = workflow_script("Provision the analysis toolchain")
         with tempfile.TemporaryDirectory() as d:
             marker = os.path.join(d, "dnf-arguments")
             py = Path(d, "python3")
@@ -230,10 +239,7 @@ class TestFedoraProvisioning(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "POSIX provisioning shell control")
     def test_failed_export_stops_before_dnf(self):
-        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
-        block = workflow.split("      - name: Provision the analysis toolchain\n", 1)[1]
-        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
-        script = "\n".join(line[10:] for line in block.splitlines())
+        script = workflow_script("Provision the analysis toolchain")
         with tempfile.TemporaryDirectory() as d:
             marker = os.path.join(d, "dnf-was-called")
             for name, body in (("python3", 'echo "exporter refused" >&2; exit 2'),
@@ -254,8 +260,8 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
 
     REF = "registry.example/mios:latest"
     GOOD = ("# comment: dnf install in a comment is fine\n"
-            "ARG MIOS_IMAGE=registry.example/mios:latest\n"
-            "FROM ${MIOS_IMAGE}\n"
+            "ARG MIOS_IMAGE_REF=registry.example/mios:latest\n"
+            "FROM ${MIOS_IMAGE_REF}\n"
             "RUN set -eu; \\\n    systemd-tmpfiles --create --prefix=/var/home; \\\n"
             "    install -d -m 0755 /workspaces\n"
             "ENV MIOS_DEVCONTAINER=1\n")
@@ -271,17 +277,17 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
 
     def test_hardcoded_from_is_named(self):
         for frm in ("FROM registry.example/mios:latest", "FROM ghcr.io/mios-dev/machine-os:6.1",
-                    "FROM $MIOS_IMAGE"):
+                    "FROM $MIOS_IMAGE_REF"):
             with self.subTest(frm):
-                out = self.v(self.GOOD.replace("FROM ${MIOS_IMAGE}", frm))
-                self.assertTrue(any("is not FROM ${MIOS_IMAGE}" in e for e in out), out)
+                out = self.v(self.GOOD.replace("FROM ${MIOS_IMAGE_REF}", frm))
+                self.assertTrue(any("is not FROM ${MIOS_IMAGE_REF}" in e for e in out), out)
 
     def test_arg_default_must_be_the_ssot_ref(self):
-        out = self.v(self.GOOD.replace("MIOS_IMAGE=registry.example/mios:latest",
-                                       "MIOS_IMAGE=registry.example/mios:stale"))
+        out = self.v(self.GOOD.replace("MIOS_IMAGE_REF=registry.example/mios:latest",
+                                       "MIOS_IMAGE_REF=registry.example/mios:stale"))
         self.assertTrue(any("differs from [image].ref" in e for e in out), out)
-        out = self.v(self.GOOD.replace("ARG MIOS_IMAGE=registry.example/mios:latest\n", ""))
-        self.assertTrue(any("ARG MIOS_IMAGE default None" in e for e in out), out)
+        out = self.v(self.GOOD.replace("ARG MIOS_IMAGE_REF=registry.example/mios:latest\n", ""))
+        self.assertTrue(any("ARG MIOS_IMAGE_REF default None" in e for e in out), out)
 
     def test_second_stage_is_named(self):
         out = self.v("FROM registry.example/builder AS b\nRUN true\n" + self.GOOD)
@@ -304,7 +310,7 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
 
     def test_local_build_must_layer_on_the_os_tag(self):
         src = Path(_ROOT, "usr/share/mios/mios.toml").read_text(encoding="utf-8")
-        line = 'build_args = { MIOS_IMAGE = "image.local_tag" }'
+        line = 'build_args = { MIOS_IMAGE_REF = "image.local_tag" }'
         self.assertEqual(1, src.count(line))
         with tempfile.TemporaryDirectory() as d:
             for rel in ("usr/share/mios", ".devcontainer"):
@@ -313,7 +319,7 @@ class TestDevcontainerIsTheImage(unittest.TestCase):
             toml = os.path.join(d, "usr/share/mios/mios.toml")
             Path(toml).write_text(src, encoding="utf-8")
             self.assertEqual([], MOD.devcontainer_check(d))
-            Path(toml).write_text(src.replace(line, 'build_args = { MIOS_IMAGE = "image.ref" }'), encoding="utf-8")
+            Path(toml).write_text(src.replace(line, 'build_args = { MIOS_IMAGE_REF = "image.ref" }'), encoding="utf-8")
             self.assertTrue(any("would not layer on the image it built" in e for e in MOD.devcontainer_check(d)))
 
     def test_check_reports_a_planted_devcontainer_install(self):
@@ -358,6 +364,26 @@ class TestSuiteTimeout(unittest.TestCase):
         Path(d, "tests", "hang.sh").write_text("sleep 300 &\nsleep 300\n")
         Path(d, "tests", "ok.sh").write_text("echo fine\n")
         return os.path.join(d, "tests", "run-suites.sh")
+
+    @unittest.skipIf(os.name == "nt", "POSIX process groups")
+    def test_runner_keeps_enforcement_and_catalog_but_scrubs_host_values(self):
+        runner = Path(_ROOT, "tests", "run-suites.sh").read_text()
+        with tempfile.TemporaryDirectory() as d:
+            script = self._tree(d, runner)
+            Path(d, "tests", "hang.sh").write_text(
+                'set -eu\n'
+                'test "$MIOS_DRIFT_REQUIRE_TOOLS" = 1\n'
+                'test "$MIOS_RATCHET_BASE" = fixture-base\n'
+                'test "$MIOS_NATIVE_BIN_DIR" = "/fixture catalog"\n'
+                'test "${MIOS_PROFILE_ROLE-unset}" = unset\n'
+                'test "${MIOS_DRIFT_CHECK_SOFT-unset}" = unset\n')
+            env = dict(os.environ, MIOS_DRIFT_REQUIRE_TOOLS="1",
+                       MIOS_RATCHET_BASE="fixture-base", MIOS_NATIVE_BIN_DIR="/fixture catalog",
+                       MIOS_PROFILE_ROLE="host-only", MIOS_DRIFT_CHECK_SOFT="1")
+            result = subprocess.run(["bash", script, "unit"], env=env,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("2 passed, 0 failed", result.stdout)
 
     @unittest.skipIf(os.name == "nt", "POSIX process groups")
     def test_a_hung_suite_fails_by_name_and_the_tier_finishes(self):
@@ -435,10 +461,7 @@ class TestNativeProjectionTools(unittest.TestCase):
         self.assertEqual(result.stdout, "")
 
     def test_smoke_build_requires_successful_nonempty_ssot_base(self):
-        workflow = Path(_ROOT, ".github/workflows/mios-ci.yml").read_text()
-        block = workflow.split("      - name: Smoke build\n", 1)[1]
-        block = block.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1]
-        script = "\n".join(line[10:] for line in block.splitlines())
+        script = workflow_script("Smoke build")
         reader = self.tool(self.root / "usr/libexec/mios", "mios-toml-get")
         marker = self.root / "invoked"
         sudo = self.tool(self.bins, "sudo")

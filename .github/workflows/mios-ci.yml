@@ -108,6 +108,25 @@ jobs:
           # shellcheck disable=SC2086
           python3 -m pip install --quiet --disable-pip-version-check $python_packages
 
+
+      # [ci.powershell.modules] pins the test and analysis dependencies.
+      - name: Provision SSOT PowerShell modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import json,tomllib; print(json.dumps(tomllib.load(open("usr/share/mios/mios.toml","rb"))["ci"]["powershell"]["modules"]))' |
+            pwsh -NoProfile -NonInteractive -Command '
+              $ErrorActionPreference = "Stop"
+              $modules = $input | ConvertFrom-Json
+              if (-not $modules.PSScriptAnalyzer -or -not $modules.Pester) { throw "Required CI PowerShell modules are undeclared" }
+              foreach ($entry in $modules.PSObject.Properties) {
+                if ($entry.Name -notmatch "^[A-Za-z][A-Za-z0-9_.-]*$" -or $entry.Value -notmatch "^[0-9]+\.[0-9]+\.[0-9]+$") { throw "Invalid CI PowerShell module policy" }
+                if (-not (Get-Module -ListAvailable -Name $entry.Name | Where-Object { $_.Version -eq [version]$entry.Value })) {
+                  Install-Module -Name $entry.Name -RequiredVersion $entry.Value -Scope CurrentUser -Repository PSGallery -Force -SkipPublisherCheck -ErrorAction Stop
+                }
+              }
+            '
+
       - name: Build and install the SSOT native catalog
         shell: bash
         run: |

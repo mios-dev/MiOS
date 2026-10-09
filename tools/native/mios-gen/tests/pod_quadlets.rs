@@ -65,13 +65,36 @@ fn test_pod_quadlets_cli_e2e() {
         stdout,
         stderr
     );
+    let doc: toml::Value = fs::read_to_string(root.join("usr/share/mios/mios.toml"))
+        .expect("read SSOT")
+        .parse()
+        .expect("parse SSOT");
+    let enabled = &doc["quadlets"]["enable"];
+    let expected: usize = ["pods", "containers", "networks", "volumes", "images"]
+        .iter()
+        .map(|kind| {
+            doc.get(kind)
+                .and_then(toml::Value::as_table)
+                .map_or(0, |table| {
+                    table
+                        .keys()
+                        .filter(|name| {
+                            *kind != "containers"
+                                || enabled.get(*name).and_then(toml::Value::as_bool) != Some(false)
+                        })
+                        .count()
+                })
+        })
+        .sum();
+    assert!(expected > 0, "the SSOT must declare Quadlet subjects");
     assert!(
-        stdout.contains("[pod-gen] all 35 Quadlet unit(s) match SSOT"),
-        "stdout should confirm 35 units in sync: {}",
-        stdout
+        stdout.contains(&format!(
+            "[pod-gen] all {expected} Quadlet unit(s) match SSOT"
+        )),
+        "stdout must confirm the SSOT roster of {expected} units: {stdout}"
     );
 
-    // 2. Positive control: list mode outputs all 34 system-scope units
+    // 2. Positive control: list mode outputs the declared system-scope units
     let list_output = Command::new(bin_path)
         .arg("pod-quadlets")
         .arg("--root")

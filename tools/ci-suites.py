@@ -353,14 +353,14 @@ def devcontainer_violations(text: str, image_ref: str) -> list:
     viol = []
     froms = [i for i, ln in enumerate(logical) if ln.split(None, 1)[0].upper() == "FROM"]
     if len(froms) != 1:
-        viol.append(f"devcontainer Containerfile has {len(froms)} FROM lines; it must be one stage, FROM ${{MIOS_IMAGE}}")
-    elif logical[froms[0]].split()[1:] != ["${MIOS_IMAGE}"]:
-        viol.append(f"devcontainer {logical[froms[0]]!r} is not FROM ${{MIOS_IMAGE}}")
+        viol.append(f"devcontainer Containerfile has {len(froms)} FROM lines; it must be one stage, FROM ${{MIOS_IMAGE_REF}}")
+    elif logical[froms[0]].split()[1:] != ["${MIOS_IMAGE_REF}"]:
+        viol.append(f"devcontainer {logical[froms[0]]!r} is not FROM ${{MIOS_IMAGE_REF}}")
     first = froms[0] if froms else len(logical)
-    args = [ln for ln in logical[:first] if re.match(r"ARG\s+MIOS_IMAGE(?:=|\s|$)", ln, re.I)]
+    args = [ln for ln in logical[:first] if re.match(r"ARG\s+MIOS_IMAGE_REF(?:=|\s|$)", ln, re.I)]
     default = args[0].split("=", 1)[1].strip().strip("'\"") if args and "=" in args[0] else None
     if default != image_ref:
-        viol.append(f"devcontainer ARG MIOS_IMAGE default {default!r} differs from [image].ref {image_ref!r}")
+        viol.append(f"devcontainer ARG MIOS_IMAGE_REF default {default!r} differs from [image].ref {image_ref!r}")
     for ln in logical:
         op = ln.split(None, 1)[0].upper()
         if op in ("COPY", "ADD"):
@@ -385,9 +385,9 @@ def devcontainer_check(root: str) -> list:
     viol = devcontainer_violations(Path(path).read_text(encoding="utf-8"), ref)
     images = (data.get("build") or {}).get("images") or {}
     os_tag = (images.get("os") or {}).get("tag_key")
-    dev_arg = ((images.get("devcontainer") or {}).get("build_args") or {}).get("MIOS_IMAGE")
+    dev_arg = ((images.get("devcontainer") or {}).get("build_args") or {}).get("MIOS_IMAGE_REF")
     if not os_tag or dev_arg != os_tag:
-        viol.append(f"[build.images.devcontainer].build_args.MIOS_IMAGE {dev_arg!r} is not the os"
+        viol.append(f"[build.images.devcontainer].build_args.MIOS_IMAGE_REF {dev_arg!r} is not the os"
                     f" target's tag_key {os_tag!r}: a local dev build would not layer on the image it built")
     return viol
 

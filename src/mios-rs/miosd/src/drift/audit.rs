@@ -130,7 +130,16 @@ pub fn native(ctx: &DriftCtx, name: &str, args: &[&str]) -> Verdict {
         let mut candidates = Vec::<PathBuf>::new();
         if let Some(path) = std::env::var_os(&override_name) {
             candidates.push(path.into());
+        } else if let Some(directory) = std::env::var_os("MIOS_NATIVE_BIN_DIR") {
+            // An explicit catalog root is authoritative. Missing tools fail
+            // here instead of silently executing an older host installation.
+            candidates.push(PathBuf::from(directory).join(&filename));
         } else {
+            if let Ok(executable) = std::env::current_exe() {
+                if let Some(parent) = executable.parent() {
+                    candidates.push(parent.join(&filename));
+                }
+            }
             for directory in [
                 "tools/native/target/release",
                 "src/mios-rs/target/release",
@@ -138,11 +147,6 @@ pub fn native(ctx: &DriftCtx, name: &str, args: &[&str]) -> Verdict {
                 "usr/libexec/mios",
             ] {
                 candidates.push(ctx.root.join(directory).join(&filename));
-            }
-            if let Ok(executable) = std::env::current_exe() {
-                if let Some(parent) = executable.parent() {
-                    candidates.push(parent.join(&filename));
-                }
             }
             candidates.push(Path::new("/usr/bin").join(&filename));
             candidates.push(Path::new("/usr/libexec/mios").join(&filename));

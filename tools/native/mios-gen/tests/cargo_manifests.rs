@@ -44,7 +44,30 @@ impl Drop for Restorer {
 
 #[test]
 fn test_cargo_manifests_cli_e2e() {
-    let root = get_repo_root();
+    let source = get_repo_root();
+    let fixture = tempfile::tempdir().expect("create isolated manifest fixture");
+    let root = fixture.path().to_path_buf();
+    // Negative controls must never remove a member from the workspace that
+    // another build or test is reading. Only manifests participate in this
+    // projection, so retain the real inputs in a private temporary tree.
+    for relative in [
+        "VERSION",
+        "usr/share/mios/mios.toml",
+        "tools/native/Cargo.toml",
+    ] {
+        let destination = root.join(relative);
+        fs::create_dir_all(destination.parent().expect("fixture parent")).unwrap();
+        fs::copy(source.join(relative), destination).expect("copy projection input");
+    }
+    for entry in fs::read_dir(source.join("tools/native")).expect("native members") {
+        let entry = entry.expect("native member");
+        let manifest = entry.path().join("Cargo.toml");
+        if manifest.is_file() {
+            let destination = root.join("tools/native").join(entry.file_name());
+            fs::create_dir_all(&destination).expect("fixture member");
+            fs::copy(manifest, destination.join("Cargo.toml")).expect("copy member manifest");
+        }
+    }
     let bin_path = bin();
 
     // 1. Positive control: standard check mode passes with exit code 0

@@ -27,11 +27,7 @@ ROOT="$(cd "$(dirname "$SELF")/../.." && pwd)"
 if [[ ! -f "$ROOT/usr/share/mios/mios.toml" ]]; then
     ROOT="${MIOS_ROOT:-}"
 fi
-if [[ $EUID -eq 0 ]]; then
-    STATE="${MIOS_CLOUD_STATE:-/var/lib/mios-cloud}"
-else
-    STATE="${MIOS_CLOUD_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/mios-cloud}"
-fi
+STATE=""
 BUILDER=0
 RT=""
 
@@ -43,13 +39,30 @@ require_root_checkout() {
         || die "no MiOS checkout: run this from .devcontainer/cloud-shell/ of a MiOS clone, or set MIOS_ROOT"
 }
 
-# The vendor SSOT of the checkout this script ships in.
-ssot() { MIOS_TOML_ROOT="$ROOT" python3 "$ROOT/usr/libexec/mios/mios-toml-get" --vendor "$@"; }
+# Resolve the selected checkout's layered operator configuration.
+ssot() {
+    if [[ -n "${MIOS_NATIVE_BIN_DIR:-}" ]]; then
+        local tool="$MIOS_NATIVE_BIN_DIR/mios-toml-get"
+        [[ -x "$tool" ]] || die "native mios-toml-get is missing from the selected catalog"
+        MIOS_TOML_ROOT="$ROOT" "$tool" "$@"
+    else
+        MIOS_TOML_ROOT="$ROOT" python3 "$ROOT/usr/libexec/mios/mios-toml-get" "$@"
+    fi
+}
 need() {
     local v
     v="$(ssot "$@")"
     [[ -n "$v" ]] || die "mios.toml [$1].$2 is empty"
     printf '%s\n' "$v"
+}
+
+initialize_state() {
+    STATE="${MIOS_DEPLOYMENT_CLOUD_STATE_DIRECTORY:-$(ssot deployment.cloud state_directory)}"
+    if [[ -z "$STATE" ]]; then
+        if [[ $EUID -eq 0 ]]; then STATE=/var/lib/mios-cloud
+        else STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mios-cloud"
+        fi
+    fi
 }
 
 # A devcontainer.json key, JSON-decoded to shell-friendly text (lists one per line).
@@ -70,6 +83,7 @@ PY
 }
 
 select_config() {
+    [[ "$BUILDER" == 0 || "$BUILDER" == 1 ]] || die "deployment.cloud.builder must be 0 or 1"
     if [[ "$BUILDER" == 1 ]]; then
         CONFIG="$ROOT/.devcontainer/artifact-builder/devcontainer.json"
     else
@@ -79,14 +93,14 @@ select_config() {
 }
 
 select_runtime() {
-    RT="${MIOS_CLOUD_RUNTIME:-}"
+    RT="${MIOS_DEPLOYMENT_CLOUD_RUNTIME:-$(ssot deployment.cloud runtime)}"
     if [[ -z "$RT" ]]; then
         if command -v podman >/dev/null 2>&1; then RT=podman
         elif command -v docker >/dev/null 2>&1; then RT=docker
         else die "neither podman nor docker is installed; MiOS is podman-native: install podman"
         fi
     fi
-    command -v "$RT" >/dev/null 2>&1 || die "MIOS_CLOUD_RUNTIME=$RT is not installed"
+    command -v "$RT" >/dev/null 2>&1 || die "MIOS_DEPLOYMENT_CLOUD_RUNTIME=$RT is not installed"
 }
 
 image_present() { "$RT" image inspect "$1" >/dev/null 2>&1; }
@@ -224,7 +238,7 @@ for k, v in data.items():
 # The host CA bundle the container must trust (an egress proxy's, e.g. Claude Code cloud).
 ca_bundle() {
     local c
-    for c in "${MIOS_CA_BUNDLE:-}" /root/.ccr/ca-bundle.crt "${SSL_CERT_FILE:-}"; do
+    for c in "${SSL_CERT_FILE:-}" /root/.ccr/ca-bundle.crt; do
         [[ -n "$c" && -f "$c" ]] && { printf '%s\n' "$c"; return 0; }
     done
     return 1
@@ -360,8 +374,8 @@ install_podman() {
 claude_code() {
     require_root_checkout
     install_podman
-    MIOS_CLOUD_RUNTIME="${MIOS_CLOUD_RUNTIME:-podman}"; select_runtime
-    BUILDER="${MIOS_CLOUD_BUILDER:-1}"; select_config
+    select_runtime
+    BUILDER="${MIOS_DEPLOYMENT_CLOUD_BUILDER:-$(need deployment.cloud builder)}"; select_config
     install -d -m 0755 "$STATE"
     printf '%s\n' "$ROOT" > "$STATE/source-root"
     preflight
@@ -378,7 +392,7 @@ codex() {
             [[ $EUID -eq 0 ]] || die "run the Codex install as root"
             install_podman
             command -v git >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 || die "git and python3 are required"
-            MIOS_CLOUD_RUNTIME="${MIOS_CLOUD_RUNTIME:-podman}"; select_runtime; select_config
+            select_runtime; select_config
             install -d -m 0755 "$STATE"; printf '%s\n' "$ROOT" > "$STATE/source-root"
             up
             write_wrapper /usr/local/bin/mios-dev
@@ -390,7 +404,7 @@ codex() {
             codex check ;;
         check)
             select_runtime; select_config
-            "$RT" exec -u "$(dc_json remoteUser)" -e "MIOS_PRIMARY=$(need workspace root)/$(need workspace primary)" \
+            "$RT" exec -u "$(dc_json remoteUser)" -e "WORKSPACE_ROOT=$(need workspace root)/$(need workspace primary)" \
                 "$(container_name)" bash -lc '
 set -euo pipefail
 . /etc/os-release
@@ -407,7 +421,7 @@ catalog = json.loads(subprocess.check_output(["mios", "agents"], text=True))
 for row in catalog["agents"]:
     subprocess.run([row["executable"], "--version"], check=True, timeout=30)
 PY
-bash "$MIOS_PRIMARY/.devcontainer/mios-agent-pipe-dev" check
+bash "$WORKSPACE_ROOT/.devcontainer/mios-agent-pipe-dev" check
 echo "MiOS image userspace, SSOT theme, agent catalog and gateway checks passed."
 ' ;;
         *) die "usage: bootstrap.sh codex install|start|check" ;;
@@ -445,11 +459,14 @@ oracle_podman_socket() {
 gce_up() {
     require_root_checkout
     command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed (https://cloud.google.com/sdk/docs/install)"
-    local instance zone mtype disk dtype family iproject cname ref dropin want startup
-    instance="${MIOS_GCE_INSTANCE:-$(need deployment.cloud.gce instance)}"
-    zone="${MIOS_GCE_ZONE:-$(need deployment.cloud.gce zone)}"
-    mtype="${MIOS_GCE_MACHINE_TYPE:-$(need deployment.cloud.gce machine_type)}"
-    disk="${MIOS_GCE_DISK_GB:-$(need deployment.cloud.gce boot_disk_gb)}"
+    local instance zone mtype disk dtype family iproject cname ref dropin want startup project
+    local project_args=()
+    project="${MIOS_DEPLOYMENT_CLOUD_GCE_PROJECT:-$(ssot deployment.cloud.gce project)}"
+    [[ -z "$project" ]] || project_args=(--project "$project")
+    instance="${MIOS_DEPLOYMENT_CLOUD_GCE_INSTANCE:-$(need deployment.cloud.gce instance)}"
+    zone="${MIOS_DEPLOYMENT_CLOUD_GCE_ZONE:-$(need deployment.cloud.gce zone)}"
+    mtype="${MIOS_DEPLOYMENT_CLOUD_GCE_MACHINE_TYPE:-$(need deployment.cloud.gce machine_type)}"
+    disk="${MIOS_DEPLOYMENT_CLOUD_GCE_BOOT_DISK_GB:-$(need deployment.cloud.gce boot_disk_gb)}"
     dtype="$(need deployment.cloud.gce boot_disk_type)"
     family="$(need deployment.cloud.gce image_family)"; iproject="$(need deployment.cloud.gce image_project)"
     cname="$(need deployment.cloud.gce container)"
@@ -491,7 +508,7 @@ SH
     gcloud compute instances create "$instance" --zone "$zone" --machine-type "$mtype" \
         --boot-disk-size "${disk}GB" --boot-disk-type "$dtype" \
         --image-family "$family" --image-project "$iproject" \
-        --metadata-from-file startup-script="$startup" ${MIOS_GCE_PROJECT:+--project "$MIOS_GCE_PROJECT"}
+        --metadata-from-file startup-script="$startup" "${project_args[@]}"
     log "first boot pulls ${ref} (~23 GB); follow: gcloud compute ssh $instance --zone $zone -- sudo journalctl -u google-startup-scripts -f"
     log "enter: gcloud compute ssh $instance --zone $zone -- sudo podman exec -it $cname bash -l"
     log "native alternative: on that VM, 'bootc install to-existing-root' (or 'bootc switch' from a bootc host) makes ${ref} the booted OS"
@@ -500,11 +517,17 @@ SH
 gce_down() {
     require_root_checkout
     command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed"
-    gcloud compute instances delete "${MIOS_GCE_INSTANCE:-$(need deployment.cloud.gce instance)}" \
-        --zone "${MIOS_GCE_ZONE:-$(need deployment.cloud.gce zone)}" ${MIOS_GCE_PROJECT:+--project "$MIOS_GCE_PROJECT"}
+    local project
+    local project_args=()
+    project="${MIOS_DEPLOYMENT_CLOUD_GCE_PROJECT:-$(ssot deployment.cloud.gce project)}"
+    [[ -z "$project" ]] || project_args=(--project "$project")
+    gcloud compute instances delete "${MIOS_DEPLOYMENT_CLOUD_GCE_INSTANCE:-$(need deployment.cloud.gce instance)}" \
+        --zone "${MIOS_DEPLOYMENT_CLOUD_GCE_ZONE:-$(need deployment.cloud.gce zone)}" "${project_args[@]}"
 }
 
 main() {
+    require_root_checkout
+    initialize_state
     local mode="${1:-up}"; shift || true
     local args=()
     for a in "$@"; do

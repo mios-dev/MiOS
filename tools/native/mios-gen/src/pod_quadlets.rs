@@ -808,7 +808,9 @@ pub fn merge_engine_overlay(
             .entry(section.clone())
             .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
             .as_table_mut()
-            .ok_or_else(|| format!("[{at}] overlays {section}, which the spec declares as a scalar"))?;
+            .ok_or_else(|| {
+                format!("[{at}] overlays {section}, which the spec declares as a scalar")
+            })?;
         for (key, value) in values {
             match (target.get_mut(key), value) {
                 (Some(existing), toml::Value::Array(more)) => {
@@ -887,7 +889,9 @@ pub fn apply_engine_overlays(
         })?;
         for engine in &declared {
             if !engines[engine].is_table() {
-                return Err(format!("[{at}.{engine}] must be a table of Quadlet sections"));
+                return Err(format!(
+                    "[{at}.{engine}] must be a table of Quadlet sections"
+                ));
             }
         }
         merge_engine_overlay(spec, overlay, &format!("{at}.{chosen}"))?;
@@ -921,9 +925,7 @@ pub fn apply_bound_image_store(
         None => "",
         Some(toml::Value::String(s)) => s.as_str(),
         Some(_) => {
-            return Err(
-                "[build.bake].additional_image_store must be an absolute path".to_string(),
-            )
+            return Err("[build.bake].additional_image_store must be an absolute path".to_string())
         }
     };
     if store.is_empty() {
@@ -1783,7 +1785,10 @@ mod tests {
         ));
         assert!(text.contains("Image=docker.io/vllm/vllm-openai:latest"));
         assert!(!text.contains("sglang.launch_server"));
-        assert!(!text.contains("[engine"), "the overlay table never renders: {text}");
+        assert!(
+            !text.contains("[engine"),
+            "the overlay table never renders: {text}"
+        );
 
         let doc: toml::Value = toml::from_str("[ai]\nheavy_engine = \"sglang\"\n").unwrap();
         let mut specs = engine_lane();
@@ -1799,7 +1804,10 @@ mod tests {
     #[test]
     fn engine_overlay_fails_on_an_unresolvable_selection() {
         let cases = [
-            ("[ai]\nheavy_engine = \"tgi\"\n", "\"tgi\", which is not a declared overlay table (sglang, vllm)"),
+            (
+                "[ai]\nheavy_engine = \"tgi\"\n",
+                "\"tgi\", which is not a declared overlay table (sglang, vllm)",
+            ),
             ("[ai]\n", "that SSOT key is not declared"),
             ("[ai]\nheavy_engine = 3\n", "is not an engine name"),
         ];
@@ -1807,7 +1815,10 @@ mod tests {
             let doc: toml::Value = toml::from_str(ssot).unwrap();
             let mut specs = engine_lane();
             let err = apply_engine_overlays(&mut specs, &doc, "containers").unwrap_err();
-            assert!(err.contains("[containers.lane.engine]") && err.contains(want), "{err}");
+            assert!(
+                err.contains("[containers.lane.engine]") && err.contains(want),
+                "{err}"
+            );
         }
         let doc: toml::Value = toml::from_str("[ai]\nheavy_engine = \"vllm\"\n").unwrap();
         let mut specs = engine_lane();
@@ -1929,7 +1940,8 @@ mod tests {
     // The bound-store contract tools/test_drift-checks.py held over the retired
     // generate-pod-quadlets.py, carried to the implementation that replaced it.
     const STORE: &str = "/usr/lib/bootc/storage";
-    const BAKE: &str = "additional_image_store = \"/usr/lib/bootc/storage\"\nfirstboot_tokens = [\"floating\"]\n";
+    const BAKE: &str =
+        "additional_image_store = \"/usr/lib/bootc/storage\"\nfirstboot_tokens = [\"floating\"]\n";
 
     /// One system unit `core` running `image`, with `args` as its GlobalArgs.
     fn project(
@@ -1963,13 +1975,19 @@ mod tests {
     }
 
     fn strings(items: &[&str]) -> toml::Value {
-        toml::Value::Array(items.iter().map(|s| toml::Value::String((*s).into())).collect())
+        toml::Value::Array(
+            items
+                .iter()
+                .map(|s| toml::Value::String((*s).into()))
+                .collect(),
+        )
     }
 
     #[test]
     fn bound_store_preserves_other_args_and_is_idempotent() {
         let wanted = format!("--storage-opt=additionalimagestore={STORE}");
-        let (res, mut containers) = project(BAKE, Some(strings(&["--log-level=debug"])), "example/core");
+        let (res, mut containers) =
+            project(BAKE, Some(strings(&["--log-level=debug"])), "example/core");
         res.unwrap();
         let expected = strings(&["--log-level=debug", &wanted]);
         assert_eq!(global_args(&containers), Some(expected.clone()));
@@ -2020,10 +2038,16 @@ mod tests {
 
     #[test]
     fn bound_store_never_reaches_a_floating_image() {
-        let (res, containers) =
-            project(BAKE, Some(strings(&["--log-level=debug"])), "example/floating");
+        let (res, containers) = project(
+            BAKE,
+            Some(strings(&["--log-level=debug"])),
+            "example/floating",
+        );
         res.unwrap();
-        assert_eq!(global_args(&containers), Some(strings(&["--log-level=debug"])));
+        assert_eq!(
+            global_args(&containers),
+            Some(strings(&["--log-level=debug"]))
+        );
         let store = toml::Value::String(format!("--storage-opt=additionalimagestore={STORE}"));
         let (res, _) = project(BAKE, Some(store), "example/floating");
         assert!(res.unwrap_err().contains("firstboot image"));
