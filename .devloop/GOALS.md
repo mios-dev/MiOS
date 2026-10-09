@@ -43,6 +43,15 @@ passes on the real tree or system) and a negative control (a planted defect make
 - **M0, current:** recover Codex thread 01a116b2 (unified build console, native dashboard, Windows
   tmux profile, native drift checks) and push PR #61 with drift-gate green (0 MISSING) and the
   CodeQL highs fixed. Merge to main once CI is green and the operator confirms.
+  - **Status (2026-10-09):**
+    - Integration `7aebb7a6` is pushed to PR #61. The companion bootstrap PR is mios-dev/mios-bootstrap#26.
+    - Replay of `aa0ab95b`: generated, lint and Rust are green; unit is 415/2; the gate is down to 7 checks.
+    - Seven lanes are merged: mcp-aio, gate-ledger, gate-tests, gate-docs, gate-neg, docs-ratchet-1 and gate-reg.
+    - Still open:
+      - gate-legib: shell_lines is 492 over;
+      - value-dup: T-998/T-1013;
+      - Hyper-V VHDX (P0-9 Phase A).
+    - ETA: local replay green in about 3–5 h; GitHub CI green 2–5 h after that, since the smoke bake has not been green since 08-21; then merge on the operator's go-ahead.
 - **M0.5, before the merge that publishes `:latest`** (from `docs/research/upstream-prior-art-gaps-2026-10.md`):
   - P0-2: move the source-tree gates (phases 97/98, `miosd drift-check`) out of the Containerfile bake; the bake keeps image-content assertions only.
   - P1-4: stop baking the known password `mios` into `/etc/shadow`; inject credentials at install.
